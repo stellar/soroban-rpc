@@ -48,8 +48,8 @@ pub struct TransactionStatusResult {
 pub struct GetTransactionStatusResponse {
     pub id: String,
     pub status: String,
-    #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    pub results: Vec<TransactionStatusResult>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub results: Option<Vec<TransactionStatusResult>>,
 }
 
 // TODO: this should also be used by serve
@@ -127,7 +127,7 @@ impl Client {
                 "success" => {
                     // TODO: the caller should probably be printing this
                     eprintln!("{}", response.status);
-                    return Ok(response.results);
+                    return Ok(response.results.unwrap_or_default());
                 }
                 "error" => {
                     // TODO: provide a more elaborate error
