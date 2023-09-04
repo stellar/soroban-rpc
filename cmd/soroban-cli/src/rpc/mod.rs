@@ -92,6 +92,8 @@ pub enum Error {
     Spec(#[from] soroban_spec::read::FromWasmError),
     #[error(transparent)]
     SpecBase64(#[from] soroban_spec::read::ParseSpecBase64Error),
+    #[error("transacionData was missing in simulateTransactionResponse")]
+    TransactionDataMissing,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
@@ -200,11 +202,26 @@ pub struct SimulateHostFunctionResult {
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
+pub struct SimulateTransactionResponseRestorePreamble {
+    #[serde(rename = "transactionData")]
+    pub transaction_data: String,
+    #[serde(
+        rename = "minResourceFee",
+        deserialize_with = "deserialize_number_from_string"
+    )]
+    pub min_resource_fee: u32,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub struct SimulateTransactionResponse {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub error: Option<String>,
-    #[serde(rename = "transactionData")]
-    pub transaction_data: String,
+    #[serde(
+        rename = "transactionData",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub transaction_data: Option<String>,
     #[serde(deserialize_with = "deserialize_default_from_null")]
     pub events: Vec<String>,
     #[serde(
@@ -220,6 +237,12 @@ pub struct SimulateTransactionResponse {
         deserialize_with = "deserialize_number_from_string"
     )]
     pub latest_ledger: u32,
+    #[serde(
+        rename = "restorePreamble",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    restore_preamble: Option<SimulateTransactionResponseRestorePreamble>,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]

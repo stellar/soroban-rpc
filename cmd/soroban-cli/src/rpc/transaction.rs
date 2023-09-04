@@ -26,8 +26,13 @@ pub fn assemble(
             count: tx.operations.len(),
         });
     }
+    let xdr_transaction_data = simulation.transaction_data.as_ref().unwrap();
 
-    let transaction_data = SorobanTransactionData::from_xdr_base64(&simulation.transaction_data)?;
+    if xdr_transaction_data.is_empty() {
+        return Err(Error::TransactionDataMissing {});
+    }
+
+    let transaction_data = SorobanTransactionData::from_xdr_base64(xdr_transaction_data)?;
 
     let mut op = tx.operations[0].clone();
     if let OperationBody::InvokeHostFunction(ref mut body) = &mut op.body {
@@ -267,7 +272,7 @@ mod tests {
 
         SimulateTransactionResponse {
             error: None,
-            transaction_data: transaction_data().to_xdr_base64().unwrap(),
+            transaction_data: Some(transaction_data().to_xdr_base64().unwrap()),
             events: Vec::default(),
             min_resource_fee: 115,
             results: vec![SimulateHostFunctionResult {
@@ -279,6 +284,7 @@ mod tests {
                 mem_bytes: "0".to_string(),
             },
             latest_ledger: 3,
+            restore_preamble: None,
         }
     }
 
@@ -387,7 +393,7 @@ mod tests {
             &txn,
             &SimulateTransactionResponse {
                 error: None,
-                transaction_data: transaction_data().to_xdr_base64().unwrap(),
+                transaction_data: Some(transaction_data().to_xdr_base64().unwrap()),
                 events: Vec::default(),
                 min_resource_fee: 115,
                 results: vec![],
@@ -396,6 +402,7 @@ mod tests {
                     mem_bytes: "0".to_string(),
                 },
                 latest_ledger: 3,
+                restore_preamble: None,
             },
         );
 
@@ -413,7 +420,7 @@ mod tests {
             &txn,
             &SimulateTransactionResponse {
                 error: None,
-                transaction_data: transaction_data().to_xdr_base64().unwrap(),
+                transaction_data: Some(transaction_data().to_xdr_base64().unwrap()),
                 events: Vec::default(),
                 min_resource_fee: 115,
                 results: vec![],
@@ -422,6 +429,7 @@ mod tests {
                     mem_bytes: "0".to_string(),
                 },
                 latest_ledger: 3,
+                restore_preamble: None,
             },
         );
 
