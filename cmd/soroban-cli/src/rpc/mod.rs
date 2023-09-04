@@ -5,15 +5,12 @@ use jsonrpsee_core::{self, client::ClientT, rpc_params};
 use jsonrpsee_http_client::{HeaderMap, HttpClient, HttpClientBuilder};
 use serde_aux::prelude::{deserialize_default_from_null, deserialize_number_from_string};
 use soroban_env_host::xdr::DepthLimitedRead;
-use soroban_env_host::{
-    budget::Budget,
-    xdr::{
-        self, AccountEntry, AccountId, ContractDataEntry, DiagnosticEvent, Error as XdrError,
-        LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyAccount, PublicKey, ReadXdr,
-        SequenceNumber, SorobanAuthorizationEntry, Transaction, TransactionEnvelope,
-        TransactionMeta, TransactionMetaV3, TransactionResult, TransactionV1Envelope, Uint256,
-        VecM, WriteXdr,
-    },
+use soroban_env_host::xdr::{
+    self, AccountEntry, AccountId, ContractDataEntry, DiagnosticEvent, Error as XdrError,
+    LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyAccount, PublicKey, ReadXdr,
+    SequenceNumber, SorobanAuthorizationEntry, SorobanResources, Transaction, TransactionEnvelope,
+    TransactionMeta, TransactionMetaV3, TransactionResult, TransactionV1Envelope, Uint256, VecM,
+    WriteXdr,
 };
 use soroban_sdk::token;
 use std::{
@@ -36,8 +33,9 @@ pub type LogEvents = fn(
     footprint: &LedgerFootprint,
     auth: &[VecM<SorobanAuthorizationEntry>],
     events: &[DiagnosticEvent],
-    budget: Option<&Budget>,
 ) -> ();
+
+pub type LogResources = fn(resources: &SorobanResources) -> ();
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -632,10 +630,7 @@ soroban config identity fund {address} --helper-url <url>"#
                 signatures: VecM::default(),
             }))
             .await?;
-        Ok((
-            assemble(tx, &sim_response, log_events)?,
-            sim_response.restore_preamble,
-        ))
+        Ok((assemble(tx, &sim_response)?, sim_response.restore_preamble))
     }
 
     pub async fn prepare_and_send_transaction(
@@ -645,6 +640,7 @@ soroban config identity fund {address} --helper-url <url>"#
         signers: &[ed25519_dalek::Keypair],
         network_passphrase: &str,
         log_events: Option<LogEvents>,
+        log_resources: Option<LogResources>,
     ) -> Result<(TransactionResult, TransactionMeta, Vec<DiagnosticEvent>), Error> {
         let GetLatestLedgerResponse { sequence, .. } = self.get_latest_ledger().await?;
         let (mut unsigned_tx, restore_preamble) = self
@@ -668,14 +664,38 @@ soroban config identity fund {address} --helper-url <url>"#
             sequence + 60, // ~5 minutes of ledgers
             network_passphrase,
         )?;
-        let fee_ready_txn = if signed_auth_entries.is_empty() {
-            part_signed_tx
+        let (fee_ready_txn, events) = if signed_auth_entries.is_empty() {
+            (part_signed_tx, events)
         } else {
             // re-simulate to calculate the new fees
             self.prepare_transaction(&part_signed_tx, log_events)
                 .await?
                 .0
         };
+
+        // Try logging stuff if requested
+        if let Transaction {
+            ext: xdr::TransactionExt::V1(xdr::SorobanTransactionData { resources, .. }),
+            ..
+        } = fee_ready_txn.clone()
+        {
+            if let Some(log) = log_events {
+                if let xdr::Operation {
+                    body:
+                        xdr::OperationBody::InvokeHostFunction(xdr::InvokeHostFunctionOp {
+                            auth, ..
+                        }),
+                    ..
+                } = &fee_ready_txn.operations[0]
+                {
+                    log(&resources.footprint, &[auth.clone()], &events);
+                }
+            }
+            if let Some(log) = log_resources {
+                log(&resources);
+            }
+        }
+
         let tx = utils::sign_transaction(source_key, &fee_ready_txn, network_passphrase)?;
         self.send_transaction(&tx).await
     }
@@ -753,7 +773,6 @@ soroban config identity fund {address} --helper-url <url>"#
             contract: xdr::ScAddress::Contract(xdr::Hash(*contract_id)),
             key: xdr::ScVal::LedgerKeyContractInstance,
             durability: xdr::ContractDataDurability::Persistent,
-            body_type: xdr::ContractEntryBodyType::DataEntry,
         });
         let contract_ref = self.get_ledger_entries(&[contract_key]).await?;
         let entries = contract_ref.entries.unwrap_or_default();
@@ -771,13 +790,9 @@ soroban config identity fund {address} --helper-url <url>"#
     pub async fn get_remote_wasm(&self, contract_id: &[u8; 32]) -> Result<Vec<u8>, Error> {
         match self.get_contract_data(contract_id).await? {
             xdr::ContractDataEntry {
-                body:
-                    xdr::ContractDataEntryBody::DataEntry(xdr::ContractDataEntryData {
-                        val:
-                            xdr::ScVal::ContractInstance(xdr::ScContractInstance {
-                                executable: xdr::ContractExecutable::Wasm(hash),
-                                ..
-                            }),
+                val:
+                    xdr::ScVal::ContractInstance(xdr::ScContractInstance {
+                        executable: xdr::ContractExecutable::Wasm(hash),
                         ..
                     }),
                 ..
@@ -787,10 +802,7 @@ soroban config identity fund {address} --helper-url <url>"#
     }
 
     pub async fn get_remote_wasm_from_hash(&self, hash: xdr::Hash) -> Result<Vec<u8>, Error> {
-        let code_key = LedgerKey::ContractCode(xdr::LedgerKeyContractCode {
-            hash: hash.clone(),
-            body_type: xdr::ContractEntryBodyType::DataEntry,
-        });
+        let code_key = LedgerKey::ContractCode(xdr::LedgerKeyContractCode { hash: hash.clone() });
         let contract_data = self.get_ledger_entries(&[code_key]).await?;
         let entries = contract_data.entries.unwrap_or_default();
         if entries.is_empty() {
@@ -801,10 +813,7 @@ soroban config identity fund {address} --helper-url <url>"#
         }
         let contract_data_entry = &entries[0];
         match LedgerEntryData::from_xdr_base64(&contract_data_entry.xdr)? {
-            LedgerEntryData::ContractCode(xdr::ContractCodeEntry {
-                body: xdr::ContractCodeEntryBody::DataEntry(code),
-                ..
-            }) => Ok(code.into()),
+            LedgerEntryData::ContractCode(xdr::ContractCodeEntry { code, .. }) => Ok(code.into()),
             scval => Err(Error::UnexpectedContractCodeDataType(scval)),
         }
     }
@@ -814,10 +823,7 @@ soroban config identity fund {address} --helper-url <url>"#
         contract_id: &[u8; 32],
     ) -> Result<Vec<xdr::ScSpecEntry>, Error> {
         let contract_data = self.get_contract_data(contract_id).await?;
-        let xdr::ContractDataEntryBody::DataEntry(data) = contract_data.body else {
-            return Err(Error::Xdr(XdrError::Invalid));
-        };
-        match data.val {
+        match contract_data.val {
             xdr::ScVal::ContractInstance(xdr::ScContractInstance {
                 executable: xdr::ContractExecutable::Wasm(hash),
                 ..

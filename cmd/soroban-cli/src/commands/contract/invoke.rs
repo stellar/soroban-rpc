@@ -9,7 +9,7 @@ use std::{fmt::Debug, fs, io, rc::Rc};
 use clap::{arg, command, value_parser, Parser};
 use ed25519_dalek::Keypair;
 use heck::ToKebabCase;
-use soroban_env_host::e2e_invoke::get_ledger_changes;
+use soroban_env_host::e2e_invoke::{get_ledger_changes, ExpirationEntryMap};
 use soroban_env_host::xdr::ReadXdr;
 use soroban_env_host::{
     budget::Budget,
@@ -19,7 +19,8 @@ use soroban_env_host::{
         InvokeHostFunctionOp, LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyAccount, Memo,
         MuxedAccount, Operation, OperationBody, Preconditions, PublicKey, ScAddress, ScSpecEntry,
         ScSpecFunctionV0, ScSpecTypeDef, ScVal, ScVec, SequenceNumber, SorobanAddressCredentials,
-        SorobanAuthorizationEntry, SorobanCredentials, Transaction, TransactionExt, Uint256, VecM,
+        SorobanAuthorizationEntry, SorobanCredentials, SorobanResources, Transaction,
+        TransactionExt, Uint256, VecM,
     },
     DiagnosticLevel, Host, HostError,
 };
@@ -32,7 +33,7 @@ use super::super::{
     events,
 };
 use crate::{
-    commands::HEADING_SANDBOX,
+    commands::{global, HEADING_SANDBOX},
     rpc::{self, Client},
     utils::{self, contract_spec, create_ledger_footprint, default_account_ledger_entry},
     Pwd,
@@ -262,21 +263,24 @@ impl Cmd {
         Ok((function.clone(), spec, invoke_args, signers))
     }
 
-    pub async fn run(&self) -> Result<(), Error> {
-        let res = self.invoke().await?;
+    pub async fn run(&self, global_args: &global::Args) -> Result<(), Error> {
+        let res = self.invoke(global_args).await?;
         println!("{res}");
         Ok(())
     }
 
-    pub async fn invoke(&self) -> Result<String, Error> {
+    pub async fn invoke(&self, global_args: &global::Args) -> Result<String, Error> {
         if self.config.is_no_network() {
-            self.run_in_sandbox()
+            self.run_in_sandbox(global_args)
         } else {
-            self.run_against_rpc_server().await
+            self.run_against_rpc_server(global_args).await
         }
     }
 
-    pub async fn run_against_rpc_server(&self) -> Result<String, Error> {
+    pub async fn run_against_rpc_server(
+        &self,
+        global_args: &global::Args,
+    ) -> Result<String, Error> {
         let network = self.config.get_network()?;
         tracing::trace!(?network);
         let contract_id = self.contract_id()?;
@@ -315,6 +319,8 @@ impl Cmd {
                 &signers,
                 &network.network_passphrase,
                 Some(log_events),
+                (global_args.verbose || global_args.very_verbose || self.cost)
+                    .then_some(log_resources),
             )
             .await?;
 
@@ -331,7 +337,7 @@ impl Cmd {
         output_to_string(&spec, &return_value, &function)
     }
 
-    pub fn run_in_sandbox(&self) -> Result<String, Error> {
+    pub fn run_in_sandbox(&self, global_args: &global::Args) -> Result<String, Error> {
         let contract_id = self.contract_id()?;
         // Initialize storage and host
         // TODO: allow option to separate input and output file
@@ -354,16 +360,19 @@ impl Cmd {
         {
             state.ledger_entries.push((
                 Box::new(source_account_ledger_key),
-                Box::new(default_account_ledger_entry(source_account.clone())),
+                (
+                    Box::new(default_account_ledger_entry(source_account.clone())),
+                    None,
+                ),
             ));
         }
 
         let snap = Rc::new(state.clone());
-        let mut storage = Storage::with_recording_footprint(snap);
+        let storage = Storage::with_recording_footprint(snap);
         let spec_entries = if let Some(spec) = self.spec_entries()? {
             spec
         } else {
-            utils::get_contract_spec_from_storage(&mut storage, &state.sequence_number, contract_id)
+            utils::get_contract_spec_from_state(&state, contract_id)
                 .map_err(Error::CannotParseContractSpec)?
         };
         let budget = Budget::default();
@@ -417,10 +426,15 @@ impl Cmd {
         let budget = h.budget_cloned();
         let (storage, events) = h.try_finish()?;
         let footprint = &create_ledger_footprint(&storage.footprint);
-        crate::log::host_events(&events.0);
-        log_events(footprint, &[contract_auth.try_into()?], &[], Some(&budget));
 
-        let ledger_changes = get_ledger_changes(&budget, &storage, &state)?;
+        crate::log::host_events(&events.0);
+        log_events(footprint, &[contract_auth.try_into()?], &[]);
+        if global_args.verbose || global_args.very_verbose || self.cost {
+            log_budget(&budget);
+        }
+
+        let ledger_changes =
+            get_ledger_changes(&budget, &storage, &state, ExpirationEntryMap::new())?;
         let mut expiration_ledger_bumps: HashMap<LedgerKey, u32> = HashMap::new();
         for ledger_entry_change in ledger_changes {
             if let Some(exp_change) = ledger_entry_change.expiration_change {
@@ -489,14 +503,18 @@ fn log_events(
     footprint: &LedgerFootprint,
     auth: &[VecM<SorobanAuthorizationEntry>],
     events: &[xdr::DiagnosticEvent],
-    budget: Option<&Budget>,
 ) {
     crate::log::auth(auth);
     crate::log::diagnostic_events(events, tracing::Level::TRACE);
     crate::log::footprint(footprint);
-    if let Some(budget) = budget {
-        crate::log::budget(budget);
-    }
+}
+
+fn log_budget(budget: &Budget) {
+    crate::log::budget(budget);
+}
+
+fn log_resources(resources: &SorobanResources) {
+    crate::log::cost(resources);
 }
 
 pub fn output_to_string(spec: &Spec, res: &ScVal, function: &str) -> Result<String, Error> {
