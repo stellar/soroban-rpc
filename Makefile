@@ -40,10 +40,7 @@ CARGO_BUILD_TARGET ?= $(shell rustc -vV | sed -n 's|host: ||p')
 Cargo.lock: Cargo.toml
 	cargo update --workspace
 
-install_rust: Cargo.lock
-	cargo install --path ./cmd/crates/soroban-test/tests/fixtures/hello --root ./target --debug --quiet
-
-install: install_rust build-libpreflight
+install: build-libpreflight
 	go install -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} ./...
 
 build_rust: Cargo.lock
@@ -52,24 +49,12 @@ build_rust: Cargo.lock
 build_go: build-libpreflight
 	go build -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} ./...
 
-# regenerate the example lib in `cmd/crates/soroban-spec-typsecript/fixtures/ts`
-build-snapshot: typescript-bindings-fixtures
-
 build: build_rust build_go
 
 build-libpreflight: Cargo.lock
 	cd cmd/soroban-rpc/lib/preflight && cargo build --target $(CARGO_BUILD_TARGET) --profile release-with-panic-unwind
 
-build-test-wasms: Cargo.lock
-	cargo build --package 'test_*' --profile test-wasms --target wasm32-unknown-unknown
-
-build-test: build-test-wasms install_rust
-
-test: build-test
-	cargo test 
-
-e2e-test:
-	cargo test --test it -- --ignored
+test: cargo test 
 
 check: Cargo.lock
 	cargo clippy --all-targets
@@ -84,9 +69,6 @@ clean:
 	cargo clean
 	go clean ./...
 
-publish:
-	cargo workspaces publish --all --force '*' --from-git --yes
-
 # the build-soroban-rpc build target is an optimized build target used by 
 # https://github.com/stellar/pipelines/stellar-horizon/Jenkinsfile-soroban-rpc-package-builder
 # as part of the package building.
@@ -99,14 +81,6 @@ lint-changes:
 lint:
 	golangci-lint run ./...
 
-typescript-bindings-fixtures: build-test-wasms
-	cargo run -- contract bindings typescript \
-					--wasm ./target/wasm32-unknown-unknown/test-wasms/test_custom_types.wasm \
-					--contract-id CBYMYMSDF6FBDNCFJCRC7KMO4REYFPOH2U4N7FXI3GJO6YXNCQ43CDSK \
-					--network futurenet \
-					--output-dir ./cmd/crates/soroban-spec-typescript/fixtures/test_custom_types \
-					--overwrite
-
 
 # PHONY lists all the targets that aren't file names, so that make would skip the timestamp based check.
-.PHONY: publish clean fmt watch check e2e-test test build-test-wasms install build build-soroban-rpc build-libpreflight lint lint-changes build-snapshot typescript-bindings-fixtures
+.PHONY: publish clean fmt watch check test install build build-soroban-rpc build-libpreflight lint lint-changes
