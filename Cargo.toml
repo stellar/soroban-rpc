@@ -13,7 +13,8 @@ rust-version = "1.74.0"
 [workspace.dependencies.soroban-env-host]
 version = "=20.1.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "c1b238b65bfd13666be4ac14e0e390c31b549caf"
+rev = "36d33cb6c986c9a8a9200b7eb04cf02e2c3f0ef4"
+
 [workspace.dependencies]
 base64 = "0.21.2"
 thiserror = "1.0.46"
@@ -30,6 +31,9 @@ tracing-subscriber = "0.3.16"
 tracing-appender = "0.2.2"
 which = "4.4.0"
 wasmparser = "0.90.0"
+
+# [patch."https://github.com/stellar/rs-soroban-env"]
+# soroban-env-host = { path = "../rs-soroban-env/soroban-env-host/" }
 
 [workspace.dependencies.soroban-sdk]
 version = "=20.1.0"
