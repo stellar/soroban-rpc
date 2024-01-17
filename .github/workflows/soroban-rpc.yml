@@ -29,6 +29,7 @@ jobs:
         with:
           go-version: ${{ matrix.go }}
       - run: make build-libpreflight
+      - run: make build-test-wasms
       - run: go test -race -cover -timeout 25m -v ./cmd/soroban-rpc/...
 
   build:

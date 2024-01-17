@@ -60,7 +60,7 @@ build-libpreflight: Cargo.lock
 build-test-wasms: Cargo.lock
 	cargo build --package 'test_*' --profile test-wasms --target wasm32-unknown-unknown
 
-build-test: install_rust
+build-test: build-test-wasms install_rust
 
 test: build-test
 	cargo test 
