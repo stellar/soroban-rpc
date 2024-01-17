@@ -1,0 +1,5 @@
+target/
+captive-core/
+.soroban/
+!test.toml
+*.sqlite
