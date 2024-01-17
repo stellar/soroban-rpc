@@ -40,7 +40,10 @@ CARGO_BUILD_TARGET ?= $(shell rustc -vV | sed -n 's|host: ||p')
 Cargo.lock: Cargo.toml
 	cargo update --workspace
 
-install: build-libpreflight
+install_rust:
+	cargo install --path ./cmd/crates/soroban-test/tests/fixtures/hello --root ./target --debug --quiet
+
+install: install_rust build-libpreflight
 	go install -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} ./...
 
 build_rust: Cargo.lock
@@ -54,7 +57,13 @@ build: build_rust build_go
 build-libpreflight: Cargo.lock
 	cd cmd/soroban-rpc/lib/preflight && cargo build --target $(CARGO_BUILD_TARGET) --profile release-with-panic-unwind
 
-test: cargo test 
+build-test-wasms: Cargo.lock
+	cargo build --package 'test_*' --profile test-wasms --target wasm32-unknown-unknown
+
+build-test: install_rust
+
+test: build-test
+	cargo test 
 
 check: Cargo.lock
 	cargo clippy --all-targets

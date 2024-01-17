@@ -2,6 +2,8 @@
 resolver = "2"
 members = [
     "cmd/soroban-rpc/lib/preflight",
+    "cmd/crates/soroban-test/tests/fixtures/test-wasms/*",
+    "cmd/crates/soroban-test/tests/fixtures/hello",
 ]
 
 [workspace.package]
@@ -28,6 +30,22 @@ tracing-subscriber = "0.3.16"
 tracing-appender = "0.2.2"
 which = "4.4.0"
 wasmparser = "0.90.0"
+
+[workspace.dependencies.soroban-sdk]
+version = "=20.1.0"
+git = "https://github.com/stellar/rs-soroban-sdk"
+rev = "e6c2c900ab82b5f6eec48f69cb2cb519e19819cb"
+
+[profile.test-wasms]
+inherits = "release"
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = true
+panic = "abort"
+codegen-units = 1
+lto = true
 
 [profile.release-with-panic-unwind]
 inherits = 'release'
