@@ -14,10 +14,10 @@ ifeq ($(strip $(REPOSITORY_VERSION)),)
 endif  
 REPOSITORY_BRANCH := "$(shell git rev-parse --abbrev-ref HEAD)"
 BUILD_TIMESTAMP ?= $(shell date '+%Y-%m-%dT%H:%M:%S')
-GOLDFLAGS :=	-X 'github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/config.Version=${REPOSITORY_VERSION}' \
-				-X 'github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/config.CommitHash=${REPOSITORY_COMMIT_HASH}' \
-				-X 'github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/config.BuildTimestamp=${BUILD_TIMESTAMP}' \
-				-X 'github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/config.Branch=${REPOSITORY_BRANCH}'
+GOLDFLAGS :=	-X 'github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config.Version=${REPOSITORY_VERSION}' \
+				-X 'github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config.CommitHash=${REPOSITORY_COMMIT_HASH}' \
+				-X 'github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config.BuildTimestamp=${BUILD_TIMESTAMP}' \
+				-X 'github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config.Branch=${REPOSITORY_BRANCH}'
 
 
 # The following works around incompatibility between the rust and the go linkers -
