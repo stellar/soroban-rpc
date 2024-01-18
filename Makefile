@@ -41,6 +41,7 @@ Cargo.lock: Cargo.toml
 	cargo update --workspace
 
 install_rust: Cargo.lock
+	cargo install --path ./cmd/soroban-cli --debug
 	cargo install --path ./cmd/crates/soroban-test/tests/fixtures/hello --root ./target --debug --quiet
 
 install: install_rust build-libpreflight
