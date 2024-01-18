@@ -50,7 +50,8 @@ rev = "7ee51fa731aa21365363aef687bae6040b81aa7a"
 
 [workspace.dependencies.soroban-spec-tools]
 version = "20.2.0"
-path = "./cmd/crates/soroban-spec-tools"
+git = "https://github.com/stellar/soroban-tools"
+rev = "7ee51fa731aa21365363aef687bae6040b81aa7a"
 
 [workspace.dependencies.soroban-sdk]
 version = "=20.1.0"
