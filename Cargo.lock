@@ -723,12 +723,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "diff"
-version = "0.1.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56254986775e3233ffa9c4d7d3faaf6d36a2c09d30b20687e9f88bc8bafc16c8"
-
-[[package]]
 name = "difflib"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1917,16 +1911,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pretty_assertions"
-version = "1.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af7cee1a6c8a5b9208b3cb1061f10c0cb689087b3d8ce85fb9d2dd7a29b6ba66"
-dependencies = [
- "diff",
- "yansi",
-]
-
-[[package]]
 name = "prettyplease"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2757,22 +2741,20 @@ dependencies = [
 [[package]]
 name = "soroban-spec-typescript"
 version = "20.2.0"
+source = "git+https://github.com/stellar/soroban-tools?rev=7ee51fa731aa21365363aef687bae6040b81aa7a#7ee51fa731aa21365363aef687bae6040b81aa7a"
 dependencies = [
  "base64 0.21.5",
  "heck",
  "include_dir",
  "itertools 0.10.5",
- "pretty_assertions",
  "prettyplease",
  "serde",
  "serde_derive",
  "serde_json",
  "sha2 0.9.9",
- "soroban-spec 20.1.0 (git+https://github.com/stellar/rs-soroban-sdk?rev=e6c2c900ab82b5f6eec48f69cb2cb519e19819cb)",
+ "soroban-spec 20.1.0 (git+https://github.com/stellar/rs-soroban-sdk?rev=811ce3da801c03a21d5fa80fda187c0f1012240f)",
  "stellar-xdr",
- "temp-dir",
  "thiserror",
- "walkdir",
 ]
 
 [[package]]
@@ -2932,12 +2914,6 @@ dependencies = [
  "quote",
  "unicode-ident",
 ]
-
-[[package]]
-name = "temp-dir"
-version = "0.1.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af547b166dd1ea4b472165569fc456cfb6818116f854690b0ff205e636523dab"
 
 [[package]]
 name = "tempfile"
@@ -3721,12 +3697,6 @@ name = "windows_x86_64_msvc"
 version = "0.52.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dff9641d1cd4be8d1a070daf9e3773c5f67e78b4d9d42263020c057706765c04"
-
-[[package]]
-name = "yansi"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09041cd90cf85f7f8b2df60c646f853b7f535ce68f85244eb6731cf89fa498ec"
 
 [[package]]
 name = "zeroize"
