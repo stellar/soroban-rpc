@@ -2531,7 +2531,7 @@ dependencies = [
  "soroban-env-host",
  "soroban-ledger-snapshot",
  "soroban-sdk",
- "soroban-spec",
+ "soroban-spec 20.1.0 (git+https://github.com/stellar/rs-soroban-sdk?rev=e6c2c900ab82b5f6eec48f69cb2cb519e19819cb)",
  "soroban-spec-json",
  "soroban-spec-rust",
  "soroban-spec-tools",
@@ -2667,7 +2667,7 @@ dependencies = [
  "rustc_version",
  "sha2 0.10.8",
  "soroban-env-common",
- "soroban-spec",
+ "soroban-spec 20.1.0 (git+https://github.com/stellar/rs-soroban-sdk?rev=e6c2c900ab82b5f6eec48f69cb2cb519e19819cb)",
  "soroban-spec-rust",
  "stellar-xdr",
  "syn 2.0.39",
@@ -2688,6 +2688,17 @@ dependencies = [
 [[package]]
 name = "soroban-spec"
 version = "20.1.0"
+source = "git+https://github.com/stellar/rs-soroban-sdk?rev=811ce3da801c03a21d5fa80fda187c0f1012240f#811ce3da801c03a21d5fa80fda187c0f1012240f"
+dependencies = [
+ "base64 0.13.1",
+ "stellar-xdr",
+ "thiserror",
+ "wasmparser 0.88.0",
+]
+
+[[package]]
+name = "soroban-spec"
+version = "20.1.0"
 source = "git+https://github.com/stellar/rs-soroban-sdk?rev=e6c2c900ab82b5f6eec48f69cb2cb519e19819cb#e6c2c900ab82b5f6eec48f69cb2cb519e19819cb"
 dependencies = [
  "base64 0.13.1",
@@ -2699,13 +2710,13 @@ dependencies = [
 [[package]]
 name = "soroban-spec-json"
 version = "20.2.0"
+source = "git+https://github.com/stellar/soroban-tools?rev=7ee51fa731aa21365363aef687bae6040b81aa7a#7ee51fa731aa21365363aef687bae6040b81aa7a"
 dependencies = [
- "pretty_assertions",
  "serde",
  "serde_derive",
  "serde_json",
  "sha2 0.9.9",
- "soroban-spec",
+ "soroban-spec 20.1.0 (git+https://github.com/stellar/rs-soroban-sdk?rev=811ce3da801c03a21d5fa80fda187c0f1012240f)",
  "stellar-xdr",
  "thiserror",
 ]
@@ -2719,7 +2730,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "sha2 0.10.8",
- "soroban-spec",
+ "soroban-spec 20.1.0 (git+https://github.com/stellar/rs-soroban-sdk?rev=e6c2c900ab82b5f6eec48f69cb2cb519e19819cb)",
  "stellar-xdr",
  "syn 2.0.39",
  "thiserror",
@@ -2734,7 +2745,7 @@ dependencies = [
  "hex",
  "itertools 0.10.5",
  "serde_json",
- "soroban-spec",
+ "soroban-spec 20.1.0 (git+https://github.com/stellar/rs-soroban-sdk?rev=e6c2c900ab82b5f6eec48f69cb2cb519e19819cb)",
  "stellar-strkey 0.0.7",
  "stellar-xdr",
  "thiserror",
@@ -2757,7 +2768,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "sha2 0.9.9",
- "soroban-spec",
+ "soroban-spec 20.1.0 (git+https://github.com/stellar/rs-soroban-sdk?rev=e6c2c900ab82b5f6eec48f69cb2cb519e19819cb)",
  "stellar-xdr",
  "temp-dir",
  "thiserror",
@@ -2779,7 +2790,7 @@ dependencies = [
  "soroban-env-host",
  "soroban-ledger-snapshot",
  "soroban-sdk",
- "soroban-spec",
+ "soroban-spec 20.1.0 (git+https://github.com/stellar/rs-soroban-sdk?rev=e6c2c900ab82b5f6eec48f69cb2cb519e19819cb)",
  "soroban-spec-tools",
  "stellar-strkey 0.0.7",
  "thiserror",
