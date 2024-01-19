@@ -277,11 +277,11 @@ func runSuccessfulCLICmd(t *testing.T, cmd string) string {
 }
 
 func runCLICommand(t *testing.T, cmd string) *icmd.Result {
-	args := []string{"run", "-q", "--", "--vv"}
+	args := []string{"-q", "--vv"}
 	parsedArgs, err := shlex.Split(cmd)
 	require.NoError(t, err, cmd)
 	args = append(args, parsedArgs...)
-	c := icmd.Command("cargo", args...)
+	c := icmd.Command("soroban", args...)
 	c.Env = append(os.Environ(),
 		fmt.Sprintf("SOROBAN_RPC_URL=http://localhost:%d/", sorobanRPCPort),
 		fmt.Sprintf("SOROBAN_NETWORK_PASSPHRASE=%s", StandaloneNetworkPassphrase),
