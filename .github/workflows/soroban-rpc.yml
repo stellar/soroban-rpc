@@ -126,4 +126,5 @@ jobs:
           go-version: ${{ matrix.go }}
       - name: Run Soroban RPC Integration Tests
         run: |
+          make install_rust
           go test -race -run '${{ matrix.test }}' -timeout 60m -v ./cmd/soroban-rpc/internal/test/...
