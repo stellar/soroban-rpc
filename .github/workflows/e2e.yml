@@ -69,6 +69,11 @@ jobs:
         with:
           repository: stellar/soroban-tools
           path: soroban-tools
+      - uses: actions/checkout@v3
+        name: checkout soroban-rpc
+        with:
+          repository: stellar/soroban-rpc
+          path: soroban-rpc
 
       - if: ${{ env.SYSTEM_TEST_JS_STELLAR_SDK_GH_REPO != ''}}
         name: prepare local js-stellar-sdk
