@@ -2586,6 +2586,8 @@ dependencies = [
 name = "soroban-spec"
 version = "20.3.0"
 source = "git+https://github.com/stellar/rs-soroban-sdk?rev=4aef54ff9295c2fca4c5b9fbd2c92d0ff99f67de#4aef54ff9295c2fca4c5b9fbd2c92d0ff99f67de"
+version = "20.3.0"
+source = "git+https://github.com/stellar/rs-soroban-sdk?rev=4aef54ff9295c2fca4c5b9fbd2c92d0ff99f67de#4aef54ff9295c2fca4c5b9fbd2c92d0ff99f67de"
 dependencies = [
  "base64 0.13.1",
  "stellar-xdr",
@@ -2597,6 +2599,7 @@ dependencies = [
 name = "soroban-spec-json"
 version = "20.2.0"
 source = "git+https://github.com/stellar/soroban-tools?rev=6a19e181a5699c33b409f1c39f6fdc6b784769e0#6a19e181a5699c33b409f1c39f6fdc6b784769e0"
+version = "20.3.0"
 version = "20.3.0"
 dependencies = [
  "serde",
@@ -2627,6 +2630,7 @@ dependencies = [
 name = "soroban-spec-tools"
 version = "20.2.0"
 source = "git+https://github.com/stellar/soroban-tools?rev=6a19e181a5699c33b409f1c39f6fdc6b784769e0#6a19e181a5699c33b409f1c39f6fdc6b784769e0"
+version = "20.3.0"
 version = "20.3.0"
 dependencies = [
  "base64 0.21.5",
@@ -2662,6 +2666,7 @@ dependencies = [
 name = "soroban-spec-typescript"
 version = "20.2.0"
 source = "git+https://github.com/stellar/soroban-tools?rev=6a19e181a5699c33b409f1c39f6fdc6b784769e0#6a19e181a5699c33b409f1c39f6fdc6b784769e0"
+version = "20.3.0"
 version = "20.3.0"
 dependencies = [
  "base64 0.21.5",
