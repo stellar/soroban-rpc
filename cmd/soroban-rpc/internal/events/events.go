@@ -15,24 +15,17 @@ import (
 	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
-type bucket struct {
-	ledgerSeq            uint32
-	ledgerCloseTimestamp int64
-	events               []event
-}
-
 type event struct {
-	contents   xdr.DiagnosticEvent
-	txIndex    uint32
-	opIndex    uint32
-	eventIndex uint32
+	diagnosticEventXDR []byte
+	txIndex            uint32
+	eventIndex         uint32
+	txHash     *xdr.Hash // intentionally stored as a pointer to save memory (amortized as soon as there are two events in a transaction)
 }
 
 func (e event) cursor(ledgerSeq uint32) Cursor {
 	return Cursor{
 		Ledger: ledgerSeq,
 		Tx:     e.txIndex,
-		Op:     e.opIndex,
 		Event:  e.eventIndex,
 	}
 }
@@ -98,13 +91,15 @@ type Range struct {
 	ClampEnd bool
 }
 
+type ScanFunction func(xdr.DiagnosticEvent, Cursor, int64, *xdr.Hash) bool
+
 // Scan applies f on all the events occurring in the given range.
 // The events are processed in sorted ascending Cursor order.
 // If f returns false, the scan terminates early (f will not be applied on
 // remaining events in the range). Note that a read lock is held for the
 // entire duration of the Scan function so f should be written in a way
 // to minimize latency.
-func (m *MemoryStore) Scan(eventRange Range, f func(xdr.DiagnosticEvent, Cursor, int64) bool) (uint32, error) {
+func (m *MemoryStore) Scan(eventRange Range, f ScanFunction) (uint32, error) {
 	startTime := time.Now()
 	m.lock.RLock()
 	defer m.lock.RUnlock()
@@ -129,7 +124,12 @@ func (m *MemoryStore) Scan(eventRange Range, f func(xdr.DiagnosticEvent, Cursor,
 			if eventRange.End.Cmp(cur) <= 0 {
 				return lastLedgerInWindow, nil
 			}
-			if !f(event.contents, cur, timestamp) {
+			var diagnosticEvent xdr.DiagnosticEvent
+			err := xdr.SafeUnmarshal(event.diagnosticEventXDR, &diagnosticEvent)
+			if err != nil {
+				return 0, err
+			}
+			if !f(diagnosticEvent, cur, timestamp, event.txHash) {
 				return lastLedgerInWindow, nil
 			}
 		}
@@ -201,7 +201,9 @@ func (m *MemoryStore) IngestEvents(ledgerCloseMeta xdr.LedgerCloseMeta) error {
 		BucketContent:        events,
 	}
 	m.lock.Lock()
-	m.eventsByLedger.Append(bucket)
+	if _, err = m.eventsByLedger.Append(bucket); err != nil {
+		return err
+	}
 	m.lock.Unlock()
 	m.eventsDurationMetric.With(prometheus.Labels{"operation": "ingest"}).
 		Observe(time.Since(startTime).Seconds())
@@ -236,20 +238,22 @@ func readEvents(networkPassphrase string, ledgerCloseMeta xdr.LedgerCloseMeta) (
 		if !tx.Result.Successful() {
 			continue
 		}
+
 		txEvents, err := tx.GetDiagnosticEvents()
 		if err != nil {
 			return nil, err
 		}
+		txHash := tx.Result.TransactionHash
 		for index, e := range txEvents {
+			diagnosticEventXDR, err := e.MarshalBinary()
+			if err != nil {
+				return nil, err
+			}
 			events = append(events, event{
-				contents: e,
-				txIndex:  tx.Index,
-				// NOTE: we cannot really index by operation since all events
-				//       are provided as part of the transaction. However,
-				//       that shouldn't matter in practice since a transaction
-				//       can only contain a single Host Function Invocation.
-				opIndex:    0,
-				eventIndex: uint32(index),
+				diagnosticEventXDR: diagnosticEventXDR,
+				txIndex:            tx.Index,
+				eventIndex:         uint32(index),
+				txHash:             &txHash,
 			})
 		}
 	}
