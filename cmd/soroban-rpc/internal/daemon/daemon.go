@@ -149,6 +149,7 @@ func MustNew(cfg *config.Config) *Daemon {
 		logger.Fatal("no history archives url were provided")
 	}
 
+
 	historyArchive, err := historyarchive.NewArchivePool(
 		cfg.HistoryArchiveURLs,
 		historyarchive.ArchiveOptions{

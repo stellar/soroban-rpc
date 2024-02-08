@@ -551,6 +551,8 @@ If no keys are specified the contract itself is extended.
 * `--wasm-hash <WASM_HASH>` — Path to Wasm file of contract code to extend
 * `--durability <DURABILITY>` — Storage entry durability
 
+  Default value: `persistent`
+
   Possible values:
   - `persistent`:
     Persistent
@@ -735,6 +737,8 @@ soroban contract invoke ... -- --help
 
 * `--id <CONTRACT_ID>` — Contract ID to invoke
 * `--cost` — Output the cost execution to stderr
+* `--instructions <INSTRUCTIONS>` — Number of instructions to simulate
+* `--is-view` — Do not sign and submit transaction
 * `--rpc-url <RPC_URL>` — RPC server endpoint
 * `--network-passphrase <NETWORK_PASSPHRASE>` — Network passphrase to sign the transaction sent to the rpc server
 * `--network <NETWORK>` — Name of network to use from config
@@ -788,6 +792,8 @@ Print the current value of a contract-data ledger entry
 * `--wasm-hash <WASM_HASH>` — Path to Wasm file of contract code to extend
 * `--durability <DURABILITY>` — Storage entry durability
 
+  Default value: `persistent`
+
   Possible values:
   - `persistent`:
     Persistent
@@ -820,6 +826,8 @@ If no keys are specificed the contract itself is restored.
 * `--wasm <WASM>` — Path to Wasm file of contract code to extend
 * `--wasm-hash <WASM_HASH>` — Path to Wasm file of contract code to extend
 * `--durability <DURABILITY>` — Storage entry durability
+
+  Default value: `persistent`
 
   Possible values:
   - `persistent`:
