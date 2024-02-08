@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stellar/go/historyarchive"
 	"github.com/stellar/go/ingest/ledgerbackend"
 	"github.com/stellar/go/network"
 	supportlog "github.com/stellar/go/support/log"
@@ -65,6 +66,16 @@ func TestRetryRunningIngestion(t *testing.T) {
 func TestIngestion(t *testing.T) {
 	mockDB := &MockDB{}
 	mockLedgerBackend := &ledgerbackend.MockDatabaseBackend{}
+
+	mockArchive := historyarchive.MockArchive{}
+	mockArchiveStats := historyarchive.MockArchiveStats{}
+	mockArchive.On("GetStats").Return([]historyarchive.ArchiveStats{&mockArchiveStats}).Once()
+	mockArchiveStats.On("GetBackendName").Return("").Times(4)
+	mockArchiveStats.On("GetDownloads").Return(uint32(0)).Once()
+	mockArchiveStats.On("GetCacheHits").Return(uint32(0)).Once()
+	mockArchiveStats.On("GetRequests").Return(uint32(0)).Once()
+	mockArchiveStats.On("GetUploads").Return(uint32(0)).Once()
+
 	daemon := interfaces.MakeNoOpDeamon()
 	config := Config{
 		Logger:            supportlog.New(),
@@ -74,6 +85,7 @@ func TestIngestion(t *testing.T) {
 		LedgerBackend:     mockLedgerBackend,
 		Daemon:            daemon,
 		NetworkPassPhrase: network.TestNetworkPassphrase,
+		Archive:           &mockArchive,
 	}
 	sequence := uint32(3)
 	service := newService(config)
