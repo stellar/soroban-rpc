@@ -146,9 +146,10 @@ type LedgerInfo struct {
 }
 
 type Transaction struct {
-	Result           []byte // XDR encoded xdr.TransactionResult
-	Meta             []byte // XDR encoded xdr.TransactionMeta
-	Envelope         []byte // XDR encoded xdr.TransactionEnvelope
+	Result           []byte   // XDR encoded xdr.TransactionResult
+	Meta             []byte   // XDR encoded xdr.TransactionMeta
+	Envelope         []byte   // XDR encoded xdr.TransactionEnvelope
+	Events           [][]byte // XDR encoded xdr.DiagnosticEvent
 	FeeBump          bool
 	ApplicationOrder int32
 	Successful       bool
@@ -198,10 +199,33 @@ func (m *MemoryStore) GetTransaction(hash xdr.Hash) (Transaction, bool, StoreRan
 	if !ok {
 		return Transaction{}, false, storeRange
 	}
+
+	var txMeta xdr.TransactionMeta
+	err := txMeta.UnmarshalBinary(internalTx.meta)
+	if err != nil {
+		return Transaction{}, false, storeRange
+	}
+
+	txEvents, err := txMeta.GetDiagnosticEvents()
+	if err != nil {
+		return Transaction{}, false, storeRange
+	}
+
+	var events = make([][]byte, 0, len(txEvents))
+
+	for _, e := range txEvents {
+		diagnosticEventXDR, err := e.MarshalBinary()
+		if err != nil {
+			return Transaction{}, false, storeRange
+		}
+		events = append(events, diagnosticEventXDR)
+	}
+
 	tx := Transaction{
 		Result:           internalTx.result,
 		Meta:             internalTx.meta,
 		Envelope:         internalTx.envelope,
+		Events:           events,
 		FeeBump:          internalTx.feeBump,
 		Successful:       internalTx.successful,
 		ApplicationOrder: internalTx.applicationOrder,
