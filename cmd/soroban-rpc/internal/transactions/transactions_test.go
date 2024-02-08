@@ -20,6 +20,7 @@ func expectedTransaction(t *testing.T, ledger uint32, feeBump bool) Transaction 
 		FeeBump:          feeBump,
 		ApplicationOrder: 1,
 		Ledger:           expectedLedgerInfo(ledger),
+		Events:           [][]byte{},
 	}
 	var err error
 	tx.Result, err = transactionResult(ledger, feeBump).MarshalBinary()
@@ -359,7 +360,7 @@ func TestGetTransactionsWithEventData(t *testing.T) {
 	tx, ok, _ := store.GetTransaction(txHash(1, false))
 	require.True(t, ok)
 	require.NotNil(t, tx.Events)
-	require.Len(t, len(tx.Events), 1)
+	require.Len(t, tx.Events, 1)
 }
 
 func stableHeapInUse() int64 {
