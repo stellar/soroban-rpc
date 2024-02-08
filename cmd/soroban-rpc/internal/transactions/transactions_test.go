@@ -359,7 +359,7 @@ func TestGetTransactionsWithEventData(t *testing.T) {
 	tx, ok, _ := store.GetTransaction(txHash(1, false))
 	require.True(t, ok)
 	require.NotNil(t, tx.Events)
-
+	require.Equal(t, 1, len(tx.Events))
 }
 
 func stableHeapInUse() int64 {
