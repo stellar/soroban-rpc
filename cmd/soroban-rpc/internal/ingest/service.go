@@ -73,19 +73,41 @@ func newService(cfg Config) *Service {
 		[]string{"type"},
 	)
 
-	cfg.Daemon.MetricsRegistry().MustRegister(ingestionDurationMetric, latestLedgerMetric, ledgerStatsMetric)
+	haStatsMetric := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: cfg.Daemon.MetricsNamespace(), Subsystem: "ingest", Name: "history_archive_stats_total",
+			Help: "Counters of different ingestion archive requests.  " +
+				"'source' label will provide name/address of the physical history archive server from the pool for which a request may be sent.  " +
+				"'type' label will further categorize the potential request into specific requests, " +
+				"'file_downloads' - the count of files downloaded from an archive server, " +
+				"'file_uploads' - the count of files uploaded to an archive server, " +
+				"'requests' - the count of all http requests(includes both queries and file downloads) sent to an archive server, " +
+				"'cache_hits' - the count of requests for an archive file that were found on local cache instead, no download request sent to archive server.",
+		},
+		[]string{"source", "type"},
+	)
+
+	cfg.Daemon.MetricsRegistry().MustRegister(
+		ingestionDurationMetric,
+		latestLedgerMetric,
+		ledgerStatsMetric,
+		haStatsMetric)
 
 	service := &Service{
-		logger:                  cfg.Logger,
-		db:                      cfg.DB,
-		eventStore:              cfg.EventStore,
-		transactionStore:        cfg.TransactionStore,
-		ledgerBackend:           cfg.LedgerBackend,
-		networkPassPhrase:       cfg.NetworkPassPhrase,
-		timeout:                 cfg.Timeout,
-		ingestionDurationMetric: ingestionDurationMetric,
-		latestLedgerMetric:      latestLedgerMetric,
-		ledgerStatsMetric:       ledgerStatsMetric,
+		logger:            cfg.Logger,
+		db:                cfg.DB,
+		eventStore:        cfg.EventStore,
+		transactionStore:  cfg.TransactionStore,
+		ledgerBackend:     cfg.LedgerBackend,
+		networkPassPhrase: cfg.NetworkPassPhrase,
+		timeout:           cfg.Timeout,
+		metrics: Metrics{
+			ingestionDurationMetric: ingestionDurationMetric,
+			latestLedgerMetric:      latestLedgerMetric,
+			ledgerStatsMetric:       ledgerStatsMetric,
+			haStatsMetric:           haStatsMetric,
+		},
+		archive: cfg.Archive,
 	}
 
 	return service
@@ -119,19 +141,25 @@ func startService(service *Service, cfg Config) {
 	})
 }
 
-type Service struct {
-	logger                  *log.Entry
-	db                      db.ReadWriter
-	eventStore              *events.MemoryStore
-	transactionStore        *transactions.MemoryStore
-	ledgerBackend           backends.LedgerBackend
-	timeout                 time.Duration
-	networkPassPhrase       string
-	done                    context.CancelFunc
-	wg                      sync.WaitGroup
+type Metrics struct {
 	ingestionDurationMetric *prometheus.SummaryVec
 	latestLedgerMetric      prometheus.Gauge
 	ledgerStatsMetric       *prometheus.CounterVec
+	haStatsMetric           *prometheus.CounterVec
+}
+
+type Service struct {
+	logger            *log.Entry
+	db                db.ReadWriter
+	eventStore        *events.MemoryStore
+	transactionStore  *transactions.MemoryStore
+	ledgerBackend     backends.LedgerBackend
+	timeout           time.Duration
+	networkPassPhrase string
+	done              context.CancelFunc
+	wg                sync.WaitGroup
+	metrics           Metrics
+	archive           historyarchive.ArchiveInterface
 }
 
 func (s *Service) Close() error {
@@ -286,10 +314,36 @@ func (s *Service) ingest(ctx context.Context, sequence uint32) error {
 	}
 	s.logger.Debugf("Ingested ledger %d", sequence)
 
-	s.ingestionDurationMetric.
+	s.metrics.ingestionDurationMetric.
 		With(prometheus.Labels{"type": "total"}).Observe(time.Since(startTime).Seconds())
-	s.latestLedgerMetric.Set(float64(sequence))
+	s.metrics.latestLedgerMetric.Set(float64(sequence))
+	s.addHistoryArchiveStatsMetrics(s.archive.GetStats())
 	return nil
+}
+
+func (s *Service) addHistoryArchiveStatsMetrics(stats []historyarchive.ArchiveStats) {
+	for _, historyServerStat := range stats {
+		s.metrics.haStatsMetric.
+			With(prometheus.Labels{
+				"source": historyServerStat.GetBackendName(),
+				"type":   "file_downloads"}).
+			Add(float64(historyServerStat.GetDownloads()))
+		s.metrics.haStatsMetric.
+			With(prometheus.Labels{
+				"source": historyServerStat.GetBackendName(),
+				"type":   "file_uploads"}).
+			Add(float64(historyServerStat.GetUploads()))
+		s.metrics.haStatsMetric.
+			With(prometheus.Labels{
+				"source": historyServerStat.GetBackendName(),
+				"type":   "requests"}).
+			Add(float64(historyServerStat.GetRequests()))
+		s.metrics.haStatsMetric.
+			With(prometheus.Labels{
+				"source": historyServerStat.GetBackendName(),
+				"type":   "cache_hits"}).
+			Add(float64(historyServerStat.GetCacheHits()))
+	}
 }
 
 func (s *Service) ingestLedgerCloseMeta(tx db.WriteTx, ledgerCloseMeta xdr.LedgerCloseMeta) error {
@@ -297,7 +351,7 @@ func (s *Service) ingestLedgerCloseMeta(tx db.WriteTx, ledgerCloseMeta xdr.Ledge
 	if err := tx.LedgerWriter().InsertLedger(ledgerCloseMeta); err != nil {
 		return err
 	}
-	s.ingestionDurationMetric.
+	s.metrics.ingestionDurationMetric.
 		With(prometheus.Labels{"type": "ledger_close_meta"}).Observe(time.Since(startTime).Seconds())
 
 	if err := s.eventStore.IngestEvents(ledgerCloseMeta); err != nil {

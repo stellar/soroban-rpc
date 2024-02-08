@@ -3,10 +3,12 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/pprof" //nolint:gosec
 	"os"
 	"os/signal"
+	"path"
 	runtimePprof "runtime/pprof"
 	"sync"
 	"syscall"
@@ -18,7 +20,9 @@ import (
 	"github.com/stellar/go/historyarchive"
 	"github.com/stellar/go/ingest/ledgerbackend"
 	supporthttp "github.com/stellar/go/support/http"
+	"github.com/stellar/go/support/log"
 	supportlog "github.com/stellar/go/support/log"
+	"github.com/stellar/go/support/storage"
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal"
@@ -144,12 +148,24 @@ func MustNew(cfg *config.Config) *Daemon {
 	if len(cfg.HistoryArchiveURLs) == 0 {
 		logger.Fatal("no history archives url were provided")
 	}
-	historyArchive, err := historyarchive.Connect(
-		cfg.HistoryArchiveURLs[0],
-		historyarchive.ConnectOptions{
+
+	historyArchive, err := historyarchive.NewArchivePool(
+		cfg.HistoryArchiveURLs,
+		historyarchive.ArchiveOptions{
+			NetworkPassphrase:   cfg.NetworkPassphrase,
 			CheckpointFrequency: cfg.CheckpointFrequency,
+			ConnectOptions: storage.ConnectOptions{
+				Context:   context.Background(),
+				UserAgent: fmt.Sprintf("soroban-rpc/%s", config.Version)},
+			CacheConfig: historyarchive.CacheOptions{
+				Cache:    true,
+				Path:     path.Join(cfg.CaptiveCoreStoragePath, "bucket-cache"),
+				Log:      log.WithField("subservice", "ha-cache"),
+				MaxFiles: 150,
+			},
 		},
 	)
+
 	if err != nil {
 		logger.WithError(err).Fatal("could not connect to history archive")
 	}
