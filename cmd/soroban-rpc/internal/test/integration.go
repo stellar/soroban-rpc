@@ -3,6 +3,10 @@ package test
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -47,6 +51,9 @@ type Test struct {
 
 	daemon *daemon.Daemon
 
+	historyArchiveProxy         *httptest.Server
+	historyArchiveProxyCallback func(*http.Request)
+
 	coreClient *stellarcore.Client
 
 	masterAccount txnbuild.Account
@@ -54,7 +61,7 @@ type Test struct {
 	shutdownCalls []func()
 }
 
-func NewTest(t *testing.T) *Test {
+func NewTest(t *testing.T, i *Test) *Test {
 	if os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_ENABLED") == "" {
 		t.Skip("skipping integration test: SOROBAN_RPC_INTEGRATION_TESTS_ENABLED not set")
 	}
@@ -63,14 +70,30 @@ func NewTest(t *testing.T) *Test {
 		t.Fatal("missing SOROBAN_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN")
 	}
 
-	i := &Test{
-		t:           t,
-		composePath: findDockerComposePath(),
+	if i == nil {
+		i = &Test{}
 	}
+
+	i.t = t
+	i.composePath = findDockerComposePath()
 	i.masterAccount = &txnbuild.SimpleAccount{
 		AccountID: i.MasterKey().Address(),
 		Sequence:  0,
 	}
+
+	origin, err := url.Parse("http://localhost:1570")
+	if err != nil {
+		panic(err)
+	}
+	proxy := httputil.NewSingleHostReverseProxy(origin)
+
+	i.historyArchiveProxy = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if i.historyArchiveProxyCallback != nil {
+			i.historyArchiveProxyCallback(r)
+		}
+		proxy.ServeHTTP(w, r)
+	}))
+
 	i.runComposeCommand("up", "--detach", "--quiet-pull", "--no-color")
 	i.prepareShutdownHandlers()
 	i.coreClient = &stellarcore.Client{URL: "http://localhost:" + strconv.Itoa(stellarCorePort)}
@@ -138,7 +161,7 @@ func (i *Test) launchDaemon(coreBinaryPath string) {
 	config.CaptiveCoreHTTPPort = 0
 	config.FriendbotURL = friendbotURL
 	config.NetworkPassphrase = StandaloneNetworkPassphrase
-	config.HistoryArchiveURLs = []string{"http://localhost:1570"}
+	config.HistoryArchiveURLs = []string{i.historyArchiveProxy.URL}
 	config.LogLevel = logrus.DebugLevel
 	config.SQLiteDBPath = path.Join(i.t.TempDir(), "soroban_rpc.sqlite")
 	config.IngestionTimeout = 10 * time.Minute
@@ -146,6 +169,7 @@ func (i *Test) launchDaemon(coreBinaryPath string) {
 	config.CheckpointFrequency = checkpointFrequency
 	config.MaxHealthyLedgerLatency = time.Second * 10
 	config.PreflightEnableDebug = true
+	config.HistoryArchiveUserAgent = "testing"
 
 	i.daemon = daemon.MustNew(&config)
 	go i.daemon.Run()
@@ -202,6 +226,9 @@ func (i *Test) prepareShutdownHandlers() {
 		func() {
 			if i.daemon != nil {
 				i.daemon.Close()
+			}
+			if i.historyArchiveProxy != nil {
+				i.historyArchiveProxy.Close()
 			}
 			i.runComposeCommand("down", "-v")
 		},

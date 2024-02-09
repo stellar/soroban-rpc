@@ -189,7 +189,7 @@ func preflightTransactionParams(t *testing.T, client *jrpc2.Client, params txnbu
 }
 
 func TestSimulateTransactionSucceeds(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
@@ -307,7 +307,7 @@ func TestSimulateTransactionSucceeds(t *testing.T) {
 }
 
 func TestSimulateTransactionWithAuth(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
@@ -365,7 +365,7 @@ func TestSimulateTransactionWithAuth(t *testing.T) {
 }
 
 func TestSimulateInvokeContractTransactionSucceeds(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
@@ -550,7 +550,7 @@ func TestSimulateInvokeContractTransactionSucceeds(t *testing.T) {
 }
 
 func TestSimulateTransactionError(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
@@ -590,7 +590,7 @@ func TestSimulateTransactionError(t *testing.T) {
 }
 
 func TestSimulateTransactionMultipleOperations(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
@@ -625,7 +625,7 @@ func TestSimulateTransactionMultipleOperations(t *testing.T) {
 }
 
 func TestSimulateTransactionWithoutInvokeHostFunction(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
@@ -656,7 +656,7 @@ func TestSimulateTransactionWithoutInvokeHostFunction(t *testing.T) {
 }
 
 func TestSimulateTransactionUnmarshalError(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
@@ -673,7 +673,7 @@ func TestSimulateTransactionUnmarshalError(t *testing.T) {
 }
 
 func TestSimulateTransactionExtendAndRestoreFootprint(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
@@ -906,7 +906,7 @@ func waitUntilLedgerEntryTTL(t *testing.T, client *jrpc2.Client, ledgerKey xdr.L
 }
 
 func TestSimulateInvokePrng_u64_in_range(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
@@ -1017,7 +1017,7 @@ func TestSimulateInvokePrng_u64_in_range(t *testing.T) {
 }
 
 func TestSimulateSystemEvent(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
