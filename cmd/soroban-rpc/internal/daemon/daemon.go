@@ -3,12 +3,10 @@ package daemon
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/pprof" //nolint:gosec
 	"os"
 	"os/signal"
-	"path"
 	runtimePprof "runtime/pprof"
 	"sync"
 	"syscall"
@@ -20,7 +18,6 @@ import (
 	"github.com/stellar/go/historyarchive"
 	"github.com/stellar/go/ingest/ledgerbackend"
 	supporthttp "github.com/stellar/go/support/http"
-	"github.com/stellar/go/support/log"
 	supportlog "github.com/stellar/go/support/log"
 	"github.com/stellar/go/support/storage"
 	"github.com/stellar/go/xdr"
@@ -125,7 +122,7 @@ func newCaptiveCore(cfg *config.Config, logger *supportlog.Entry) (*ledgerbacken
 		CheckpointFrequency: cfg.CheckpointFrequency,
 		Log:                 logger.WithField("subservice", "stellar-core"),
 		Toml:                captiveCoreToml,
-		UserAgent:           "captivecore",
+		UserAgent:           cfg.ExtendedUserAgent("captivecore"),
 		UseDB:               true,
 	}
 	return ledgerbackend.NewCaptive(captiveConfig)
@@ -156,12 +153,9 @@ func MustNew(cfg *config.Config) *Daemon {
 			CheckpointFrequency: cfg.CheckpointFrequency,
 			ConnectOptions: storage.ConnectOptions{
 				Context:   context.Background(),
-				UserAgent: fmt.Sprintf("soroban-rpc/%s", config.Version)},
+				UserAgent: cfg.HistoryArchiveUserAgent},
 			CacheConfig: historyarchive.CacheOptions{
-				Cache:    true,
-				Path:     path.Join(cfg.CaptiveCoreStoragePath, "bucket-cache"),
-				Log:      log.WithField("subservice", "ha-cache"),
-				MaxFiles: 150,
+				Cache: false,
 			},
 		},
 	)

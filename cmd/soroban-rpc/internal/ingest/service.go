@@ -73,19 +73,10 @@ func newService(cfg Config) *Service {
 		[]string{"type"},
 	)
 
-	haStatsMetric := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: cfg.Daemon.MetricsNamespace(), Subsystem: "ingest", Name: "history_archive_stats_total",
-			Help: "counters of different history archive stats",
-		},
-		[]string{"source", "type"},
-	)
-
 	cfg.Daemon.MetricsRegistry().MustRegister(
 		ingestionDurationMetric,
 		latestLedgerMetric,
-		ledgerStatsMetric,
-		haStatsMetric)
+		ledgerStatsMetric)
 
 	service := &Service{
 		logger:            cfg.Logger,
@@ -99,9 +90,7 @@ func newService(cfg Config) *Service {
 			ingestionDurationMetric: ingestionDurationMetric,
 			latestLedgerMetric:      latestLedgerMetric,
 			ledgerStatsMetric:       ledgerStatsMetric,
-			haStatsMetric:           haStatsMetric,
 		},
-		archive: cfg.Archive,
 	}
 
 	return service
@@ -139,7 +128,6 @@ type Metrics struct {
 	ingestionDurationMetric *prometheus.SummaryVec
 	latestLedgerMetric      prometheus.Gauge
 	ledgerStatsMetric       *prometheus.CounterVec
-	haStatsMetric           *prometheus.CounterVec
 }
 
 type Service struct {
@@ -153,7 +141,6 @@ type Service struct {
 	done              context.CancelFunc
 	wg                sync.WaitGroup
 	metrics           Metrics
-	archive           historyarchive.ArchiveInterface
 }
 
 func (s *Service) Close() error {
@@ -311,33 +298,7 @@ func (s *Service) ingest(ctx context.Context, sequence uint32) error {
 	s.metrics.ingestionDurationMetric.
 		With(prometheus.Labels{"type": "total"}).Observe(time.Since(startTime).Seconds())
 	s.metrics.latestLedgerMetric.Set(float64(sequence))
-	s.addHistoryArchiveStatsMetrics(s.archive.GetStats())
 	return nil
-}
-
-func (s *Service) addHistoryArchiveStatsMetrics(stats []historyarchive.ArchiveStats) {
-	for _, historyServerStat := range stats {
-		s.metrics.haStatsMetric.
-			With(prometheus.Labels{
-				"source": historyServerStat.GetBackendName(),
-				"type":   "file_downloads"}).
-			Add(float64(historyServerStat.GetDownloads()))
-		s.metrics.haStatsMetric.
-			With(prometheus.Labels{
-				"source": historyServerStat.GetBackendName(),
-				"type":   "file_uploads"}).
-			Add(float64(historyServerStat.GetUploads()))
-		s.metrics.haStatsMetric.
-			With(prometheus.Labels{
-				"source": historyServerStat.GetBackendName(),
-				"type":   "requests"}).
-			Add(float64(historyServerStat.GetRequests()))
-		s.metrics.haStatsMetric.
-			With(prometheus.Labels{
-				"source": historyServerStat.GetBackendName(),
-				"type":   "cache_hits"}).
-			Add(float64(historyServerStat.GetCacheHits()))
-	}
 }
 
 func (s *Service) ingestLedgerCloseMeta(tx db.WriteTx, ledgerCloseMeta xdr.LedgerCloseMeta) error {
