@@ -154,9 +154,6 @@ func MustNew(cfg *config.Config) *Daemon {
 			ConnectOptions: storage.ConnectOptions{
 				Context:   context.Background(),
 				UserAgent: cfg.HistoryArchiveUserAgent},
-			CacheConfig: historyarchive.CacheOptions{
-				Cache: false,
-			},
 		},
 	)
 
