@@ -3,6 +3,10 @@ package test
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -30,15 +34,21 @@ const (
 	StandaloneNetworkPassphrase = "Standalone Network ; February 2017"
 	stellarCoreProtocolVersion  = 20
 	stellarCorePort             = 11626
+	stellarCoreArchiveHost      = "localhost:1570"
 	goModFile                   = "go.mod"
 	goMonorepoGithubPath        = "github.com/stellar/go"
-	friendbotURL                = "http://localhost:8000/friendbot"
+
+	friendbotURL = "http://localhost:8000/friendbot"
 	// Needed when Core is run with ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING=true
 	checkpointFrequency    = 8
 	sorobanRPCPort         = 8000
 	adminPort              = 8080
 	helloWorldContractPath = "../../../../target/wasm32-unknown-unknown/test-wasms/test_hello_world.wasm"
 )
+
+type TestConfig struct {
+	historyArchiveProxyCallback func(*http.Request)
+}
 
 type Test struct {
 	t *testing.T
@@ -47,6 +57,9 @@ type Test struct {
 
 	daemon *daemon.Daemon
 
+	historyArchiveProxy         *httptest.Server
+	historyArchiveProxyCallback func(*http.Request)
+
 	coreClient *stellarcore.Client
 
 	masterAccount txnbuild.Account
@@ -54,7 +67,7 @@ type Test struct {
 	shutdownCalls []func()
 }
 
-func NewTest(t *testing.T) *Test {
+func NewTest(t *testing.T, cfg *TestConfig) *Test {
 	if os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_ENABLED") == "" {
 		t.Skip("skipping integration test: SOROBAN_RPC_INTEGRATION_TESTS_ENABLED not set")
 	}
@@ -71,6 +84,19 @@ func NewTest(t *testing.T) *Test {
 		AccountID: i.MasterKey().Address(),
 		Sequence:  0,
 	}
+	if cfg != nil {
+		i.historyArchiveProxyCallback = cfg.historyArchiveProxyCallback
+	}
+
+	proxy := httputil.NewSingleHostReverseProxy(&url.URL{Scheme: "http", Host: stellarCoreArchiveHost})
+
+	i.historyArchiveProxy = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if i.historyArchiveProxyCallback != nil {
+			i.historyArchiveProxyCallback(r)
+		}
+		proxy.ServeHTTP(w, r)
+	}))
+
 	i.runComposeCommand("up", "--detach", "--quiet-pull", "--no-color")
 	i.prepareShutdownHandlers()
 	i.coreClient = &stellarcore.Client{URL: "http://localhost:" + strconv.Itoa(stellarCorePort)}
@@ -138,7 +164,7 @@ func (i *Test) launchDaemon(coreBinaryPath string) {
 	config.CaptiveCoreHTTPPort = 0
 	config.FriendbotURL = friendbotURL
 	config.NetworkPassphrase = StandaloneNetworkPassphrase
-	config.HistoryArchiveURLs = []string{"http://localhost:1570"}
+	config.HistoryArchiveURLs = []string{i.historyArchiveProxy.URL}
 	config.LogLevel = logrus.DebugLevel
 	config.SQLiteDBPath = path.Join(i.t.TempDir(), "soroban_rpc.sqlite")
 	config.IngestionTimeout = 10 * time.Minute
@@ -146,6 +172,7 @@ func (i *Test) launchDaemon(coreBinaryPath string) {
 	config.CheckpointFrequency = checkpointFrequency
 	config.MaxHealthyLedgerLatency = time.Second * 10
 	config.PreflightEnableDebug = true
+	config.HistoryArchiveUserAgent = "testing"
 
 	i.daemon = daemon.MustNew(&config)
 	go i.daemon.Run()
@@ -202,6 +229,9 @@ func (i *Test) prepareShutdownHandlers() {
 		func() {
 			if i.daemon != nil {
 				i.daemon.Close()
+			}
+			if i.historyArchiveProxy != nil {
+				i.historyArchiveProxy.Close()
 			}
 			i.runComposeCommand("down", "-v")
 		},
