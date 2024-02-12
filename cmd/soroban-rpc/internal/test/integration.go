@@ -34,15 +34,21 @@ const (
 	StandaloneNetworkPassphrase = "Standalone Network ; February 2017"
 	stellarCoreProtocolVersion  = 20
 	stellarCorePort             = 11626
+	stellarCoreArchiveHost      = "localhost:1570"
 	goModFile                   = "go.mod"
 	goMonorepoGithubPath        = "github.com/stellar/go"
-	friendbotURL                = "http://localhost:8000/friendbot"
+
+	friendbotURL = "http://localhost:8000/friendbot"
 	// Needed when Core is run with ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING=true
 	checkpointFrequency    = 8
 	sorobanRPCPort         = 8000
 	adminPort              = 8080
 	helloWorldContractPath = "../../../../target/wasm32-unknown-unknown/test-wasms/test_hello_world.wasm"
 )
+
+type TestConfig struct {
+	historyArchiveProxyCallback func(*http.Request)
+}
 
 type Test struct {
 	t *testing.T
@@ -61,7 +67,7 @@ type Test struct {
 	shutdownCalls []func()
 }
 
-func NewTest(t *testing.T, i *Test) *Test {
+func NewTest(t *testing.T, cfg *TestConfig) *Test {
 	if os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_ENABLED") == "" {
 		t.Skip("skipping integration test: SOROBAN_RPC_INTEGRATION_TESTS_ENABLED not set")
 	}
@@ -70,22 +76,19 @@ func NewTest(t *testing.T, i *Test) *Test {
 		t.Fatal("missing SOROBAN_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN")
 	}
 
-	if i == nil {
-		i = &Test{}
+	i := &Test{
+		t:           t,
+		composePath: findDockerComposePath(),
 	}
-
-	i.t = t
-	i.composePath = findDockerComposePath()
 	i.masterAccount = &txnbuild.SimpleAccount{
 		AccountID: i.MasterKey().Address(),
 		Sequence:  0,
 	}
-
-	origin, err := url.Parse("http://localhost:1570")
-	if err != nil {
-		panic(err)
+	if cfg != nil {
+		i.historyArchiveProxyCallback = cfg.historyArchiveProxyCallback
 	}
-	proxy := httputil.NewSingleHostReverseProxy(origin)
+
+	proxy := httputil.NewSingleHostReverseProxy(&url.URL{Scheme: "http", Host: stellarCoreArchiveHost})
 
 	i.historyArchiveProxy = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if i.historyArchiveProxyCallback != nil {

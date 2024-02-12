@@ -10,7 +10,7 @@ import (
 
 func TestArchiveUserAgent(t *testing.T) {
 	userAgents := sync.Map{}
-	cfg := &Test{
+	cfg := &TestConfig{
 		historyArchiveProxyCallback: func(r *http.Request) {
 			userAgents.Store(r.Header["User-Agent"][0], "")
 		},
