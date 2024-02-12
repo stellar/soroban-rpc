@@ -296,7 +296,7 @@ func getCLIDefaultAccount(t *testing.T) string {
 }
 
 func NewCLITest(t *testing.T) *Test {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 	fundAccount(t, test, getCLIDefaultAccount(t), "1000000")
 	return test
 }

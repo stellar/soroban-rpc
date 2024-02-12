@@ -51,6 +51,14 @@ func TestConfigLoadDefaults(t *testing.T) {
 	assert.Equal(t, uint(runtime.NumCPU()), cfg.PreflightWorkerCount)
 }
 
+func TestConfigExtendedUserAgent(t *testing.T) {
+	cfg := Config{
+		HistoryArchiveUserAgent: "Test",
+	}
+	require.NoError(t, cfg.loadDefaults())
+	assert.Equal(t, "Test/123", cfg.ExtendedUserAgent("123"))
+}
+
 func TestConfigLoadFlagsDefaultValuesOverrideExisting(t *testing.T) {
 	// Set up a config with an existing non-default value
 	cfg := Config{

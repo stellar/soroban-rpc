@@ -28,6 +28,7 @@ type Config struct {
 	EventLedgerRetentionWindow                  uint32
 	FriendbotURL                                string
 	HistoryArchiveURLs                          []string
+	HistoryArchiveUserAgent                     string
 	IngestionTimeout                            time.Duration
 	LogFormat                                   LogFormat
 	LogLevel                                    logrus.Level
@@ -62,6 +63,13 @@ type Config struct {
 	// We memoize these, so they bind to pflags correctly
 	optionsCache *ConfigOptions
 	flagset      *pflag.FlagSet
+}
+
+func (cfg *Config) ExtendedUserAgent(extension string) string {
+	if cfg.HistoryArchiveUserAgent == "" {
+		return extension
+	}
+	return cfg.HistoryArchiveUserAgent + "/" + extension
 }
 
 func (cfg *Config) SetValues(lookupEnv func(string) (string, bool)) error {

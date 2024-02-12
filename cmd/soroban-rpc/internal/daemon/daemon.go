@@ -19,6 +19,7 @@ import (
 	"github.com/stellar/go/ingest/ledgerbackend"
 	supporthttp "github.com/stellar/go/support/http"
 	supportlog "github.com/stellar/go/support/log"
+	"github.com/stellar/go/support/storage"
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal"
@@ -121,7 +122,7 @@ func newCaptiveCore(cfg *config.Config, logger *supportlog.Entry) (*ledgerbacken
 		CheckpointFrequency: cfg.CheckpointFrequency,
 		Log:                 logger.WithField("subservice", "stellar-core"),
 		Toml:                captiveCoreToml,
-		UserAgent:           "captivecore",
+		UserAgent:           cfg.ExtendedUserAgent("captivecore"),
 		UseDB:               true,
 	}
 	return ledgerbackend.NewCaptive(captiveConfig)
@@ -144,12 +145,18 @@ func MustNew(cfg *config.Config) *Daemon {
 	if len(cfg.HistoryArchiveURLs) == 0 {
 		logger.Fatal("no history archives url were provided")
 	}
-	historyArchive, err := historyarchive.Connect(
-		cfg.HistoryArchiveURLs[0],
+
+	historyArchive, err := historyarchive.NewArchivePool(
+		cfg.HistoryArchiveURLs,
 		historyarchive.ArchiveOptions{
+			NetworkPassphrase:   cfg.NetworkPassphrase,
 			CheckpointFrequency: cfg.CheckpointFrequency,
+			ConnectOptions: storage.ConnectOptions{
+				Context:   context.Background(),
+				UserAgent: cfg.HistoryArchiveUserAgent},
 		},
 	)
+
 	if err != nil {
 		logger.WithError(err).Fatal("could not connect to history archive")
 	}
