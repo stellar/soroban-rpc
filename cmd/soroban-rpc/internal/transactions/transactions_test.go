@@ -361,6 +361,19 @@ func TestGetTransactionsWithEventData(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, tx.Events)
 	require.Len(t, tx.Events, 1)
+
+	var event xdr.DiagnosticEvent
+	err := event.UnmarshalBinary(tx.Events[0])
+	require.Nil(t, err)
+	require.Equal(t, xdr.ContractEventTypeContract, event.Event.Type)
+	require.Equal(t, int32(0), event.Event.Body.V)
+
+	require.NotNil(t, event.Event.Body.V0.Topics)
+	require.Equal(t, xdr.ScValTypeScvSymbol, event.Event.Body.V0.Topics[0].Type)
+
+	require.NotNil(t, event.Event.Body.V0.Data)
+	require.Equal(t, xdr.ScValTypeScvSymbol, event.Event.Body.V0.Data.Type)
+
 }
 
 func stableHeapInUse() int64 {

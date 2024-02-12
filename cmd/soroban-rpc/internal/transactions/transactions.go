@@ -211,7 +211,7 @@ func (m *MemoryStore) GetTransaction(hash xdr.Hash) (Transaction, bool, StoreRan
 		return Transaction{}, false, storeRange
 	}
 
-	var events = make([][]byte, 0, len(txEvents))
+	events := make([][]byte, 0, len(txEvents))
 
 	for _, e := range txEvents {
 		diagnosticEventXDR, err := e.MarshalBinary()
