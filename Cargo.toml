@@ -70,8 +70,6 @@ version = "=20.3.1"
 
 [workspace.dependencies.soroban-cli]
 version = "20.3.0"
-git = "https://github.com/stellar/soroban-tools"
-rev = "a1e51d263df80682a3dab2b00738700c7326f872"
 
 [workspace.dependencies.soroban-rpc]
 version = "20.3.0"
