@@ -3,6 +3,7 @@ package transactions
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/events"
 	"math"
 	"runtime"
 	"testing"
@@ -432,4 +433,49 @@ func BenchmarkIngestTransactionsMemory(b *testing.B) {
 
 	// add another call to store to prevent the GC from collecting.
 	store.GetTransaction(xdr.Hash{})
+}
+
+func BenchmarkIngestTransactionsMemoryWithEvents(b *testing.B) {
+	roundsNumber := uint32(b.N * 100000)
+	// Use a small retention window to test eviction
+	txnStore := NewMemoryStore(interfaces.MakeNoOpDeamon(), "passphrase", roundsNumber)
+	eventStore := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "passphrase", roundsNumber)
+
+	heapSizeBefore := stableHeapInUse()
+
+	for i := uint32(0); i < roundsNumber; i++ {
+		// Insert ledger i
+		require.NoError(b, txnStore.IngestTransactions(txMeta(i, true)))
+		require.NoError(b, eventStore.IngestEvents(txMetaWithEvents(i, true)))
+	}
+
+	heapSizeAfter := stableHeapInUse()
+	b.ReportMetric(float64(heapSizeAfter), "bytes/100k_transactions")
+	b.Logf("Memory consumption for %d transactions %v", roundsNumber, byteCountBinary(heapSizeAfter-heapSizeBefore))
+
+	// we want to generate 500*20000 transactions total, to cover the expected daily amount of transactions.
+	projectedTransactionCount := int64(500 * 20000)
+	projectedMemoryUtiliztion := (heapSizeAfter - heapSizeBefore) * projectedTransactionCount / int64(roundsNumber)
+	b.Logf("Projected memory consumption for %d transactions %v", projectedTransactionCount, byteCountBinary(projectedMemoryUtiliztion))
+	b.ReportMetric(float64(projectedMemoryUtiliztion), "bytes/10M_transactions")
+
+	// add another call to store to prevent the GC from collecting.
+	txnStore.GetTransaction(xdr.Hash{})
+	MaxCursor := events.Cursor{
+		Ledger: math.MaxUint32,
+		Tx:     math.MaxUint32,
+		Op:     math.MaxUint32,
+		Event:  math.MaxUint32,
+	}
+	assertNoCalls := func(xdr.DiagnosticEvent, events.Cursor, int64, *xdr.Hash) bool {
+		b.Fatalf("unexpected call")
+		return true
+	}
+
+	eventStore.Scan(events.Range{
+		Start:      events.Cursor{},
+		ClampStart: true,
+		End:        MaxCursor,
+		ClampEnd:   true,
+	}, assertNoCalls)
 }
