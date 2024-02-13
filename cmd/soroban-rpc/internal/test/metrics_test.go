@@ -14,7 +14,7 @@ import (
 )
 
 func TestMetrics(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 	metrics := getMetrics(test)
 	buildMetric := fmt.Sprintf(
 		"soroban_rpc_build_info{branch=\"%s\",build_timestamp=\"%s\",commit=\"%s\",goversion=\"%s\",version=\"%s\"} 1",

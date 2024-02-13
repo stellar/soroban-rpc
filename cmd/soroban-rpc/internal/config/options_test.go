@@ -26,7 +26,7 @@ func TestAllConfigFieldsMustHaveASingleOption(t *testing.T) {
 
 	// Allow us to explicitly exclude any fields on the Config struct, which are not going to have Options.
 	// e.g. "ConfigPath"
-	excluded := map[string]bool{}
+	excluded := map[string]bool{"HistoryArchiveUserAgent": true}
 
 	cfg := Config{}
 	cfgValue := reflect.ValueOf(cfg)

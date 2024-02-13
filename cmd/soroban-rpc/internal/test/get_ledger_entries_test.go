@@ -18,7 +18,7 @@ import (
 )
 
 func TestGetLedgerEntriesNotFound(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
@@ -56,7 +56,7 @@ func TestGetLedgerEntriesNotFound(t *testing.T) {
 }
 
 func TestGetLedgerEntriesInvalidParams(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
@@ -74,7 +74,7 @@ func TestGetLedgerEntriesInvalidParams(t *testing.T) {
 }
 
 func TestGetLedgerEntriesSucceeds(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)

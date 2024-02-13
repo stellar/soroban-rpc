@@ -38,10 +38,10 @@ func (s *Service) ingestLedgerEntryChanges(ctx context.Context, reader ingest.Ch
 	results := changeStatsProcessor.GetResults()
 	for stat, value := range results.Map() {
 		stat = strings.Replace(stat, "stats_", "change_", 1)
-		s.ledgerStatsMetric.
+		s.metrics.ledgerStatsMetric.
 			With(prometheus.Labels{"type": stat}).Add(float64(value.(int64)))
 	}
-	s.ingestionDurationMetric.
+	s.metrics.ingestionDurationMetric.
 		With(prometheus.Labels{"type": "ledger_entries"}).Observe(time.Since(startTime).Seconds())
 	return ctx.Err()
 }
@@ -66,10 +66,10 @@ func (s *Service) ingestTempLedgerEntryEvictions(
 	}
 
 	for evictionType, count := range counts {
-		s.ledgerStatsMetric.
+		s.metrics.ledgerStatsMetric.
 			With(prometheus.Labels{"type": evictionType}).Add(float64(count))
 	}
-	s.ingestionDurationMetric.
+	s.metrics.ingestionDurationMetric.
 		With(prometheus.Labels{"type": "evicted_temp_ledger_entries"}).Observe(time.Since(startTime).Seconds())
 	return ctx.Err()
 }

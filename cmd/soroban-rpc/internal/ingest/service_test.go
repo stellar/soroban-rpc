@@ -65,6 +65,7 @@ func TestRetryRunningIngestion(t *testing.T) {
 func TestIngestion(t *testing.T) {
 	mockDB := &MockDB{}
 	mockLedgerBackend := &ledgerbackend.MockDatabaseBackend{}
+
 	daemon := interfaces.MakeNoOpDeamon()
 	config := Config{
 		Logger:            supportlog.New(),

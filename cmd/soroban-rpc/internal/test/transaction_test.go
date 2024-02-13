@@ -21,7 +21,7 @@ import (
 )
 
 func TestSendTransactionSucceedsWithoutResults(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
@@ -46,7 +46,7 @@ func TestSendTransactionSucceedsWithoutResults(t *testing.T) {
 }
 
 func TestSendTransactionSucceedsWithResults(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
@@ -110,7 +110,7 @@ func TestSendTransactionSucceedsWithResults(t *testing.T) {
 }
 
 func TestSendTransactionBadSequence(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
@@ -152,7 +152,7 @@ func TestSendTransactionBadSequence(t *testing.T) {
 }
 
 func TestSendTransactionFailedInsufficientResourceFee(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
@@ -204,7 +204,7 @@ func TestSendTransactionFailedInsufficientResourceFee(t *testing.T) {
 }
 
 func TestSendTransactionFailedInLedger(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
@@ -266,7 +266,7 @@ func TestSendTransactionFailedInLedger(t *testing.T) {
 }
 
 func TestSendTransactionFailedInvalidXDR(t *testing.T) {
-	test := NewTest(t)
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)

@@ -19,7 +19,7 @@ type event struct {
 	diagnosticEventXDR []byte
 	txIndex            uint32
 	eventIndex         uint32
-	txHash     *xdr.Hash // intentionally stored as a pointer to save memory (amortized as soon as there are two events in a transaction)
+	txHash             *xdr.Hash // intentionally stored as a pointer to save memory (amortized as soon as there are two events in a transaction)
 }
 
 func (e event) cursor(ledgerSeq uint32) Cursor {
