@@ -11,7 +11,7 @@ default-members = ["cmd/crates/soroban-rpc", "cmd/crates/soroban-test"]
 exclude = ["cmd/crates/soroban-test/tests/fixtures/hello"]
 
 [workspace.package]
-version = "20.3.0"
+version = "20.3.1"
 rust-version = "1.74.0"
 
 [workspace.dependencies.soroban-env-host]
@@ -74,7 +74,7 @@ git = "https://github.com/stellar/soroban-tools"
 rev = "a1e51d263df80682a3dab2b00738700c7326f872"
 
 [workspace.dependencies.soroban-rpc]
-version = "20.3.0"
+version = "20.3.1"
 path = "cmd/crates/soroban-rpc"
 
 [workspace.dependencies.stellar-xdr]
