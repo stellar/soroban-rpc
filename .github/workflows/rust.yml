@@ -115,7 +115,7 @@ jobs:
         - os: windows-latest-8-cores
           target: x86_64-pc-windows-msvc
           cargo-hack-feature-options: --features opt --ignore-unknown-features
-    uses: stellar/actions/.github/workflows/rust-publish-dry-run-v2.yml@main
+    uses: ./.github/workflows/publish-dry-run.yml@main
     with:
       crates: soroban-rpc
       runs-on: ${{ matrix.os }}
