@@ -2726,7 +2726,7 @@ dependencies = [
 
 [[package]]
 name = "preflight"
-version = "20.3.0"
+version = "20.3.1"
 dependencies = [
  "base64 0.21.7",
  "libc",
@@ -3386,7 +3386,7 @@ dependencies = [
  "shlex",
  "soroban-env-host",
  "soroban-ledger-snapshot",
- "soroban-rpc 20.3.0 (git+https://github.com/stellar/soroban-tools?rev=a1e51d263df80682a3dab2b00738700c7326f872)",
+ "soroban-rpc 20.3.0",
  "soroban-sdk",
  "soroban-spec",
  "soroban-spec-json",
@@ -3485,7 +3485,7 @@ dependencies = [
 
 [[package]]
 name = "soroban-hello"
-version = "20.3.0"
+version = "20.3.1"
 
 [[package]]
 name = "soroban-ledger-snapshot"
@@ -3499,38 +3499,6 @@ dependencies = [
  "soroban-env-common",
  "soroban-env-host",
  "thiserror",
-]
-
-[[package]]
-name = "soroban-rpc"
-version = "20.3.0"
-dependencies = [
- "base64 0.21.7",
- "clap",
- "ed25519-dalek 2.0.0",
- "ethnum",
- "hex",
- "http 1.0.0",
- "itertools 0.10.5",
- "jsonrpsee-core",
- "jsonrpsee-http-client",
- "serde",
- "serde-aux",
- "serde_json",
- "sha2 0.10.8",
- "soroban-env-host",
- "soroban-sdk",
- "soroban-spec",
- "soroban-spec-tools",
- "stellar-strkey 0.0.7",
- "stellar-xdr",
- "termcolor",
- "termcolor_output",
- "thiserror",
- "tokio",
- "tracing",
- "wasmparser 0.90.0",
- "which",
 ]
 
 [[package]]
@@ -3563,6 +3531,38 @@ dependencies = [
  "tokio",
  "tracing",
  "wasmparser 0.90.0",
+]
+
+[[package]]
+name = "soroban-rpc"
+version = "20.3.1"
+dependencies = [
+ "base64 0.21.7",
+ "clap",
+ "ed25519-dalek 2.0.0",
+ "ethnum",
+ "hex",
+ "http 1.0.0",
+ "itertools 0.10.5",
+ "jsonrpsee-core",
+ "jsonrpsee-http-client",
+ "serde",
+ "serde-aux",
+ "serde_json",
+ "sha2 0.10.8",
+ "soroban-env-host",
+ "soroban-sdk",
+ "soroban-spec",
+ "soroban-spec-tools",
+ "stellar-strkey 0.0.7",
+ "stellar-xdr",
+ "termcolor",
+ "termcolor_output",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "wasmparser 0.90.0",
+ "which",
 ]
 
 [[package]]
@@ -3699,7 +3699,7 @@ dependencies = [
 
 [[package]]
 name = "soroban-test"
-version = "20.3.0"
+version = "20.3.1"
 dependencies = [
  "assert_cmd",
  "assert_fs",
@@ -3934,28 +3934,28 @@ checksum = "3369f5ac52d5eb6ab48c6b4ffdc8efbcad6b89c765749064ba298f2c68a16a76"
 
 [[package]]
 name = "test_custom_types"
-version = "20.3.0"
+version = "20.3.1"
 dependencies = [
  "soroban-sdk",
 ]
 
 [[package]]
 name = "test_hello_world"
-version = "20.3.0"
+version = "20.3.1"
 dependencies = [
  "soroban-sdk",
 ]
 
 [[package]]
 name = "test_swap"
-version = "20.3.0"
+version = "20.3.1"
 dependencies = [
  "soroban-sdk",
 ]
 
 [[package]]
 name = "test_token"
-version = "20.3.0"
+version = "20.3.1"
 dependencies = [
  "soroban-sdk",
  "soroban-token-sdk",
@@ -3963,7 +3963,7 @@ dependencies = [
 
 [[package]]
 name = "test_udt"
-version = "20.3.0"
+version = "20.3.1"
 dependencies = [
  "soroban-sdk",
 ]
