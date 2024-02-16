@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	supportlog "github.com/stellar/go/support/log"
 	"runtime"
 	"time"
 
@@ -101,4 +102,8 @@ func (c *CoreClientWithMetrics) SubmitTransaction(ctx context.Context, envelopeB
 
 func (d *Daemon) CoreClient() interfaces.CoreClient {
 	return d.coreClient
+}
+
+func (d *Daemon) Logger() *supportlog.Entry {
+	return d.logger
 }

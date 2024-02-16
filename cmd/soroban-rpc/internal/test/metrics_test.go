@@ -2,11 +2,8 @@ package test
 
 import (
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/sirupsen/logrus"
+	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stellar/go/support/errors"
-	supportlog "github.com/stellar/go/support/log"
-	"github.com/stellar/go/support/logmetrics"
 	"github.com/stretchr/testify/assert"
 	"io"
 	"net/http"
@@ -31,20 +28,37 @@ func TestMetrics(t *testing.T) {
 		config.Version,
 	)
 	require.Contains(t, metrics, buildMetric)
-}
 
-func TestLogMetrics(t *testing.T) {
-	logMetrics := logmetrics.New("log_metrics_test")
-	logger := supportlog.New()
-	logger.AddHook(logMetrics)
-
+	logger := test.daemon.Logger()
 	err := errors.Errorf("test-error")
 	logger.WithError(err).Error("test error 1")
 	logger.WithError(err).Error("test error 2")
 
-	val := testutil.ToFloat64(logMetrics[logrus.ErrorLevel])
+	metricFamilies, err := test.daemon.MetricsRegistry().Gather()
+	assert.NoError(t, err)
+	var metric *io_prometheus_client.MetricFamily
+	for _, mf := range metricFamilies {
+		if *mf.Name == "soroban_rpc_log_error_total" {
+			metric = mf
+			break
+		}
+	}
+	val := metric.Metric[0].Counter.GetValue()
 	assert.Equal(t, val, 2.0)
 }
+
+//func TestLogMetrics(t *testing.T) {
+//	logMetrics := logmetrics.New("log_metrics_test")
+//	logger := supportlog.New()
+//	logger.AddHook(logMetrics)
+//
+//	err := errors.Errorf("test-error")
+//	logger.WithError(err).Error("test error 1")
+//	logger.WithError(err).Error("test error 2")
+//
+//	val := testutil.ToFloat64(logMetrics[logrus.ErrorLevel])
+//	assert.Equal(t, val, 2.0)
+//}
 
 func getMetrics(test *Test) string {
 	metricsURL, err := url.JoinPath(test.adminURL(), "/metrics")
