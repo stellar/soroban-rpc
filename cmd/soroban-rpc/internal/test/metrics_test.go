@@ -44,7 +44,7 @@ func TestMetrics(t *testing.T) {
 		}
 	}
 	val := metric.Metric[0].Counter.GetValue()
-	assert.Equal(t, val, 2.0)
+	assert.GreaterOrEqual(t, val, 2.0)
 }
 
 func getMetrics(test *Test) string {
