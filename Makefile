@@ -40,9 +40,9 @@ CARGO_BUILD_TARGET ?= $(shell rustc -vV | sed -n 's|host: ||p')
 Cargo.lock: Cargo.toml
 	cargo update --workspace
 
-install_rust: Cargo.lock
-	cargo install soroban-cli --version 20.2.0
-	cargo install --path ./cmd/crates/soroban-test/tests/fixtures/hello --root ./target --debug --quiet
+#install_rust: Cargo.lock
+#	cargo install soroban-cli --version 20.2.0
+#	cargo install --path ./cmd/crates/soroban-test/tests/fixtures/hello --root ./target --debug --quiet
 
 install: install_rust build-libpreflight
 	go install -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} ./...

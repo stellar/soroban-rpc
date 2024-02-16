@@ -2,13 +2,11 @@
 resolver = "2"
 members = [
     "cmd/crates/soroban-rpc",
-    "cmd/crates/soroban-test",
-    "cmd/crates/soroban-test/tests/fixtures/test-wasms/*",
-    "cmd/crates/soroban-test/tests/fixtures/hello",
+    "cmd/crates/soroban-spec-tools",
     "cmd/soroban-rpc/lib/preflight",
 ]
-default-members = ["cmd/crates/soroban-rpc", "cmd/crates/soroban-test"]
-exclude = ["cmd/crates/soroban-test/tests/fixtures/hello"]
+default-members = ["cmd/crates/soroban-rpc",  "cmd/crates/soroban-spec-tools"]
+#exclude = ["cmd/crates/soroban-test/tests/fixtures/hello"]
 
 [workspace.package]
 version = "20.3.1"
@@ -49,9 +47,8 @@ git = "https://github.com/stellar/soroban-tools"
 rev = "a59f5f421a27bab71472041fc619dd8b0d1cf902"
 
 [workspace.dependencies.soroban-spec-tools]
-version = "20.3.0"
-git = "https://github.com/stellar/soroban-tools"
-rev = "a1e51d263df80682a3dab2b00738700c7326f872"
+version = "20.2.0"
+path = "./cmd/crates/soroban-spec-tools"
 
 [workspace.dependencies.soroban-sdk]
 version = "=20.3.1"
@@ -67,11 +64,6 @@ version = "=20.3.1"
 version = "=20.3.1"
 # git = "https://github.com/stellar/rs-soroban-sdk"
 # rev = "4aef54ff9295c2fca4c5b9fbd2c92d0ff99f67de"
-
-[workspace.dependencies.soroban-cli]
-version = "20.3.0"
-git = "https://github.com/stellar/soroban-tools"
-rev = "a1e51d263df80682a3dab2b00738700c7326f872"
 
 [workspace.dependencies.soroban-rpc]
 version = "20.3.1"
