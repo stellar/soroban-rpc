@@ -43,7 +43,7 @@ const (
 	checkpointFrequency    = 8
 	sorobanRPCPort         = 8000
 	adminPort              = 8080
-	helloWorldContractPath = "../../../../target/wasm32-unknown-unknown/test-wasms/test_hello_world.wasm"
+	helloWorldContractPath = "../../../../wasms/test_hello_world.wasm"
 )
 
 type TestConfig struct {

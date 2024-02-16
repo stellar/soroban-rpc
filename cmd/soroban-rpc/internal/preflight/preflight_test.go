@@ -227,10 +227,10 @@ var mockLedgerEntries = func() []xdr.LedgerEntry {
 var helloWorldContract = func() []byte {
 	_, filename, _, _ := runtime.Caller(0)
 	testDirName := path.Dir(filename)
-	contractFile := path.Join(testDirName, "../../../../target/wasm32-unknown-unknown/test-wasms/test_hello_world.wasm")
+	contractFile := path.Join(testDirName, "../../../../wasms/test_hello_world.wasm")
 	ret, err := os.ReadFile(contractFile)
 	if err != nil {
-		log.Fatalf("unable to read test_hello_world.wasm (%v) please run `make build-test-wasms` at the project root directory", err)
+		log.Fatalf("unable to read test_hello_world.wasm (%v) please get it from `soroban-tools`", err)
 	}
 	return ret
 }()
