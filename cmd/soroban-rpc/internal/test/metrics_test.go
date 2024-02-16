@@ -47,19 +47,6 @@ func TestMetrics(t *testing.T) {
 	assert.Equal(t, val, 2.0)
 }
 
-//func TestLogMetrics(t *testing.T) {
-//	logMetrics := logmetrics.New("log_metrics_test")
-//	logger := supportlog.New()
-//	logger.AddHook(logMetrics)
-//
-//	err := errors.Errorf("test-error")
-//	logger.WithError(err).Error("test error 1")
-//	logger.WithError(err).Error("test error 2")
-//
-//	val := testutil.ToFloat64(logMetrics[logrus.ErrorLevel])
-//	assert.Equal(t, val, 2.0)
-//}
-
 func getMetrics(test *Test) string {
 	metricsURL, err := url.JoinPath(test.adminURL(), "/metrics")
 	require.NoError(test.t, err)
