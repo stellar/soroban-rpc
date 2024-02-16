@@ -43,6 +43,7 @@ func TestMetrics(t *testing.T) {
 			break
 		}
 	}
+	assert.NotNil(t, metric)
 	val := metric.Metric[0].Counter.GetValue()
 	assert.GreaterOrEqual(t, val, 2.0)
 }
