@@ -2,6 +2,12 @@ package test
 
 import (
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/sirupsen/logrus"
+	"github.com/stellar/go/support/errors"
+	supportlog "github.com/stellar/go/support/log"
+	"github.com/stellar/go/support/logmetrics"
+	"github.com/stretchr/testify/assert"
 	"io"
 	"net/http"
 	"net/url"
@@ -25,6 +31,19 @@ func TestMetrics(t *testing.T) {
 		config.Version,
 	)
 	require.Contains(t, metrics, buildMetric)
+}
+
+func TestLogMetrics(t *testing.T) {
+	logMetrics := logmetrics.New("log_metrics_test")
+	logger := supportlog.New()
+	logger.AddHook(logMetrics)
+
+	err := errors.Errorf("test-error")
+	logger.WithError(err).Error("test error 1")
+	logger.WithError(err).Error("test error 2")
+
+	val := testutil.ToFloat64(logMetrics[logrus.ErrorLevel])
+	assert.Equal(t, val, 2.0)
 }
 
 func getMetrics(test *Test) string {
