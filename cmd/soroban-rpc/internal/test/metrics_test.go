@@ -2,6 +2,9 @@ package test
 
 import (
 	"fmt"
+	io_prometheus_client "github.com/prometheus/client_model/go"
+	"github.com/stellar/go/support/errors"
+	"github.com/stretchr/testify/assert"
 	"io"
 	"net/http"
 	"net/url"
@@ -25,6 +28,24 @@ func TestMetrics(t *testing.T) {
 		config.Version,
 	)
 	require.Contains(t, metrics, buildMetric)
+
+	logger := test.daemon.Logger()
+	err := errors.Errorf("test-error")
+	logger.WithError(err).Error("test error 1")
+	logger.WithError(err).Error("test error 2")
+
+	metricFamilies, err := test.daemon.MetricsRegistry().Gather()
+	assert.NoError(t, err)
+	var metric *io_prometheus_client.MetricFamily
+	for _, mf := range metricFamilies {
+		if *mf.Name == "soroban_rpc_log_error_total" {
+			metric = mf
+			break
+		}
+	}
+	assert.NotNil(t, metric)
+	val := metric.Metric[0].Counter.GetValue()
+	assert.GreaterOrEqual(t, val, 2.0)
 }
 
 func getMetrics(test *Test) string {
