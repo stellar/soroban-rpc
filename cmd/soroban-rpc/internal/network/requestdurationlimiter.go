@@ -9,7 +9,7 @@ import (
 
 	"github.com/creachadair/jrpc2"
 	"github.com/stellar/go/support/log"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/util"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/util"
 )
 
 const maxUint = ^uint64(0)         //18446744073709551615

@@ -14,7 +14,7 @@ import (
 	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/xdr"
 
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/events"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 )
 
 type eventTypeSet map[string]interface{}

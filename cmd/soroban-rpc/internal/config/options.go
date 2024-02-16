@@ -14,7 +14,7 @@ import (
 	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/strutils"
 
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/ledgerbucketwindow"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
 const defaultHTTPEndpoint = "localhost:8000"

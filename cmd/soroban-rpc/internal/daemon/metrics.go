@@ -11,8 +11,8 @@ import (
 	"github.com/stellar/go/support/logmetrics"
 	"github.com/stellar/go/xdr"
 
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/config"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/daemon/interfaces"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 )
 
 func (d *Daemon) registerMetrics() {

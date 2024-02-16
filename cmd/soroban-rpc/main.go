@@ -7,8 +7,8 @@ import (
 	"github.com/spf13/cobra"
 	goxdr "github.com/stellar/go/xdr"
 
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/config"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/daemon"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon"
 )
 
 func main() {

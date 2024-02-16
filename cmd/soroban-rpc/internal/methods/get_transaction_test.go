@@ -9,8 +9,8 @@ import (
 
 	"github.com/stellar/go/network"
 
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/daemon/interfaces"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/transactions"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 )
 
 func txHash(acctSeq uint32) xdr.Hash {
