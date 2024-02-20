@@ -14,10 +14,10 @@ import (
 	"github.com/stellar/go/xdr"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/daemon/interfaces"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/events"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/transactions"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 )
 
 type ErrorReadWriter struct {

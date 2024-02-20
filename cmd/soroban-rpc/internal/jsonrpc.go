@@ -16,13 +16,13 @@ import (
 	"github.com/rs/cors"
 	"github.com/stellar/go/support/log"
 
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/config"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/daemon/interfaces"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/events"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/methods"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/network"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/transactions"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/network"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 )
 
 // maxHTTPRequestSize defines the largest request size that the http handler
