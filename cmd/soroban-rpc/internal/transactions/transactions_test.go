@@ -242,7 +242,7 @@ func txMetaWithEvents(ledgerSequence uint32, feeBump bool) xdr.LedgerCloseMeta {
 	return tx
 }
 
-func txMetaWithAllData(ledgerSequence uint32, feeBump bool) xdr.LedgerCloseMeta {
+func txMetaWithAllData(ledgerSequence uint32, feeBump bool, txCount int, eventCount int) xdr.LedgerCloseMeta {
 
 	counter := xdr.ScSymbol("COUNTER")
 	envelope := txEnvelope(ledgerSequence, feeBump)
@@ -302,1010 +302,155 @@ func txMetaWithAllData(ledgerSequence uint32, feeBump bool) xdr.LedgerCloseMeta 
 			},
 		},
 	}
-	txProcessing := []xdr.TransactionResultMeta{
-		// Total tx count -- 5
-		{
-			FeeProcessing: xdr.LedgerEntryChanges{
-				{
-					Type: xdr.LedgerEntryChangeTypeLedgerEntryState,
-					State: &xdr.LedgerEntry{
-						LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-						Data: xdr.LedgerEntryData{
-							Type: xdr.LedgerEntryTypeContractData,
-							ContractData: &xdr.ContractDataEntry{
-								Contract: contractAddress,
-								Key: xdr.ScVal{
-									Type: xdr.ScValTypeScvSymbol,
-									Sym:  &persistentKey,
-								},
-								Durability: xdr.ContractDataDurabilityPersistent,
-								Val: xdr.ScVal{
-									Type: xdr.ScValTypeScvBool,
-									B:    &xdrTrue,
-								},
-							},
-						},
-					},
-				},
-				{
-					Type: xdr.LedgerEntryChangeTypeLedgerEntryUpdated,
-					Updated: &xdr.LedgerEntry{
-						LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-						Data: xdr.LedgerEntryData{
-							Type: xdr.LedgerEntryTypeContractData,
-							ContractData: &xdr.ContractDataEntry{
-								Contract: xdr.ScAddress{
-									Type:       xdr.ScAddressTypeScAddressTypeContract,
-									ContractId: &contractID,
-								},
-								Key: xdr.ScVal{
-									Type: xdr.ScValTypeScvSymbol,
-									Sym:  &persistentKey,
-								},
-								Durability: xdr.ContractDataDurabilityPersistent,
-								Val: xdr.ScVal{
-									Type: xdr.ScValTypeScvBool,
-									B:    &xdrTrue,
-								},
-							},
-						},
-					},
-				},
-			},
-			TxApplyProcessing: xdr.TransactionMeta{
-				V: 3,
-				Operations: &[]xdr.OperationMeta{
-					{
-						Changes: operationChanges,
-					},
-				},
-				V3: &xdr.TransactionMetaV3{
-					TxChangesBefore: xdr.LedgerEntryChanges{
-						{
-							Type: xdr.LedgerEntryChangeTypeLedgerEntryState,
-							State: &xdr.LedgerEntry{
-								LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-								Data: xdr.LedgerEntryData{
-									Type: xdr.LedgerEntryTypeContractData,
-									ContractData: &xdr.ContractDataEntry{
-										Contract: contractAddress,
-										Key: xdr.ScVal{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &persistentKey,
-										},
-										Durability: xdr.ContractDataDurabilityPersistent,
-										Val: xdr.ScVal{
-											Type: xdr.ScValTypeScvBool,
-											B:    &xdrTrue,
-										},
-									},
-								},
-							},
-						},
-						{
-							Type: xdr.LedgerEntryChangeTypeLedgerEntryUpdated,
-							Updated: &xdr.LedgerEntry{
-								LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-								Data: xdr.LedgerEntryData{
-									Type: xdr.LedgerEntryTypeContractData,
-									ContractData: &xdr.ContractDataEntry{
-										Contract: xdr.ScAddress{
-											Type:       xdr.ScAddressTypeScAddressTypeContract,
-											ContractId: &contractID,
-										},
-										Key: xdr.ScVal{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &persistentKey,
-										},
-										Durability: xdr.ContractDataDurabilityPersistent,
-										Val: xdr.ScVal{
-											Type: xdr.ScValTypeScvBool,
-											B:    &xdrTrue,
-										},
-									},
-								},
-							},
-						},
-					},
-					// 5 events
-					SorobanMeta: &xdr.SorobanTransactionMeta{
-						Events: []xdr.ContractEvent{{
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						}, {
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						}, {
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						}, {
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						},
-							{
-								ContractId: &contractID,
-								Type:       xdr.ContractEventTypeContract,
-								Body: xdr.ContractEventBody{
-									V: 0,
-									V0: &xdr.ContractEventV0{
-										Topics: []xdr.ScVal{{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &counter,
-										}},
-										Data: xdr.ScVal{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &counter,
-										},
-									},
-								},
-							},
-						},
-						ReturnValue: xdr.ScVal{
+	// create a function that returns a transaction result
+
+	transactionResultMeta := func(txCount int, eventCount int) []xdr.TransactionResultMeta {
+		txResultMetas := make([]xdr.TransactionResultMeta, 0, txCount)
+		eventsData := make([]xdr.ContractEvent, 0, eventCount)
+
+		for i := 0; i < eventCount; i++ {
+			eventsData = append(eventsData, xdr.ContractEvent{
+				ContractId: &contractID,
+				Type:       xdr.ContractEventTypeContract,
+				Body: xdr.ContractEventBody{
+					V: 0,
+					V0: &xdr.ContractEventV0{
+						Topics: []xdr.ScVal{{
+							Type: xdr.ScValTypeScvSymbol,
+							Sym:  &counter,
+						}},
+						Data: xdr.ScVal{
 							Type: xdr.ScValTypeScvSymbol,
 							Sym:  &counter,
 						},
 					},
 				},
-			},
-			Result: xdr.TransactionResultPair{
-				TransactionHash: txHash(ledgerSequence, feeBump),
-				Result:          transactionResult(ledgerSequence, feeBump),
-			},
-		},
-		{
-			FeeProcessing: xdr.LedgerEntryChanges{
-				{
-					Type: xdr.LedgerEntryChangeTypeLedgerEntryState,
-					State: &xdr.LedgerEntry{
-						LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-						Data: xdr.LedgerEntryData{
-							Type: xdr.LedgerEntryTypeContractData,
-							ContractData: &xdr.ContractDataEntry{
-								Contract: contractAddress,
-								Key: xdr.ScVal{
-									Type: xdr.ScValTypeScvSymbol,
-									Sym:  &persistentKey,
-								},
-								Durability: xdr.ContractDataDurabilityPersistent,
-								Val: xdr.ScVal{
-									Type: xdr.ScValTypeScvBool,
-									B:    &xdrTrue,
-								},
-							},
-						},
-					},
-				},
-				{
-					Type: xdr.LedgerEntryChangeTypeLedgerEntryUpdated,
-					Updated: &xdr.LedgerEntry{
-						LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-						Data: xdr.LedgerEntryData{
-							Type: xdr.LedgerEntryTypeContractData,
-							ContractData: &xdr.ContractDataEntry{
-								Contract: xdr.ScAddress{
-									Type:       xdr.ScAddressTypeScAddressTypeContract,
-									ContractId: &contractID,
-								},
-								Key: xdr.ScVal{
-									Type: xdr.ScValTypeScvSymbol,
-									Sym:  &persistentKey,
-								},
-								Durability: xdr.ContractDataDurabilityPersistent,
-								Val: xdr.ScVal{
-									Type: xdr.ScValTypeScvBool,
-									B:    &xdrTrue,
-								},
-							},
-						},
-					},
-				},
-			},
-			TxApplyProcessing: xdr.TransactionMeta{
-				V: 3,
-				Operations: &[]xdr.OperationMeta{
+			})
+		}
+
+		for i := 0; i < txCount; i++ {
+			txResultMetas = append(txResultMetas, xdr.TransactionResultMeta{
+				FeeProcessing: xdr.LedgerEntryChanges{
 					{
-						Changes: operationChanges,
-					},
-				},
-				V3: &xdr.TransactionMetaV3{
-					TxChangesBefore: xdr.LedgerEntryChanges{
-						{
-							Type: xdr.LedgerEntryChangeTypeLedgerEntryState,
-							State: &xdr.LedgerEntry{
-								LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-								Data: xdr.LedgerEntryData{
-									Type: xdr.LedgerEntryTypeContractData,
-									ContractData: &xdr.ContractDataEntry{
-										Contract: contractAddress,
-										Key: xdr.ScVal{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &persistentKey,
-										},
-										Durability: xdr.ContractDataDurabilityPersistent,
-										Val: xdr.ScVal{
-											Type: xdr.ScValTypeScvBool,
-											B:    &xdrTrue,
-										},
+						Type: xdr.LedgerEntryChangeTypeLedgerEntryState,
+						State: &xdr.LedgerEntry{
+							LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
+							Data: xdr.LedgerEntryData{
+								Type: xdr.LedgerEntryTypeContractData,
+								ContractData: &xdr.ContractDataEntry{
+									Contract: contractAddress,
+									Key: xdr.ScVal{
+										Type: xdr.ScValTypeScvSymbol,
+										Sym:  &persistentKey,
 									},
-								},
-							},
-						},
-						{
-							Type: xdr.LedgerEntryChangeTypeLedgerEntryUpdated,
-							Updated: &xdr.LedgerEntry{
-								LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-								Data: xdr.LedgerEntryData{
-									Type: xdr.LedgerEntryTypeContractData,
-									ContractData: &xdr.ContractDataEntry{
-										Contract: xdr.ScAddress{
-											Type:       xdr.ScAddressTypeScAddressTypeContract,
-											ContractId: &contractID,
-										},
-										Key: xdr.ScVal{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &persistentKey,
-										},
-										Durability: xdr.ContractDataDurabilityPersistent,
-										Val: xdr.ScVal{
-											Type: xdr.ScValTypeScvBool,
-											B:    &xdrTrue,
-										},
+									Durability: xdr.ContractDataDurabilityPersistent,
+									Val: xdr.ScVal{
+										Type: xdr.ScValTypeScvBool,
+										B:    &xdrTrue,
 									},
 								},
 							},
 						},
 					},
-					// 5 events
-					SorobanMeta: &xdr.SorobanTransactionMeta{
-						Events: []xdr.ContractEvent{{
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						}, {
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						}, {
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						}, {
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						},
-							{
-								ContractId: &contractID,
-								Type:       xdr.ContractEventTypeContract,
-								Body: xdr.ContractEventBody{
-									V: 0,
-									V0: &xdr.ContractEventV0{
-										Topics: []xdr.ScVal{{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &counter,
-										}},
-										Data: xdr.ScVal{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &counter,
-										},
-									},
-								},
-							},
-						},
-						ReturnValue: xdr.ScVal{
-							Type: xdr.ScValTypeScvSymbol,
-							Sym:  &counter,
-						},
-					},
-				},
-			},
-			Result: xdr.TransactionResultPair{
-				TransactionHash: txHash(ledgerSequence, feeBump),
-				Result:          transactionResult(ledgerSequence, feeBump),
-			},
-		},
-		{
-			FeeProcessing: xdr.LedgerEntryChanges{
-				{
-					Type: xdr.LedgerEntryChangeTypeLedgerEntryState,
-					State: &xdr.LedgerEntry{
-						LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-						Data: xdr.LedgerEntryData{
-							Type: xdr.LedgerEntryTypeContractData,
-							ContractData: &xdr.ContractDataEntry{
-								Contract: contractAddress,
-								Key: xdr.ScVal{
-									Type: xdr.ScValTypeScvSymbol,
-									Sym:  &persistentKey,
-								},
-								Durability: xdr.ContractDataDurabilityPersistent,
-								Val: xdr.ScVal{
-									Type: xdr.ScValTypeScvBool,
-									B:    &xdrTrue,
-								},
-							},
-						},
-					},
-				},
-				{
-					Type: xdr.LedgerEntryChangeTypeLedgerEntryUpdated,
-					Updated: &xdr.LedgerEntry{
-						LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-						Data: xdr.LedgerEntryData{
-							Type: xdr.LedgerEntryTypeContractData,
-							ContractData: &xdr.ContractDataEntry{
-								Contract: xdr.ScAddress{
-									Type:       xdr.ScAddressTypeScAddressTypeContract,
-									ContractId: &contractID,
-								},
-								Key: xdr.ScVal{
-									Type: xdr.ScValTypeScvSymbol,
-									Sym:  &persistentKey,
-								},
-								Durability: xdr.ContractDataDurabilityPersistent,
-								Val: xdr.ScVal{
-									Type: xdr.ScValTypeScvBool,
-									B:    &xdrTrue,
-								},
-							},
-						},
-					},
-				},
-			},
-			TxApplyProcessing: xdr.TransactionMeta{
-				V: 3,
-				Operations: &[]xdr.OperationMeta{
 					{
-						Changes: operationChanges,
+						Type: xdr.LedgerEntryChangeTypeLedgerEntryUpdated,
+						Updated: &xdr.LedgerEntry{
+							LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
+							Data: xdr.LedgerEntryData{
+								Type: xdr.LedgerEntryTypeContractData,
+								ContractData: &xdr.ContractDataEntry{
+									Contract: xdr.ScAddress{
+										Type:       xdr.ScAddressTypeScAddressTypeContract,
+										ContractId: &contractID,
+									},
+									Key: xdr.ScVal{
+										Type: xdr.ScValTypeScvSymbol,
+										Sym:  &persistentKey,
+									},
+									Durability: xdr.ContractDataDurabilityPersistent,
+									Val: xdr.ScVal{
+										Type: xdr.ScValTypeScvBool,
+										B:    &xdrTrue,
+									},
+								},
+							},
+						},
 					},
 				},
-				V3: &xdr.TransactionMetaV3{
-					TxChangesBefore: xdr.LedgerEntryChanges{
+				TxApplyProcessing: xdr.TransactionMeta{
+					V: 3,
+					Operations: &[]xdr.OperationMeta{
 						{
-							Type: xdr.LedgerEntryChangeTypeLedgerEntryState,
-							State: &xdr.LedgerEntry{
-								LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-								Data: xdr.LedgerEntryData{
-									Type: xdr.LedgerEntryTypeContractData,
-									ContractData: &xdr.ContractDataEntry{
-										Contract: contractAddress,
-										Key: xdr.ScVal{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &persistentKey,
-										},
-										Durability: xdr.ContractDataDurabilityPersistent,
-										Val: xdr.ScVal{
-											Type: xdr.ScValTypeScvBool,
-											B:    &xdrTrue,
-										},
-									},
-								},
-							},
-						},
-						{
-							Type: xdr.LedgerEntryChangeTypeLedgerEntryUpdated,
-							Updated: &xdr.LedgerEntry{
-								LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-								Data: xdr.LedgerEntryData{
-									Type: xdr.LedgerEntryTypeContractData,
-									ContractData: &xdr.ContractDataEntry{
-										Contract: xdr.ScAddress{
-											Type:       xdr.ScAddressTypeScAddressTypeContract,
-											ContractId: &contractID,
-										},
-										Key: xdr.ScVal{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &persistentKey,
-										},
-										Durability: xdr.ContractDataDurabilityPersistent,
-										Val: xdr.ScVal{
-											Type: xdr.ScValTypeScvBool,
-											B:    &xdrTrue,
-										},
-									},
-								},
-							},
+							Changes: operationChanges,
 						},
 					},
-					// 5 events
-					SorobanMeta: &xdr.SorobanTransactionMeta{
-						Events: []xdr.ContractEvent{{
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						}, {
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						}, {
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						}, {
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						},
+					V3: &xdr.TransactionMetaV3{
+						TxChangesBefore: xdr.LedgerEntryChanges{
 							{
-								ContractId: &contractID,
-								Type:       xdr.ContractEventTypeContract,
-								Body: xdr.ContractEventBody{
-									V: 0,
-									V0: &xdr.ContractEventV0{
-										Topics: []xdr.ScVal{{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &counter,
-										}},
-										Data: xdr.ScVal{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &counter,
+								Type: xdr.LedgerEntryChangeTypeLedgerEntryState,
+								State: &xdr.LedgerEntry{
+									LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
+									Data: xdr.LedgerEntryData{
+										Type: xdr.LedgerEntryTypeContractData,
+										ContractData: &xdr.ContractDataEntry{
+											Contract: contractAddress,
+											Key: xdr.ScVal{
+												Type: xdr.ScValTypeScvSymbol,
+												Sym:  &persistentKey,
+											},
+											Durability: xdr.ContractDataDurabilityPersistent,
+											Val: xdr.ScVal{
+												Type: xdr.ScValTypeScvBool,
+												B:    &xdrTrue,
+											},
 										},
 									},
 								},
 							},
-						},
-						ReturnValue: xdr.ScVal{
-							Type: xdr.ScValTypeScvSymbol,
-							Sym:  &counter,
-						},
-					},
-				},
-			},
-			Result: xdr.TransactionResultPair{
-				TransactionHash: txHash(ledgerSequence, feeBump),
-				Result:          transactionResult(ledgerSequence, feeBump),
-			},
-		},
-		{
-			FeeProcessing: xdr.LedgerEntryChanges{
-				{
-					Type: xdr.LedgerEntryChangeTypeLedgerEntryState,
-					State: &xdr.LedgerEntry{
-						LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-						Data: xdr.LedgerEntryData{
-							Type: xdr.LedgerEntryTypeContractData,
-							ContractData: &xdr.ContractDataEntry{
-								Contract: contractAddress,
-								Key: xdr.ScVal{
-									Type: xdr.ScValTypeScvSymbol,
-									Sym:  &persistentKey,
-								},
-								Durability: xdr.ContractDataDurabilityPersistent,
-								Val: xdr.ScVal{
-									Type: xdr.ScValTypeScvBool,
-									B:    &xdrTrue,
-								},
-							},
-						},
-					},
-				},
-				{
-					Type: xdr.LedgerEntryChangeTypeLedgerEntryUpdated,
-					Updated: &xdr.LedgerEntry{
-						LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-						Data: xdr.LedgerEntryData{
-							Type: xdr.LedgerEntryTypeContractData,
-							ContractData: &xdr.ContractDataEntry{
-								Contract: xdr.ScAddress{
-									Type:       xdr.ScAddressTypeScAddressTypeContract,
-									ContractId: &contractID,
-								},
-								Key: xdr.ScVal{
-									Type: xdr.ScValTypeScvSymbol,
-									Sym:  &persistentKey,
-								},
-								Durability: xdr.ContractDataDurabilityPersistent,
-								Val: xdr.ScVal{
-									Type: xdr.ScValTypeScvBool,
-									B:    &xdrTrue,
-								},
-							},
-						},
-					},
-				},
-			},
-			TxApplyProcessing: xdr.TransactionMeta{
-				V: 3,
-				Operations: &[]xdr.OperationMeta{
-					{
-						Changes: operationChanges,
-					},
-				},
-				V3: &xdr.TransactionMetaV3{
-					TxChangesBefore: xdr.LedgerEntryChanges{
-						{
-							Type: xdr.LedgerEntryChangeTypeLedgerEntryState,
-							State: &xdr.LedgerEntry{
-								LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-								Data: xdr.LedgerEntryData{
-									Type: xdr.LedgerEntryTypeContractData,
-									ContractData: &xdr.ContractDataEntry{
-										Contract: contractAddress,
-										Key: xdr.ScVal{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &persistentKey,
-										},
-										Durability: xdr.ContractDataDurabilityPersistent,
-										Val: xdr.ScVal{
-											Type: xdr.ScValTypeScvBool,
-											B:    &xdrTrue,
-										},
-									},
-								},
-							},
-						},
-						{
-							Type: xdr.LedgerEntryChangeTypeLedgerEntryUpdated,
-							Updated: &xdr.LedgerEntry{
-								LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-								Data: xdr.LedgerEntryData{
-									Type: xdr.LedgerEntryTypeContractData,
-									ContractData: &xdr.ContractDataEntry{
-										Contract: xdr.ScAddress{
-											Type:       xdr.ScAddressTypeScAddressTypeContract,
-											ContractId: &contractID,
-										},
-										Key: xdr.ScVal{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &persistentKey,
-										},
-										Durability: xdr.ContractDataDurabilityPersistent,
-										Val: xdr.ScVal{
-											Type: xdr.ScValTypeScvBool,
-											B:    &xdrTrue,
-										},
-									},
-								},
-							},
-						},
-					},
-					// 5 events
-					SorobanMeta: &xdr.SorobanTransactionMeta{
-						Events: []xdr.ContractEvent{{
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						}, {
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						}, {
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						}, {
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						},
 							{
-								ContractId: &contractID,
-								Type:       xdr.ContractEventTypeContract,
-								Body: xdr.ContractEventBody{
-									V: 0,
-									V0: &xdr.ContractEventV0{
-										Topics: []xdr.ScVal{{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &counter,
-										}},
-										Data: xdr.ScVal{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &counter,
+								Type: xdr.LedgerEntryChangeTypeLedgerEntryUpdated,
+								Updated: &xdr.LedgerEntry{
+									LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
+									Data: xdr.LedgerEntryData{
+										Type: xdr.LedgerEntryTypeContractData,
+										ContractData: &xdr.ContractDataEntry{
+											Contract: xdr.ScAddress{
+												Type:       xdr.ScAddressTypeScAddressTypeContract,
+												ContractId: &contractID,
+											},
+											Key: xdr.ScVal{
+												Type: xdr.ScValTypeScvSymbol,
+												Sym:  &persistentKey,
+											},
+											Durability: xdr.ContractDataDurabilityPersistent,
+											Val: xdr.ScVal{
+												Type: xdr.ScValTypeScvBool,
+												B:    &xdrTrue,
+											},
 										},
 									},
 								},
 							},
 						},
-						ReturnValue: xdr.ScVal{
-							Type: xdr.ScValTypeScvSymbol,
-							Sym:  &counter,
-						},
-					},
-				},
-			},
-			Result: xdr.TransactionResultPair{
-				TransactionHash: txHash(ledgerSequence, feeBump),
-				Result:          transactionResult(ledgerSequence, feeBump),
-			},
-		},
-		{
-			FeeProcessing: xdr.LedgerEntryChanges{
-				{
-					Type: xdr.LedgerEntryChangeTypeLedgerEntryState,
-					State: &xdr.LedgerEntry{
-						LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-						Data: xdr.LedgerEntryData{
-							Type: xdr.LedgerEntryTypeContractData,
-							ContractData: &xdr.ContractDataEntry{
-								Contract: contractAddress,
-								Key: xdr.ScVal{
-									Type: xdr.ScValTypeScvSymbol,
-									Sym:  &persistentKey,
-								},
-								Durability: xdr.ContractDataDurabilityPersistent,
-								Val: xdr.ScVal{
-									Type: xdr.ScValTypeScvBool,
-									B:    &xdrTrue,
-								},
+						SorobanMeta: &xdr.SorobanTransactionMeta{
+							Events: eventsData,
+							ReturnValue: xdr.ScVal{
+								Type: xdr.ScValTypeScvSymbol,
+								Sym:  &counter,
 							},
 						},
 					},
 				},
-				{
-					Type: xdr.LedgerEntryChangeTypeLedgerEntryUpdated,
-					Updated: &xdr.LedgerEntry{
-						LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-						Data: xdr.LedgerEntryData{
-							Type: xdr.LedgerEntryTypeContractData,
-							ContractData: &xdr.ContractDataEntry{
-								Contract: xdr.ScAddress{
-									Type:       xdr.ScAddressTypeScAddressTypeContract,
-									ContractId: &contractID,
-								},
-								Key: xdr.ScVal{
-									Type: xdr.ScValTypeScvSymbol,
-									Sym:  &persistentKey,
-								},
-								Durability: xdr.ContractDataDurabilityPersistent,
-								Val: xdr.ScVal{
-									Type: xdr.ScValTypeScvBool,
-									B:    &xdrTrue,
-								},
-							},
-						},
-					},
+				Result: xdr.TransactionResultPair{
+					TransactionHash: txHash(ledgerSequence, feeBump),
+					Result:          transactionResult(ledgerSequence, feeBump),
 				},
-			},
-			TxApplyProcessing: xdr.TransactionMeta{
-				V: 3,
-				Operations: &[]xdr.OperationMeta{
-					{
-						Changes: operationChanges,
-					},
-				},
-				V3: &xdr.TransactionMetaV3{
-					TxChangesBefore: xdr.LedgerEntryChanges{
-						{
-							Type: xdr.LedgerEntryChangeTypeLedgerEntryState,
-							State: &xdr.LedgerEntry{
-								LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-								Data: xdr.LedgerEntryData{
-									Type: xdr.LedgerEntryTypeContractData,
-									ContractData: &xdr.ContractDataEntry{
-										Contract: contractAddress,
-										Key: xdr.ScVal{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &persistentKey,
-										},
-										Durability: xdr.ContractDataDurabilityPersistent,
-										Val: xdr.ScVal{
-											Type: xdr.ScValTypeScvBool,
-											B:    &xdrTrue,
-										},
-									},
-								},
-							},
-						},
-						{
-							Type: xdr.LedgerEntryChangeTypeLedgerEntryUpdated,
-							Updated: &xdr.LedgerEntry{
-								LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
-								Data: xdr.LedgerEntryData{
-									Type: xdr.LedgerEntryTypeContractData,
-									ContractData: &xdr.ContractDataEntry{
-										Contract: xdr.ScAddress{
-											Type:       xdr.ScAddressTypeScAddressTypeContract,
-											ContractId: &contractID,
-										},
-										Key: xdr.ScVal{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &persistentKey,
-										},
-										Durability: xdr.ContractDataDurabilityPersistent,
-										Val: xdr.ScVal{
-											Type: xdr.ScValTypeScvBool,
-											B:    &xdrTrue,
-										},
-									},
-								},
-							},
-						},
-					},
-					// 5 events
-					SorobanMeta: &xdr.SorobanTransactionMeta{
-						Events: []xdr.ContractEvent{{
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						}, {
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						}, {
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						}, {
-							ContractId: &contractID,
-							Type:       xdr.ContractEventTypeContract,
-							Body: xdr.ContractEventBody{
-								V: 0,
-								V0: &xdr.ContractEventV0{
-									Topics: []xdr.ScVal{{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									}},
-									Data: xdr.ScVal{
-										Type: xdr.ScValTypeScvSymbol,
-										Sym:  &counter,
-									},
-								},
-							},
-						},
-							{
-								ContractId: &contractID,
-								Type:       xdr.ContractEventTypeContract,
-								Body: xdr.ContractEventBody{
-									V: 0,
-									V0: &xdr.ContractEventV0{
-										Topics: []xdr.ScVal{{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &counter,
-										}},
-										Data: xdr.ScVal{
-											Type: xdr.ScValTypeScvSymbol,
-											Sym:  &counter,
-										},
-									},
-								},
-							},
-						},
-						ReturnValue: xdr.ScVal{
-							Type: xdr.ScValTypeScvSymbol,
-							Sym:  &counter,
-						},
-					},
-				},
-			},
-			Result: xdr.TransactionResultPair{
-				TransactionHash: txHash(ledgerSequence, feeBump),
-				Result:          transactionResult(ledgerSequence, feeBump),
-			},
-		},
+			})
+		}
+		return txResultMetas
 	}
 
+	txProcessing := transactionResultMeta(txCount, eventCount)
 	components := []xdr.TxSetComponent{
 		{
 			Type: xdr.TxSetComponentTypeTxsetCompTxsMaybeDiscountedFee,
@@ -1552,8 +697,8 @@ func BenchmarkIngestTransactionsMemoryWithEvents(b *testing.B) {
 
 	for i := uint32(0); i < roundsNumber; i++ {
 		// Insert ledger i
-		require.NoError(b, txnStore.IngestTransactions(txMetaWithAllData(i, true)))
-		require.NoError(b, eventStore.IngestEvents(txMetaWithAllData(i, true)))
+		require.NoError(b, txnStore.IngestTransactions(txMetaWithAllData(i, true, 5, 5)))
+		require.NoError(b, eventStore.IngestEvents(txMetaWithAllData(i, true, 5, 5)))
 	}
 
 	heapSizeAfter := stableHeapInUse()
