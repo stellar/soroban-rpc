@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	supportlog "github.com/stellar/go/support/log"
 	"runtime"
 	"time"
 
@@ -16,13 +17,17 @@ import (
 )
 
 func (d *Daemon) registerMetrics() {
+	// LogMetricsHook is a metric which counts log lines emitted by soroban rpc
+	logMetricsHook := logmetrics.New(prometheusNamespace)
+	d.logger.AddHook(logMetricsHook)
+	for _, counter := range logMetricsHook {
+		d.metricsRegistry.MustRegister(counter)
+	}
+
 	buildInfoGauge := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{Namespace: prometheusNamespace, Subsystem: "build", Name: "info"},
 		[]string{"version", "goversion", "commit", "branch", "build_timestamp"},
 	)
-	// LogMetricsHook is a metric which counts log lines emitted by soroban rpc
-	LogMetricsHook := logmetrics.New(prometheusNamespace)
-	//
 	buildInfoGauge.With(prometheus.Labels{
 		"version":         config.Version,
 		"commit":          config.CommitHash,
@@ -34,10 +39,6 @@ func (d *Daemon) registerMetrics() {
 	d.metricsRegistry.MustRegister(prometheus.NewGoCollector())
 	d.metricsRegistry.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
 	d.metricsRegistry.MustRegister(buildInfoGauge)
-
-	for _, counter := range LogMetricsHook {
-		d.metricsRegistry.MustRegister(counter)
-	}
 }
 
 func (d *Daemon) MetricsRegistry() *prometheus.Registry {
@@ -101,4 +102,8 @@ func (c *CoreClientWithMetrics) SubmitTransaction(ctx context.Context, envelopeB
 
 func (d *Daemon) CoreClient() interfaces.CoreClient {
 	return d.coreClient
+}
+
+func (d *Daemon) Logger() *supportlog.Entry {
+	return d.logger
 }
