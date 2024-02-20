@@ -317,17 +317,15 @@ pub fn assemble(
     let classic_transaction_fees = crate::DEFAULT_TRANSACTION_FEES;
 
     // Pad the fees up by 15% for a bit of wiggle room
-    let padded_fee = u64::try_from(
+    let padded_fee = u64::from(
         tx.fee.max(
             classic_transaction_fees
                 + u32::try_from(simulation.min_resource_fee)
                     .map_err(|_| Error::LargeFee(simulation.min_resource_fee))?,
         ),
-    )
-    .map_err(|_| Error::LargeFee(simulation.min_resource_fee))
-        / 100
+    ) / 100
         * 115;
-    tx.fee(u32::try_from(padded_fee).map_err(|_| Error::LargeFee(padded_fee)));
+    tx.fee = u32::try_from(padded_fee).map_err(|_| Error::LargeFee(padded_fee))?;
 
     tx.operations = vec![op].try_into()?;
     tx.ext = TransactionExt::V1(transaction_data);
