@@ -750,48 +750,42 @@ mod tests {
         assert_eq!(txn.fee, 100, "modified txn.fee: update the math below");
 
         // 1: wiggle room math overflows but result fits
-        let mut resource_fee = ((u32::MAX as f64) * 0.85).floor() as u64 - 100 - 1;
-        assert_eq!(resource_fee, 3650722099);
+        let mut resource_fee = (u32::MAX as u64 * 85 / 100) - 100 - 1;
+        assert_eq!(resource_fee, 3_650_722_099);
         response.min_resource_fee = resource_fee;
 
         match assemble(&txn, &response) {
-            Ok(atxn) => {
-                let expected = (((resource_fee + 100) as f64) * 1.15) as u32;
-                assert_eq!(atxn.fee, expected);
+            Ok(asstxn) => {
+                let expected = u32::from(resource_fee + 100 * 115 / 100);
+                assert_eq!(asstxn.fee, expected);
             }
-            r => {
-                panic!("expected success, got: {r:#?}")
-            }
+            r => panic!("expected success, got: {r:#?}"),
         }
 
         // 2: combo works but wiggle room overflows
-        resource_fee = ((u32::MAX as f64) * 0.90).floor() as u64;
-        assert_eq!(resource_fee, 3865470565);
+        resource_fee = u32::MAX as u64 * 90 / 100;
+        assert_eq!(resource_fee, 3_865_470_565);
         response.min_resource_fee = resource_fee;
 
         match assemble(&txn, &response) {
             Err(Error::LargeFee(fee)) => {
-                let expected = (((resource_fee + 100) as f64) * 1.15).floor() as u64;
+                let expected = resource_fee + 100 * 115 / 100;
                 assert_eq!(expected, fee, "expected {} != {} actual", expected, fee);
             }
-            r => {
-                panic!("expected LargeFee error, got: {r:#?}")
-            }
+            r => panic!("expected LargeFee error, got: {r:#?}"),
         }
 
         // 3: combo overflows
         resource_fee = (u32::MAX - 100) as u64;
-        assert_eq!(resource_fee, 4294967195);
+        assert_eq!(resource_fee, 4_294_967_195);
         response.min_resource_fee = resource_fee;
 
         match assemble(&txn, &response) {
             Err(Error::LargeFee(fee)) => {
-                let expected = (((resource_fee + 100) as f64) * 1.15).floor() as u64;
+                let expected = resource_fee + 100 * 115 / 100;
                 assert_eq!(expected, fee, "expected {} != {} actual", expected, fee);
             }
-            r => {
-                panic!("expected LargeFee error, got: {r:#?}")
-            }
+            r => panic!("expected LargeFee error, got: {r:#?}"),
         }
     }
 }
