@@ -320,10 +320,10 @@ pub fn assemble(
     let base_tx_fee = tx.fee.max(
         u32::try_from(classic_tx_fee + simulation.min_resource_fee)
             .map_err(|_| Error::LargeFee(simulation.min_resource_fee + classic_tx_fee))?,
-    );
+    ) as u64; // invariant: base_tx_fee <= u32::MAX
 
     // Pad the total fee by up to 15% for a bit of wiggle room.
-    tx.fee = ((base_tx_fee as u64) * 115 / 100).min(u32::MAX as u64) as u32;
+    tx.fee = (base_tx_fee * 115 / 100).min(u32::MAX as u64) as u32;
 
     tx.operations = vec![op].try_into()?;
     tx.ext = TransactionExt::V1(transaction_data);
