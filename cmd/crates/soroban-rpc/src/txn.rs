@@ -763,8 +763,7 @@ mod tests {
         match assemble(&txn, &response) {
             Ok(asstxn) => {
                 let expected = (resource_fee + 100) * 115 / 100;
-                assert!(u32::try_from(expected).is_ok());
-                assert_eq!(asstxn.fee, expected as u32);
+                assert_eq!(asstxn.fee, u32::try_from(expected).unwrap());
             }
             r => panic!("expected success, got: {r:#?}"),
         }
