@@ -726,6 +726,7 @@ mod tests {
 
     #[test]
     fn test_assemble_transaction_overflow_behavior() {
+        //
         // Test three separate cases:
         //
         //  1. Given a near-max (U32_MAX) resource fee, ensure the "wiggle room"
@@ -733,13 +734,12 @@ mod tests {
         //     (Specifically, do U32_MAX - 15% - 100 - 1, so the final fee is
         //     U32_MAX-1.)
         //
-        //  3. Given a near-max (U32_MAX) resource fee that will ONLY exceed
-        //     U32_MAX *with* the wiggle room, ensure the overflow is ignored
-        //     and we just use the max that's possible.
+        //  2. Given a large resource fee that WILL exceed on its own with the
+        //     inclusion fee, ensure the overflow is caught with an error rather
+        //     than silently ignored.
         //
-        //  2. Given a large resource fee that WILL exceed on its own, ensure
-        //     the overflow is caught with an error rather than silently
-        //     ignored.
+        //  3. Given a max resource fee that exceeds U32_MAX *only with* wiggle
+        //     room, ensure the overflow is ignored and we cap on the max.
         //
         let txn = single_contract_fn_transaction();
         let mut response = simulation_response();
@@ -760,6 +760,19 @@ mod tests {
             r => panic!("expected success, got: {r:#?}"),
         }
 
+        // 2: combo overflows, should throw
+        resource_fee = u32::MAX as u64;
+        assert_eq!(resource_fee, 4_294_967_295);
+        response.min_resource_fee = resource_fee;
+
+        match assemble(&txn, &response) {
+            Err(Error::LargeFee(fee)) => {
+                let expected = resource_fee + 100;
+                assert_eq!(expected, fee, "expected {expected} != {fee} actual");
+            }
+            r => panic!("expected LargeFee error, got: {r:#?}"),
+        }
+
         // 2: combo works but wiggle room overflows, should cap
         resource_fee = u32::MAX as u64 * 90 / 100;
         assert_eq!(resource_fee, 3_865_470_565);
@@ -770,19 +783,6 @@ mod tests {
                 assert_eq!(asstxn.fee, u32::MAX);
             }
             r => panic!("expected success, got: {r:#?}"),
-        }
-
-        // 3: combo overflows, should throw
-        resource_fee = u32::MAX as u64;
-        assert_eq!(resource_fee, 4_294_967_295);
-        response.min_resource_fee = resource_fee;
-
-        match assemble(&txn, &response) {
-            Err(Error::LargeFee(fee)) => {
-                let expected = resource_fee + 100;
-                assert_eq!(expected, fee, "expected {expected} != {fee} actual")
-            }
-            r => panic!("expected LargeFee error, got: {r:#?}"),
         }
     }
 }
