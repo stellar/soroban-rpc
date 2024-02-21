@@ -2,11 +2,11 @@ FROM golang:1.21-bullseye as build
 ARG RUST_TOOLCHAIN_VERSION=stable
 ARG REPOSITORY_VERSION
 
-WORKDIR /go/src/github.com/stellar/soroban-tools
+WORKDIR /go/src/github.com/stellar/soroban-rpc
 
 ADD . ./
 
-RUN git config --global --add safe.directory "/go/src/github.com/stellar/soroban-tools"
+RUN git config --global --add safe.directory "/go/src/github.com/stellar/soroban-rpc"
 
 ENV CARGO_HOME=/rust/.cargo
 ENV RUSTUP_HOME=/rust/.rust

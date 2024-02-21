@@ -4,7 +4,7 @@ SUDO := $(shell docker version >/dev/null 2>&1 || echo "sudo")
 BUILD_DATE := $(shell date -u +%FT%TZ)
 
 # Extract latest release semver from GitHub
-SOROBAN_RPC_LATEST_RELEASE := $(shell curl -sS https://api.github.com/repos/stellar/soroban-tools/releases/latest|jq -r ".tag_name"| tr -d "v" )
+SOROBAN_RPC_LATEST_RELEASE := $(shell curl -sS https://api.github.com/repos/stellar/soroban-rpc/releases/latest|jq -r ".tag_name"| tr -d "v" )
 
 # If deb version was provided via the SOROBAN_RPC_VERSION variable use it.
 # If not get latest deb build matching release from GitHub
