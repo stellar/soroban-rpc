@@ -314,16 +314,23 @@ pub fn assemble(
     }
 
     // Update transaction fees to meet the minimum resource fees.
-    let classic_tx_fee = crate::DEFAULT_TRANSACTION_FEES as u64;
+    let classic_tx_fee: u64 = crate::DEFAULT_TRANSACTION_FEES.into();
 
     // Choose larger of existing fee or inclusion + resource fee.
-    let base_tx_fee = tx.fee.max(
-        u32::try_from(classic_tx_fee + simulation.min_resource_fee)
-            .map_err(|_| Error::LargeFee(simulation.min_resource_fee + classic_tx_fee))?,
-    ) as u64; // invariant: base_tx_fee <= u32::MAX
+    let base_tx_fee = u64::from(
+        tx.fee.max(
+            u32::try_from(classic_tx_fee + simulation.min_resource_fee)
+                .map_err(|_| Error::LargeFee(simulation.min_resource_fee + classic_tx_fee))?,
+        ),
+    ); // invariant: base_tx_fee <= u32::MAX
 
     // Pad the total fee by up to 15% for a bit of wiggle room.
-    tx.fee = (base_tx_fee * 115 / 100).min(u32::MAX as u64) as u32;
+    //
+    // We know for a fact because of the .min call that we will not exceed
+    // U32_MAX, but we can't get clippy to shut the fuck up for this single
+    // line, so we have a redundant error check anyway.
+    tx.fee = u32::try_from((base_tx_fee * 115 / 100).min(u64::from(u32::MAX)))
+        .map_err(|_| Error::LargeFee(base_tx_fee))?;
 
     tx.operations = vec![op].try_into()?;
     tx.ext = TransactionExt::V1(transaction_data);
@@ -748,20 +755,21 @@ mod tests {
         assert_eq!(txn.fee, 100, "modified txn.fee: update the math below");
 
         // 1: wiggle room math overflows but result fits
-        let mut resource_fee = (u32::MAX as u64 * 85 / 100) - 100 - 1;
+        let mut resource_fee = (u64::from(u32::MAX) * 85 / 100) - 100 - 1;
         assert_eq!(resource_fee, 3_650_722_099);
         response.min_resource_fee = resource_fee;
 
         match assemble(&txn, &response) {
             Ok(asstxn) => {
-                let expected = ((resource_fee + 100) * 115 / 100) as u32;
-                assert_eq!(asstxn.fee, expected);
+                let expected = (resource_fee + 100) * 115 / 100;
+                assert!(u32::try_from(expected).is_ok());
+                assert_eq!(asstxn.fee, expected as u32);
             }
             r => panic!("expected success, got: {r:#?}"),
         }
 
         // 2: combo overflows, should throw
-        resource_fee = u32::MAX as u64;
+        resource_fee = u64::from(u32::MAX);
         assert_eq!(resource_fee, 4_294_967_295);
         response.min_resource_fee = resource_fee;
 
@@ -774,7 +782,7 @@ mod tests {
         }
 
         // 2: combo works but wiggle room overflows, should cap
-        resource_fee = u32::MAX as u64 * 90 / 100;
+        resource_fee = u64::from(u32::MAX) * 90 / 100;
         assert_eq!(resource_fee, 3_865_470_565);
         response.min_resource_fee = resource_fee;
 
