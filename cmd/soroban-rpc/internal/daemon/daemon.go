@@ -22,15 +22,15 @@ import (
 	"github.com/stellar/go/support/storage"
 	"github.com/stellar/go/xdr"
 
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/config"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/events"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/ingest"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/ledgerbucketwindow"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/preflight"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/transactions"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/util"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ingest"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/preflight"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/util"
 )
 
 const (

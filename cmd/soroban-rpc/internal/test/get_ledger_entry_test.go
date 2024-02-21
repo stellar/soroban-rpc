@@ -14,7 +14,7 @@ import (
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/xdr"
 
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/methods"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 )
 
 func TestGetLedgerEntryNotFound(t *testing.T) {

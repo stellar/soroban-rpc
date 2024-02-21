@@ -24,10 +24,10 @@ import (
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/txnbuild"
 
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/config"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/daemon"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/ledgerbucketwindow"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
 const (
@@ -43,7 +43,7 @@ const (
 	checkpointFrequency    = 8
 	sorobanRPCPort         = 8000
 	adminPort              = 8080
-	helloWorldContractPath = "../../../../target/wasm32-unknown-unknown/test-wasms/test_hello_world.wasm"
+	helloWorldContractPath = "../../../../wasms/test_hello_world.wasm"
 )
 
 type TestConfig struct {

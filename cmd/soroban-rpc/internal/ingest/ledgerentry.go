@@ -10,7 +10,7 @@ import (
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/xdr"
 
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
 func (s *Service) ingestLedgerEntryChanges(ctx context.Context, reader ingest.ChangeReader, tx db.WriteTx, progressLogPeriod int) error {

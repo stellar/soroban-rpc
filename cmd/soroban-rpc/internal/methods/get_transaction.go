@@ -10,7 +10,7 @@ import (
 	"github.com/creachadair/jrpc2/handler"
 	"github.com/stellar/go/xdr"
 
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/transactions"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 )
 
 const (

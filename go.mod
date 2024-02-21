@@ -1,4 +1,4 @@
-module github.com/stellar/soroban-tools
+module github.com/stellar/soroban-rpc
 
 go 1.21
 

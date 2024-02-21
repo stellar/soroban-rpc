@@ -7,8 +7,8 @@ import (
 	"github.com/stellar/go/xdr"
 	"github.com/stretchr/testify/require"
 
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/daemon/interfaces"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/ledgerbucketwindow"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
 var (

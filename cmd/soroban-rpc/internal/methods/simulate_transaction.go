@@ -10,8 +10,8 @@ import (
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/preflight"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/preflight"
 )
 
 type SimulateTransactionRequest struct {

@@ -41,8 +41,8 @@ Cargo.lock: Cargo.toml
 	cargo update --workspace
 
 install_rust: Cargo.lock
-	cargo install soroban-cli --version 20.2.0
-	cargo install --path ./cmd/crates/soroban-test/tests/fixtures/hello --root ./target --debug --quiet
+	#cargo install soroban-cli --version 20.2.0
+	#cargo install --path ./cmd/crates/soroban-test/tests/fixtures/hello --root ./target --debug --quiet
 
 install: install_rust build-libpreflight
 	go install -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} ./...
@@ -59,7 +59,7 @@ build-libpreflight: Cargo.lock
 	cd cmd/soroban-rpc/lib/preflight && cargo build --target $(CARGO_BUILD_TARGET) --profile release-with-panic-unwind
 
 build-test-wasms: Cargo.lock
-	cargo build --package 'test_*' --profile test-wasms --target wasm32-unknown-unknown
+	#cargo build --package 'test_*' --profile test-wasms --target wasm32-unknown-unknown
 
 build-test: build-test-wasms install_rust
 
