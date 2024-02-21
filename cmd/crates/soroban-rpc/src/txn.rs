@@ -317,16 +317,17 @@ pub fn assemble(
     let classic_tx_fee: u64 = crate::DEFAULT_TRANSACTION_FEES.into();
 
     // Choose larger of existing fee or inclusion + resource fee.
-    let base_tx_fee = u64::from(
-        tx.fee.max(
+    let base_tx_fee: u64 = tx
+        .fee
+        .max(
             u32::try_from(classic_tx_fee + simulation.min_resource_fee)
                 .map_err(|_| Error::LargeFee(simulation.min_resource_fee + classic_tx_fee))?,
-        ),
-    ); // invariant: base_tx_fee <= u32::MAX
+        )
+        .into(); // invariant: base_tx_fee <= u32::MAX
 
     // Pad the total fee by up to 15% for a bit of wiggle room.
     //
-    // We know for a fact because of the .min call that we will not exceed
+    // We know for a fact because of the .min() call that we will not exceed
     // U32_MAX, but we can't get clippy to shut the fuck up for this single
     // line, so we have a redundant error check anyway.
     tx.fee = u32::try_from((base_tx_fee * 115 / 100).min(u64::from(u32::MAX)))
