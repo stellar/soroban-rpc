@@ -1187,7 +1187,7 @@ checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
 name = "preflight"
-version = "20.3.2"
+version = "20.3.3"
 dependencies = [
  "base64 0.21.7",
  "libc",
@@ -1643,7 +1643,7 @@ dependencies = [
 
 [[package]]
 name = "soroban-rpc"
-version = "20.3.2"
+version = "20.3.3"
 dependencies = [
  "base64 0.21.7",
  "clap",
@@ -1753,7 +1753,7 @@ dependencies = [
 
 [[package]]
 name = "soroban-spec-tools"
-version = "20.3.2"
+version = "20.3.3"
 dependencies = [
  "base64 0.21.7",
  "ethnum",
