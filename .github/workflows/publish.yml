@@ -51,7 +51,7 @@ jobs:
         cd target/package
         tar xvfz soroban-rpc-$VERSION.crate
         cd soroban-rpc-$VERSION
-        cargo build --target-dir=../.. --features opt --release --target ${{ matrix.target }}
+        cargo build --target-dir=../.. --release --target ${{ matrix.target }}
     - name: Compress 
       run: |
           cd target/${{ matrix.target }}/release
