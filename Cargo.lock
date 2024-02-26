@@ -1661,7 +1661,6 @@ dependencies = [
  "soroban-env-host",
  "soroban-sdk",
  "soroban-spec",
- "soroban-spec-tools",
  "stellar-strkey 0.0.7",
  "stellar-xdr",
  "termcolor",
@@ -1749,25 +1748,6 @@ dependencies = [
  "stellar-xdr",
  "syn",
  "thiserror",
-]
-
-[[package]]
-name = "soroban-spec-tools"
-version = "20.3.3"
-dependencies = [
- "base64 0.21.7",
- "ethnum",
- "hex",
- "itertools 0.10.5",
- "serde_json",
- "soroban-env-host",
- "soroban-spec",
- "stellar-strkey 0.0.7",
- "stellar-xdr",
- "thiserror",
- "tokio",
- "wasmparser 0.90.0",
- "which",
 ]
 
 [[package]]
