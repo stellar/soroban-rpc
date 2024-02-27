@@ -548,6 +548,7 @@ pub struct FullLedgerEntries {
 
 pub struct Client {
     base_url: String,
+    timeout_in_secs: u64,
 }
 
 impl Client {
@@ -580,7 +581,16 @@ impl Client {
         tracing::trace!(?uri);
         Ok(Self {
             base_url: uri.to_string(),
+            timeout_in_secs: 30,
         })
+    }
+
+    /// Create a new client with a timeout in seconds
+    /// # Errors
+    pub fn new_with_timeout(base_url: &str, timeout: u64) -> Result<Self, Error> {
+        let mut client = Self::new(base_url)?;
+        client.timeout_in_secs = timeout;
+        Ok(client)
     }
 
     ///
@@ -720,7 +730,6 @@ soroban config identity fund {address} --helper-url <url>"#
                 "SUCCESS" => {
                     // TODO: the caller should probably be printing this
                     tracing::trace!("{response:#?}");
-
                     return Ok(response);
                 }
                 "FAILED" => {
@@ -737,8 +746,7 @@ soroban config identity fund {address} --helper-url <url>"#
                 }
             };
             let duration = start.elapsed();
-            // TODO: parameterize the timeout instead of using a magic constant
-            if duration.as_secs() > 10 {
+            if duration.as_secs() > self.timeout_in_secs {
                 return Err(Error::TransactionSubmissionTimeout);
             }
             sleep(Duration::from_secs(1)).await;
