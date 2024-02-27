@@ -31,8 +31,6 @@ mod txn;
 
 pub use txn::Assembled;
 
-use soroban_spec_tools::contract;
-
 const VERSION: Option<&str> = option_env!("CARGO_PKG_VERSION");
 pub(crate) const DEFAULT_TRANSACTION_FEES: u32 = 100;
 
@@ -92,8 +90,6 @@ pub enum Error {
     UnsupportedOperationType,
     #[error("unexpected contract code data type: {0:?}")]
     UnexpectedContractCodeDataType(LedgerEntryData),
-    #[error(transparent)]
-    CouldNotParseContractSpec(#[from] contract::Error),
     #[error("unexpected contract code got token")]
     UnexpectedToken(ContractDataEntry),
     #[error(transparent)]
@@ -1010,11 +1006,9 @@ soroban config identity fund {address} --helper-url <url>"#
             xdr::ScVal::ContractInstance(xdr::ScContractInstance {
                 executable: xdr::ContractExecutable::Wasm(hash),
                 ..
-            }) => Ok(
-                contract::Spec::new(&self.get_remote_wasm_from_hash(hash).await?)
-                    .map_err(Error::CouldNotParseContractSpec)?
-                    .spec,
-            ),
+            }) => Ok(soroban_spec::read::from_wasm(
+                &self.get_remote_wasm_from_hash(hash).await?,
+            )?),
             xdr::ScVal::ContractInstance(xdr::ScContractInstance {
                 executable: xdr::ContractExecutable::StellarAsset,
                 ..

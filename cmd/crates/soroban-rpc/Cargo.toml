@@ -18,7 +18,6 @@ crate-type = ["rlib"]
 
 [dependencies]
 soroban-sdk = { workspace = true }
-soroban-spec-tools = { workspace = true }
 soroban-env-host = { workspace = true }
 stellar-strkey = "0.0.7"
 stellar-xdr = { workspace = true, features = ["curr", "std", "serde"] }
