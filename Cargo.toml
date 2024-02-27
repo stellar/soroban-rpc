@@ -2,10 +2,9 @@
 resolver = "2"
 members = [
     "cmd/crates/soroban-rpc",
-    "cmd/crates/soroban-spec-tools",
     "cmd/soroban-rpc/lib/preflight",
 ]
-default-members = ["cmd/crates/soroban-rpc",  "cmd/crates/soroban-spec-tools"]
+default-members = ["cmd/crates/soroban-rpc"]
 #exclude = ["cmd/crates/soroban-test/tests/fixtures/hello"]
 
 [workspace.package]
@@ -45,10 +44,6 @@ rev = "a59f5f421a27bab71472041fc619dd8b0d1cf902"
 version = "20.3.0"
 git = "https://github.com/stellar/soroban-tools"
 rev = "a59f5f421a27bab71472041fc619dd8b0d1cf902"
-
-[workspace.dependencies.soroban-spec-tools]
-version = "20.3.3"
-path = "./cmd/crates/soroban-spec-tools"
 
 [workspace.dependencies.soroban-sdk]
 version = "=20.3.1"
