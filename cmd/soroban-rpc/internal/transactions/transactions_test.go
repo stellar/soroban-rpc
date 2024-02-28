@@ -302,7 +302,6 @@ func txMetaWithAllData(ledgerSequence uint32, feeBump bool, txCount int, eventCo
 			},
 		},
 	}
-	// create a function that returns a transaction result
 
 	transactionResultMeta := func(txCount int, eventCount int) []xdr.TransactionResultMeta {
 		txResultMetas := make([]xdr.TransactionResultMeta, 0, txCount)
@@ -687,15 +686,13 @@ func BenchmarkIngestTransactionsMemory(b *testing.B) {
 }
 
 func BenchmarkIngestTransactionsMemoryWithEvents(b *testing.B) {
-	//roundsNumber := uint32(b.N * 120960)
-	roundsNumber := uint32(b.N * 17280)
-	// Use a small retention window to test eviction
-	txnStore := NewMemoryStore(interfaces.MakeNoOpDeamon(), "passphrase", roundsNumber)
-	eventStore := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "passphrase", roundsNumber)
+	totalLedgers := uint32(b.N * 17280)
+	txnStore := NewMemoryStore(interfaces.MakeNoOpDeamon(), "passphrase", totalLedgers)
+	eventStore := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "passphrase", totalLedgers)
 
 	heapSizeBefore := stableHeapInUse()
 
-	for i := uint32(0); i < roundsNumber; i++ {
+	for i := uint32(0); i < totalLedgers; i++ {
 		// Insert ledger i
 		require.NoError(b, txnStore.IngestTransactions(txMetaWithAllData(i, true, 5, 5)))
 		require.NoError(b, eventStore.IngestEvents(txMetaWithAllData(i, true, 5, 5)))
@@ -703,13 +700,12 @@ func BenchmarkIngestTransactionsMemoryWithEvents(b *testing.B) {
 
 	heapSizeAfter := stableHeapInUse()
 	b.ReportMetric(float64(heapSizeAfter), "bytes/100k_transactions")
-	b.Logf("Memory consumption for %d transactions %v", roundsNumber, byteCountBinary(heapSizeAfter-heapSizeBefore))
+	b.Logf("Memory consumption for %d transactions %v", totalLedgers, byteCountBinary(heapSizeAfter-heapSizeBefore))
 
 	// we want to generate 500*20000 transactions total, to cover the expected daily amount of transactions.
 	projectedTransactionCount := int64(500 * 20000)
-	projectedMemoryUtiliztion := (heapSizeAfter - heapSizeBefore) * projectedTransactionCount / int64(roundsNumber)
+	projectedMemoryUtiliztion := (heapSizeAfter - heapSizeBefore) * projectedTransactionCount / (int64(totalLedgers))
 	b.Logf("Projected memory consumption for %d transactions %v", projectedTransactionCount, byteCountBinary(projectedMemoryUtiliztion))
-	b.ReportMetric(float64(projectedMemoryUtiliztion), "bytes/10M_transactions")
 
 	// add another call to store to prevent the GC from collecting.
 	txnStore.GetTransaction(xdr.Hash{})
