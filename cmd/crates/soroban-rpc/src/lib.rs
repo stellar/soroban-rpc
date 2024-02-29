@@ -105,7 +105,7 @@ pub enum Error {
     MissingOp,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct SendTransactionResponse {
     pub hash: String,
     pub status: String,
@@ -124,7 +124,7 @@ pub struct SendTransactionResponse {
     pub latest_ledger_close_time: u32,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetTransactionResponseRaw {
     pub status: String,
     #[serde(
@@ -144,7 +144,7 @@ pub struct GetTransactionResponseRaw {
     // TODO: add ledger info and application order
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetTransactionResponse {
     pub status: String,
     pub envelope: Option<xdr::TransactionEnvelope>,
@@ -209,7 +209,7 @@ impl GetTransactionResponse {
     }
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct LedgerEntryResult {
     pub key: String,
     pub xdr: String,
@@ -224,14 +224,14 @@ pub struct LedgerEntryResult {
     pub live_until_ledger_seq_ledger_seq: Option<u32>,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetLedgerEntriesResponse {
     pub entries: Option<Vec<LedgerEntryResult>>,
     #[serde(rename = "latestLedger")]
     pub latest_ledger: i64,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetNetworkResponse {
     #[serde(
         rename = "friendbotUrl",
@@ -244,7 +244,7 @@ pub struct GetNetworkResponse {
     pub protocol_version: u32,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetLatestLedgerResponse {
     pub id: String,
     #[serde(rename = "protocolVersion")]
@@ -252,7 +252,7 @@ pub struct GetLatestLedgerResponse {
     pub sequence: u32,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug, Default)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Default, Clone)]
 pub struct Cost {
     #[serde(
         rename = "cpuInsns",
@@ -266,20 +266,20 @@ pub struct Cost {
     pub mem_bytes: u64,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct SimulateHostFunctionResultRaw {
     #[serde(deserialize_with = "deserialize_default_from_null")]
     pub auth: Vec<String>,
     pub xdr: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SimulateHostFunctionResult {
     pub auth: Vec<SorobanAuthorizationEntry>,
     pub xdr: xdr::ScVal,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug, Default)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Default, Clone)]
 pub struct SimulateTransactionResponse {
     #[serde(
         rename = "minResourceFee",
@@ -354,7 +354,7 @@ impl SimulateTransactionResponse {
     }
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug, Default)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Default, Clone)]
 pub struct RestorePreamble {
     #[serde(rename = "transactionData")]
     pub transaction_data: String,
@@ -365,7 +365,7 @@ pub struct RestorePreamble {
     pub min_resource_fee: u64,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct GetEventsResponse {
     #[serde(deserialize_with = "deserialize_default_from_null")]
     pub events: Vec<Event>,
@@ -532,7 +532,7 @@ pub enum EventStart {
     Cursor(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FullLedgerEntry {
     pub key: LedgerKey,
     pub val: LedgerEntryData,
@@ -540,7 +540,7 @@ pub struct FullLedgerEntry {
     pub live_until_ledger_seq: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FullLedgerEntries {
     pub entries: Vec<FullLedgerEntry>,
     pub latest_ledger: i64,
