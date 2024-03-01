@@ -1,8 +1,8 @@
 [package]
-name = "soroban-rpc"
+name = "soroban-rpc-client"
 description = "Soroban RPC client for rust"
-homepage = "https://github.com/stellar/soroban-tools"
-repository = "https://github.com/stellar/soroban-tools"
+homepage = "https://github.com/stellar/soroban-rpc"
+repository = "https://github.com/stellar/soroban-rpc"
 authors = ["Stellar Development Foundation <info@stellar.org>"]
 license = "Apache-2.0"
 readme = "README.md"

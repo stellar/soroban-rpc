@@ -29,12 +29,12 @@ testnet release candidates from the [testing repository.](https://apt.stellar.or
     - Follow the build steps listed in [INSTALL.md](https://github.com/stellar/stellar-core/blob/master/INSTALL.md) file for the instructions on building the local binary
 
 ## Building Soroban-RPC
-- Similar to stellar-core, we will clone the soroban-tools repo and checkout the testnet release tag:
+- Similar to stellar-core, we will clone the soroban-rpc repo and checkout the testnet release tag:
 ```bash
-git clone https://github.com/stellar/soroban-tools.git
-cd soroban-tools
+git clone https://github.com/stellar/soroban-rpc.git
+cd soroban-rpc
 git fetch --tags
-git checkout tags/v20.0.0-rc4 -b soroban-testnet-release
+git checkout tags/v20.3.3 -b soroban-testnet-release
 ```
 - Build soroban-rpc target:
 ```bash
