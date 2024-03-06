@@ -21,7 +21,7 @@ jobs:
       - name: Setup GO
         uses: actions/setup-go@268d8c0ca0432bb2cf416faae41297df9d262d7f # version v3.3.0
         with:
-          go-version: '>=1.22.0'
+          go-version: '>=1.22.1'
 
       - name: Build libpreflight
         run: |
