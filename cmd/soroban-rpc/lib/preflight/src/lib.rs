@@ -518,8 +518,8 @@ impl GoLedgerStorage {
     }
 
     // Gets a ledger entry by key, including the archived/removed entries.
-    // The failures of this function are not recoverable and should only happen in case
-    // if the underlying storage is somehow corrupted.
+    // The failures of this function are not recoverable and should only happen when
+    // the underlying storage is somehow corrupted.
     fn get_fallible(&self, key: &LedgerKey) -> anyhow::Result<Option<EntryWithLiveUntil>> {
         let mut key_xdr = key.to_xdr(DEFAULT_XDR_RW_LIMITS)?;
         let Some(xdr) = self.get_xdr_internal(&mut key_xdr) else {
