@@ -1,23 +1,29 @@
+extern crate anyhow;
 extern crate base64;
 extern crate libc;
 extern crate sha2;
 extern crate soroban_env_host;
 extern crate soroban_simulation;
 
+use anyhow::{anyhow, bail, Result};
 use sha2::{Digest, Sha256};
+use soroban_env_host::storage::EntryWithLiveUntil;
 use soroban_env_host::xdr::{
-    AccountId, Hash, InvokeHostFunctionOp, LedgerEntry, LedgerEntryData, LedgerFootprint,
-    LedgerKey, LedgerKeyTtl, Limits, OperationBody, ReadXdr, TtlEntry, WriteXdr,
+    AccountId, ExtendFootprintTtlOp, Hash, InvokeHostFunctionOp, LedgerEntry, LedgerEntryData,
+    LedgerFootprint, LedgerKey, LedgerKeyTtl, OperationBody, ReadXdr, ScErrorCode, ScErrorType,
+    SorobanTransactionData, TtlEntry, WriteXdr,
 };
-use soroban_env_host::LedgerInfo;
-use soroban_simulation::{ledger_storage, ResourceConfig};
-use soroban_simulation::{
-    simulate_footprint_ttl_op, simulate_invoke_hf_op, LedgerStorage, SimulationResult,
+use soroban_env_host::{HostError, LedgerInfo, DEFAULT_XDR_RW_LIMITS};
+use soroban_simulation::simulation::{
+    simulate_extend_ttl_op, simulate_invoke_host_function_op, simulate_restore_op,
+    InvokeHostFunctionSimulationResult, RestoreOpSimulationResult, SimulationAdjustmentConfig,
 };
-use std::error::Error;
+use soroban_simulation::{AutoRestoringSnapshotSource, NetworkConfig, SnapshotSourceWithArchive};
+use std::cell::RefCell;
 use std::ffi::{CStr, CString};
 use std::panic;
 use std::ptr::null_mut;
+use std::rc::Rc;
 use std::{mem, slice};
 
 #[repr(C)]
@@ -28,25 +34,20 @@ pub struct CLedgerInfo {
     pub timestamp: u64,
     pub network_passphrase: *const libc::c_char,
     pub base_reserve: u32,
-    pub min_temp_entry_ttl: u32,
-    pub min_persistent_entry_ttl: u32,
-    pub max_entry_ttl: u32,
 }
 
-impl From<CLedgerInfo> for LedgerInfo {
-    fn from(c: CLedgerInfo) -> Self {
-        let network_passphrase = from_c_string(c.network_passphrase);
-        Self {
-            protocol_version: c.protocol_version,
-            sequence_number: c.sequence_number,
-            timestamp: c.timestamp,
-            network_id: Sha256::digest(network_passphrase).into(),
-            base_reserve: c.base_reserve,
-            min_temp_entry_ttl: c.min_temp_entry_ttl,
-            min_persistent_entry_ttl: c.min_persistent_entry_ttl,
-            max_entry_ttl: c.max_entry_ttl,
-        }
-    }
+fn fill_ledger_info(c_ledger_info: CLedgerInfo, network_config: &NetworkConfig) -> LedgerInfo {
+    let network_passphrase = from_c_string(c_ledger_info.network_passphrase);
+    let mut ledger_info = LedgerInfo {
+        protocol_version: c_ledger_info.protocol_version,
+        sequence_number: c_ledger_info.sequence_number,
+        timestamp: c_ledger_info.timestamp,
+        network_id: Sha256::digest(network_passphrase).into(),
+        base_reserve: c_ledger_info.base_reserve,
+        ..Default::default()
+    };
+    network_config.fill_config_fields_in_ledger_info(&mut ledger_info);
+    ledger_info
 }
 
 #[repr(C)]
@@ -85,14 +86,6 @@ pub struct CResourceConfig {
     pub instruction_leeway: u64,
 }
 
-impl From<CResourceConfig> for ResourceConfig {
-    fn from(r: CResourceConfig) -> Self {
-        return ResourceConfig {
-            instruction_leeway: r.instruction_leeway,
-        };
-    }
-}
-
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct CPreflightResult {
@@ -116,22 +109,69 @@ pub struct CPreflightResult {
     pub pre_restore_min_fee: i64,
 }
 
-impl From<SimulationResult> for CPreflightResult {
-    fn from(s: SimulationResult) -> Self {
-        let mut result = Self {
-            error: string_to_c(s.error),
-            auth: xdr_vec_to_c(s.auth),
-            result: option_xdr_to_c(s.result),
-            transaction_data: option_xdr_to_c(s.transaction_data),
-            min_fee: s.min_fee,
-            events: xdr_vec_to_c(s.events),
-            cpu_instructions: s.cpu_instructions,
-            memory_bytes: s.memory_bytes,
+impl Default for CPreflightResult {
+    fn default() -> Self {
+        Self {
+            error: CString::new(String::new()).unwrap().into_raw(),
+            auth: get_default_c_xdr_vector(),
+            result: get_default_c_xdr(),
+            transaction_data: get_default_c_xdr(),
+            min_fee: 0,
+            events: get_default_c_xdr_vector(),
+            cpu_instructions: 0,
+            memory_bytes: 0,
             pre_restore_transaction_data: get_default_c_xdr(),
             pre_restore_min_fee: 0,
+        }
+    }
+}
+
+impl CPreflightResult {
+    fn new_from_invoke_host_function(
+        invoke_hf_result: InvokeHostFunctionSimulationResult,
+        restore_preamble: Option<RestoreOpSimulationResult>,
+        error: String,
+    ) -> Self {
+        let mut result = Self {
+            error: string_to_c(error),
+            auth: xdr_vec_to_c(invoke_hf_result.auth),
+            result: option_xdr_to_c(
+                invoke_hf_result
+                    .invoke_result
+                    .map_or_else(|_| None, |v| Some(v)),
+            ),
+            min_fee: invoke_hf_result
+                .transaction_data
+                .as_ref()
+                .map_or_else(|| 0, |r| r.resource_fee),
+            transaction_data: option_xdr_to_c(invoke_hf_result.transaction_data),
+            // TODO: Diagnostic and contract events should be separated in the response
+            events: xdr_vec_to_c(invoke_hf_result.diagnostic_events),
+            cpu_instructions: invoke_hf_result.simulated_instructions as u64,
+            memory_bytes: invoke_hf_result.simulated_memory as u64,
+            ..Default::default()
         };
-        if let Some(p) = s.restore_preamble {
-            result.pre_restore_min_fee = p.min_fee;
+        if let Some(p) = restore_preamble {
+            result.pre_restore_min_fee = p.transaction_data.resource_fee;
+            result.pre_restore_transaction_data = xdr_to_c(p.transaction_data);
+        };
+        result
+    }
+
+    fn new_from_transaction_data(
+        transaction_data: Option<SorobanTransactionData>,
+        restore_preamble: Option<RestoreOpSimulationResult>,
+        error: String,
+    ) -> Self {
+        let min_fee = transaction_data.as_ref().map_or(0, |d| d.resource_fee);
+        let mut result = Self {
+            error: string_to_c(error),
+            transaction_data: option_xdr_to_c(transaction_data),
+            min_fee,
+            ..Default::default()
+        };
+        if let Some(p) = restore_preamble {
+            result.pre_restore_min_fee = p.transaction_data.resource_fee;
             result.pre_restore_transaction_data = xdr_to_c(p.transaction_data);
         };
         result
@@ -141,7 +181,6 @@ impl From<SimulationResult> for CPreflightResult {
 #[no_mangle]
 pub extern "C" fn preflight_invoke_hf_op(
     handle: libc::uintptr_t, // Go Handle to forward to SnapshotSourceGet and SnapshotSourceHas
-    bucket_list_size: u64,   // Bucket list size for current ledger
     invoke_hf_op: CXDR,      // InvokeHostFunctionOp XDR in base64
     source_account: CXDR,    // AccountId XDR in base64
     ledger_info: CLedgerInfo,
@@ -151,7 +190,6 @@ pub extern "C" fn preflight_invoke_hf_op(
     catch_preflight_panic(Box::new(move || {
         preflight_invoke_hf_op_or_maybe_panic(
             handle,
-            bucket_list_size,
             invoke_hf_op,
             source_account,
             ledger_info,
@@ -163,105 +201,173 @@ pub extern "C" fn preflight_invoke_hf_op(
 
 fn preflight_invoke_hf_op_or_maybe_panic(
     handle: libc::uintptr_t,
-    bucket_list_size: u64, // Go Handle to forward to SnapshotSourceGet and SnapshotSourceHas
-    invoke_hf_op: CXDR,    // InvokeHostFunctionOp XDR in base64
-    source_account: CXDR,  // AccountId XDR in base64
-    ledger_info: CLedgerInfo,
+    invoke_hf_op: CXDR,   // InvokeHostFunctionOp XDR in base64
+    source_account: CXDR, // AccountId XDR in base64
+    c_ledger_info: CLedgerInfo,
     resource_config: CResourceConfig,
     enable_debug: bool,
-) -> Result<CPreflightResult, Box<dyn Error>> {
+) -> Result<CPreflightResult> {
     let invoke_hf_op =
-        InvokeHostFunctionOp::from_xdr(from_c_xdr(invoke_hf_op), Limits::none()).unwrap();
-    let source_account = AccountId::from_xdr(from_c_xdr(source_account), Limits::none()).unwrap();
-    let go_storage = GoLedgerStorage {
-        golang_handle: handle,
-        current_ledger_sequence: ledger_info.sequence_number,
+        InvokeHostFunctionOp::from_xdr(from_c_xdr(invoke_hf_op), DEFAULT_XDR_RW_LIMITS).unwrap();
+    let source_account =
+        AccountId::from_xdr(from_c_xdr(source_account), DEFAULT_XDR_RW_LIMITS).unwrap();
+    let go_storage = Rc::new(GoLedgerStorage::new(handle));
+    let network_config = NetworkConfig::load_from_snapshot(go_storage.as_ref())?;
+    let ledger_info = fill_ledger_info(c_ledger_info, &network_config);
+    let auto_restore_snapshot = Rc::new(AutoRestoringSnapshotSource::new(
+        go_storage.clone(),
+        &ledger_info,
+    )?);
+
+    let mut adjustment_config = SimulationAdjustmentConfig::default_adjustment();
+    // It would be reasonable to extend `resource_config` to be compatible with `adjustment_config`
+    // in order to let the users customize the resource/fee adjustments in a more granular fashion.
+    adjustment_config.instructions.additive_factor = adjustment_config
+        .instructions
+        .additive_factor
+        .max(resource_config.instruction_leeway.min(u32::MAX as u64) as u32);
+    // Here we assume that no input auth means that the user requests the recording auth.
+    let auth_entries = if invoke_hf_op.auth.is_empty() {
+        None
+    } else {
+        Some(invoke_hf_op.auth.to_vec())
     };
-    let ledger_storage =
-        LedgerStorage::with_restore_tracking(Box::new(go_storage), ledger_info.sequence_number)?;
-    let result = simulate_invoke_hf_op(
-        ledger_storage,
-        bucket_list_size,
-        invoke_hf_op,
-        source_account,
-        LedgerInfo::from(ledger_info),
-        resource_config.into(),
+    // Invoke the host function. The user errors should normally be captured in `invoke_hf_result.invoke_result` and
+    // this should return Err result for misconfigured ledger.
+    let invoke_hf_result = simulate_invoke_host_function_op(
+        auto_restore_snapshot.clone(),
+        &network_config,
+        &adjustment_config,
+        &ledger_info,
+        invoke_hf_op.host_function,
+        auth_entries,
+        &source_account,
+        rand::Rng::gen(&mut rand::thread_rng()),
         enable_debug,
-    );
-    match result {
-        Ok(r) => Ok(r.into()),
-        Err(e) => Err(e),
-    }
+    )?;
+    let maybe_restore_result = match &invoke_hf_result.invoke_result {
+        Ok(_) => auto_restore_snapshot.simulate_restore_keys_op(
+            &network_config,
+            &SimulationAdjustmentConfig::default_adjustment(),
+            &ledger_info,
+        ),
+        Err(e) => Err(e.clone().into()),
+    };
+    let error_str = extract_error_string(&maybe_restore_result, go_storage.as_ref());
+    Ok(CPreflightResult::new_from_invoke_host_function(
+        invoke_hf_result,
+        maybe_restore_result.unwrap_or(None),
+        error_str,
+    ))
 }
 
 #[no_mangle]
 pub extern "C" fn preflight_footprint_ttl_op(
     handle: libc::uintptr_t, // Go Handle to forward to SnapshotSourceGet and SnapshotSourceHas
-    bucket_list_size: u64,   // Bucket list size for current ledger
     op_body: CXDR,           // OperationBody XDR
     footprint: CXDR,         // LedgerFootprint XDR
-    current_ledger_seq: u32,
+    ledger_info: CLedgerInfo,
 ) -> *mut CPreflightResult {
     catch_preflight_panic(Box::new(move || {
-        preflight_footprint_ttl_op_or_maybe_panic(
-            handle,
-            bucket_list_size,
-            op_body,
-            footprint,
-            current_ledger_seq,
-        )
+        preflight_footprint_ttl_op_or_maybe_panic(handle, op_body, footprint, ledger_info)
     }))
 }
-
 fn preflight_footprint_ttl_op_or_maybe_panic(
     handle: libc::uintptr_t,
-    bucket_list_size: u64,
     op_body: CXDR,
     footprint: CXDR,
-    current_ledger_seq: u32,
-) -> Result<CPreflightResult, Box<dyn Error>> {
-    let op_body = OperationBody::from_xdr(from_c_xdr(op_body), Limits::none()).unwrap();
-    let footprint = LedgerFootprint::from_xdr(from_c_xdr(footprint), Limits::none()).unwrap();
-    let go_storage = GoLedgerStorage {
-        golang_handle: handle,
-        current_ledger_sequence: current_ledger_seq,
-    };
-    let ledger_storage = &LedgerStorage::new(Box::new(go_storage), current_ledger_seq);
-    let result = simulate_footprint_ttl_op(
-        ledger_storage,
-        bucket_list_size,
-        op_body,
-        footprint,
-        current_ledger_seq,
-    );
-    match result {
-        Ok(r) => Ok(r.into()),
-        Err(e) => Err(e),
+    c_ledger_info: CLedgerInfo,
+) -> Result<CPreflightResult> {
+    let op_body = OperationBody::from_xdr(from_c_xdr(op_body), DEFAULT_XDR_RW_LIMITS)?;
+    let footprint = LedgerFootprint::from_xdr(from_c_xdr(footprint), DEFAULT_XDR_RW_LIMITS)?;
+    let go_storage = Rc::new(GoLedgerStorage::new(handle));
+    let network_config = NetworkConfig::load_from_snapshot(go_storage.as_ref())?;
+    let ledger_info = fill_ledger_info(c_ledger_info, &network_config);
+    // TODO: It would make for a better UX if the user passed only the neccesary fields for every operation.
+    // That would remove a possibility of providing bad operation body, or a possibility of filling wrong footprint
+    // field.
+    match op_body {
+        OperationBody::ExtendFootprintTtl(extend_op) => {
+            preflight_extend_ttl_op(extend_op, footprint.read_only.as_slice(), go_storage, &network_config, &ledger_info)
+        },
+        OperationBody::RestoreFootprint(_) => {
+            preflight_restore_op(footprint.read_write.as_slice(), go_storage, &network_config, &ledger_info)
+        }
+        _ => Err(anyhow!("encountered unsupported operation type: '{:?}', instead of 'ExtendFootprintTtl' or 'RestoreFootprint' operations.",
+            op_body.discriminant()).into())
     }
+}
+fn preflight_extend_ttl_op(
+    extend_op: ExtendFootprintTtlOp,
+    keys_to_extend: &[LedgerKey],
+    go_storage: Rc<GoLedgerStorage>,
+    network_config: &NetworkConfig,
+    ledger_info: &LedgerInfo,
+) -> Result<CPreflightResult> {
+    let auto_restore_snapshot = AutoRestoringSnapshotSource::new(go_storage.clone(), ledger_info)?;
+    let simulation_result = simulate_extend_ttl_op(
+        &auto_restore_snapshot,
+        &network_config,
+        &SimulationAdjustmentConfig::default_adjustment(),
+        &ledger_info,
+        keys_to_extend,
+        extend_op.extend_to,
+    );
+    let (maybe_transaction_data, maybe_restore_result) = match simulation_result {
+        Ok(r) => (
+            Some(r.transaction_data),
+            auto_restore_snapshot.simulate_restore_keys_op(
+                &network_config,
+                &SimulationAdjustmentConfig::default_adjustment(),
+                &ledger_info,
+            ),
+        ),
+        Err(e) => (None, Err(e)),
+    };
+
+    let error_str = extract_error_string(&maybe_restore_result, go_storage.as_ref());
+    Ok(CPreflightResult::new_from_transaction_data(
+        maybe_transaction_data,
+        maybe_restore_result.unwrap_or(None),
+        error_str,
+    ))
+}
+
+fn preflight_restore_op(
+    keys_to_restore: &[LedgerKey],
+    go_storage: Rc<GoLedgerStorage>,
+    network_config: &NetworkConfig,
+    ledger_info: &LedgerInfo,
+) -> Result<CPreflightResult> {
+    let simulation_result = simulate_restore_op(
+        go_storage.as_ref(),
+        &network_config,
+        &SimulationAdjustmentConfig::default_adjustment(),
+        &ledger_info,
+        keys_to_restore,
+    );
+    let error_str = extract_error_string(&simulation_result, go_storage.as_ref());
+    Ok(CPreflightResult::new_from_transaction_data(
+        simulation_result
+            .map(|r| Some(r.transaction_data))
+            .unwrap_or(None),
+        None,
+        error_str,
+    ))
 }
 
 fn preflight_error(str: String) -> CPreflightResult {
     let c_str = CString::new(str).unwrap();
     CPreflightResult {
         error: c_str.into_raw(),
-        auth: get_default_c_xdr_vector(),
-        result: get_default_c_xdr(),
-        transaction_data: get_default_c_xdr(),
-        min_fee: 0,
-        events: get_default_c_xdr_vector(),
-        cpu_instructions: 0,
-        memory_bytes: 0,
-        pre_restore_transaction_data: get_default_c_xdr(),
-        pre_restore_min_fee: 0,
+        ..Default::default()
     }
 }
 
-fn catch_preflight_panic(
-    op: Box<dyn Fn() -> Result<CPreflightResult, Box<dyn Error>>>,
-) -> *mut CPreflightResult {
+fn catch_preflight_panic(op: Box<dyn Fn() -> Result<CPreflightResult>>) -> *mut CPreflightResult {
     // catch panics before they reach foreign callers (which otherwise would result in
     // undefined behavior)
-    let res: std::thread::Result<Result<CPreflightResult, Box<dyn Error>>> =
+    let res: std::thread::Result<Result<CPreflightResult>> =
         panic::catch_unwind(panic::AssertUnwindSafe(op));
     let c_preflight_result = match res {
         Err(panic) => match panic.downcast::<String>() {
@@ -277,7 +383,7 @@ fn catch_preflight_panic(
 }
 
 fn xdr_to_c(v: impl WriteXdr) -> CXDR {
-    let (xdr, len) = vec_to_c_array(v.to_xdr(Limits::none()).unwrap());
+    let (xdr, len) = vec_to_c_array(v.to_xdr(DEFAULT_XDR_RW_LIMITS).unwrap());
     CXDR { xdr, len }
 }
 
@@ -385,37 +491,40 @@ extern "C" {
 
 struct GoLedgerStorage {
     golang_handle: libc::uintptr_t,
-    current_ledger_sequence: u32,
+    internal_error: RefCell<Option<anyhow::Error>>,
 }
 
 impl GoLedgerStorage {
+    fn new(golang_handle: libc::uintptr_t) -> Self {
+        Self {
+            golang_handle,
+            internal_error: RefCell::new(None),
+        }
+    }
+
     // Get the XDR, regardless of ttl
-    fn get_xdr_internal(
-        &self,
-        key_xdr: &mut Vec<u8>,
-    ) -> std::result::Result<Vec<u8>, ledger_storage::Error> {
+    fn get_xdr_internal(&self, key_xdr: &mut Vec<u8>) -> Option<Vec<u8>> {
         let key_c_xdr = CXDR {
             xdr: key_xdr.as_mut_ptr(),
             len: key_xdr.len(),
         };
         let res = unsafe { SnapshotSourceGet(self.golang_handle, key_c_xdr) };
         if res.xdr.is_null() {
-            return Err(ledger_storage::Error::NotFound);
+            return None;
         }
         let v = from_c_xdr(res);
         unsafe { FreeGoXDR(res) };
-        Ok(v)
+        Some(v)
     }
-}
 
-impl ledger_storage::LedgerGetter for GoLedgerStorage {
-    fn get(
-        &self,
-        key: &LedgerKey,
-        include_not_live: bool,
-    ) -> std::result::Result<(LedgerEntry, Option<u32>), ledger_storage::Error> {
-        let mut key_xdr = key.to_xdr(Limits::none())?;
-        let xdr = self.get_xdr_internal(&mut key_xdr)?;
+    // Gets a ledger entry by key, including the archived/removed entries.
+    // The failures of this function are not recoverable and should only happen when
+    // the underlying storage is somehow corrupted.
+    fn get_fallible(&self, key: &LedgerKey) -> anyhow::Result<Option<EntryWithLiveUntil>> {
+        let mut key_xdr = key.to_xdr(DEFAULT_XDR_RW_LIMITS)?;
+        let Some(xdr) = self.get_xdr_internal(&mut key_xdr) else {
+            return Ok(None);
+        };
 
         let live_until_ledger_seq = match key {
             // TODO: it would probably be more efficient to do all of this in the Go side
@@ -425,36 +534,65 @@ impl ledger_storage::LedgerGetter for GoLedgerStorage {
                 let ttl_key = LedgerKey::Ttl(LedgerKeyTtl {
                     key_hash: Hash(key_hash),
                 });
-                let mut ttl_key_xdr = ttl_key.to_xdr(Limits::none())?;
-                let ttl_entry_xdr = self.get_xdr_internal(&mut ttl_key_xdr)?;
-                let ttl_entry = LedgerEntry::from_xdr(ttl_entry_xdr, Limits::none())?;
-                if let LedgerEntryData::Ttl(TtlEntry {
+                let mut ttl_key_xdr = ttl_key.to_xdr(DEFAULT_XDR_RW_LIMITS)?;
+                let ttl_entry_xdr = self.get_xdr_internal(&mut ttl_key_xdr).ok_or_else(|| {
+                    anyhow!(
+                        "TTL entry is missing for an entry that should have TTL with key: '{key:?}'"
+                    )
+                })?;
+                let ttl_entry = LedgerEntry::from_xdr(ttl_entry_xdr, DEFAULT_XDR_RW_LIMITS)?;
+                let LedgerEntryData::Ttl(TtlEntry {
                     live_until_ledger_seq,
                     ..
                 }) = ttl_entry.data
-                {
-                    Some(live_until_ledger_seq)
-                } else {
-                    return Err(ledger_storage::Error::UnexpectedLedgerEntryTypeForTtlKey {
-                        ledger_entry_type: ttl_entry.data.name().to_string(),
-                    });
-                }
+                else {
+                    bail!(
+                        "unexpected non-TTL entry '{:?}' has been fetched for TTL key '{:?}'",
+                        ttl_entry,
+                        ttl_key
+                    );
+                };
+                Some(live_until_ledger_seq)
             }
             _ => None,
         };
 
-        if !include_not_live
-            && live_until_ledger_seq.is_some()
-            && !is_live(live_until_ledger_seq.unwrap(), self.current_ledger_sequence)
-        {
-            return Err(ledger_storage::Error::NotLive);
-        }
-
-        let entry = LedgerEntry::from_xdr(xdr, Limits::none())?;
-        Ok((entry, live_until_ledger_seq))
+        let entry = LedgerEntry::from_xdr(xdr, DEFAULT_XDR_RW_LIMITS)?;
+        Ok(Some((Rc::new(entry), live_until_ledger_seq)))
     }
 }
 
-pub(crate) fn is_live(live_until_ledger_seq: u32, current_ledger_seq: u32) -> bool {
-    live_until_ledger_seq >= current_ledger_seq
+impl SnapshotSourceWithArchive for GoLedgerStorage {
+    fn get_including_archived(
+        &self,
+        key: &Rc<LedgerKey>,
+    ) -> std::result::Result<Option<EntryWithLiveUntil>, HostError> {
+        let res = self.get_fallible(key.as_ref());
+        match res {
+            Ok(res) => Ok(res),
+            Err(e) => {
+                // Store the internal error in the storage as the info won't be propagated from simulation.
+                if let Ok(mut err) = self.internal_error.try_borrow_mut() {
+                    *err = Some(e.into());
+                }
+                // Errors that occur in storage are not recoverable, so we force host to halt by passing
+                // it an internal error.
+                return Err((ScErrorType::Storage, ScErrorCode::InternalError).into());
+            }
+        }
+    }
+}
+
+fn extract_error_string<T>(simulation_result: &Result<T>, go_storage: &GoLedgerStorage) -> String {
+    match simulation_result {
+        Ok(_) => String::new(),
+        Err(e) => {
+            // Override any simulation result with a storage error (if any). Simulation does not propagate the storage
+            // errors, but these provide more exact information on the root cause.
+            match go_storage.internal_error.borrow().as_ref() {
+                Some(e) => format!("{e:?}"),
+                None => format!("{e:?}"),
+            }
+        }
+    }
 }
