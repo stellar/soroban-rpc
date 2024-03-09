@@ -1,6 +1,6 @@
 [package]
-name = "soroban-rpc-client"
-description = "Soroban RPC client for rust"
+name = "stellar-rpc-client"
+description = "Stellar RPC client for rust"
 homepage = "https://github.com/stellar/soroban-rpc"
 repository = "https://github.com/stellar/soroban-rpc"
 authors = ["Stellar Development Foundation <info@stellar.org>"]

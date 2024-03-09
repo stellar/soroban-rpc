@@ -1,10 +1,10 @@
 [workspace]
 resolver = "2"
 members = [
-    "cmd/crates/soroban-rpc-client",
+    "cmd/crates/stellar-rpc-client",
     "cmd/soroban-rpc/lib/preflight",
 ]
-default-members = ["cmd/crates/soroban-rpc-client"]
+default-members = ["cmd/crates/stellar-rpc-client"]
 #exclude = ["cmd/crates/soroban-test/tests/fixtures/hello"]
 
 [workspace.package]
@@ -60,9 +60,9 @@ version = "=20.3.1"
 # git = "https://github.com/stellar/rs-soroban-sdk"
 # rev = "4aef54ff9295c2fca4c5b9fbd2c92d0ff99f67de"
 
-[workspace.dependencies.soroban-rpc-client]
+[workspace.dependencies.stellar-rpc-client]
 version = "20.3.3"
-path = "cmd/crates/soroban-rpc-client"
+path = "cmd/crates/stellar-rpc-client"
 
 [workspace.dependencies.stellar-xdr]
 version = "=20.1.0"

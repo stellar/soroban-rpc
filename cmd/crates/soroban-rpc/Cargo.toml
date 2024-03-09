@@ -1,0 +1,12 @@
+[package]
+name = "soroban-rpc"
+description = "Stellar RPC client for rust"
+homepage = "https://github.com/stellar/soroban-rpc"
+repository = "https://github.com/stellar/soroban-rpc"
+authors = ["Stellar Development Foundation <info@stellar.org>"]
+license = "Apache-2.0"
+readme = "README.md"
+version.workspace = true
+edition = "2021"
+rust-version.workspace = true
+autobins = false
