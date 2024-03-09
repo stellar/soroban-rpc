@@ -24,8 +24,8 @@ var contractCostParams = func() *xdr.ContractCostParams {
 	for i := 0; i < 23; i++ {
 		result = append(result, xdr.ContractCostParamEntry{
 			Ext:        xdr.ExtensionPoint{},
-			ConstTerm:  0,
-			LinearTerm: 0,
+			ConstTerm:  xdr.Int64((i + 1) * 10),
+			LinearTerm: xdr.Int64(i),
 		})
 	}
 
@@ -187,6 +187,16 @@ var mockLedgerEntriesWithoutTTLs = []xdr.LedgerEntry{
 				ConfigSettingId: xdr.ConfigSettingIdConfigSettingContractCostParamsMemoryBytes,
 				// Obtained with TestGetLedgerEntryConfigSettings
 				ContractCostParamsMemBytes: contractCostParams,
+			},
+		},
+	},
+	{
+		LastModifiedLedgerSeq: 2,
+		Data: xdr.LedgerEntryData{
+			Type: xdr.LedgerEntryTypeConfigSetting,
+			ConfigSetting: &xdr.ConfigSettingEntry{
+				ConfigSettingId:      xdr.ConfigSettingIdConfigSettingBucketlistSizeWindow,
+				BucketListSizeWindow: &[]xdr.Uint64{100, 200},
 			},
 		},
 	},

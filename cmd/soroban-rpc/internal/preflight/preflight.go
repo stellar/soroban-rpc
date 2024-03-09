@@ -2,7 +2,6 @@ package preflight
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"runtime/cgo"
 	"time"
@@ -36,7 +35,7 @@ type snapshotSourceHandle struct {
 }
 
 const (
-	defaultInstructionLeeway uint64 = 3000000
+	defaultInstructionLeeway uint64 = 0
 )
 
 // SnapshotSourceGet takes a LedgerKey XDR in base64 string and returns its matching LedgerEntry XDR in base64 string
@@ -150,6 +149,23 @@ func GetPreflight(ctx context.Context, params PreflightParameters) (Preflight, e
 	}
 }
 
+func getLedgerInfo(params PreflightParameters) (C.ledger_info_t, error) {
+	simulationLedgerSeq, err := getSimulationLedgerSeq(params.LedgerEntryReadTx)
+	if err != nil {
+		return C.ledger_info_t{}, err
+	}
+
+	li := C.ledger_info_t{
+		network_passphrase: C.CString(params.NetworkPassphrase),
+		sequence_number:    C.uint32_t(simulationLedgerSeq),
+		protocol_version:   20,
+		timestamp:          C.uint64_t(time.Now().Unix()),
+		// Current base reserve is 0.5XLM (in stroops)
+		base_reserve: 5_000_000,
+	}
+	return li, nil
+}
+
 func getFootprintTtlPreflight(params PreflightParameters) (Preflight, error) {
 	opBodyXDR, err := params.OpBody.MarshalBinary()
 	if err != nil {
@@ -164,17 +180,16 @@ func getFootprintTtlPreflight(params PreflightParameters) (Preflight, error) {
 	handle := cgo.NewHandle(snapshotSourceHandle{params.LedgerEntryReadTx, params.Logger})
 	defer handle.Delete()
 
-	simulationLedgerSeq, err := getSimulationLedgerSeq(params.LedgerEntryReadTx)
+	li, err := getLedgerInfo(params)
 	if err != nil {
 		return Preflight{}, err
 	}
 
 	res := C.preflight_footprint_ttl_op(
 		C.uintptr_t(handle),
-		C.uint64_t(params.BucketListSize),
 		opBodyCXDR,
 		footprintCXDR,
-		C.uint32_t(simulationLedgerSeq),
+		li,
 	)
 
 	FreeGoXDR(opBodyCXDR)
@@ -206,36 +221,9 @@ func getInvokeHostFunctionPreflight(params PreflightParameters) (Preflight, erro
 		return Preflight{}, err
 	}
 	sourceAccountCXDR := CXDR(sourceAccountXDR)
-
-	hasConfig, stateArchivalConfig, _, err := db.GetLedgerEntry(params.LedgerEntryReadTx, xdr.LedgerKey{
-		Type: xdr.LedgerEntryTypeConfigSetting,
-		ConfigSetting: &xdr.LedgerKeyConfigSetting{
-			ConfigSettingId: xdr.ConfigSettingIdConfigSettingStateArchival,
-		},
-	})
+	li, err := getLedgerInfo(params)
 	if err != nil {
 		return Preflight{}, err
-	}
-	if !hasConfig {
-		return Preflight{}, errors.New("state archival config setting missing in ledger storage")
-	}
-
-	simulationLedgerSeq, err := getSimulationLedgerSeq(params.LedgerEntryReadTx)
-	if err != nil {
-		return Preflight{}, err
-	}
-
-	stateArchival := stateArchivalConfig.Data.MustConfigSetting().MustStateArchivalSettings()
-	li := C.ledger_info_t{
-		network_passphrase: C.CString(params.NetworkPassphrase),
-		sequence_number:    C.uint32_t(simulationLedgerSeq),
-		protocol_version:   20,
-		timestamp:          C.uint64_t(time.Now().Unix()),
-		// Current base reserve is 0.5XLM (in stroops)
-		base_reserve:             5_000_000,
-		min_temp_entry_ttl:       C.uint(stateArchival.MinTemporaryTtl),
-		min_persistent_entry_ttl: C.uint(stateArchival.MinPersistentTtl),
-		max_entry_ttl:            C.uint(stateArchival.MaxEntryTtl),
 	}
 
 	handle := cgo.NewHandle(snapshotSourceHandle{params.LedgerEntryReadTx, params.Logger})
@@ -245,7 +233,6 @@ func getInvokeHostFunctionPreflight(params PreflightParameters) (Preflight, erro
 	}
 	res := C.preflight_invoke_hf_op(
 		C.uintptr_t(handle),
-		C.uint64_t(params.BucketListSize),
 		invokeHostFunctionCXDR,
 		sourceAccountCXDR,
 		li,
