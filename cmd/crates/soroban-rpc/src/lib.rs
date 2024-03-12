@@ -26,12 +26,11 @@ use termcolor::{Color, ColorChoice, StandardStream, WriteColor};
 use termcolor_output::colored;
 use tokio::time::sleep;
 
-
 pub mod log;
 mod signer;
 mod txn;
 
-pub use signer::Signer;
+pub use signer::Stellar;
 pub use txn::Assembled;
 
 const VERSION: Option<&str> = option_env!("CARGO_PKG_VERSION");

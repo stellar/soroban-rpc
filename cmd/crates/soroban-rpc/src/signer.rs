@@ -1,22 +1,71 @@
-use ed25519_dalek::ed25519::signature::Keypair;
+use ed25519_dalek::Signer;
 use sha2::{Digest, Sha256};
 
 use crate::{txn::requires_auth, Error};
 use soroban_env_host::xdr::{
-    self, AccountId, Hash, HashIdPreimage, HashIdPreimageSorobanAuthorization, Limits,
-    OperationBody, PublicKey, ScAddress, ScMap, ScSymbol, ScVal, SorobanAddressCredentials,
-    SorobanAuthorizationEntry, SorobanCredentials, Transaction, Uint256, WriteXdr,
+    self, AccountId, DecoratedSignature, Hash, HashIdPreimage, HashIdPreimageSorobanAuthorization,
+    Limits, OperationBody, PublicKey, ScAddress, ScMap, ScSymbol, ScVal, Signature, SignatureHint,
+    SorobanAddressCredentials, SorobanAuthorizationEntry, SorobanCredentials, Transaction,
+    TransactionEnvelope, TransactionSignaturePayload, TransactionSignaturePayloadTaggedTransaction,
+    TransactionV1Envelope, Uint256, WriteXdr,
 };
-pub trait Signer {
-    fn new<T>(network_passphrase: &str, options: Option<T>) -> Self;
 
+/// A trait for signing Stellar transactions and Soroban authorization entries
+pub trait Stellar {
+    /// The type of the options that can be passed when creating a new signer
+    type Init;
+    /// Create a new signer with the given network passphrase and options
+    fn new(network_passphrase: &str, options: Option<Self::Init>) -> Self;
+
+    /// Get the network hash
     fn network_hash(&self) -> xdr::Hash;
-    fn sign_txn(&self) -> Result<String, Error>;
 
+    /// Sign a transaction hash with the given source account
+    /// # Errors
+    /// Returns an error if the source account is not found
+    fn sign_txn_hash(
+        &self,
+        txn: [u8; 32],
+        source_account: &stellar_strkey::Strkey,
+    ) -> Result<DecoratedSignature, Error>;
+
+    /// Sign a Soroban authorization entry with the given address
+    /// # Errors
+    /// Returns an error if the address is not found
+    fn sign_soroban_authorization_entry(
+        &self,
+        unsigned_entry: &SorobanAuthorizationEntry,
+        signature_expiration_ledger: u32,
+        address: &[u8; 32],
+    ) -> Result<SorobanAuthorizationEntry, Error>;
+
+    /// Sign a Stellar transaction with the given source account
+    /// This is a default implementation that signs the transaction hash and returns a decorated signature
+    /// # Errors
+    /// Returns an error if the source account is not found
+    fn sign_txn(
+        &self,
+        txn: Transaction,
+        source_account: &stellar_strkey::Strkey,
+    ) -> Result<TransactionEnvelope, Error> {
+        let signature_payload = TransactionSignaturePayload {
+            network_id: self.network_hash(),
+            tagged_transaction: TransactionSignaturePayloadTaggedTransaction::Tx(txn.clone()),
+        };
+        let hash = Sha256::digest(signature_payload.to_xdr(Limits::none())?).into();
+        let decorated_signature = self.sign_txn_hash(hash, source_account)?;
+        Ok(TransactionEnvelope::Tx(TransactionV1Envelope {
+            tx: txn,
+            signatures: vec![decorated_signature].try_into()?,
+        }))
+    }
+
+    /// Sign a Soroban authorization entries for a given transaction and set the expiration ledger
+    /// # Errors
+    /// Returns an error if the address is not found
     fn sign_soroban_authorizations(
         &self,
         raw: &Transaction,
-        source_account: stellar_strkey::ed25519::PublicKey,
         signature_expiration_ledger: u32,
     ) -> Result<Option<Transaction>, Error> {
         let mut tx = raw.clone();
@@ -37,10 +86,7 @@ pub trait Signer {
             .as_slice()
             .iter()
             .map(|raw_auth| {
-                Ok(self.maybe_sign_soroban_authorization_entry(
-                    raw_auth,
-                    signature_expiration_ledger,
-                )?)
+                self.maybe_sign_soroban_authorization_entry(raw_auth, signature_expiration_ledger)
             })
             .collect::<Result<Vec<_>, Error>>()?;
 
@@ -49,6 +95,9 @@ pub trait Signer {
         Ok(Some(tx))
     }
 
+    /// Sign a Soroban authorization entry if the address is public key
+    /// # Errors
+    /// Returns an error if the address in entry is a contract
     fn maybe_sign_soroban_authorization_entry(
         &self,
         unsigned_entry: &SorobanAuthorizationEntry,
@@ -62,9 +111,7 @@ pub trait Signer {
             // See if we have a signer for this authorizationEntry
             // If not, then we Error
             let needle = match address {
-                ScAddress::Account(AccountId(PublicKey::PublicKeyTypeEd25519(Uint256(ref a)))) => {
-                    a
-                }
+                ScAddress::Account(AccountId(PublicKey::PublicKeyTypeEd25519(Uint256(ref a)))) => a,
                 ScAddress::Contract(Hash(c)) => {
                     // This address is for a contract. This means we're using a custom
                     // smart-contract account. Currently the CLI doesn't support that yet.
@@ -83,12 +130,6 @@ pub trait Signer {
             Ok(unsigned_entry.clone())
         }
     }
-    fn sign_soroban_authorization_entry(
-        &self,
-        unsigned_entry: &SorobanAuthorizationEntry,
-        signature_expiration_ledger: u32,
-        address: &[u8; 32],
-    ) -> Result<SorobanAuthorizationEntry, Error>;
 }
 
 struct DefaultSigner {
@@ -96,16 +137,50 @@ struct DefaultSigner {
     keypairs: Vec<ed25519_dalek::SigningKey>,
 }
 
-impl Signer for DefaultSigner {
-    fn new(network_passphrase: &str, options: Option<&[ed25519_dalek::SigningKey]>) -> Self {
+impl DefaultSigner {
+    pub fn get_key(
+        &self,
+        key: &stellar_strkey::Strkey,
+    ) -> Result<&ed25519_dalek::SigningKey, Error> {
+        match key {
+            stellar_strkey::Strkey::PublicKeyEd25519(stellar_strkey::ed25519::PublicKey(bytes)) => {
+                self.keypairs
+                    .iter()
+                    .find(|k| k.verifying_key().to_bytes() == *bytes)
+            }
+            _ => None,
+        }
+        .ok_or_else(|| Error::MissingSignerForAddress {
+            address: key.to_string(),
+        })
+    }
+}
+
+impl Stellar for DefaultSigner {
+    type Init = Vec<ed25519_dalek::SigningKey>;
+    fn new(network_passphrase: &str, options: Option<Vec<ed25519_dalek::SigningKey>>) -> Self {
         DefaultSigner {
             network_passphrase: network_passphrase.to_string(),
-            keypairs: options.map(|keys| keys.to_vec()).unwrap_or_default(),
+            keypairs: options.unwrap_or_default(),
         }
     }
 
-    fn sign_txn(&self) -> Result<String, Error> {
-        Ok("".to_string())
+    fn sign_txn_hash(
+        &self,
+        txn: [u8; 32],
+        source_account: &stellar_strkey::Strkey,
+    ) -> Result<DecoratedSignature, Error> {
+        let source_account = self.get_key(source_account)?;
+        let tx_signature = source_account.sign(&txn);
+        Ok(DecoratedSignature {
+            // TODO: remove this unwrap. It's safe because we know the length of the array
+            hint: SignatureHint(
+                source_account.verifying_key().to_bytes()[28..]
+                    .try_into()
+                    .unwrap(),
+            ),
+            signature: Signature(tx_signature.to_bytes().try_into()?),
+        })
     }
 
     fn sign_soroban_authorization_entry(
@@ -133,15 +208,9 @@ impl Signer for DefaultSigner {
         })
         .to_xdr(Limits::none())?;
 
+        let strkey = stellar_strkey::ed25519::PublicKey(*signer);
         let payload = Sha256::digest(preimage);
-        let signer = self.keypairs
-            .iter()
-            .find(|keypair| {
-                keypair.verifying_key().to_bytes() == signer
-            })
-            .ok_or(Error::MissingSignerForAddress {
-                address: signer.to_string(),
-            })?;
+        let signer = self.get_key(&stellar_strkey::Strkey::PublicKeyEd25519(strkey))?;
         let signature = signer.sign(&payload);
 
         let map = ScMap::sorted_from(vec![
@@ -178,6 +247,6 @@ impl Signer for DefaultSigner {
     }
 
     fn network_hash(&self) -> xdr::Hash {
-        xdr::Hash(Sha256::digest(self.network_passphrase.as_bytes()))
+        xdr::Hash(Sha256::digest(self.network_passphrase.as_bytes()).into())
     }
 }
