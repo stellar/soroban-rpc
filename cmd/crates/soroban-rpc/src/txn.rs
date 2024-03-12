@@ -327,7 +327,7 @@ pub fn assemble(
     Ok(tx)
 }
 
-fn requires_auth(txn: &Transaction) -> Option<xdr::Operation> {
+pub(crate) fn requires_auth(txn: &Transaction) -> Option<xdr::Operation> {
     let [op @ Operation {
         body: OperationBody::InvokeHostFunction(InvokeHostFunctionOp { auth, .. }),
         ..

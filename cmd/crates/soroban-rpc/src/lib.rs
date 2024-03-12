@@ -27,8 +27,10 @@ use termcolor_output::colored;
 use tokio::time::sleep;
 
 pub mod log;
+mod signer;
 mod txn;
 
+pub use signer::Stellar;
 pub use txn::Assembled;
 
 const VERSION: Option<&str> = option_env!("CARGO_PKG_VERSION");
