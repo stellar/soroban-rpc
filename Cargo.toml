@@ -2,10 +2,9 @@
 resolver = "2"
 members = [
     "cmd/crates/stellar-rpc-client",
-    "cmd/crates/soroban-rpc",
     "cmd/soroban-rpc/lib/preflight",
 ]
-default-members = ["cmd/crates/stellar-rpc-client", "cmd/crates/soroban-rpc"]
+default-members = ["cmd/crates/stellar-rpc-client"]
 #exclude = ["cmd/crates/soroban-test/tests/fixtures/hello"]
 
 [workspace.package]
