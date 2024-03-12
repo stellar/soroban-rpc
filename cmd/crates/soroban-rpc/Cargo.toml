@@ -10,3 +10,7 @@ version.workspace = true
 edition = "2021"
 rust-version.workspace = true
 autobins = false
+
+
+[lib]
+crate-type = ["rlib"]
