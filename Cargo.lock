@@ -1638,37 +1638,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "soroban-rpc"
-version = "20.3.3"
-dependencies = [
- "base64 0.21.7",
- "clap",
- "ed25519-dalek",
- "ethnum",
- "hex",
- "http 1.0.0",
- "itertools 0.10.5",
- "jsonrpsee-core",
- "jsonrpsee-http-client",
- "serde",
- "serde-aux",
- "serde_json",
- "sha2",
- "soroban-env-host",
- "soroban-sdk",
- "soroban-spec",
- "stellar-strkey 0.0.7",
- "stellar-xdr",
- "termcolor",
- "termcolor_output",
- "thiserror",
- "tokio",
- "tracing",
- "wasmparser 0.90.0",
- "which",
-]
-
-[[package]]
 name = "soroban-sdk"
 version = "20.4.0"
 source = "git+https://github.com/stellar/rs-soroban-sdk?rev=89efc3c211d41f1ab143bed0a09cd6af353bb098#89efc3c211d41f1ab143bed0a09cd6af353bb098"
@@ -1774,6 +1743,37 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "stellar-rpc-client"
+version = "20.3.3"
+dependencies = [
+ "base64 0.21.7",
+ "clap",
+ "ed25519-dalek",
+ "ethnum",
+ "hex",
+ "http 1.1.0",
+ "itertools 0.10.5",
+ "jsonrpsee-core",
+ "jsonrpsee-http-client",
+ "serde",
+ "serde-aux",
+ "serde_json",
+ "sha2",
+ "soroban-env-host",
+ "soroban-sdk",
+ "soroban-spec",
+ "stellar-strkey 0.0.7",
+ "stellar-xdr",
+ "termcolor",
+ "termcolor_output",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "wasmparser 0.90.0",
+ "which",
+]
 
 [[package]]
 name = "stellar-strkey"
