@@ -3,6 +3,7 @@ package transactions
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/stellar/soroban-tools/cmd/soroban-rpc/internal/events"
 	"math"
 	"runtime"
 	"testing"
@@ -70,7 +71,7 @@ func transactionResult(ledgerSequence uint32, feeBump bool) xdr.TransactionResul
 		return xdr.TransactionResult{
 			FeeCharged: 100,
 			Result: xdr.TransactionResultResult{
-				Code: xdr.TransactionResultCodeTxFeeBumpInnerFailed,
+				Code: xdr.TransactionResultCodeTxFeeBumpInnerSuccess,
 				InnerResultPair: &xdr.InnerTransactionResultPair{
 					TransactionHash: txHash(ledgerSequence, false),
 					Result: xdr.InnerTransactionResult{
@@ -239,6 +240,256 @@ func txMetaWithEvents(ledgerSequence uint32, feeBump bool) xdr.LedgerCloseMeta {
 	}
 
 	return tx
+}
+
+func txMetaWithAllData(ledgerSequence uint32, feeBump bool, txCount int, eventCount int) xdr.LedgerCloseMeta {
+
+	counter := xdr.ScSymbol("COUNTER")
+	envelope := txEnvelope(ledgerSequence, feeBump)
+	persistentKey := xdr.ScSymbol("TEMPVAL")
+	contractIDBytes, _ := hex.DecodeString("df06d62447fd25da07c0135eed7557e5a5497ee7d15b7fe345bd47e191d8f577")
+	var contractID xdr.Hash
+	copy(contractID[:], contractIDBytes)
+	contractAddress := xdr.ScAddress{
+		Type:       xdr.ScAddressTypeScAddressTypeContract,
+		ContractId: &contractID,
+	}
+	xdrTrue := true
+	operationChanges := xdr.LedgerEntryChanges{
+		{
+			Type: xdr.LedgerEntryChangeTypeLedgerEntryState,
+			State: &xdr.LedgerEntry{
+				LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
+				Data: xdr.LedgerEntryData{
+					Type: xdr.LedgerEntryTypeContractData,
+					ContractData: &xdr.ContractDataEntry{
+						Contract: contractAddress,
+						Key: xdr.ScVal{
+							Type: xdr.ScValTypeScvSymbol,
+							Sym:  &persistentKey,
+						},
+						Durability: xdr.ContractDataDurabilityPersistent,
+						Val: xdr.ScVal{
+							Type: xdr.ScValTypeScvBool,
+							B:    &xdrTrue,
+						},
+					},
+				},
+			},
+		},
+		{
+			Type: xdr.LedgerEntryChangeTypeLedgerEntryUpdated,
+			Updated: &xdr.LedgerEntry{
+				LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
+				Data: xdr.LedgerEntryData{
+					Type: xdr.LedgerEntryTypeContractData,
+					ContractData: &xdr.ContractDataEntry{
+						Contract: xdr.ScAddress{
+							Type:       xdr.ScAddressTypeScAddressTypeContract,
+							ContractId: &contractID,
+						},
+						Key: xdr.ScVal{
+							Type: xdr.ScValTypeScvSymbol,
+							Sym:  &persistentKey,
+						},
+						Durability: xdr.ContractDataDurabilityPersistent,
+						Val: xdr.ScVal{
+							Type: xdr.ScValTypeScvBool,
+							B:    &xdrTrue,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	transactionResultMeta := func(txCount int, eventCount int) []xdr.TransactionResultMeta {
+		txResultMetas := make([]xdr.TransactionResultMeta, 0, txCount)
+		eventsData := make([]xdr.ContractEvent, 0, eventCount)
+
+		for i := 0; i < eventCount; i++ {
+			eventsData = append(eventsData, xdr.ContractEvent{
+				ContractId: &contractID,
+				Type:       xdr.ContractEventTypeContract,
+				Body: xdr.ContractEventBody{
+					V: 0,
+					V0: &xdr.ContractEventV0{
+						Topics: []xdr.ScVal{{
+							Type: xdr.ScValTypeScvSymbol,
+							Sym:  &counter,
+						}},
+						Data: xdr.ScVal{
+							Type: xdr.ScValTypeScvSymbol,
+							Sym:  &counter,
+						},
+					},
+				},
+			})
+		}
+
+		for i := 0; i < txCount; i++ {
+			txResultMetas = append(txResultMetas, xdr.TransactionResultMeta{
+				FeeProcessing: xdr.LedgerEntryChanges{
+					{
+						Type: xdr.LedgerEntryChangeTypeLedgerEntryState,
+						State: &xdr.LedgerEntry{
+							LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
+							Data: xdr.LedgerEntryData{
+								Type: xdr.LedgerEntryTypeContractData,
+								ContractData: &xdr.ContractDataEntry{
+									Contract: contractAddress,
+									Key: xdr.ScVal{
+										Type: xdr.ScValTypeScvSymbol,
+										Sym:  &persistentKey,
+									},
+									Durability: xdr.ContractDataDurabilityPersistent,
+									Val: xdr.ScVal{
+										Type: xdr.ScValTypeScvBool,
+										B:    &xdrTrue,
+									},
+								},
+							},
+						},
+					},
+					{
+						Type: xdr.LedgerEntryChangeTypeLedgerEntryUpdated,
+						Updated: &xdr.LedgerEntry{
+							LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
+							Data: xdr.LedgerEntryData{
+								Type: xdr.LedgerEntryTypeContractData,
+								ContractData: &xdr.ContractDataEntry{
+									Contract: xdr.ScAddress{
+										Type:       xdr.ScAddressTypeScAddressTypeContract,
+										ContractId: &contractID,
+									},
+									Key: xdr.ScVal{
+										Type: xdr.ScValTypeScvSymbol,
+										Sym:  &persistentKey,
+									},
+									Durability: xdr.ContractDataDurabilityPersistent,
+									Val: xdr.ScVal{
+										Type: xdr.ScValTypeScvBool,
+										B:    &xdrTrue,
+									},
+								},
+							},
+						},
+					},
+				},
+				TxApplyProcessing: xdr.TransactionMeta{
+					V: 3,
+					Operations: &[]xdr.OperationMeta{
+						{
+							Changes: operationChanges,
+						},
+					},
+					V3: &xdr.TransactionMetaV3{
+						TxChangesBefore: xdr.LedgerEntryChanges{
+							{
+								Type: xdr.LedgerEntryChangeTypeLedgerEntryState,
+								State: &xdr.LedgerEntry{
+									LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
+									Data: xdr.LedgerEntryData{
+										Type: xdr.LedgerEntryTypeContractData,
+										ContractData: &xdr.ContractDataEntry{
+											Contract: contractAddress,
+											Key: xdr.ScVal{
+												Type: xdr.ScValTypeScvSymbol,
+												Sym:  &persistentKey,
+											},
+											Durability: xdr.ContractDataDurabilityPersistent,
+											Val: xdr.ScVal{
+												Type: xdr.ScValTypeScvBool,
+												B:    &xdrTrue,
+											},
+										},
+									},
+								},
+							},
+							{
+								Type: xdr.LedgerEntryChangeTypeLedgerEntryUpdated,
+								Updated: &xdr.LedgerEntry{
+									LastModifiedLedgerSeq: xdr.Uint32(ledgerSequence - 1),
+									Data: xdr.LedgerEntryData{
+										Type: xdr.LedgerEntryTypeContractData,
+										ContractData: &xdr.ContractDataEntry{
+											Contract: xdr.ScAddress{
+												Type:       xdr.ScAddressTypeScAddressTypeContract,
+												ContractId: &contractID,
+											},
+											Key: xdr.ScVal{
+												Type: xdr.ScValTypeScvSymbol,
+												Sym:  &persistentKey,
+											},
+											Durability: xdr.ContractDataDurabilityPersistent,
+											Val: xdr.ScVal{
+												Type: xdr.ScValTypeScvBool,
+												B:    &xdrTrue,
+											},
+										},
+									},
+								},
+							},
+						},
+						SorobanMeta: &xdr.SorobanTransactionMeta{
+							Events: eventsData,
+							ReturnValue: xdr.ScVal{
+								Type: xdr.ScValTypeScvSymbol,
+								Sym:  &counter,
+							},
+						},
+					},
+				},
+				Result: xdr.TransactionResultPair{
+					TransactionHash: txHash(ledgerSequence, feeBump),
+					Result:          transactionResult(ledgerSequence, feeBump),
+				},
+			})
+		}
+		return txResultMetas
+	}
+
+	txProcessing := transactionResultMeta(txCount, eventCount)
+	components := []xdr.TxSetComponent{
+		{
+			Type: xdr.TxSetComponentTypeTxsetCompTxsMaybeDiscountedFee,
+			TxsMaybeDiscountedFee: &xdr.TxSetComponentTxsMaybeDiscountedFee{
+				BaseFee: nil,
+				Txs: []xdr.TransactionEnvelope{
+					envelope,
+				},
+			},
+		},
+	}
+	tx := xdr.LedgerCloseMeta{
+		V: 1,
+		V1: &xdr.LedgerCloseMetaV1{
+			LedgerHeader: xdr.LedgerHeaderHistoryEntry{
+				Header: xdr.LedgerHeader{
+					ScpValue: xdr.StellarValue{
+						CloseTime: xdr.TimePoint(ledgerCloseTime(ledgerSequence)),
+					},
+					LedgerSeq: xdr.Uint32(ledgerSequence),
+				},
+			},
+			TxProcessing: txProcessing,
+			TxSet: xdr.GeneralizedTransactionSet{
+				V: 1,
+				V1TxSet: &xdr.TransactionSetV1{
+					PreviousLedgerHash: xdr.Hash{1},
+					Phases: []xdr.TransactionPhase{
+						{
+							V:            0,
+							V0Components: &components,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return tx
+
 }
 
 func txEnvelope(ledgerSequence uint32, feeBump bool) xdr.TransactionEnvelope {
@@ -432,4 +683,46 @@ func BenchmarkIngestTransactionsMemory(b *testing.B) {
 
 	// add another call to store to prevent the GC from collecting.
 	store.GetTransaction(xdr.Hash{})
+}
+
+func BenchmarkIngestTransactionsMemoryWithEvents(b *testing.B) {
+	totalLedgers := uint32(b.N * 17280)
+	txnStore := NewMemoryStore(interfaces.MakeNoOpDeamon(), "passphrase", totalLedgers)
+	eventStore := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "passphrase", totalLedgers)
+
+	heapSizeBefore := stableHeapInUse()
+
+	for i := uint32(0); i < totalLedgers; i++ {
+		// Insert ledger i
+		require.NoError(b, txnStore.IngestTransactions(txMetaWithAllData(i, true, 5, 5)))
+		require.NoError(b, eventStore.IngestEvents(txMetaWithAllData(i, true, 5, 5)))
+	}
+
+	heapSizeAfter := stableHeapInUse()
+	b.ReportMetric(float64(heapSizeAfter), "bytes/100k_transactions")
+	b.Logf("Memory consumption for %d transactions %v", totalLedgers, byteCountBinary(heapSizeAfter-heapSizeBefore))
+
+	// we want to generate 500*20000 transactions total, to cover the expected daily amount of transactions.
+	projectedTransactionCount := int64(500 * 20000)
+	projectedMemoryUtiliztion := (heapSizeAfter - heapSizeBefore) * projectedTransactionCount / (int64(totalLedgers))
+	b.Logf("Projected memory consumption for %d transactions %v", projectedTransactionCount, byteCountBinary(projectedMemoryUtiliztion))
+
+	// add another call to store to prevent the GC from collecting.
+	txnStore.GetTransaction(xdr.Hash{})
+	MaxCursor := events.Cursor{
+		Ledger: math.MaxUint32,
+		Tx:     math.MaxUint32,
+		Op:     math.MaxUint32,
+		Event:  math.MaxUint32,
+	}
+	assertNoCalls := func(xdr.DiagnosticEvent, events.Cursor, int64, *xdr.Hash) bool {
+		return true
+	}
+
+	eventStore.Scan(events.Range{
+		Start:      events.Cursor{},
+		ClampStart: true,
+		End:        MaxCursor,
+		ClampEnd:   true,
+	}, assertNoCalls)
 }
