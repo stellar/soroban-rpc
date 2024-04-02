@@ -35,6 +35,13 @@ type RestorePreamble struct {
 	MinResourceFee  int64  `json:"minResourceFee,string"`
 }
 
+// LedgerEntryDiff designates a change in a ledger entry. Before and After cannot be be omitted at the same time.
+// If Before is omitted, it constitutes a creation, if After is omitted, it constitutes a delation.
+type LedgerEntryDiff struct {
+	Before string `json:"before,omitempty"` // LedgerEntry XDR in base64
+	After  string `json:"after,omitempty"`  // LedgerEntry XDR in base64
+}
+
 type SimulateTransactionResponse struct {
 	Error           string                       `json:"error,omitempty"`
 	TransactionData string                       `json:"transactionData,omitempty"` // SorobanTransactionData XDR in base64
@@ -43,6 +50,7 @@ type SimulateTransactionResponse struct {
 	Results         []SimulateHostFunctionResult `json:"results,omitempty"`         // an array of the individual host function call results
 	Cost            SimulateTransactionCost      `json:"cost,omitempty"`            // the effective cpu and memory cost of the invoked transaction execution.
 	RestorePreamble *RestorePreamble             `json:"restorePreamble,omitempty"` // If present, it indicates that a prior RestoreFootprint is required
+	StateDiff       []LedgerEntryDiff            `json:"stateDiff,omitempty"`       // If present, it indicates how the state (ledger entries) will change as a result of the transaction execution.
 	LatestLedger    uint32                       `json:"latestLedger"`
 }
 
@@ -149,6 +157,12 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 			}
 		}
 
+		stateDiff := make([]LedgerEntryDiff, len(result.LedgerEntryDiff))
+		for i := 0; i < len(stateDiff); i++ {
+			stateDiff[i].Before = base64.StdEncoding.EncodeToString(result.LedgerEntryDiff[i].Before)
+			stateDiff[i].After = base64.StdEncoding.EncodeToString(result.LedgerEntryDiff[i].After)
+		}
+
 		return SimulateTransactionResponse{
 			Error:           result.Error,
 			Results:         results,
@@ -161,6 +175,7 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 			},
 			LatestLedger:    latestLedger,
 			RestorePreamble: restorePreamble,
+			StateDiff:       stateDiff,
 		}
 	})
 }

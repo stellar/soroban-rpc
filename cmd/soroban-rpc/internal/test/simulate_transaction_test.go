@@ -260,6 +260,14 @@ func TestSimulateTransactionSucceeds(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedXdr, resultXdr)
 
+	// Check state diff
+	assert.Len(t, result.StateDiff, 1)
+	assert.Empty(t, result.StateDiff[0].Before)
+	assert.NotEmpty(t, result.StateDiff[0].After)
+	var after xdr.LedgerEntry
+	assert.NoError(t, xdr.SafeUnmarshalBase64(result.StateDiff[0].After, &after))
+	assert.Equal(t, xdr.LedgerEntryTypeContractCode, after.Data.Type)
+
 	// test operation which does not have a source account
 	withoutSourceAccountOp := createInstallContractCodeOperation("", contractBinary)
 	params = txnbuild.TransactionParams{
