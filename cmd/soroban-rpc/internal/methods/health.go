@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/creachadair/jrpc2/handler"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 )
@@ -17,7 +16,7 @@ type HealthCheckResult struct {
 
 // NewHealthCheck returns a health check json rpc handler
 func NewHealthCheck(txStore *transactions.MemoryStore, maxHealthyLedgerLatency time.Duration) jrpc2.Handler {
-	return handler.New(func(ctx context.Context) (HealthCheckResult, error) {
+	return NewHandler(func(ctx context.Context) (HealthCheckResult, error) {
 		ledgerInfo := txStore.GetLatestLedger()
 		if ledgerInfo.Sequence < 1 {
 			return HealthCheckResult{}, jrpc2.Error{
