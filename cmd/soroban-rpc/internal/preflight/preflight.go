@@ -105,6 +105,11 @@ type PreflightParameters struct {
 	EnableDebug       bool
 }
 
+type XDRDiff struct {
+	Before []byte // optional before XDR
+	After  []byte // optional after XDR
+}
+
 type Preflight struct {
 	Error                     string
 	Events                    [][]byte // DiagnosticEvents XDR
@@ -116,6 +121,7 @@ type Preflight struct {
 	MemoryBytes               uint64
 	PreRestoreTransactionData []byte // SorobanTransactionData XDR
 	PreRestoreMinFee          int64
+	LedgerEntryDiff           []XDRDiff
 }
 
 func CXDR(xdr []byte) C.xdr_t {
@@ -134,6 +140,16 @@ func GoXDRVector(xdrVector C.xdr_vector_t) [][]byte {
 	inputSlice := unsafe.Slice(xdrVector.array, xdrVector.len)
 	for i, v := range inputSlice {
 		result[i] = GoXDR(v)
+	}
+	return result
+}
+
+func GoXDRDiffVector(xdrDiffVector C.xdr_diff_vector_t) []XDRDiff {
+	result := make([]XDRDiff, xdrDiffVector.len)
+	inputSlice := unsafe.Slice(xdrDiffVector.array, xdrDiffVector.len)
+	for i, v := range inputSlice {
+		result[i].Before = GoXDR(v.before)
+		result[i].After = GoXDR(v.after)
 	}
 	return result
 }
@@ -259,6 +275,7 @@ func GoPreflight(result *C.preflight_result_t) Preflight {
 		MemoryBytes:               uint64(result.memory_bytes),
 		PreRestoreTransactionData: GoXDR(result.pre_restore_transaction_data),
 		PreRestoreMinFee:          int64(result.pre_restore_min_fee),
+		LedgerEntryDiff:           GoXDRDiffVector(result.ledger_entry_diff),
 	}
 	return preflight
 }
