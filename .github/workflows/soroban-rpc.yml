@@ -107,7 +107,6 @@ jobs:
       matrix:
         os: [ubuntu-20.04, ubuntu-22.04]
         go: [1.22]
-        test: ['.*CLI.*', '^Test(([^C])|(C[^L])|(CL[^I])).*$']
     runs-on: ${{ matrix.os }}
     env:
       SOROBAN_RPC_INTEGRATION_TESTS_ENABLED: true
@@ -127,4 +126,4 @@ jobs:
       - name: Run Soroban RPC Integration Tests
         run: |
           make install_rust
-          go test -race -run '${{ matrix.test }}' -timeout 60m -v ./cmd/soroban-rpc/internal/test/...
+          go test -race -timeout 60m -v ./cmd/soroban-rpc/internal/test/...

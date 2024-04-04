@@ -53,6 +53,9 @@ runs:
       sudo apt-get remove -y moby-compose
       sudo apt-get install -y docker-compose-plugin
 
+      # add alias for docker compose
+      ln -f -s /usr/libexec/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
+      
       echo "Docker Compose Version:"
       docker-compose version
 

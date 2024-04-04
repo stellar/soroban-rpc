@@ -3,7 +3,10 @@ package methods
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/stellar/go/support/log"
@@ -33,6 +36,108 @@ type RestorePreamble struct {
 	TransactionData string `json:"transactionData"` // SorobanTransactionData XDR in base64
 	MinResourceFee  int64  `json:"minResourceFee,string"`
 }
+type LedgerEntryChangeType int
+
+const (
+	LedgerEntryChangeTypeCreated LedgerEntryChangeType = iota + 1
+	LedgerEntryChangeTypeUpdated
+	LedgerEntryChangeTypeDeleted
+)
+
+var (
+	LedgerEntryChangeTypeName = map[LedgerEntryChangeType]string{
+		LedgerEntryChangeTypeCreated: "created",
+		LedgerEntryChangeTypeUpdated: "updated",
+		LedgerEntryChangeTypeDeleted: "deleted",
+	}
+	LedgerEntryChangeTypeValue = map[string]LedgerEntryChangeType{
+		"created": LedgerEntryChangeTypeCreated,
+		"updated": LedgerEntryChangeTypeUpdated,
+		"deleted": LedgerEntryChangeTypeDeleted,
+	}
+)
+
+func (l LedgerEntryChangeType) String() string {
+	return LedgerEntryChangeTypeName[l]
+}
+
+func (l LedgerEntryChangeType) MarshalJSON() ([]byte, error) {
+	return json.Marshal(l.String())
+}
+
+func (l *LedgerEntryChangeType) Parse(s string) error {
+	s = strings.TrimSpace(strings.ToLower(s))
+	value, ok := LedgerEntryChangeTypeValue[s]
+	if !ok {
+		return fmt.Errorf("%q is not a valid ledger entry change type", s)
+	}
+	*l = value
+	return nil
+}
+
+func (l *LedgerEntryChangeType) UnmarshalJSON(data []byte) (err error) {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	return l.Parse(s)
+}
+
+func (l *LedgerEntryChange) FromXDRDiff(diff preflight.XDRDiff) error {
+	beforePresent := len(diff.Before) > 0
+	afterPresent := len(diff.After) > 0
+	var (
+		entryXDR   []byte
+		changeType LedgerEntryChangeType
+	)
+	switch {
+	case beforePresent:
+		entryXDR = diff.Before
+		if afterPresent {
+			changeType = LedgerEntryChangeTypeUpdated
+		} else {
+			changeType = LedgerEntryChangeTypeDeleted
+		}
+	case afterPresent:
+		entryXDR = diff.After
+		changeType = LedgerEntryChangeTypeCreated
+	default:
+		return errors.New("missing before and after")
+	}
+	var entry xdr.LedgerEntry
+
+	if err := xdr.SafeUnmarshal(entryXDR, &entry); err != nil {
+		return err
+	}
+	key, err := entry.LedgerKey()
+	if err != nil {
+		return err
+	}
+	keyB64, err := xdr.MarshalBase64(key)
+	if err != nil {
+		return err
+	}
+	l.Type = changeType
+	l.Key = keyB64
+	if beforePresent {
+		before := base64.StdEncoding.EncodeToString(diff.Before)
+		l.Before = &before
+	}
+	if afterPresent {
+		after := base64.StdEncoding.EncodeToString(diff.After)
+		l.After = &after
+	}
+	return nil
+}
+
+// LedgerEntryChange designates a change in a ledger entry. Before and After cannot be be omitted at the same time.
+// If Before is omitted, it constitutes a creation, if After is omitted, it constitutes a delation.
+type LedgerEntryChange struct {
+	Type   LedgerEntryChangeType
+	Key    string  // LedgerEntryKey in base64
+	Before *string `json:"before"` // LedgerEntry XDR in base64
+	After  *string `json:"after"`  // LedgerEntry XDR in base64
+}
 
 type SimulateTransactionResponse struct {
 	Error           string                       `json:"error,omitempty"`
@@ -42,6 +147,7 @@ type SimulateTransactionResponse struct {
 	Results         []SimulateHostFunctionResult `json:"results,omitempty"`         // an array of the individual host function call results
 	Cost            SimulateTransactionCost      `json:"cost,omitempty"`            // the effective cpu and memory cost of the invoked transaction execution.
 	RestorePreamble *RestorePreamble             `json:"restorePreamble,omitempty"` // If present, it indicates that a prior RestoreFootprint is required
+	StateChanges    []LedgerEntryChange          `json:"stateChanges,omitempty"`    // If present, it indicates how the state (ledger entries) will change as a result of the transaction execution.
 	LatestLedger    uint32                       `json:"latestLedger"`
 }
 
@@ -148,6 +254,11 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 			}
 		}
 
+		stateChanges := make([]LedgerEntryChange, len(result.LedgerEntryDiff))
+		for i := 0; i < len(stateChanges); i++ {
+			stateChanges[i].FromXDRDiff(result.LedgerEntryDiff[i])
+		}
+
 		return SimulateTransactionResponse{
 			Error:           result.Error,
 			Results:         results,
@@ -160,6 +271,7 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 			},
 			LatestLedger:    latestLedger,
 			RestorePreamble: restorePreamble,
+			StateChanges:    stateChanges,
 		}
 	})
 }
