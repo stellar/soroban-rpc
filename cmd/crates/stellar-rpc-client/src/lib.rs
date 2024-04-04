@@ -279,6 +279,24 @@ pub struct SimulateHostFunctionResult {
     pub xdr: xdr::ScVal,
 }
 
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone, PartialEq)]
+pub enum LedgerEntryChangeType {
+    #[serde(rename = "created")]
+    Created,
+    #[serde(rename = "deleted")]
+    Deleted,
+    #[serde(rename = "updated")]
+    Updated,
+}
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct LedgerEntryChange {
+    #[serde(rename = "type")]
+    pub type_: LedgerEntryChangeType,
+    pub key: String,
+    pub before: Option<String>,
+    pub after: Option<String>,
+}
+
 #[derive(serde::Deserialize, serde::Serialize, Debug, Default, Clone)]
 pub struct SimulateTransactionResponse {
     #[serde(
@@ -305,6 +323,12 @@ pub struct SimulateTransactionResponse {
         default
     )]
     pub restore_preamble: Option<RestorePreamble>,
+    #[serde(
+        rename = "stateChanges",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub state_changes: Option<Vec<LedgerEntryChange>>,
     #[serde(rename = "latestLedger")]
     pub latest_ledger: u32,
     #[serde(skip_serializing_if = "Option::is_none", default)]
@@ -1070,10 +1094,20 @@ mod tests {
  "minResourceFee": "100000000",
  "cost": { "cpuInsns": "1000", "memBytes": "1000" },
  "transactionData": "",
- "latestLedger": 1234
-        }"#;
+ "latestLedger": 1234,
+ "stateChanges": [{
+    "type": "created",
+    "key": "AAAAAAAAAABuaCbVXZ2DlXWarV6UxwbW3GNJgpn3ASChIFp5bxSIWg==",
+    "before": null,
+    "after": "AAAAZAAAAAAAAAAAbmgm1V2dg5V1mq1elMcG1txjSYKZ9wEgoSBaeW8UiFoAAAAAAAAAZAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+  }]
+  }"#;
 
         let resp: SimulateTransactionResponse = serde_json::from_str(s).unwrap();
+        assert_eq!(
+            resp.state_changes.unwrap()[0].type_,
+            LedgerEntryChangeType::Created
+        );
         assert_eq!(resp.min_resource_fee, 100_000_000);
     }
 
