@@ -1,7 +1,7 @@
 use http::{uri::Authority, Uri};
 use itertools::Itertools;
 use jsonrpsee_core::params::ObjectParams;
-use jsonrpsee_core::{self, client::ClientT, rpc_params};
+use jsonrpsee_core::{self, client::ClientT};
 use jsonrpsee_http_client::{HeaderMap, HttpClient, HttpClientBuilder};
 use serde_aux::prelude::{
     deserialize_default_from_null, deserialize_number_from_string,
@@ -637,7 +637,10 @@ impl Client {
     /// # Errors
     pub async fn get_network(&self) -> Result<GetNetworkResponse, Error> {
         tracing::trace!("Getting network");
-        Ok(self.client()?.request("getNetwork", rpc_params![]).await?)
+        Ok(self
+            .client()?
+            .request("getNetwork", ObjectParams::new())
+            .await?)
     }
 
     ///
@@ -646,7 +649,7 @@ impl Client {
         tracing::trace!("Getting latest ledger");
         Ok(self
             .client()?
-            .request("getLatestLedger", rpc_params![])
+            .request("getLatestLedger", ObjectParams::new())
             .await?)
     }
 
@@ -691,16 +694,15 @@ soroban config identity fund {address} --helper-url <url>"#
     ) -> Result<GetTransactionResponse, Error> {
         let client = self.client()?;
         tracing::trace!("Sending:\n{tx:#?}");
+        let mut oparams = ObjectParams::new();
+        oparams.insert("transaction", tx.to_xdr_base64(Limits::none())?)?;
         let SendTransactionResponse {
             hash,
             error_result_xdr,
             status,
             ..
         } = client
-            .request(
-                "sendTransaction",
-                rpc_params![tx.to_xdr_base64(Limits::none())?],
-            )
+            .request("sendTransaction", oparams)
             .await
             .map_err(|err| {
                 Error::TransactionSubmissionFailed(format!("No status yet:\n {err:#?}"))
@@ -761,11 +763,11 @@ soroban config identity fund {address} --helper-url <url>"#
     ) -> Result<SimulateTransactionResponse, Error> {
         tracing::trace!("Simulating:\n{tx:#?}");
         let base64_tx = tx.to_xdr_base64(Limits::none())?;
-        let mut builder = ObjectParams::new();
-        builder.insert("transaction", base64_tx)?;
+        let mut oparams = ObjectParams::new();
+        oparams.insert("transaction", base64_tx)?;
         let response: SimulateTransactionResponse = self
             .client()?
-            .request("simulateTransaction", builder)
+            .request("simulateTransaction", oparams)
             .await?;
         tracing::trace!("Simulation response:\n {response:#?}");
         match response.error {
@@ -835,10 +837,9 @@ soroban config identity fund {address} --helper-url <url>"#
     ///
     /// # Errors
     pub async fn get_transaction(&self, tx_id: &str) -> Result<GetTransactionResponseRaw, Error> {
-        Ok(self
-            .client()?
-            .request("getTransaction", rpc_params![tx_id])
-            .await?)
+        let mut oparams = ObjectParams::new();
+        oparams.insert("hash", tx_id)?;
+        Ok(self.client()?.request("getTransaction", oparams).await?)
     }
 
     ///
@@ -855,10 +856,9 @@ soroban config identity fund {address} --helper-url <url>"#
             }
             base64_keys.push(k.to_xdr_base64(Limits::none())?);
         }
-        Ok(self
-            .client()?
-            .request("getLedgerEntries", rpc_params![base64_keys])
-            .await?)
+        let mut oparams = ObjectParams::new();
+        oparams.insert("keys", base64_keys)?;
+        Ok(self.client()?.request("getLedgerEntries", oparams).await?)
     }
 
     ///
