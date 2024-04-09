@@ -19,8 +19,8 @@ version = "=20.3.0"
 
 [workspace.dependencies.soroban-simulation]
 version = "=20.3.0"
-# git = "https://github.com/stellar/rs-soroban-env"
-# rev = "8c9ab83c406bd86f56d52eae3e39dccf6b45b3da"
+git = "https://github.com/stellar/rs-soroban-env"
+rev = "a8c713db03ba5ebfdc4786b73dcba00284e15dbe"
 # path = "../rs-soroban-env/soroban-simulation"
 
 [workspace.dependencies.soroban-spec]

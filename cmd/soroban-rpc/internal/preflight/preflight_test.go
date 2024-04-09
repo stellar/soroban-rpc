@@ -190,16 +190,6 @@ var mockLedgerEntriesWithoutTTLs = []xdr.LedgerEntry{
 			},
 		},
 	},
-	{
-		LastModifiedLedgerSeq: 2,
-		Data: xdr.LedgerEntryData{
-			Type: xdr.LedgerEntryTypeConfigSetting,
-			ConfigSetting: &xdr.ConfigSettingEntry{
-				ConfigSettingId:      xdr.ConfigSettingIdConfigSettingBucketlistSizeWindow,
-				BucketListSizeWindow: &[]xdr.Uint64{100, 200},
-			},
-		},
-	},
 }
 
 // Adds ttl entries to mockLedgerEntriesWithoutTTLs
