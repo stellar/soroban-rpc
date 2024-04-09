@@ -1206,7 +1206,7 @@ dependencies = [
  "libc",
  "rand",
  "sha2",
- "soroban-env-host 20.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "soroban-env-host 20.3.0 (git+https://github.com/stellar/rs-soroban-env?rev=a8c713db03ba5ebfdc4786b73dcba00284e15dbe)",
  "soroban-simulation",
 ]
 
@@ -1597,7 +1597,6 @@ version = "20.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c14e18d879c520ff82612eaae0590acaf6a7f3b977407e1abb1c9e31f94c7814"
 dependencies = [
- "arbitrary",
  "crate-git-revision",
  "ethnum",
  "num-derive",
@@ -1614,6 +1613,7 @@ name = "soroban-env-common"
 version = "20.3.0"
 source = "git+https://github.com/stellar/rs-soroban-env?rev=a8c713db03ba5ebfdc4786b73dcba00284e15dbe#a8c713db03ba5ebfdc4786b73dcba00284e15dbe"
 dependencies = [
+ "arbitrary",
  "crate-git-revision",
  "ethnum",
  "num-derive",
@@ -1641,7 +1641,6 @@ version = "20.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "114a0fa0d0cc39d0be16b1ee35b6e5f4ee0592ddcf459bde69391c02b03cf520"
 dependencies = [
- "backtrace",
  "curve25519-dalek",
  "ed25519-dalek",
  "getrandom",
@@ -1667,6 +1666,7 @@ name = "soroban-env-host"
 version = "20.3.0"
 source = "git+https://github.com/stellar/rs-soroban-env?rev=a8c713db03ba5ebfdc4786b73dcba00284e15dbe#a8c713db03ba5ebfdc4786b73dcba00284e15dbe"
 dependencies = [
+ "backtrace",
  "curve25519-dalek",
  "ecdsa",
  "ed25519-dalek",
@@ -1877,7 +1877,7 @@ dependencies = [
  "serde-aux",
  "serde_json",
  "sha2",
- "soroban-env-host 20.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "soroban-env-host 20.3.0 (git+https://github.com/stellar/rs-soroban-env?rev=a8c713db03ba5ebfdc4786b73dcba00284e15dbe)",
  "soroban-sdk",
  "soroban-spec",
  "stellar-strkey 0.0.7",
@@ -1918,7 +1918,6 @@ version = "20.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e59cdf3eb4467fb5a4b00b52e7de6dca72f67fac6f9b700f55c95a5d86f09c9d"
 dependencies = [
- "arbitrary",
  "base64 0.13.1",
  "crate-git-revision",
  "escape-bytes",
@@ -1933,6 +1932,7 @@ name = "stellar-xdr"
 version = "20.1.0"
 source = "git+https://github.com/stellar/rs-stellar-xdr?rev=3a001b1fbb20e4cfa2cef2c0cc450564e8528057#3a001b1fbb20e4cfa2cef2c0cc450564e8528057"
 dependencies = [
+ "arbitrary",
  "base64 0.13.1",
  "crate-git-revision",
  "escape-bytes",

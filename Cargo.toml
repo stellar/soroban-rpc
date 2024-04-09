@@ -13,8 +13,8 @@ rust-version = "1.74.0"
 
 [workspace.dependencies.soroban-env-host]
 version = "=20.3.0"
-# git = "https://github.com/stellar/rs-soroban-env"
-# rev = "8c9ab83c406bd86f56d52eae3e39dccf6b45b3da"
+git = "https://github.com/stellar/rs-soroban-env"
+rev = "a8c713db03ba5ebfdc4786b73dcba00284e15dbe"
 # path = "../rs-soroban-env/soroban-env-host"
 
 [workspace.dependencies.soroban-simulation]
