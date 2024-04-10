@@ -8,20 +8,18 @@ use serde_aux::prelude::{
     deserialize_option_number_from_string,
 };
 use soroban_env_host::xdr::{
-    self, AccountEntry, AccountId, ContractDataEntry, DiagnosticEvent, Error as XdrError,
-    LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyAccount, Limited, PublicKey, ReadXdr,
-    SorobanAuthorizationEntry, SorobanResources, SorobanTransactionData, Transaction,
-    TransactionEnvelope, TransactionMeta, TransactionMetaV3, TransactionResult, Uint256, VecM,
-    WriteXdr,
+    self, AccountEntry, AccountId, ContractDataEntry, ContractEventType, DiagnosticEvent,
+    Error as XdrError, LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyAccount, Limited,
+    Limits, PublicKey, ReadXdr, SorobanAuthorizationEntry, SorobanResources,
+    SorobanTransactionData, Transaction, TransactionEnvelope, TransactionMeta, TransactionMetaV3,
+    TransactionResult, Uint256, VecM, WriteXdr,
 };
 use soroban_sdk::token;
-use soroban_sdk::xdr::Limits;
 use std::{
     fmt::Display,
     str::FromStr,
     time::{Duration, Instant},
 };
-use stellar_xdr::curr::ContractEventType;
 use termcolor::{Color, ColorChoice, StandardStream, WriteColor};
 use termcolor_output::colored;
 use tokio::time::sleep;
