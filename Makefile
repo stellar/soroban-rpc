@@ -2,6 +2,9 @@ all: check build test
 
 export RUSTFLAGS=-Dwarnings -Dclippy::all -Dclippy::pedantic
 
+
+CAPTIVE_CORE_VERSION_INFO := $(shell stellar-core version)
+
 REPOSITORY_COMMIT_HASH := "$(shell git rev-parse HEAD)"
 ifeq (${REPOSITORY_COMMIT_HASH},"")
 	$(error failed to retrieve git head commit hash)
@@ -17,7 +20,8 @@ BUILD_TIMESTAMP ?= $(shell date '+%Y-%m-%dT%H:%M:%S')
 GOLDFLAGS :=	-X 'github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config.Version=${REPOSITORY_VERSION}' \
 				-X 'github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config.CommitHash=${REPOSITORY_COMMIT_HASH}' \
 				-X 'github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config.BuildTimestamp=${BUILD_TIMESTAMP}' \
-				-X 'github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config.Branch=${REPOSITORY_BRANCH}'
+				-X 'github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config.Branch=${REPOSITORY_BRANCH}' \
+				-X 'github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config.CaptiveCoreVersionInfo=${CAPTIVE_CORE_VERSION_INFO}'
 
 
 # The following works around incompatibility between the rust and the go linkers -

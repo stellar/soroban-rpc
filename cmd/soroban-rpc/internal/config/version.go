@@ -12,4 +12,6 @@ var (
 
 	// Branch is the git branch from which the soroban-rpc was built, injected during build time.
 	Branch = ""
+
+	CaptiveCoreVersionInfo = ""
 )
