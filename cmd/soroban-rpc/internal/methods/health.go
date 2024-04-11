@@ -8,24 +8,36 @@ import (
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
 
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 )
 
 type HealthCheckResult struct {
-	Status string `json:"status"`
+	Status       string `json:"status"`
+	LatestLedger uint32 `json:"latestLedger"`
+	FirstLedger  uint32 `json:"firstLedger"`
 }
 
 // NewHealthCheck returns a health check json rpc handler
-func NewHealthCheck(txStore *transactions.MemoryStore, maxHealthyLedgerLatency time.Duration) jrpc2.Handler {
+func NewHealthCheck(txStore *transactions.MemoryStore, evStore *events.MemoryStore, maxHealthyLedgerLatency time.Duration) jrpc2.Handler {
 	return handler.New(func(ctx context.Context) (HealthCheckResult, error) {
-		ledgerInfo := txStore.GetLatestLedger()
-		if ledgerInfo.Sequence < 1 {
+		txLedgerRange := txStore.GetLedgerRange()
+		evLedgerRange := evStore.GetLedgerRange()
+		if txLedgerRange.FirstLedger.Sequence < 1 || evLedgerRange.FirstLedger.Sequence < 1 {
 			return HealthCheckResult{}, jrpc2.Error{
 				Code:    jrpc2.InternalError,
 				Message: "data stores are not initialized",
 			}
 		}
-		lastKnownLedgerCloseTime := time.Unix(ledgerInfo.CloseTime, 0)
+		mergedRange := evLedgerRange
+		if txLedgerRange.FirstLedger.Sequence < mergedRange.FirstLedger.Sequence {
+			mergedRange.FirstLedger = txLedgerRange.FirstLedger
+		}
+		if txLedgerRange.LastLedger.Sequence > mergedRange.LastLedger.Sequence {
+			mergedRange.LastLedger = txLedgerRange.LastLedger
+		}
+
+		lastKnownLedgerCloseTime := time.Unix(mergedRange.LastLedger.CloseTime, 0)
 		lastKnownLedgerLatency := time.Since(lastKnownLedgerCloseTime)
 		if lastKnownLedgerLatency > maxHealthyLedgerLatency {
 			roundedLatency := lastKnownLedgerLatency.Round(time.Second)
@@ -35,6 +47,11 @@ func NewHealthCheck(txStore *transactions.MemoryStore, maxHealthyLedgerLatency t
 				Message: msg,
 			}
 		}
-		return HealthCheckResult{Status: "healthy"}, nil
+		result := HealthCheckResult{
+			Status:       "healthy",
+			LatestLedger: mergedRange.LastLedger.Sequence,
+			FirstLedger:  mergedRange.FirstLedger.Sequence,
+		}
+		return result, nil
 	})
 }
