@@ -6,8 +6,9 @@ import (
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/jhttp"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 )
 
 func TestHealth(t *testing.T) {
@@ -20,5 +21,8 @@ func TestHealth(t *testing.T) {
 	if err := client.CallResult(context.Background(), "getHealth", nil, &result); err != nil {
 		t.Fatalf("rpc call failed: %v", err)
 	}
-	assert.Equal(t, methods.HealthCheckResult{Status: "healthy"}, result)
+	assert.Equal(t, "healthy", result.Status)
+	assert.Greater(t, result.OldestLedger, uint32(0))
+	assert.Greater(t, result.LatestLedger, uint32(0))
+	assert.GreaterOrEqual(t, result.LatestLedger, result.OldestLedger)
 }
