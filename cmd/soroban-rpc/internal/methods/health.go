@@ -12,9 +12,10 @@ import (
 )
 
 type HealthCheckResult struct {
-	Status       string `json:"status"`
-	LatestLedger uint32 `json:"latestLedger"`
-	OldestLedger uint32 `json:"oldestLedger"`
+	Status                string `json:"status"`
+	LatestLedger          uint32 `json:"latestLedger"`
+	OldestLedger          uint32 `json:"oldestLedger"`
+	LedgerRetentionWindow uint32 `json:"ledgerRetentionWindow"`
 }
 
 type LedgerRangeGetter interface {
@@ -22,7 +23,7 @@ type LedgerRangeGetter interface {
 }
 
 // NewHealthCheck returns a health check json rpc handler
-func NewHealthCheck(ledgerRangeGetter LedgerRangeGetter, maxHealthyLedgerLatency time.Duration) jrpc2.Handler {
+func NewHealthCheck(retentionWindow uint32, ledgerRangeGetter LedgerRangeGetter, maxHealthyLedgerLatency time.Duration) jrpc2.Handler {
 	return handler.New(func(ctx context.Context) (HealthCheckResult, error) {
 		ledgerRange := ledgerRangeGetter.GetLedgerRange()
 		if ledgerRange.LastLedger.Sequence < 1 {
@@ -43,9 +44,10 @@ func NewHealthCheck(ledgerRangeGetter LedgerRangeGetter, maxHealthyLedgerLatency
 			}
 		}
 		result := HealthCheckResult{
-			Status:       "healthy",
-			LatestLedger: ledgerRange.LastLedger.Sequence,
-			OldestLedger: ledgerRange.FirstLedger.Sequence,
+			Status:                "healthy",
+			LatestLedger:          ledgerRange.LastLedger.Sequence,
+			OldestLedger:          ledgerRange.FirstLedger.Sequence,
+			LedgerRetentionWindow: retentionWindow,
 		}
 		return result, nil
 	})

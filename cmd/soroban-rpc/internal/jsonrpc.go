@@ -137,7 +137,9 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 
 	// Get the largest history window
 	var ledgerRangeGetter methods.LedgerRangeGetter = params.EventStore
+	var retentionWindow = cfg.EventLedgerRetentionWindow
 	if cfg.TransactionLedgerRetentionWindow > cfg.EventLedgerRetentionWindow {
+		retentionWindow = cfg.TransactionLedgerRetentionWindow
 		ledgerRangeGetter = params.TransactionStore
 	}
 
@@ -150,7 +152,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 	}{
 		{
 			methodName:           "getHealth",
-			underlyingHandler:    methods.NewHealthCheck(ledgerRangeGetter, cfg.MaxHealthyLedgerLatency),
+			underlyingHandler:    methods.NewHealthCheck(retentionWindow, ledgerRangeGetter, cfg.MaxHealthyLedgerLatency),
 			longName:             "get_health",
 			queueLimit:           cfg.RequestBacklogGetHealthQueueLimit,
 			requestDurationLimit: cfg.MaxGetHealthExecutionDuration,
