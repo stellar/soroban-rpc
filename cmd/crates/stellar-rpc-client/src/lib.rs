@@ -280,21 +280,18 @@ pub struct SimulateHostFunctionResult {
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone, PartialEq)]
-pub enum LedgerEntryChangeType {
+#[serde(tag = "type")]
+pub enum LedgerEntryChange {
     #[serde(rename = "created")]
-    Created,
+    Created { key: String, after: String },
     #[serde(rename = "deleted")]
-    Deleted,
+    Deleted { key: String, before: String },
     #[serde(rename = "updated")]
-    Updated,
-}
-#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
-pub struct LedgerEntryChange {
-    #[serde(rename = "type")]
-    pub type_: LedgerEntryChangeType,
-    pub key: String,
-    pub before: Option<String>,
-    pub after: Option<String>,
+    Updated {
+        key: String,
+        before: String,
+        after: String,
+    },
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Default, Clone)]
@@ -1105,8 +1102,8 @@ mod tests {
 
         let resp: SimulateTransactionResponse = serde_json::from_str(s).unwrap();
         assert_eq!(
-            resp.state_changes.unwrap()[0].type_,
-            LedgerEntryChangeType::Created
+            resp.state_changes.unwrap()[0],
+            LedgerEntryChange::Created { key: "AAAAAAAAAABuaCbVXZ2DlXWarV6UxwbW3GNJgpn3ASChIFp5bxSIWg==".to_string(), after: "AAAAZAAAAAAAAAAAbmgm1V2dg5V1mq1elMcG1txjSYKZ9wEgoSBaeW8UiFoAAAAAAAAAZAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".to_string() },
         );
         assert_eq!(resp.min_resource_fee, 100_000_000);
     }

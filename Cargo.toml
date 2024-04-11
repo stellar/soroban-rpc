@@ -8,7 +8,7 @@ default-members = ["cmd/crates/stellar-rpc-client"]
 #exclude = ["cmd/crates/soroban-test/tests/fixtures/hello"]
 
 [workspace.package]
-version = "20.3.3"
+version = "20.3.5"
 rust-version = "1.74.0"
 
 [workspace.dependencies.soroban-env-host]
@@ -61,7 +61,7 @@ version = "=20.3.2"
 # rev = "4aef54ff9295c2fca4c5b9fbd2c92d0ff99f67de"
 
 [workspace.dependencies.stellar-rpc-client]
-version = "20.3.3"
+version = "20.3.5"
 path = "cmd/crates/stellar-rpc-client"
 
 [workspace.dependencies.stellar-xdr]
