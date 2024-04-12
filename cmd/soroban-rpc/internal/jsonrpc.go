@@ -50,6 +50,7 @@ type HandlerParams struct {
 	TransactionStore  *transactions.MemoryStore
 	LedgerEntryReader db.LedgerEntryReader
 	LedgerReader      db.LedgerReader
+	TransactionReader db.TransactionReader
 	Logger            *log.Entry
 	PreflightGetter   methods.PreflightGetter
 	Daemon            interfaces.Daemon
@@ -189,6 +190,13 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 			longName:             "get_transaction",
 			queueLimit:           cfg.RequestBacklogGetTransactionQueueLimit,
 			requestDurationLimit: cfg.MaxGetTransactionExecutionDuration,
+		},
+		{
+			methodName:           "getTransactions",
+			underlyingHandler:    methods.NewGetTransactionsHandler(params.Logger, params.LedgerReader, params.TransactionReader, cfg.MaxTransactionsLimit, cfg.DefaultTransactionsLimit),
+			longName:             "get_transactions",
+			queueLimit:           cfg.RequestBacklogSendTransactionQueueLimit,
+			requestDurationLimit: cfg.MaxSendTransactionExecutionDuration,
 		},
 		{
 			methodName:           "sendTransaction",

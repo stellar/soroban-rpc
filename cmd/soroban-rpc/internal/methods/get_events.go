@@ -80,9 +80,9 @@ type EventInfo struct {
 }
 
 type GetEventsRequest struct {
-	StartLedger uint32             `json:"startLedger,omitempty"`
-	Filters     []EventFilter      `json:"filters"`
-	Pagination  *PaginationOptions `json:"pagination,omitempty"`
+	StartLedger uint32                   `json:"startLedger,omitempty"`
+	Filters     []EventFilter            `json:"filters"`
+	Pagination  *EventsPaginationOptions `json:"pagination,omitempty"`
 }
 
 func (g *GetEventsRequest) Valid(maxLimit uint) error {
@@ -289,7 +289,7 @@ func (s *SegmentFilter) UnmarshalJSON(p []byte) error {
 	return nil
 }
 
-type PaginationOptions struct {
+type EventsPaginationOptions struct {
 	Cursor *events.Cursor `json:"cursor,omitempty"`
 	Limit  uint           `json:"limit,omitempty"`
 }

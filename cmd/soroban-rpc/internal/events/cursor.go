@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/stellar/go/toid"
+
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 )
 
 // Cursor represents the position of a Soroban event.
@@ -98,17 +100,19 @@ func cmp(a, b uint32) int {
 // 0 is returned if the c is equal to other.
 // 1 is returned if c is greater than other.
 // -1 is returned if c is less than other.
-func (c Cursor) Cmp(other Cursor) int {
-	if c.Ledger == other.Ledger {
-		if c.Tx == other.Tx {
-			if c.Op == other.Op {
-				return cmp(c.Event, other.Event)
+func (c Cursor) Cmp(other interfaces.Cursor) int {
+	otherCursor := other.(*Cursor)
+
+	if c.Ledger == otherCursor.Ledger {
+		if c.Tx == otherCursor.Tx {
+			if c.Op == otherCursor.Op {
+				return cmp(c.Event, otherCursor.Event)
 			}
-			return cmp(c.Op, other.Op)
+			return cmp(c.Op, otherCursor.Op)
 		}
-		return cmp(c.Tx, other.Tx)
+		return cmp(c.Tx, otherCursor.Tx)
 	}
-	return cmp(c.Ledger, other.Ledger)
+	return cmp(c.Ledger, otherCursor.Ledger)
 }
 
 var (
