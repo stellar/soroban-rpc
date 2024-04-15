@@ -10,6 +10,7 @@ typedef struct ledger_info_t {
   uint64_t timestamp;
   const char *network_passphrase;
   uint32_t base_reserve;
+  uint64_t bucket_list_size;
 } ledger_info_t;
 
 typedef struct xdr_t {
