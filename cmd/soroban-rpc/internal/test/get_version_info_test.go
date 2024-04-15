@@ -16,11 +16,14 @@ func TestGetVersionInfoSucceeds(t *testing.T) {
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
-
 	request := methods.GetVersionInfoRequest{}
 
 	var result methods.GetVersionInfoResponse
 	err := client.CallResult(context.Background(), "getVersionInfo", request, &result)
 	assert.NoError(t, err)
-	assert.Equal(t, stellarCoreProtocolVersion, result.ProtocolVersion)
+
+	assert.NotEmpty(t, result.CaptiveCoreVersionInfo)
+	assert.NotEmpty(t, result.Version)
+	assert.NotEmpty(t, result.BuildTimestamp)
+	assert.NotEmpty(t, result.CommitHash)
 }
