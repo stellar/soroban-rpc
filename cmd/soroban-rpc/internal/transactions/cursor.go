@@ -43,6 +43,21 @@ func (c Cursor) UnmarshalJSON(b []byte) error {
 // 1 is returned if c is greater than other.
 // -1 is returned if c is less than other.
 func (c Cursor) Cmp(other interfaces.Cursor) int {
+	otherCursor := other.(*Cursor)
+
+	if c.LedgerSequence == otherCursor.LedgerSequence {
+		return cmp(c.TxIdx, otherCursor.TxIdx)
+	}
+	return cmp(c.LedgerSequence, otherCursor.LedgerSequence)
+}
+
+func cmp(a, b uint32) int {
+	if a < b {
+		return -1
+	}
+	if a > b {
+		return 1
+	}
 	return 0
 }
 

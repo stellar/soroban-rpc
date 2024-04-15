@@ -71,7 +71,18 @@ func (r ledgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.Ledge
 }
 
 func (r ledgerReader) GetLedgers(ctx context.Context, startSequence uint32, endSequence uint32) ([]xdr.LedgerCloseMeta, error) {
-	return []xdr.LedgerCloseMeta{}, nil
+	sql := sq.Select("meta").
+		From(ledgerCloseMetaTableName).
+		Where(
+			sq.And{
+				sq.GtOrEq{"sequence": startSequence},
+				sq.LtOrEq{"sequence": endSequence},
+			})
+	var results []xdr.LedgerCloseMeta
+	if err := r.db.Select(ctx, &results, sql); err != nil {
+		return []xdr.LedgerCloseMeta{}, err
+	}
+	return results, nil
 }
 
 type ledgerWriter struct {
