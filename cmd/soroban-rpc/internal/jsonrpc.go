@@ -47,7 +47,7 @@ func (h Handler) Close() {
 
 type HandlerParams struct {
 	EventStore        *events.MemoryStore
-	TransactionStore  transactions.TransactionStore
+	TransactionStore  *transactions.MemoryStore
 	LedgerEntryReader db.LedgerEntryReader
 	LedgerReader      db.LedgerReader
 	Logger            *log.Entry

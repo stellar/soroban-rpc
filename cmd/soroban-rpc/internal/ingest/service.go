@@ -34,7 +34,7 @@ type Config struct {
 	Logger            *log.Entry
 	DB                db.ReadWriter
 	EventStore        *events.MemoryStore
-	TransactionStore  transactions.TransactionStore
+	TransactionStore  *transactions.MemoryStore
 	NetworkPassPhrase string
 	Archive           historyarchive.ArchiveInterface
 	LedgerBackend     backends.LedgerBackend
@@ -134,7 +134,7 @@ type Service struct {
 	logger            *log.Entry
 	db                db.ReadWriter
 	eventStore        *events.MemoryStore
-	transactionStore  transactions.TransactionStore
+	transactionStore  *transactions.MemoryStore
 	ledgerBackend     backends.LedgerBackend
 	timeout           time.Duration
 	networkPassPhrase string
@@ -308,8 +308,7 @@ func (s *Service) ingestLedgerCloseMeta(tx db.WriteTx, ledgerCloseMeta xdr.Ledge
 		return err
 	}
 	s.metrics.ingestionDurationMetric.
-		With(prometheus.Labels{"type": "ledger_close_meta"}).
-		Observe(time.Since(startTime).Seconds())
+		With(prometheus.Labels{"type": "ledger_close_meta"}).Observe(time.Since(startTime).Seconds())
 
 	if err := s.eventStore.IngestEvents(ledgerCloseMeta); err != nil {
 		return err
