@@ -26,4 +26,5 @@ type Cursor interface {
 	MarshalJSON() ([]byte, error)
 	UnmarshalJSON(b []byte) error
 	Cmp(other Cursor) int
+	ParseCursor(input string) (Cursor, error)
 }

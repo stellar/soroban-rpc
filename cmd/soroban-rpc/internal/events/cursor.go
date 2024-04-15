@@ -30,7 +30,7 @@ type Cursor struct {
 }
 
 // String returns a string representation of this cursor
-func (c Cursor) String() string {
+func (c *Cursor) String() string {
 	return fmt.Sprintf(
 		"%019d-%010d",
 		toid.New(int32(c.Ledger), int32(c.Tx), int32(c.Op)).ToInt64(),
@@ -39,7 +39,7 @@ func (c Cursor) String() string {
 }
 
 // MarshalJSON marshals the cursor into JSON
-func (c Cursor) MarshalJSON() ([]byte, error) {
+func (c *Cursor) MarshalJSON() ([]byte, error) {
 	return json.Marshal(c.String())
 }
 
@@ -50,35 +50,40 @@ func (c *Cursor) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	if parsed, err := ParseCursor(s); err != nil {
+	parsed, err := c.ParseCursor(s)
+	if err != nil {
 		return err
+	}
+
+	if eventCursor, ok := parsed.(*Cursor); ok {
+		*c = *eventCursor
 	} else {
-		*c = parsed
+		return fmt.Errorf("parsed cursor could not be converted to Event cursor")
 	}
 	return nil
 }
 
 // ParseCursor parses the given string and returns the corresponding cursor
-func ParseCursor(input string) (Cursor, error) {
+func (c *Cursor) ParseCursor(input string) (interfaces.Cursor, error) {
 	parts := strings.SplitN(input, "-", 2)
 	if len(parts) != 2 {
-		return Cursor{}, fmt.Errorf("invalid event id %s", input)
+		return &Cursor{}, fmt.Errorf("invalid event id %s", input)
 	}
 
 	// Parse the first part (toid)
 	idInt, err := strconv.ParseInt(parts[0], 10, 64) //lint:ignore gomnd
 	if err != nil {
-		return Cursor{}, fmt.Errorf("invalid event id %s: %w", input, err)
+		return &Cursor{}, fmt.Errorf("invalid event id %s: %w", input, err)
 	}
 	parsed := toid.Parse(idInt)
 
 	// Parse the second part (event order)
 	eventOrder, err := strconv.ParseUint(parts[1], 10, 32) //lint:ignore gomnd
 	if err != nil {
-		return Cursor{}, fmt.Errorf("invalid event id %s: %w", input, err)
+		return &Cursor{}, fmt.Errorf("invalid event id %s: %w", input, err)
 	}
 
-	return Cursor{
+	return &Cursor{
 		Ledger: uint32(parsed.LedgerSequence),
 		Tx:     uint32(parsed.TransactionOrder),
 		Op:     uint32(parsed.OperationOrder),
@@ -100,7 +105,7 @@ func cmp(a, b uint32) int {
 // 0 is returned if the c is equal to other.
 // 1 is returned if c is greater than other.
 // -1 is returned if c is less than other.
-func (c Cursor) Cmp(other interfaces.Cursor) int {
+func (c *Cursor) Cmp(other interfaces.Cursor) int {
 	otherCursor := other.(*Cursor)
 
 	if c.Ledger == otherCursor.Ledger {
