@@ -30,7 +30,7 @@ type Cursor struct {
 }
 
 // String returns a string representation of this cursor
-func (c *Cursor) String() string {
+func (c Cursor) String() string {
 	return fmt.Sprintf(
 		"%019d-%010d",
 		toid.New(int32(c.Ledger), int32(c.Tx), int32(c.Op)).ToInt64(),
@@ -105,7 +105,7 @@ func cmp(a, b uint32) int {
 // 0 is returned if the c is equal to other.
 // 1 is returned if c is greater than other.
 // -1 is returned if c is less than other.
-func (c *Cursor) Cmp(other interfaces.Cursor) int {
+func (c Cursor) Cmp(other interfaces.Cursor) int {
 	otherCursor := other.(*Cursor)
 
 	if c.Ledger == otherCursor.Ledger {

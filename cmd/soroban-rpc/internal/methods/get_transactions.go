@@ -170,7 +170,7 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 		txCount := ledger.CountTransactions()
 		for i := ledgerRange.Start.TxIdx; i < uint32(txCount); i++ {
 			cursor = transactions.NewCursor(ledger.LedgerSequence(), i, 0)
-			if ledgerRange.End.Cmp(cursor) <= 0 {
+			if ledgerRange.End.Cmp(&cursor) <= 0 {
 				break
 			}
 
