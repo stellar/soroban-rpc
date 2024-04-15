@@ -315,7 +315,8 @@ fn preflight_footprint_ttl_op_or_maybe_panic(
 ) -> Result<CPreflightResult> {
     let op_body = OperationBody::from_xdr(from_c_xdr(op_body), DEFAULT_XDR_RW_LIMITS)?;
     let footprint = LedgerFootprint::from_xdr(from_c_xdr(footprint), DEFAULT_XDR_RW_LIMITS)?;
-    let go_storage = Rc::new(GoLedgerStorage::new(handle));    let network_config =
+    let go_storage = Rc::new(GoLedgerStorage::new(handle));
+    let network_config =
         NetworkConfig::load_from_snapshot(go_storage.as_ref(), c_ledger_info.bucket_list_size)?;
     let ledger_info = fill_ledger_info(c_ledger_info, &network_config);
     // TODO: It would make for a better UX if the user passed only the neccesary fields for every operation.
