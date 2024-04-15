@@ -43,7 +43,7 @@ type MemoryStore struct {
 // will be included in the MemoryStore. If the MemoryStore
 // is full, any transactions from new ledgers will evict
 // older entries outside the retention window.
-func NewMemoryStore(daemon interfaces.Daemon, networkPassphrase string, retentionWindow uint32) *MemoryStore {
+func NewMemoryStore(daemon interfaces.Daemon, networkPassphrase string, retentionWindow uint32) TransactionStore {
 	window := ledgerbucketwindow.NewLedgerBucketWindow[[]xdr.Hash](retentionWindow)
 
 	// transactionDurationMetric is a metric for measuring latency of transaction store operations
@@ -75,6 +75,7 @@ func NewMemoryStore(daemon interfaces.Daemon, networkPassphrase string, retentio
 // removed from the store.
 func (m *MemoryStore) IngestTransactions(ledgerCloseMeta xdr.LedgerCloseMeta) error {
 	startTime := time.Now()
+
 	reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(m.networkPassphrase, ledgerCloseMeta)
 	if err != nil {
 		return err
@@ -135,6 +136,7 @@ func (m *MemoryStore) IngestTransactions(ledgerCloseMeta xdr.LedgerCloseMeta) er
 	for hash, tx := range hashMap {
 		m.transactions[hash] = tx
 	}
+
 	m.transactionDurationMetric.With(prometheus.Labels{"operation": "ingest"}).Observe(time.Since(startTime).Seconds())
 	m.transactionCountMetric.Observe(float64(txCount))
 	return nil
