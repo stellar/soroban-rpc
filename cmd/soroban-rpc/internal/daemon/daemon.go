@@ -27,7 +27,6 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ingest"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/preflight"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/util"
@@ -236,15 +235,11 @@ func MustNew(cfg *config.Config) *Daemon {
 	onIngestionRetry := func(err error, dur time.Duration) {
 		logger.WithError(err).Error("could not run ingestion. Retrying")
 	}
-	maxRetentionWindow := cfg.EventLedgerRetentionWindow
-	if cfg.TransactionLedgerRetentionWindow > maxRetentionWindow {
-		maxRetentionWindow = cfg.TransactionLedgerRetentionWindow
-	} else if cfg.EventLedgerRetentionWindow == 0 && cfg.TransactionLedgerRetentionWindow > ledgerbucketwindow.DefaultEventLedgerRetentionWindow {
-		maxRetentionWindow = ledgerbucketwindow.DefaultEventLedgerRetentionWindow
-	}
+	ledgerRetentionWindow := cfg.LedgerRetentionWindow
+
 	ingestService := ingest.NewService(ingest.Config{
 		Logger:            logger,
-		DB:                db.NewReadWriter(dbConn, maxLedgerEntryWriteBatchSize, maxRetentionWindow),
+		DB:                db.NewReadWriter(dbConn, maxLedgerEntryWriteBatchSize, ledgerRetentionWindow),
 		EventStore:        eventStore,
 		TransactionStore:  transactionStore,
 		NetworkPassPhrase: cfg.NetworkPassphrase,

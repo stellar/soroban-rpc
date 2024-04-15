@@ -26,6 +26,7 @@ type Config struct {
 	CoreRequestTimeout                          time.Duration
 	DefaultEventsLimit                          uint
 	EventLedgerRetentionWindow                  uint32
+	LedgerRetentionWindow                       uint32
 	FriendbotURL                                string
 	HistoryArchiveURLs                          []string
 	HistoryArchiveUserAgent                     string

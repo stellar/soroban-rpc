@@ -210,6 +210,15 @@ func (cfg *Config) options() ConfigOptions {
 			DefaultValue: uint32(64),
 		},
 		{
+			Name: "ledger-retention-window",
+			Usage: fmt.Sprintf("configures the ledger retention window expressed in number of ledgers,"+
+				" the default value is %d which corresponds to about 24 hours of history", ledgerbucketwindow.DefaultEventLedgerRetentionWindow),
+			ConfigKey:    &cfg.LedgerRetentionWindow,
+			DefaultValue: uint32(120960),
+			Validate:     positive,
+		},
+
+		{
 			Name: "event-retention-window",
 			Usage: fmt.Sprintf("configures the event retention window expressed in number of ledgers,"+
 				" the default value is %d which corresponds to about 24 hours of history", ledgerbucketwindow.DefaultEventLedgerRetentionWindow),
