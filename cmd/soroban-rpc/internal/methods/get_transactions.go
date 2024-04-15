@@ -100,6 +100,9 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 	start := transactions.NewCursor(request.StartLedger, 0, 0)
 	endLedger, found, err := h.ledgerReader.GetLedger(ctx, request.EndLedger)
 	if err != nil || !found {
+		if err == nil {
+			err = errors.New("ledger close meta not found")
+		}
 		return GetTransactionsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidParams,
 			Message: err.Error(),
@@ -134,22 +137,25 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 		}
 	}
 
-	// Get all ledgers within the range from db
-	ledgers, err := h.ledgerReader.GetLedgers(ctx, ledgerRange.Start.LedgerSequence, ledgerRange.End.LedgerSequence)
-	if err != nil {
-		return GetTransactionsResponse{}, &jrpc2.Error{
-			Code:    jrpc2.InvalidParams,
-			Message: err.Error(),
-		}
-	}
-
 	// Iterate through each ledger and its transactions until limit or end range is reached
 	txns := make([]TransactionInfo, limit)
 	var cursor transactions.Cursor
-	for _, lcm := range ledgers {
+	for ledgerSeq := ledgerRange.Start.LedgerSequence; ledgerSeq <= ledgerRange.End.LedgerSequence; ledgerSeq++ {
+		// Get ledger close meta from db
+		ledger, found, err := h.ledgerReader.GetLedger(ctx, ledgerSeq)
+		if (err != nil) || (!found) {
+			if err == nil {
+				err = errors.New("ledger close meta not found")
+			}
+			return GetTransactionsResponse{}, &jrpc2.Error{
+				Code:    jrpc2.InvalidParams,
+				Message: err.Error(),
+			}
+		}
+
 		// Build transaction envelopes in the ledger
 		byHash := map[xdr.Hash]xdr.TransactionEnvelope{}
-		for _, tx := range lcm.TransactionEnvelopes() {
+		for _, tx := range ledger.TransactionEnvelopes() {
 			hash, err := network.HashTransactionInEnvelope(tx, h.networkPassphrase)
 			if err != nil {
 				return GetTransactionsResponse{}, &jrpc2.Error{
@@ -160,14 +166,15 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 			byHash[hash] = tx
 		}
 
-		txCount := lcm.CountTransactions()
+		// Decode transaction info from ledger meta
+		txCount := ledger.CountTransactions()
 		for i := ledgerRange.Start.TxIdx; i < uint32(txCount); i++ {
-			cursor = transactions.NewCursor(lcm.LedgerSequence(), i, 0)
+			cursor = transactions.NewCursor(ledger.LedgerSequence(), i, 0)
 			if ledgerRange.End.Cmp(cursor) <= 0 {
 				break
 			}
 
-			hash := lcm.TransactionHash(int(i))
+			hash := ledger.TransactionHash(int(i))
 			envelope, ok := byHash[hash]
 			if !ok {
 				hexHash := hex.EncodeToString(hash[:])
@@ -177,14 +184,14 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 					Message: err.Error(),
 				}
 			}
-			txResult := lcm.TransactionResultPair(int(i))
-			unsafeMeta := lcm.TxApplyProcessing(int(i))
+			txResult := ledger.TransactionResultPair(int(i))
+			unsafeMeta := ledger.TxApplyProcessing(int(i))
 
 			txInfo := TransactionInfo{
 				FeeBump:          envelope.IsFeeBump(),
 				ApplicationOrder: int32(i + 1),
 				Successful:       txResult.Result.Successful(),
-				LedgerSequence:   uint(lcm.LedgerSequence()),
+				LedgerSequence:   uint(ledger.LedgerSequence()),
 			}
 			if txInfo.Result, err = txResult.Result.MarshalBinary(); err != nil {
 				return GetTransactionsResponse{}, &jrpc2.Error{
@@ -233,6 +240,9 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 
 	latestLedger, found, err := h.ledgerReader.GetLedger(ctx, latestSequence)
 	if (err != nil) || (!found) {
+		if err == nil {
+			err = errors.New("ledger close meta not found")
+		}
 		return GetTransactionsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidParams,
 			Message: err.Error(),
