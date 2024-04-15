@@ -17,6 +17,7 @@ type StreamLedgerFn func(xdr.LedgerCloseMeta) error
 
 type LedgerReader interface {
 	GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error)
+	GetLedgers(ctx context.Context, startSequence uint32, endSequence uint32) ([]xdr.LedgerCloseMeta, error)
 	StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error
 }
 
@@ -67,6 +68,10 @@ func (r ledgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.Ledge
 	default:
 		return xdr.LedgerCloseMeta{}, false, fmt.Errorf("multiple lcm entries (%d) for sequence %d in table %q", len(results), sequence, ledgerCloseMetaTableName)
 	}
+}
+
+func (r ledgerReader) GetLedgers(ctx context.Context, startSequence uint32, endSequence uint32) ([]xdr.LedgerCloseMeta, error) {
+	return []xdr.LedgerCloseMeta{}, nil
 }
 
 type ledgerWriter struct {

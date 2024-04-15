@@ -2,11 +2,14 @@ package methods
 
 import (
 	"context"
+	"encoding/hex"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
+	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/log"
+	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
@@ -59,10 +62,21 @@ func (req GetTransactionsRequest) isValid() error {
 	return nil
 }
 
+type TransactionInfo struct {
+	Result           []byte // XDR encoded xdr.TransactionResult
+	Meta             []byte // XDR encoded xdr.TransactionMeta
+	Envelope         []byte // XDR encoded xdr.TransactionEnvelope
+	FeeBump          bool
+	ApplicationOrder int32
+	Successful       bool
+	LedgerSequence   uint
+}
+
 type GetTransactionsResponse struct {
-	Transactions               []transactions.Transaction `json:"transactions"`
-	LatestLedger               int64                      `json:"latestLedger"`
-	LatestLedgerCloseTimestamp int64                      `json:"latestLedgerCloseTimestamp"`
+	Transactions               []TransactionInfo `json:"transactions"`
+	LatestLedger               int64             `json:"latestLedger"`
+	LatestLedgerCloseTimestamp int64             `json:"latestLedgerCloseTimestamp"`
+	Pagination                 *TransactionsPaginationOptions
 }
 
 type transactionsRPCHandler struct {
@@ -71,6 +85,7 @@ type transactionsRPCHandler struct {
 	maxLimit          uint
 	defaultLimit      uint
 	logger            *log.Entry
+	networkPassphrase string
 }
 
 func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Context, request GetTransactionsRequest) (GetTransactionsResponse, error) {
@@ -82,8 +97,17 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 		}
 	}
 
-	start := transactions.Cursor{LedgerSequence: request.StartLedger}
-	end := transactions.Cursor{LedgerSequence: request.EndLedger}
+	start := transactions.NewCursor(request.StartLedger, 0, 0)
+	endLedger, found, err := h.ledgerReader.GetLedger(ctx, request.EndLedger)
+	if err != nil || !found {
+		return GetTransactionsResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InvalidParams,
+			Message: err.Error(),
+		}
+	}
+	end := transactions.NewCursor(request.EndLedger, uint32(endLedger.CountTransactions()), 0)
+
+	// Move start to pagination cursor
 	limit := h.defaultLimit
 	if request.Pagination != nil {
 		if request.Pagination.Cursor != nil {
@@ -110,35 +134,131 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 		}
 	}
 
-	//transactions := make([]transactions.Transaction, limit)
-	//for i := ledgerRange.Start.LedgerSequence; i <= ledgerRange.End.LedgerSequence; i++ {
-	//
-	//}
+	// Get all ledgers within the range from db
+	ledgers, err := h.ledgerReader.GetLedgers(ctx, ledgerRange.Start.LedgerSequence, ledgerRange.End.LedgerSequence)
+	if err != nil {
+		return GetTransactionsResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InvalidParams,
+			Message: err.Error(),
+		}
+	}
 
-	//for ledgerSeq := request.StartLedger; ledgerSeq <= request.EndLedger; ledgerSeq++ {
-	//	ledger, found, err := h.ledgerReader.GetLedger(ctx, ledgerSeq)
-	//	if (err != nil) || (!found) {
-	//		return GetTransactionsResponse{}, &jrpc2.Error{
-	//			Code:    jrpc2.InternalError,
-	//			Message: "could not get ledger sequence",
-	//		}
-	//	}
-	//
-	//	txCount := ledger.CountTransactions()
-	//	for i := 0; i < txCount; i++ {
-	//
-	//	}
-	//
-	//}
+	// Iterate through each ledger and its transactions until limit or end range is reached
+	txns := make([]TransactionInfo, limit)
+	var cursor transactions.Cursor
+	for _, lcm := range ledgers {
+		// Build transaction envelopes in the ledger
+		byHash := map[xdr.Hash]xdr.TransactionEnvelope{}
+		for _, tx := range lcm.TransactionEnvelopes() {
+			hash, err := network.HashTransactionInEnvelope(tx, h.networkPassphrase)
+			if err != nil {
+				return GetTransactionsResponse{}, &jrpc2.Error{
+					Code:    jrpc2.InvalidParams,
+					Message: err.Error(),
+				}
+			}
+			byHash[hash] = tx
+		}
+
+		txCount := lcm.CountTransactions()
+		for i := ledgerRange.Start.TxIdx; i < uint32(txCount); i++ {
+			cursor = transactions.NewCursor(lcm.LedgerSequence(), i, 0)
+			if ledgerRange.End.Cmp(cursor) <= 0 {
+				break
+			}
+
+			hash := lcm.TransactionHash(int(i))
+			envelope, ok := byHash[hash]
+			if !ok {
+				hexHash := hex.EncodeToString(hash[:])
+				err = errors.Errorf("unknown tx hash in LedgerCloseMeta: %v", hexHash)
+				return GetTransactionsResponse{}, &jrpc2.Error{
+					Code:    jrpc2.InvalidParams,
+					Message: err.Error(),
+				}
+			}
+			txResult := lcm.TransactionResultPair(int(i))
+			unsafeMeta := lcm.TxApplyProcessing(int(i))
+
+			txInfo := TransactionInfo{
+				FeeBump:          envelope.IsFeeBump(),
+				ApplicationOrder: int32(i + 1),
+				Successful:       txResult.Result.Successful(),
+				LedgerSequence:   uint(lcm.LedgerSequence()),
+			}
+			if txInfo.Result, err = txResult.Result.MarshalBinary(); err != nil {
+				return GetTransactionsResponse{}, &jrpc2.Error{
+					Code:    jrpc2.InvalidParams,
+					Message: err.Error(),
+				}
+			}
+			if txInfo.Meta, err = unsafeMeta.MarshalBinary(); err != nil {
+				return GetTransactionsResponse{}, &jrpc2.Error{
+					Code:    jrpc2.InvalidParams,
+					Message: err.Error(),
+				}
+			}
+			if txInfo.Envelope, err = envelope.MarshalBinary(); err != nil {
+				return GetTransactionsResponse{}, &jrpc2.Error{
+					Code:    jrpc2.InvalidParams,
+					Message: err.Error(),
+				}
+			}
+
+			txns = append(txns, txInfo)
+			if len(txns) >= int(limit) {
+				break
+			}
+		}
+	}
+
+	tx, err := h.ledgerEntryReader.NewTx(ctx)
+	if err != nil {
+		return GetTransactionsResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InvalidParams,
+			Message: err.Error(),
+		}
+	}
+	defer func() {
+		_ = tx.Done()
+	}()
+
+	latestSequence, err := tx.GetLatestLedgerSequence()
+	if err != nil {
+		return GetTransactionsResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InvalidParams,
+			Message: err.Error(),
+		}
+	}
+
+	latestLedger, found, err := h.ledgerReader.GetLedger(ctx, latestSequence)
+	if (err != nil) || (!found) {
+		return GetTransactionsResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InvalidParams,
+			Message: err.Error(),
+		}
+	}
+
+	return GetTransactionsResponse{
+		Transactions:               txns,
+		LatestLedger:               int64(latestLedger.LedgerSequence()),
+		LatestLedgerCloseTimestamp: int64(latestLedger.LedgerHeaderHistoryEntry().Header.ScpValue.CloseTime),
+		Pagination: &TransactionsPaginationOptions{
+			Cursor: &cursor,
+			Limit:  limit,
+		},
+	}, nil
+
 }
 
-func NewGetTransactionsHandler(logger *log.Entry, ledgerReader db.LedgerReader, ledgerEntryReader db.LedgerEntryReader, maxLimit, defaultLimit uint) jrpc2.Handler {
+func NewGetTransactionsHandler(logger *log.Entry, ledgerReader db.LedgerReader, ledgerEntryReader db.LedgerEntryReader, maxLimit, defaultLimit uint, networkPassphrase string) jrpc2.Handler {
 	transactionsHandler := transactionsRPCHandler{
 		ledgerReader:      ledgerReader,
 		ledgerEntryReader: ledgerEntryReader,
 		maxLimit:          maxLimit,
 		defaultLimit:      defaultLimit,
 		logger:            logger,
+		networkPassphrase: networkPassphrase,
 	}
 
 	return handler.New(func(context context.Context, request GetTransactionsRequest) (GetTransactionsResponse, error) {

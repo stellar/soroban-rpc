@@ -45,3 +45,11 @@ func (c Cursor) UnmarshalJSON(b []byte) error {
 func (c Cursor) Cmp(other interfaces.Cursor) int {
 	return 0
 }
+
+func NewCursor(sequence uint32, txIdx uint32, opIdx uint32) Cursor {
+	return Cursor{
+		LedgerSequence: sequence,
+		TxIdx:          txIdx,
+		OpIdx:          opIdx,
+	}
+}
