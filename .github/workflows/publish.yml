@@ -35,7 +35,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       VERSION: '${{ github.event.release.name }}'
-      NAME: 'soroban-rpc-${{ github.event.release.name }}-${{ matrix.target }}'
+      NAME: 'stellar-rpc-client-${{ github.event.release.name }}-${{ matrix.target }}'
     steps:
     - uses: actions/checkout@v3
     - run: rustup update
@@ -49,8 +49,8 @@ jobs:
         CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
       run: |
         cd target/package
-        tar xvfz soroban-rpc-$VERSION.crate
-        cd soroban-rpc-$VERSION
+        tar xvfz stellar-rpc-client-$VERSION.crate
+        cd stellar-rpc-client-$VERSION
         cargo build --target-dir=../.. --release --target ${{ matrix.target }}
     - name: Compress 
       run: |

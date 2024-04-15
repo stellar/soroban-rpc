@@ -140,11 +140,6 @@ func (m *MemoryStore) IngestTransactions(ledgerCloseMeta xdr.LedgerCloseMeta) er
 	return nil
 }
 
-type LedgerInfo struct {
-	Sequence  uint32
-	CloseTime int64
-}
-
 type Transaction struct {
 	Result           []byte   // XDR encoded xdr.TransactionResult
 	Meta             []byte   // XDR encoded xdr.TransactionMeta
@@ -153,48 +148,22 @@ type Transaction struct {
 	FeeBump          bool
 	ApplicationOrder int32
 	Successful       bool
-	Ledger           LedgerInfo
+	Ledger           ledgerbucketwindow.LedgerInfo
 }
 
-type StoreRange struct {
-	FirstLedger LedgerInfo
-	LastLedger  LedgerInfo
-}
-
-// GetLatestLedger returns the latest ledger available in the store.
-func (m *MemoryStore) GetLatestLedger() LedgerInfo {
+// GetLedgerRange returns the first and latest ledger available in the store.
+func (m *MemoryStore) GetLedgerRange() ledgerbucketwindow.LedgerRange {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
-	if m.transactionsByLedger.Len() > 0 {
-		lastBucket := m.transactionsByLedger.Get(m.transactionsByLedger.Len() - 1)
-		return LedgerInfo{
-			Sequence:  lastBucket.LedgerSeq,
-			CloseTime: lastBucket.LedgerCloseTimestamp,
-		}
-	}
-	return LedgerInfo{}
+	return m.transactionsByLedger.GetLedgerRange()
 }
 
 // GetTransaction obtains a transaction from the store and whether it's present and the current store range
-func (m *MemoryStore) GetTransaction(hash xdr.Hash) (Transaction, bool, StoreRange) {
+func (m *MemoryStore) GetTransaction(hash xdr.Hash) (Transaction, bool, ledgerbucketwindow.LedgerRange) {
 	startTime := time.Now()
 	m.lock.RLock()
 	defer m.lock.RUnlock()
-	var storeRange StoreRange
-	if m.transactionsByLedger.Len() > 0 {
-		firstBucket := m.transactionsByLedger.Get(0)
-		lastBucket := m.transactionsByLedger.Get(m.transactionsByLedger.Len() - 1)
-		storeRange = StoreRange{
-			FirstLedger: LedgerInfo{
-				Sequence:  firstBucket.LedgerSeq,
-				CloseTime: firstBucket.LedgerCloseTimestamp,
-			},
-			LastLedger: LedgerInfo{
-				Sequence:  lastBucket.LedgerSeq,
-				CloseTime: lastBucket.LedgerCloseTimestamp,
-			},
-		}
-	}
+	storeRange := m.transactionsByLedger.GetLedgerRange()
 	internalTx, ok := m.transactions[hash]
 	if !ok {
 		return Transaction{}, false, storeRange
@@ -229,7 +198,7 @@ func (m *MemoryStore) GetTransaction(hash xdr.Hash) (Transaction, bool, StoreRan
 		FeeBump:          internalTx.feeBump,
 		Successful:       internalTx.successful,
 		ApplicationOrder: internalTx.applicationOrder,
-		Ledger: LedgerInfo{
+		Ledger: ledgerbucketwindow.LedgerInfo{
 			Sequence:  internalTx.bucket.LedgerSeq,
 			CloseTime: internalTx.bucket.LedgerCloseTimestamp,
 		},

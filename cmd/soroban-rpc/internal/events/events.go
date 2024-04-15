@@ -99,18 +99,25 @@ type ScanFunction func(xdr.DiagnosticEvent, Cursor, int64, *xdr.Hash) bool
 // remaining events in the range). Note that a read lock is held for the
 // entire duration of the Scan function so f should be written in a way
 // to minimize latency.
-func (m *MemoryStore) Scan(eventRange Range, f ScanFunction) (uint32, error) {
+func (m *MemoryStore) Scan(eventRange Range, f ScanFunction) (lastLedgerInWindow uint32, err error) {
 	startTime := time.Now()
+	defer func() {
+		if err == nil {
+			m.eventsDurationMetric.With(prometheus.Labels{"operation": "scan"}).
+				Observe(time.Since(startTime).Seconds())
+		}
+	}()
+
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 
-	if err := m.validateRange(&eventRange); err != nil {
-		return 0, err
+	if err = m.validateRange(&eventRange); err != nil {
+		return
 	}
 
 	firstLedgerInRange := eventRange.Start.Ledger
 	firstLedgerInWindow := m.eventsByLedger.Get(0).LedgerSeq
-	lastLedgerInWindow := firstLedgerInWindow + (m.eventsByLedger.Len() - 1)
+	lastLedgerInWindow = firstLedgerInWindow + (m.eventsByLedger.Len() - 1)
 	for i := firstLedgerInRange - firstLedgerInWindow; i < m.eventsByLedger.Len(); i++ {
 		bucket := m.eventsByLedger.Get(i)
 		events := bucket.BucketContent
@@ -122,21 +129,19 @@ func (m *MemoryStore) Scan(eventRange Range, f ScanFunction) (uint32, error) {
 		for _, event := range events {
 			cur := event.cursor(bucket.LedgerSeq)
 			if eventRange.End.Cmp(cur) <= 0 {
-				return lastLedgerInWindow, nil
+				return
 			}
 			var diagnosticEvent xdr.DiagnosticEvent
-			err := xdr.SafeUnmarshal(event.diagnosticEventXDR, &diagnosticEvent)
+			err = xdr.SafeUnmarshal(event.diagnosticEventXDR, &diagnosticEvent)
 			if err != nil {
-				return 0, err
+				return
 			}
 			if !f(diagnosticEvent, cur, timestamp, event.txHash) {
-				return lastLedgerInWindow, nil
+				return
 			}
 		}
 	}
-	m.eventsDurationMetric.With(prometheus.Labels{"operation": "scan"}).
-		Observe(time.Since(startTime).Seconds())
-	return lastLedgerInWindow, nil
+	return
 }
 
 // validateRange checks if the range falls within the bounds
@@ -258,4 +263,11 @@ func readEvents(networkPassphrase string, ledgerCloseMeta xdr.LedgerCloseMeta) (
 		}
 	}
 	return events, err
+}
+
+// GetLedgerRange returns the first and latest ledger available in the store.
+func (m *MemoryStore) GetLedgerRange() ledgerbucketwindow.LedgerRange {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	return m.eventsByLedger.GetLedgerRange()
 }

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stellar/go/xdr"
 	"github.com/stretchr/testify/require"
 
@@ -240,9 +242,16 @@ func concat(slices ...[]event) []event {
 	return result
 }
 
-func TestScan(t *testing.T) {
-	m := createStore(t)
+func getMetricValue(metric prometheus.Metric) *dto.Metric {
+	value := &dto.Metric{}
+	err := metric.Write(value)
+	if err != nil {
+		panic(err)
+	}
+	return value
+}
 
+func TestScan(t *testing.T) {
 	genEquivalentInputs := func(input Range) []Range {
 		results := []Range{input}
 		if !input.ClampStart {
@@ -360,6 +369,7 @@ func TestScan(t *testing.T) {
 		},
 	} {
 		for _, input := range genEquivalentInputs(testCase.input) {
+			m := createStore(t)
 			var events []event
 			iterateAll := true
 			f := func(contractEvent xdr.DiagnosticEvent, cursor Cursor, ledgerCloseTimestamp int64, hash *xdr.Hash) bool {
@@ -378,11 +388,17 @@ func TestScan(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, uint32(8), latest)
 			eventsAreEqual(t, testCase.expected, events)
+			metric, err := m.eventsDurationMetric.MetricVec.GetMetricWith(prometheus.Labels{
+				"operation": "scan",
+			})
+			require.NoError(t, err)
+			require.Equal(t, uint64(1), getMetricValue(metric).GetSummary().GetSampleCount())
 			if len(events) > 0 {
 				events = nil
 				iterateAll = false
 				latest, err := m.Scan(input, f)
 				require.NoError(t, err)
+				require.Equal(t, uint64(2), getMetricValue(metric).GetSummary().GetSampleCount())
 				require.Equal(t, uint32(8), latest)
 				eventsAreEqual(t, []event{testCase.expected[0]}, events)
 			}

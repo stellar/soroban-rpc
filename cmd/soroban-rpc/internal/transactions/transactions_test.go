@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
 func expectedTransaction(t *testing.T, ledger uint32, feeBump bool) Transaction {
@@ -36,16 +37,16 @@ func expectedTransaction(t *testing.T, ledger uint32, feeBump bool) Transaction 
 	return tx
 }
 
-func expectedLedgerInfo(ledgerSequence uint32) LedgerInfo {
-	return LedgerInfo{
+func expectedLedgerInfo(ledgerSequence uint32) ledgerbucketwindow.LedgerInfo {
+	return ledgerbucketwindow.LedgerInfo{
 		Sequence:  ledgerSequence,
 		CloseTime: ledgerCloseTime(ledgerSequence),
 	}
 
 }
 
-func expectedStoreRange(startLedger uint32, endLedger uint32) StoreRange {
-	return StoreRange{
+func expectedStoreRange(startLedger uint32, endLedger uint32) ledgerbucketwindow.LedgerRange {
+	return ledgerbucketwindow.LedgerRange{
 		FirstLedger: expectedLedgerInfo(startLedger),
 		LastLedger:  expectedLedgerInfo(endLedger),
 	}
@@ -295,7 +296,7 @@ func TestIngestTransactions(t *testing.T) {
 
 	_, ok, storeRange := store.GetTransaction(txHash(1, false))
 	require.False(t, ok)
-	require.Equal(t, StoreRange{}, storeRange)
+	require.Equal(t, ledgerbucketwindow.LedgerRange{}, storeRange)
 
 	// Insert ledger 1
 	require.NoError(t, store.IngestTransactions(txMeta(1, false)))

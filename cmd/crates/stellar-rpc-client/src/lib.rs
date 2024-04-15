@@ -1,7 +1,7 @@
 use http::{uri::Authority, Uri};
 use itertools::Itertools;
 use jsonrpsee_core::params::ObjectParams;
-use jsonrpsee_core::{self, client::ClientT, rpc_params};
+use jsonrpsee_core::{self, client::ClientT};
 use jsonrpsee_http_client::{HeaderMap, HttpClient, HttpClientBuilder};
 use serde_aux::prelude::{
     deserialize_default_from_null, deserialize_number_from_string,
@@ -279,6 +279,21 @@ pub struct SimulateHostFunctionResult {
     pub xdr: xdr::ScVal,
 }
 
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone, PartialEq)]
+#[serde(tag = "type")]
+pub enum LedgerEntryChange {
+    #[serde(rename = "created")]
+    Created { key: String, after: String },
+    #[serde(rename = "deleted")]
+    Deleted { key: String, before: String },
+    #[serde(rename = "updated")]
+    Updated {
+        key: String,
+        before: String,
+        after: String,
+    },
+}
+
 #[derive(serde::Deserialize, serde::Serialize, Debug, Default, Clone)]
 pub struct SimulateTransactionResponse {
     #[serde(
@@ -305,6 +320,12 @@ pub struct SimulateTransactionResponse {
         default
     )]
     pub restore_preamble: Option<RestorePreamble>,
+    #[serde(
+        rename = "stateChanges",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub state_changes: Option<Vec<LedgerEntryChange>>,
     #[serde(rename = "latestLedger")]
     pub latest_ledger: u32,
     #[serde(skip_serializing_if = "Option::is_none", default)]
@@ -637,7 +658,10 @@ impl Client {
     /// # Errors
     pub async fn get_network(&self) -> Result<GetNetworkResponse, Error> {
         tracing::trace!("Getting network");
-        Ok(self.client()?.request("getNetwork", rpc_params![]).await?)
+        Ok(self
+            .client()?
+            .request("getNetwork", ObjectParams::new())
+            .await?)
     }
 
     ///
@@ -646,7 +670,7 @@ impl Client {
         tracing::trace!("Getting latest ledger");
         Ok(self
             .client()?
-            .request("getLatestLedger", rpc_params![])
+            .request("getLatestLedger", ObjectParams::new())
             .await?)
     }
 
@@ -691,16 +715,15 @@ soroban config identity fund {address} --helper-url <url>"#
     ) -> Result<GetTransactionResponse, Error> {
         let client = self.client()?;
         tracing::trace!("Sending:\n{tx:#?}");
+        let mut oparams = ObjectParams::new();
+        oparams.insert("transaction", tx.to_xdr_base64(Limits::none())?)?;
         let SendTransactionResponse {
             hash,
             error_result_xdr,
             status,
             ..
         } = client
-            .request(
-                "sendTransaction",
-                rpc_params![tx.to_xdr_base64(Limits::none())?],
-            )
+            .request("sendTransaction", oparams)
             .await
             .map_err(|err| {
                 Error::TransactionSubmissionFailed(format!("No status yet:\n {err:#?}"))
@@ -761,11 +784,11 @@ soroban config identity fund {address} --helper-url <url>"#
     ) -> Result<SimulateTransactionResponse, Error> {
         tracing::trace!("Simulating:\n{tx:#?}");
         let base64_tx = tx.to_xdr_base64(Limits::none())?;
-        let mut builder = ObjectParams::new();
-        builder.insert("transaction", base64_tx)?;
+        let mut oparams = ObjectParams::new();
+        oparams.insert("transaction", base64_tx)?;
         let response: SimulateTransactionResponse = self
             .client()?
-            .request("simulateTransaction", builder)
+            .request("simulateTransaction", oparams)
             .await?;
         tracing::trace!("Simulation response:\n {response:#?}");
         match response.error {
@@ -835,10 +858,9 @@ soroban config identity fund {address} --helper-url <url>"#
     ///
     /// # Errors
     pub async fn get_transaction(&self, tx_id: &str) -> Result<GetTransactionResponseRaw, Error> {
-        Ok(self
-            .client()?
-            .request("getTransaction", rpc_params![tx_id])
-            .await?)
+        let mut oparams = ObjectParams::new();
+        oparams.insert("hash", tx_id)?;
+        Ok(self.client()?.request("getTransaction", oparams).await?)
     }
 
     ///
@@ -855,10 +877,9 @@ soroban config identity fund {address} --helper-url <url>"#
             }
             base64_keys.push(k.to_xdr_base64(Limits::none())?);
         }
-        Ok(self
-            .client()?
-            .request("getLedgerEntries", rpc_params![base64_keys])
-            .await?)
+        let mut oparams = ObjectParams::new();
+        oparams.insert("keys", base64_keys)?;
+        Ok(self.client()?.request("getLedgerEntries", oparams).await?)
     }
 
     ///
@@ -1070,10 +1091,20 @@ mod tests {
  "minResourceFee": "100000000",
  "cost": { "cpuInsns": "1000", "memBytes": "1000" },
  "transactionData": "",
- "latestLedger": 1234
-        }"#;
+ "latestLedger": 1234,
+ "stateChanges": [{
+    "type": "created",
+    "key": "AAAAAAAAAABuaCbVXZ2DlXWarV6UxwbW3GNJgpn3ASChIFp5bxSIWg==",
+    "before": null,
+    "after": "AAAAZAAAAAAAAAAAbmgm1V2dg5V1mq1elMcG1txjSYKZ9wEgoSBaeW8UiFoAAAAAAAAAZAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+  }]
+  }"#;
 
         let resp: SimulateTransactionResponse = serde_json::from_str(s).unwrap();
+        assert_eq!(
+            resp.state_changes.unwrap()[0],
+            LedgerEntryChange::Created { key: "AAAAAAAAAABuaCbVXZ2DlXWarV6UxwbW3GNJgpn3ASChIFp5bxSIWg==".to_string(), after: "AAAAZAAAAAAAAAAAbmgm1V2dg5V1mq1elMcG1txjSYKZ9wEgoSBaeW8UiFoAAAAAAAAAZAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".to_string() },
+        );
         assert_eq!(resp.min_resource_fee, 100_000_000);
     }
 

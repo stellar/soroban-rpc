@@ -22,21 +22,32 @@ typedef struct xdr_vector_t {
     size_t len;
 } xdr_vector_t;
 
+typedef struct xdr_diff_t {
+    xdr_t before;
+    xdr_t after;
+} xdr_diff_t;
+
+typedef struct xdr_diff_vector_t {
+    xdr_diff_t  *array;
+    size_t len;
+} xdr_diff_vector_t;
+
 typedef struct resource_config_t {
     uint64_t instruction_leeway; // Allow this many extra instructions when budgeting
 } resource_config_t;
 
 typedef struct preflight_result_t {
-    char          *error; // Error string in case of error, otherwise null
-    xdr_vector_t  auth; // array of SorobanAuthorizationEntries
-    xdr_t         result; // XDR SCVal
-    xdr_t         transaction_data;
-    int64_t       min_fee; // Minimum recommended resource fee
-    xdr_vector_t  events; // array of XDR DiagnosticEvents
-    uint64_t      cpu_instructions;
-    uint64_t      memory_bytes;
-    xdr_t         pre_restore_transaction_data; // SorobanTransactionData XDR for a prerequired RestoreFootprint operation
-    int64_t       pre_restore_min_fee; // Minimum recommended resource fee for a prerequired RestoreFootprint operation
+    char             *error; // Error string in case of error, otherwise null
+    xdr_vector_t      auth; // array of SorobanAuthorizationEntries
+    xdr_t             result; // XDR SCVal
+    xdr_t             transaction_data;
+    int64_t           min_fee; // Minimum recommended resource fee
+    xdr_vector_t      events; // array of XDR DiagnosticEvents
+    uint64_t          cpu_instructions;
+    uint64_t          memory_bytes;
+    xdr_t             pre_restore_transaction_data; // SorobanTransactionData XDR for a prerequired RestoreFootprint operation
+    int64_t           pre_restore_min_fee; // Minimum recommended resource fee for a prerequired RestoreFootprint operation
+    xdr_diff_vector_t ledger_entry_diff; // Contains the ledger entry changes which would be caused by the transaction execution
 } preflight_result_t;
 
 preflight_result_t *preflight_invoke_hf_op(uintptr_t handle, // Go Handle to forward to SnapshotSourceGet

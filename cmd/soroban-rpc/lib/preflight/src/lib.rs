@@ -16,7 +16,8 @@ use soroban_env_host::xdr::{
 use soroban_env_host::{HostError, LedgerInfo, DEFAULT_XDR_RW_LIMITS};
 use soroban_simulation::simulation::{
     simulate_extend_ttl_op, simulate_invoke_host_function_op, simulate_restore_op,
-    InvokeHostFunctionSimulationResult, RestoreOpSimulationResult, SimulationAdjustmentConfig,
+    InvokeHostFunctionSimulationResult, LedgerEntryDiff, RestoreOpSimulationResult,
+    SimulationAdjustmentConfig,
 };
 use soroban_simulation::{AutoRestoringSnapshotSource, NetworkConfig, SnapshotSourceWithArchive};
 use std::cell::RefCell;
@@ -59,10 +60,12 @@ pub struct CXDR {
 
 // It would be nicer to derive Default, but we can't. It errors with:
 // The trait bound `*mut u8: std::default::Default` is not satisfied
-fn get_default_c_xdr() -> CXDR {
-    CXDR {
-        xdr: null_mut(),
-        len: 0,
+impl Default for CXDR {
+    fn default() -> Self {
+        CXDR {
+            xdr: null_mut(),
+            len: 0,
+        }
     }
 }
 
@@ -73,10 +76,35 @@ pub struct CXDRVector {
     pub len: libc::size_t,
 }
 
-fn get_default_c_xdr_vector() -> CXDRVector {
-    CXDRVector {
-        array: null_mut(),
-        len: 0,
+impl Default for CXDRVector {
+    fn default() -> Self {
+        CXDRVector {
+            array: null_mut(),
+            len: 0,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct CXDRDiff {
+    pub before: CXDR,
+    pub after: CXDR,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct CXDRDiffVector {
+    pub array: *mut CXDRDiff,
+    pub len: libc::size_t,
+}
+
+impl Default for CXDRDiffVector {
+    fn default() -> Self {
+        CXDRDiffVector {
+            array: null_mut(),
+            len: 0,
+        }
     }
 }
 
@@ -107,21 +135,24 @@ pub struct CPreflightResult {
     pub pre_restore_transaction_data: CXDR,
     // Minimum recommended resource fee for a prerequired RestoreFootprint operation
     pub pre_restore_min_fee: i64,
+    // Contains the ledger entry changes which would be caused by the transaction execution
+    pub ledger_entry_diff: CXDRDiffVector,
 }
 
 impl Default for CPreflightResult {
     fn default() -> Self {
         Self {
             error: CString::new(String::new()).unwrap().into_raw(),
-            auth: get_default_c_xdr_vector(),
-            result: get_default_c_xdr(),
-            transaction_data: get_default_c_xdr(),
+            auth: Default::default(),
+            result: Default::default(),
+            transaction_data: Default::default(),
             min_fee: 0,
-            events: get_default_c_xdr_vector(),
+            events: Default::default(),
             cpu_instructions: 0,
             memory_bytes: 0,
-            pre_restore_transaction_data: get_default_c_xdr(),
+            pre_restore_transaction_data: Default::default(),
             pre_restore_min_fee: 0,
+            ledger_entry_diff: Default::default(),
         }
     }
 }
@@ -149,6 +180,7 @@ impl CPreflightResult {
             events: xdr_vec_to_c(invoke_hf_result.diagnostic_events),
             cpu_instructions: invoke_hf_result.simulated_instructions as u64,
             memory_bytes: invoke_hf_result.simulated_memory as u64,
+            ledger_entry_diff: ledger_entry_diff_vec_to_c(invoke_hf_result.modified_entries),
             ..Default::default()
         };
         if let Some(p) = restore_preamble {
@@ -272,6 +304,7 @@ pub extern "C" fn preflight_footprint_ttl_op(
         preflight_footprint_ttl_op_or_maybe_panic(handle, op_body, footprint, ledger_info)
     }))
 }
+
 fn preflight_footprint_ttl_op_or_maybe_panic(
     handle: libc::uintptr_t,
     op_body: CXDR,
@@ -289,7 +322,7 @@ fn preflight_footprint_ttl_op_or_maybe_panic(
     match op_body {
         OperationBody::ExtendFootprintTtl(extend_op) => {
             preflight_extend_ttl_op(extend_op, footprint.read_only.as_slice(), go_storage, &network_config, &ledger_info)
-        },
+        }
         OperationBody::RestoreFootprint(_) => {
             preflight_restore_op(footprint.read_write.as_slice(), go_storage, &network_config, &ledger_info)
         }
@@ -297,6 +330,7 @@ fn preflight_footprint_ttl_op_or_maybe_panic(
             op_body.discriminant()).into())
     }
 }
+
 fn preflight_extend_ttl_op(
     extend_op: ExtendFootprintTtlOp,
     keys_to_extend: &[LedgerKey],
@@ -382,6 +416,10 @@ fn catch_preflight_panic(op: Box<dyn Fn() -> Result<CPreflightResult>>) -> *mut 
     Box::into_raw(Box::new(c_preflight_result))
 }
 
+// TODO: We could use something like https://github.com/sonos/ffi-convert-rs
+//       to replace all the free_* , *_to_c and from_c_* functions by implementations of CDrop,
+//       CReprOf and AsRust
+
 fn xdr_to_c(v: impl WriteXdr) -> CXDR {
     let (xdr, len) = vec_to_c_array(v.to_xdr(DEFAULT_XDR_RW_LIMITS).unwrap());
     CXDR { xdr, len }
@@ -395,6 +433,13 @@ fn option_xdr_to_c(v: Option<impl WriteXdr>) -> CXDR {
         },
         xdr_to_c,
     )
+}
+
+fn ledger_entry_diff_to_c(v: LedgerEntryDiff) -> CXDRDiff {
+    CXDRDiff {
+        before: option_xdr_to_c(v.state_before),
+        after: option_xdr_to_c(v.state_after),
+    }
 }
 
 fn xdr_vec_to_c(v: Vec<impl WriteXdr>) -> CXDRVector {
@@ -422,6 +467,15 @@ fn vec_to_c_array<T>(mut v: Vec<T>) -> (*mut T, libc::size_t) {
     (ptr, len)
 }
 
+fn ledger_entry_diff_vec_to_c(modified_entries: Vec<LedgerEntryDiff>) -> CXDRDiffVector {
+    let c_diffs = modified_entries
+        .into_iter()
+        .map(ledger_entry_diff_to_c)
+        .collect();
+    let (array, len) = vec_to_c_array(c_diffs);
+    CXDRDiffVector { array, len }
+}
+
 /// .
 ///
 /// # Safety
@@ -439,6 +493,7 @@ pub unsafe extern "C" fn free_preflight_result(result: *mut CPreflightResult) {
     free_c_xdr(boxed.transaction_data);
     free_c_xdr_array(boxed.events);
     free_c_xdr(boxed.pre_restore_transaction_data);
+    free_c_xdr_diff_array(boxed.ledger_entry_diff);
 }
 
 fn free_c_string(str: *mut libc::c_char) {
@@ -467,6 +522,19 @@ fn free_c_xdr_array(xdr_array: CXDRVector) {
         let v = Vec::from_raw_parts(xdr_array.array, xdr_array.len, xdr_array.len);
         for xdr in v {
             free_c_xdr(xdr);
+        }
+    }
+}
+
+fn free_c_xdr_diff_array(xdr_array: CXDRDiffVector) {
+    if xdr_array.array.is_null() {
+        return;
+    }
+    unsafe {
+        let v = Vec::from_raw_parts(xdr_array.array, xdr_array.len, xdr_array.len);
+        for diff in v {
+            free_c_xdr(diff.before);
+            free_c_xdr(diff.after);
         }
     }
 }
