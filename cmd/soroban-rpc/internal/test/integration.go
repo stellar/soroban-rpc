@@ -32,7 +32,7 @@ import (
 
 const (
 	StandaloneNetworkPassphrase = "Standalone Network ; February 2017"
-	stellarCoreProtocolVersion  = 20
+	stellarCoreProtocolVersion  = 21
 	stellarCorePort             = 11626
 	stellarCoreArchiveHost      = "localhost:1570"
 	goModFile                   = "go.mod"
