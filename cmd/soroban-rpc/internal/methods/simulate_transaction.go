@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync/atomic"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/stellar/go/support/log"
@@ -214,7 +213,7 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 				Error: err.Error(),
 			}
 		}
-		bucketListSize, err := getBucketListSize(ctx, ledgerReader, latestLedger)
+		bucketListSize, protocolVersion, err := getBucketListSizeAndProtocolVersion(ctx, ledgerReader, latestLedger)
 		if err != nil {
 			return SimulateTransactionResponse{
 				Error: err.Error(),
@@ -224,12 +223,6 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 		resource_config := preflight.DefaultResourceConfig()
 		if request.ResourceConfig != nil {
 			resource_config = *request.ResourceConfig
-		}
-		protocolVersion, err := getProtocolVersion(ctx, daemon.CoreClient())
-		if err != nil {
-			return SimulateTransactionResponse{
-				Error: fmt.Sprintf("cannot obtain protocol version from core: %s", err),
-			}
 		}
 		params := preflight.PreflightGetterParameters{
 			LedgerEntryReadTx: readTx,
@@ -293,33 +286,17 @@ func base64EncodeSlice(in [][]byte) []string {
 	return result
 }
 
-func getBucketListSize(ctx context.Context, ledgerReader db.LedgerReader, latestLedger uint32) (uint64, error) {
+func getBucketListSizeAndProtocolVersion(ctx context.Context, ledgerReader db.LedgerReader, latestLedger uint32) (uint64, uint32, error) {
 	// obtain bucket size
 	var closeMeta, ok, err = ledgerReader.GetLedger(ctx, latestLedger)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	if !ok {
-		return 0, fmt.Errorf("missing meta for latest ledger (%d)", latestLedger)
+		return 0, 0, fmt.Errorf("missing meta for latest ledger (%d)", latestLedger)
 	}
 	if closeMeta.V != 1 {
-		return 0, fmt.Errorf("latest ledger (%d) meta has unexpected verion (%d)", latestLedger, closeMeta.V)
+		return 0, 0, fmt.Errorf("latest ledger (%d) meta has unexpected verion (%d)", latestLedger, closeMeta.V)
 	}
-	return uint64(closeMeta.V1.TotalByteSizeOfBucketList), nil
-}
-
-var cachedCoreProtocolVersion atomic.Int32
-
-// getProtocolVersion obtains the memoized protocol version from a core client
-func getProtocolVersion(ctx context.Context, client interfaces.CoreClient) (int, error) {
-	version := cachedCoreProtocolVersion.Load()
-	if version != 0 {
-		return int(version), nil
-	}
-	info, err := client.Info(ctx)
-	if err != nil {
-		return 0, err
-	}
-	cachedCoreProtocolVersion.CompareAndSwap(0, int32(info.Info.ProtocolVersion))
-	return info.Info.ProtocolVersion, nil
+	return uint64(closeMeta.V1.TotalByteSizeOfBucketList), uint32(closeMeta.V1.LedgerHeader.Header.LedgerVersion), nil
 }

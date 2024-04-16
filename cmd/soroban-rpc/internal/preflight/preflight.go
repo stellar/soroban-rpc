@@ -91,7 +91,7 @@ type PreflightGetterParameters struct {
 	OperationBody     xdr.OperationBody
 	Footprint         xdr.LedgerFootprint
 	ResourceConfig    ResourceConfig
-	ProtocolVersion   int
+	ProtocolVersion   uint32
 }
 
 type PreflightParameters struct {
@@ -104,7 +104,7 @@ type PreflightParameters struct {
 	BucketListSize    uint64
 	ResourceConfig    ResourceConfig
 	EnableDebug       bool
-	ProtocolVersion   int
+	ProtocolVersion   uint32
 }
 
 type XDRDiff struct {
