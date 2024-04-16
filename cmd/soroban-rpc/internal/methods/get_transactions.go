@@ -111,7 +111,7 @@ LedgerLoop:
 			}
 		}
 
-		// Initialise tx reader and move it to start idx.
+		// Initialise tx reader.
 		reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(h.networkPassphrase, ledger)
 		if err != nil {
 			return GetTransactionsResponse{}, &jrpc2.Error{
@@ -119,18 +119,22 @@ LedgerLoop:
 				Message: err.Error(),
 			}
 		}
-		err = reader.Seek(int(start.TxIdx))
+
+		// Move the reader to specific tx idx
+		startTxIdx := 0
+		if ledgerSeq == start.LedgerSequence {
+			startTxIdx = int(start.TxIdx)
+		}
+		err = reader.Seek(startTxIdx)
 		if err != nil {
-			return GetTransactionsResponse{}, &jrpc2.Error{
-				Code:    jrpc2.InvalidParams,
-				Message: err.Error(),
-			}
+			// Seek returns EOF so we can move onto next ledger
+			continue
 		}
 
 		// Decode transaction info from ledger meta
 		txCount := ledger.CountTransactions()
-		for i := start.TxIdx; i < uint32(txCount); i++ {
-			cursor = transactions.NewCursor(ledger.LedgerSequence(), i, 0)
+		for i := startTxIdx; i < txCount; i++ {
+			cursor = transactions.NewCursor(ledger.LedgerSequence(), uint32(i), 0)
 
 			tx, err := reader.Read()
 			if err != nil {
