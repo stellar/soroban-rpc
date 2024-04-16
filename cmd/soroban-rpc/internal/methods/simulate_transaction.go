@@ -12,6 +12,7 @@ import (
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/preflight"
 )
@@ -156,7 +157,7 @@ type PreflightGetter interface {
 }
 
 // NewSimulateTransactionHandler returns a json rpc handler to run preflight simulations
-func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntryReader, ledgerReader db.LedgerReader, getter PreflightGetter) jrpc2.Handler {
+func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntryReader, ledgerReader db.LedgerReader, daemon interfaces.Daemon, getter PreflightGetter) jrpc2.Handler {
 
 	return NewHandler(func(ctx context.Context, request SimulateTransactionRequest) SimulateTransactionResponse {
 		var txEnvelope xdr.TransactionEnvelope
@@ -212,7 +213,7 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 				Error: err.Error(),
 			}
 		}
-		bucketListSize, err := getBucketListSize(ctx, ledgerReader, latestLedger)
+		bucketListSize, protocolVersion, err := getBucketListSizeAndProtocolVersion(ctx, ledgerReader, latestLedger)
 		if err != nil {
 			return SimulateTransactionResponse{
 				Error: err.Error(),
@@ -230,6 +231,7 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 			OperationBody:     op.Body,
 			Footprint:         footprint,
 			ResourceConfig:    resource_config,
+			ProtocolVersion:   protocolVersion,
 		}
 		result, err := getter.GetPreflight(ctx, params)
 		if err != nil {
@@ -284,17 +286,17 @@ func base64EncodeSlice(in [][]byte) []string {
 	return result
 }
 
-func getBucketListSize(ctx context.Context, ledgerReader db.LedgerReader, latestLedger uint32) (uint64, error) {
+func getBucketListSizeAndProtocolVersion(ctx context.Context, ledgerReader db.LedgerReader, latestLedger uint32) (uint64, uint32, error) {
 	// obtain bucket size
 	var closeMeta, ok, err = ledgerReader.GetLedger(ctx, latestLedger)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	if !ok {
-		return 0, fmt.Errorf("missing meta for latest ledger (%d)", latestLedger)
+		return 0, 0, fmt.Errorf("missing meta for latest ledger (%d)", latestLedger)
 	}
 	if closeMeta.V != 1 {
-		return 0, fmt.Errorf("latest ledger (%d) meta has unexpected verion (%d)", latestLedger, closeMeta.V)
+		return 0, 0, fmt.Errorf("latest ledger (%d) meta has unexpected verion (%d)", latestLedger, closeMeta.V)
 	}
-	return uint64(closeMeta.V1.TotalByteSizeOfBucketList), nil
+	return uint64(closeMeta.V1.TotalByteSizeOfBucketList), uint32(closeMeta.V1.LedgerHeader.Header.LedgerVersion), nil
 }
