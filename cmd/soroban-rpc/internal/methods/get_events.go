@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/creachadair/jrpc2/handler"
 
 	"github.com/stellar/go/strkey"
 	"github.com/stellar/go/support/errors"
@@ -429,7 +428,7 @@ func NewGetEventsHandler(eventsStore *events.MemoryStore, maxLimit, defaultLimit
 		maxLimit:     maxLimit,
 		defaultLimit: defaultLimit,
 	}
-	return handler.New(func(ctx context.Context, request GetEventsRequest) (GetEventsResponse, error) {
+	return NewHandler(func(ctx context.Context, request GetEventsRequest) (GetEventsResponse, error) {
 		return eventsHandler.getEvents(request)
 	})
 }
