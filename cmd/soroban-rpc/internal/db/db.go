@@ -34,8 +34,10 @@ type ReadWriter interface {
 }
 
 type WriteTx interface {
+	TransactionHandler() *TransactionHandler
 	LedgerEntryWriter() LedgerEntryWriter
 	LedgerWriter() LedgerWriter
+
 	Commit(ledgerSeq uint32) error
 	Rollback() error
 }
@@ -176,6 +178,7 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 			maxBatchSize:            rw.maxBatchSize,
 		},
 		ledgerRetentionWindow: rw.ledgerRetentionWindow,
+		txWriter:              TransactionHandler{stmtCache: stmtCache},
 	}, nil
 }
 
@@ -187,6 +190,8 @@ type writeTx struct {
 	ledgerEntryWriter     ledgerEntryWriter
 	ledgerWriter          ledgerWriter
 	ledgerRetentionWindow uint32
+
+	txWriter TransactionHandler
 }
 
 func (w writeTx) LedgerEntryWriter() LedgerEntryWriter {
@@ -195,6 +200,10 @@ func (w writeTx) LedgerEntryWriter() LedgerEntryWriter {
 
 func (w writeTx) LedgerWriter() LedgerWriter {
 	return w.ledgerWriter
+}
+
+func (w writeTx) TransactionHandler() *TransactionHandler {
+	return &w.txWriter
 }
 
 func (w writeTx) Commit(ledgerSeq uint32) error {

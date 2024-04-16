@@ -44,6 +44,11 @@ func (m MockTx) LedgerWriter() db.LedgerWriter {
 	return args.Get(0).(db.LedgerWriter)
 }
 
+func (m MockTx) TransactionHandler() *db.TransactionHandler {
+	args := m.Called()
+	return args.Get(0).(*db.TransactionHandler)
+}
+
 func (m MockTx) Commit(ledgerSeq uint32) error {
 	args := m.Called(ledgerSeq)
 	return args.Error(0)

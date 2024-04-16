@@ -48,6 +48,7 @@ func (h Handler) Close() {
 type HandlerParams struct {
 	EventStore        *events.MemoryStore
 	TransactionStore  *transactions.MemoryStore
+	TransactionGetter *db.TransactionHandler
 	LedgerEntryReader db.LedgerEntryReader
 	LedgerReader      db.LedgerReader
 	Logger            *log.Entry
@@ -194,7 +195,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 		{
 			methodName:           "getTransaction",
-			underlyingHandler:    methods.NewGetTransactionHandler(params.TransactionStore),
+			underlyingHandler:    methods.NewGetTransactionHandler(params.TransactionGetter),
 			longName:             "get_transaction",
 			queueLimit:           cfg.RequestBacklogGetTransactionQueueLimit,
 			requestDurationLimit: cfg.MaxGetTransactionExecutionDuration,

@@ -149,7 +149,7 @@ func MustNew(cfg *config.Config) *Daemon {
 	}
 
 	if len(cfg.HistoryArchiveURLs) == 0 {
-		logger.Fatal("no history archives url were provided")
+		logger.Fatal("no history archives URLs were provided")
 	}
 
 	historyArchive, err := historyarchive.NewArchivePool(
@@ -273,6 +273,7 @@ func MustNew(cfg *config.Config) *Daemon {
 		Logger:            logger,
 		LedgerReader:      db.NewLedgerReader(dbConn),
 		LedgerEntryReader: db.NewLedgerEntryReader(dbConn),
+		TransactionGetter: db.NewTransactionHandler(dbConn, cfg.NetworkPassphrase),
 		PreflightGetter:   preflightWorkerPool,
 	})
 

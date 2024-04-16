@@ -273,6 +273,7 @@ func (s *Service) ingest(ctx context.Context, sequence uint32) error {
 	if err := s.ingestLedgerEntryChanges(ctx, reader, tx, 0); err != nil {
 		return err
 	}
+
 	if err := reader.Close(); err != nil {
 		return err
 	}
@@ -291,31 +292,38 @@ func (s *Service) ingest(ctx context.Context, sequence uint32) error {
 		return err
 	}
 
+	if err := tx.TransactionHandler().InsertTransactions(ledgerCloseMeta); err != nil {
+		return err
+	}
+
 	if err := tx.Commit(sequence); err != nil {
 		return err
 	}
 	s.logger.Debugf("Ingested ledger %d", sequence)
 
 	s.metrics.ingestionDurationMetric.
-		With(prometheus.Labels{"type": "total"}).Observe(time.Since(startTime).Seconds())
+		With(prometheus.Labels{"type": "total"}).
+		Observe(time.Since(startTime).Seconds())
 	s.metrics.latestLedgerMetric.Set(float64(sequence))
 	return nil
 }
 
 func (s *Service) ingestLedgerCloseMeta(tx db.WriteTx, ledgerCloseMeta xdr.LedgerCloseMeta) error {
 	startTime := time.Now()
+
 	if err := tx.LedgerWriter().InsertLedger(ledgerCloseMeta); err != nil {
 		return err
 	}
 	s.metrics.ingestionDurationMetric.
 		With(prometheus.Labels{"type": "ledger_close_meta"}).Observe(time.Since(startTime).Seconds())
 
+	if err := s.transactionStore.IngestTransactions(ledgerCloseMeta); err != nil {
+		return err
+	}
+
 	if err := s.eventStore.IngestEvents(ledgerCloseMeta); err != nil {
 		return err
 	}
 
-	if err := s.transactionStore.IngestTransactions(ledgerCloseMeta); err != nil {
-		return err
-	}
 	return nil
 }
