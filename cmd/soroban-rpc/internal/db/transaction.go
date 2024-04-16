@@ -9,7 +9,6 @@ import (
 	"github.com/stellar/go/support/db"
 	"github.com/stellar/go/xdr"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 )
 
 const (
@@ -126,7 +125,7 @@ func (txn *TransactionHandler) GetTransactionByHash(hash string) (
 		Select("t.application_order", "lcm.meta").
 		From(fmt.Sprintf("%s t", transactionTableName)).
 		Join(fmt.Sprintf("%s lcm ON (t.ledger_sequence = lcm.sequence)", ledgerCloseMetaTableName)).
-		Where(sq.Eq{"hash": rawHash}).
+		Where(sq.Eq{"t.hash": rawHash}).
 		Limit(1).
 		RunWith(txn.stmtCache).
 		QueryRow()
@@ -158,10 +157,9 @@ func (txn *TransactionHandler) GetTransactionByHash(hash string) (
 // methods/get_transaction.go#NewGetTransactionHandler so that it can be used
 // directly against the RPC handler.
 func (txn *TransactionHandler) GetTransaction(hash xdr.Hash) (
-	transactions.Transaction, bool, ledgerbucketwindow.LedgerRange,
+	Transaction, bool, ledgerbucketwindow.LedgerRange,
 ) {
-	tx := transactions.Transaction{}
-
+	tx := Transaction{}
 	ledgerRange := txn.GetLedgerRange()
 	lcm, ingestTx, err := txn.GetTransactionByHash(hex.EncodeToString(hash[:]))
 	if err != nil {
