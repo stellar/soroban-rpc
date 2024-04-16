@@ -284,11 +284,11 @@ func (s *Service) ingest(ctx context.Context, sequence uint32) error {
 		return err
 	}
 
-	if err := s.ingestLedgerCloseMeta(tx, ledgerCloseMeta); err != nil {
+	if err := tx.TransactionHandler().InsertTransactions(ledgerCloseMeta); err != nil {
 		return err
 	}
 
-	if err := tx.TransactionHandler().InsertTransactions(ledgerCloseMeta); err != nil {
+	if err := s.ingestLedgerCloseMeta(tx, ledgerCloseMeta); err != nil {
 		return err
 	}
 
@@ -311,7 +311,8 @@ func (s *Service) ingestLedgerCloseMeta(tx db.WriteTx, ledgerCloseMeta xdr.Ledge
 		return err
 	}
 	s.metrics.ingestionDurationMetric.
-		With(prometheus.Labels{"type": "ledger_close_meta"}).Observe(time.Since(startTime).Seconds())
+		With(prometheus.Labels{"type": "ledger_close_meta"}).
+		Observe(time.Since(startTime).Seconds())
 
 	if err := s.eventStore.IngestEvents(ledgerCloseMeta); err != nil {
 		return err

@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	migrate "github.com/rubenv/sql-migrate"
 
+	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/db"
 	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/xdr"
@@ -160,6 +161,9 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 		return nil, err
 	}
 	stmtCache := sq.NewStmtCache(txSession.GetTx())
+	txWriter := NewTransactionHandler(txSession, network.TestNetworkPassphrase /* FIXME */)
+	txWriter.stmtCache = stmtCache
+
 	db := rw.db
 	return writeTx{
 		globalCache: &db.cache,
@@ -178,7 +182,7 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 			maxBatchSize:            rw.maxBatchSize,
 		},
 		ledgerRetentionWindow: rw.ledgerRetentionWindow,
-		txWriter:              TransactionHandler{stmtCache: stmtCache},
+		txWriter:              txWriter,
 	}, nil
 }
 
@@ -191,7 +195,7 @@ type writeTx struct {
 	ledgerWriter          ledgerWriter
 	ledgerRetentionWindow uint32
 
-	txWriter TransactionHandler
+	txWriter *TransactionHandler
 }
 
 func (w writeTx) LedgerEntryWriter() LedgerEntryWriter {
@@ -203,7 +207,7 @@ func (w writeTx) LedgerWriter() LedgerWriter {
 }
 
 func (w writeTx) TransactionHandler() *TransactionHandler {
-	return &w.txWriter
+	return w.txWriter
 }
 
 func (w writeTx) Commit(ledgerSeq uint32) error {
