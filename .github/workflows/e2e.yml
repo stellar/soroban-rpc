@@ -23,11 +23,11 @@ jobs:
 
       # core git ref should be latest commit for stable soroban functionality
       # the core bin can either be compiled in-line here as part of ci,
-      SYSTEM_TEST_CORE_GIT_REF: https://github.com/stellar/stellar-core.git#v20.1.0
+      SYSTEM_TEST_CORE_GIT_REF: https://github.com/stellar/stellar-core.git#b152dc51dad08100cbbba64485b57eb968bf175b
       SYSTEM_TEST_CORE_COMPILE_CONFIGURE_FLAGS: "--disable-tests"
       # or set SYSTEM_TEST_CORE_GIT_REF to empty, and set SYSTEM_TEST_CORE_IMAGE
       # to pull a pre-compiled image from dockerhub instead
-      SYSTEM_TEST_CORE_IMAGE:
+      SYSTEM_TEST_CORE_IMAGE: stellar/unsafe-stellar-core:20.4.1-1807.b152dc51d.focal
 
       # sets the version of rust toolchain that will be pre-installed in the
       # test runtime environment, tests invoke rustc/cargo
@@ -45,7 +45,7 @@ jobs:
       SYSTEM_TEST_JS_STELLAR_SDK_GH_REF: 
 
       # the version of rs-stellar-xdr to use for quickstart
-      SYSTEM_TEST_RS_XDR_GIT_REF: v20.0.2
+      SYSTEM_TEST_RS_XDR_GIT_REF: a80c899c61e869fd00b7b475a4947ab6aaf9dcac
 
       # system test will build quickstart image internally to use for running the service stack
       # configured in standalone network mode(core, rpc)
