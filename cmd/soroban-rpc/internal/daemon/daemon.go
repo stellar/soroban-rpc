@@ -29,7 +29,6 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ingest"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/preflight"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/util"
 )
 
@@ -190,11 +189,6 @@ func MustNew(cfg *config.Config) *Daemon {
 		cfg.NetworkPassphrase,
 		cfg.EventLedgerRetentionWindow,
 	)
-	transactionStore := transactions.NewMemoryStore(
-		daemon,
-		cfg.NetworkPassphrase,
-		cfg.TransactionLedgerRetentionWindow,
-	)
 
 	// initialize the stores using what was on the DB
 	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
@@ -218,9 +212,6 @@ func MustNew(cfg *config.Config) *Daemon {
 		}
 		if err := eventStore.IngestEvents(txmeta); err != nil {
 			logger.WithError(err).Fatal("could not initialize event memory store")
-		}
-		if err := transactionStore.IngestTransactions(txmeta); err != nil {
-			logger.WithError(err).Fatal("could not initialize transaction memory store")
 		}
 		return nil
 	})
@@ -246,7 +237,6 @@ func MustNew(cfg *config.Config) *Daemon {
 		Logger:            logger,
 		DB:                db.NewReadWriter(dbConn, maxLedgerEntryWriteBatchSize, maxRetentionWindow),
 		EventStore:        eventStore,
-		TransactionStore:  transactionStore,
 		NetworkPassPhrase: cfg.NetworkPassphrase,
 		Archive:           historyArchive,
 		LedgerBackend:     core,
@@ -269,7 +259,6 @@ func MustNew(cfg *config.Config) *Daemon {
 	jsonRPCHandler := internal.NewJSONRPCHandler(cfg, internal.HandlerParams{
 		Daemon:            daemon,
 		EventStore:        eventStore,
-		TransactionStore:  transactionStore,
 		Logger:            logger,
 		LedgerReader:      db.NewLedgerReader(dbConn),
 		LedgerEntryReader: db.NewLedgerEntryReader(dbConn),

@@ -16,6 +16,17 @@ const (
 	transactionTableName = "transactions"
 )
 
+type Transaction struct {
+	Result           []byte   // XDR encoded xdr.TransactionResult
+	Meta             []byte   // XDR encoded xdr.TransactionMeta
+	Envelope         []byte   // XDR encoded xdr.TransactionEnvelope
+	Events           [][]byte // XDR encoded xdr.DiagnosticEvent
+	FeeBump          bool
+	ApplicationOrder int32
+	Successful       bool
+	Ledger           ledgerbucketwindow.LedgerInfo
+}
+
 type TransactionHandler struct {
 	stmtCache  *sq.StmtCache
 	db         db.SessionInterface
@@ -58,10 +69,7 @@ func (txn *TransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 	return err
 }
 
-func (txn *TransactionHandler) GetLedgerRange() (
-	ledgerbucketwindow.LedgerRange,
-	error,
-) {
+func (txn *TransactionHandler) GetLedgerRange() ledgerbucketwindow.LedgerRange {
 	var ledgerRange ledgerbucketwindow.LedgerRange
 	newestQ := sq.
 		Select("meta").
@@ -80,18 +88,18 @@ func (txn *TransactionHandler) GetLedgerRange() (
 
 	var row1, row2 []byte
 	if err := newestQ.Scan(&row1); err != nil {
-		return ledgerRange, err
+		return ledgerRange
 	}
 	if err := oldestQ.Scan(&row2); err != nil {
-		return ledgerRange, err
+		return ledgerRange
 	}
 
 	var lcm1, lcm2 xdr.LedgerCloseMeta
 	if err := lcm1.UnmarshalBinary(row1); err != nil {
-		return ledgerRange, err
+		return ledgerRange
 	}
 	if err := lcm2.UnmarshalBinary(row2); err != nil {
-		return ledgerRange, err
+		return ledgerRange
 	}
 
 	return ledgerbucketwindow.LedgerRange{
@@ -103,7 +111,7 @@ func (txn *TransactionHandler) GetLedgerRange() (
 			Sequence:  lcm2.LedgerSequence(),
 			CloseTime: int64(lcm2.LedgerHeaderHistoryEntry().Header.ScpValue.CloseTime),
 		},
-	}, nil
+	}
 }
 
 func (txn *TransactionHandler) GetTransactionByHash(hash string) (
@@ -148,11 +156,7 @@ func (txn *TransactionHandler) GetTransaction(hash xdr.Hash) (
 ) {
 	tx := transactions.Transaction{}
 
-	ledgerRange, err := txn.GetLedgerRange()
-	if err != nil {
-		return tx, false, ledgerRange
-	}
-
+	ledgerRange := txn.GetLedgerRange()
 	lcm, ingestTx, err := txn.GetTransactionByHash(hex.EncodeToString(hash[:]))
 	if err != nil {
 		return tx, false, ledgerRange

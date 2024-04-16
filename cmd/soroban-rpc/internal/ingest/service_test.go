@@ -17,7 +17,6 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 )
 
 type ErrorReadWriter struct {
@@ -46,7 +45,6 @@ func TestRetryRunningIngestion(t *testing.T) {
 		Logger:            supportlog.New(),
 		DB:                &ErrorReadWriter{},
 		EventStore:        nil,
-		TransactionStore:  nil,
 		NetworkPassPhrase: "",
 		Archive:           nil,
 		LedgerBackend:     nil,
@@ -71,7 +69,6 @@ func TestIngestion(t *testing.T) {
 		Logger:            supportlog.New(),
 		DB:                mockDB,
 		EventStore:        events.NewMemoryStore(daemon, network.TestNetworkPassphrase, 1),
-		TransactionStore:  transactions.NewMemoryStore(daemon, network.TestNetworkPassphrase, 1),
 		LedgerBackend:     mockLedgerBackend,
 		Daemon:            daemon,
 		NetworkPassPhrase: network.TestNetworkPassphrase,

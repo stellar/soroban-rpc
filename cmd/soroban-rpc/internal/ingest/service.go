@@ -21,7 +21,6 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/util"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 )
 
 const (
@@ -34,7 +33,6 @@ type Config struct {
 	Logger            *log.Entry
 	DB                db.ReadWriter
 	EventStore        *events.MemoryStore
-	TransactionStore  *transactions.MemoryStore
 	NetworkPassPhrase string
 	Archive           historyarchive.ArchiveInterface
 	LedgerBackend     backends.LedgerBackend
@@ -82,7 +80,6 @@ func newService(cfg Config) *Service {
 		logger:            cfg.Logger,
 		db:                cfg.DB,
 		eventStore:        cfg.EventStore,
-		transactionStore:  cfg.TransactionStore,
 		ledgerBackend:     cfg.LedgerBackend,
 		networkPassPhrase: cfg.NetworkPassPhrase,
 		timeout:           cfg.Timeout,
@@ -134,7 +131,6 @@ type Service struct {
 	logger            *log.Entry
 	db                db.ReadWriter
 	eventStore        *events.MemoryStore
-	transactionStore  *transactions.MemoryStore
 	ledgerBackend     backends.LedgerBackend
 	timeout           time.Duration
 	networkPassPhrase string
@@ -316,10 +312,6 @@ func (s *Service) ingestLedgerCloseMeta(tx db.WriteTx, ledgerCloseMeta xdr.Ledge
 	}
 	s.metrics.ingestionDurationMetric.
 		With(prometheus.Labels{"type": "ledger_close_meta"}).Observe(time.Since(startTime).Seconds())
-
-	if err := s.transactionStore.IngestTransactions(ledgerCloseMeta); err != nil {
-		return err
-	}
 
 	if err := s.eventStore.IngestEvents(ledgerCloseMeta); err != nil {
 		return err

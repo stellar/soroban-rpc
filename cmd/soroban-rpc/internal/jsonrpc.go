@@ -22,7 +22,6 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/network"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 )
 
 // maxHTTPRequestSize defines the largest request size that the http handler
@@ -47,7 +46,6 @@ func (h Handler) Close() {
 
 type HandlerParams struct {
 	EventStore        *events.MemoryStore
-	TransactionStore  *transactions.MemoryStore
 	TransactionGetter *db.TransactionHandler
 	LedgerEntryReader db.LedgerEntryReader
 	LedgerReader      db.LedgerReader
@@ -141,7 +139,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 	var retentionWindow = cfg.EventLedgerRetentionWindow
 	if cfg.TransactionLedgerRetentionWindow > cfg.EventLedgerRetentionWindow {
 		retentionWindow = cfg.TransactionLedgerRetentionWindow
-		ledgerRangeGetter = params.TransactionStore
+		ledgerRangeGetter = params.TransactionGetter
 	}
 
 	handlers := []struct {
@@ -201,15 +199,19 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 			requestDurationLimit: cfg.MaxGetTransactionExecutionDuration,
 		},
 		{
-			methodName:           "sendTransaction",
-			underlyingHandler:    methods.NewSendTransactionHandler(params.Daemon, params.Logger, params.TransactionStore, cfg.NetworkPassphrase),
+			methodName: "sendTransaction",
+			underlyingHandler: methods.NewSendTransactionHandler(
+				params.Daemon, params.Logger, params.TransactionGetter, cfg.NetworkPassphrase,
+			),
 			longName:             "send_transaction",
 			queueLimit:           cfg.RequestBacklogSendTransactionQueueLimit,
 			requestDurationLimit: cfg.MaxSendTransactionExecutionDuration,
 		},
 		{
-			methodName:           "simulateTransaction",
-			underlyingHandler:    methods.NewSimulateTransactionHandler(params.Logger, params.LedgerEntryReader, params.LedgerReader, params.PreflightGetter),
+			methodName: "simulateTransaction",
+			underlyingHandler: methods.NewSimulateTransactionHandler(
+				params.Logger, params.LedgerEntryReader, params.LedgerReader, params.PreflightGetter,
+			),
 			longName:             "simulate_transaction",
 			queueLimit:           cfg.RequestBacklogSimulateTransactionQueueLimit,
 			requestDurationLimit: cfg.MaxSimulateTransactionExecutionDuration,
