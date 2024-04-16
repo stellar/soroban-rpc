@@ -9,7 +9,7 @@ import (
 )
 
 func TestParseCursor(t *testing.T) {
-	for _, cursor := range []Cursor{
+	for _, cursor := range []*Cursor{
 		{
 			Ledger: math.MaxInt32,
 			Tx:     1048575,
@@ -29,7 +29,7 @@ func TestParseCursor(t *testing.T) {
 			Event:  1,
 		},
 	} {
-		parsed, err := ParseCursor(cursor.String())
+		parsed, err := cursor.ParseCursor(cursor.String())
 		assert.NoError(t, err)
 		assert.Equal(t, cursor, parsed)
 	}
@@ -97,12 +97,12 @@ func TestCursorCmp(t *testing.T) {
 		b := testCase.b
 		expected := testCase.expected
 
-		if got := a.Cmp(b); got != expected {
+		if got := a.Cmp(&b); got != expected {
 			t.Fatalf("expected (%v).Cmp(%v) to be %v but got %v", a, b, expected, got)
 		}
 		a, b = b, a
 		expected *= -1
-		if got := a.Cmp(b); got != expected {
+		if got := a.Cmp(&b); got != expected {
 			t.Fatalf("expected (%v).Cmp(%v) to be %v but got %v", a, b, expected, got)
 		}
 	}
