@@ -91,6 +91,7 @@ type PreflightGetterParameters struct {
 	OperationBody     xdr.OperationBody
 	Footprint         xdr.LedgerFootprint
 	ResourceConfig    ResourceConfig
+	ProtocolVersion   uint32
 }
 
 type PreflightParameters struct {
@@ -103,6 +104,7 @@ type PreflightParameters struct {
 	BucketListSize    uint64
 	ResourceConfig    ResourceConfig
 	EnableDebug       bool
+	ProtocolVersion   uint32
 }
 
 type XDRDiff struct {
@@ -174,7 +176,7 @@ func getLedgerInfo(params PreflightParameters) (C.ledger_info_t, error) {
 	li := C.ledger_info_t{
 		network_passphrase: C.CString(params.NetworkPassphrase),
 		sequence_number:    C.uint32_t(simulationLedgerSeq),
-		protocol_version:   21,
+		protocol_version:   C.uint32_t(params.ProtocolVersion),
 		timestamp:          C.uint64_t(time.Now().Unix()),
 		// Current base reserve is 0.5XLM (in stroops)
 		base_reserve:     5_000_000,
