@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/creachadair/jrpc2/handler"
 	"github.com/stellar/go/network"
 	proto "github.com/stellar/go/protocols/stellarcore"
 	"github.com/stellar/go/support/log"
@@ -47,7 +46,7 @@ type SendTransactionRequest struct {
 // NewSendTransactionHandler returns a submit transaction json rpc handler
 func NewSendTransactionHandler(daemon interfaces.Daemon, logger *log.Entry, ledgerRangeGetter LedgerRangeGetter, passphrase string) jrpc2.Handler {
 	submitter := daemon.CoreClient()
-	return handler.New(func(ctx context.Context, request SendTransactionRequest) (SendTransactionResponse, error) {
+	return NewHandler(func(ctx context.Context, request SendTransactionRequest) (SendTransactionResponse, error) {
 		var envelope xdr.TransactionEnvelope
 		err := xdr.SafeUnmarshalBase64(request.Transaction, &envelope)
 		if err != nil {

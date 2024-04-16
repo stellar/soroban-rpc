@@ -362,6 +362,7 @@ func getPreflightParameters(t testing.TB, dbConfig *preflightParametersDBConfig)
 		NetworkPassphrase: "foo",
 		LedgerEntryReadTx: ledgerEntryReadTx,
 		BucketListSize:    200,
+		ProtocolVersion:   20,
 	}
 	return params
 }
