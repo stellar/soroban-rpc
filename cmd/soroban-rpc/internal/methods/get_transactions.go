@@ -18,14 +18,6 @@ type TransactionsPaginationOptions struct {
 	Limit  uint                 `json:"limit,omitempty"`
 }
 
-// Range defines a [Start, End] interval of ledgers.
-type Range struct {
-	// Start defines the (inclusive) start of the range.
-	Start transactions.Cursor
-	// End defines the (inclusive) end of the range.
-	End transactions.Cursor
-}
-
 type GetTransactionsRequest struct {
 	StartLedger uint32                         `json:"startLedger"`
 	EndLedger   uint32                         `json:"endLedger"`

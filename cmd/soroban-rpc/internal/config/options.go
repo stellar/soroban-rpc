@@ -248,6 +248,28 @@ func (cfg *Config) options() ConfigOptions {
 			},
 		},
 		{
+			Name:         "max-transactions-limit",
+			Usage:        "Maximum amount of transactions allowed in a single getTransactions response",
+			ConfigKey:    &cfg.MaxTransactionsLimit,
+			DefaultValue: uint(10000),
+		},
+		{
+			Name:         "default-transactions-limit",
+			Usage:        "Default cap on the amount of transactions included in a single getTransactions response",
+			ConfigKey:    &cfg.DefaultTransactionsLimit,
+			DefaultValue: uint(100),
+			Validate: func(co *ConfigOption) error {
+				if cfg.DefaultTransactionsLimit > cfg.MaxTransactionsLimit {
+					return fmt.Errorf(
+						"default-transactions-limit (%v) cannot exceed max-transactions-limit (%v)",
+						cfg.DefaultTransactionsLimit,
+						cfg.MaxTransactionsLimit,
+					)
+				}
+				return nil
+			},
+		},
+		{
 			Name: "max-healthy-ledger-latency",
 			Usage: "maximum ledger latency (i.e. time elapsed since the last known ledger closing time) considered to be healthy" +
 				" (used for the /health endpoint)",
