@@ -13,7 +13,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	migrate "github.com/rubenv/sql-migrate"
 
-	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/db"
 	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/xdr"
@@ -137,17 +136,22 @@ type readWriter struct {
 	db                    *DB
 	maxBatchSize          int
 	ledgerRetentionWindow uint32
+	passphrase            string
 }
 
-// NewReadWriter constructs a new ReadWriter instance and configures
-// the size of ledger entry batches when writing ledger entries
-// and the retention window for how many historical ledgers are
-// recorded in the database.
-func NewReadWriter(db *DB, maxBatchSize int, ledgerRetentionWindow uint32) ReadWriter {
+// NewReadWriter constructs a new readWriter instance and configures the size of
+// ledger entry batches when writing ledger entries and the retention window for
+// how many historical ledgers are recorded in the database.
+func NewReadWriter(db *DB,
+	maxBatchSize int,
+	ledgerRetentionWindow uint32,
+	networkPassphrase string,
+) ReadWriter {
 	return &readWriter{
 		db:                    db,
 		maxBatchSize:          maxBatchSize,
 		ledgerRetentionWindow: ledgerRetentionWindow,
+		passphrase:            networkPassphrase,
 	}
 }
 
@@ -161,7 +165,7 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 		return nil, err
 	}
 	stmtCache := sq.NewStmtCache(txSession.GetTx())
-	txWriter := NewTransactionHandler(txSession, network.TestNetworkPassphrase /* FIXME */)
+	txWriter := NewTransactionHandler(txSession, rw.passphrase)
 	txWriter.stmtCache = stmtCache
 
 	db := rw.db

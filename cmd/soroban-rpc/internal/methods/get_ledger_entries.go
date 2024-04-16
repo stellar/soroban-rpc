@@ -10,6 +10,7 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
 var ErrLedgerTtlEntriesCannotBeQueriedDirectly = "ledger ttl entries cannot be queried directly"
@@ -34,6 +35,10 @@ type GetLedgerEntriesResponse struct {
 	Entries []LedgerEntryResult `json:"entries"`
 	// Sequence number of the latest ledger at time of request.
 	LatestLedger uint32 `json:"latestLedger"`
+}
+
+type LedgerRangeGetter interface {
+	GetLedgerRange(ctx context.Context) ledgerbucketwindow.LedgerRange
 }
 
 const getLedgerEntriesMaxKeys = 200

@@ -68,10 +68,14 @@ type GetTransactionRequest struct {
 }
 
 type transactionGetter interface {
-	GetTransaction(hash xdr.Hash) (db.Transaction, bool, ledgerbucketwindow.LedgerRange)
+	GetTransaction(ctx context.Context, hash xdr.Hash) (db.Transaction, bool, ledgerbucketwindow.LedgerRange)
 }
 
-func GetTransaction(getter transactionGetter, request GetTransactionRequest) (GetTransactionResponse, error) {
+func GetTransaction(
+	ctx context.Context,
+	getter transactionGetter,
+	request GetTransactionRequest,
+) (GetTransactionResponse, error) {
 	// parse hash
 	if hex.DecodedLen(len(request.Hash)) != len(xdr.Hash{}) {
 		return GetTransactionResponse{}, &jrpc2.Error{
@@ -89,7 +93,7 @@ func GetTransaction(getter transactionGetter, request GetTransactionRequest) (Ge
 		}
 	}
 
-	tx, found, storeRange := getter.GetTransaction(txHash)
+	tx, found, storeRange := getter.GetTransaction(ctx, txHash)
 	response := GetTransactionResponse{
 		LatestLedger:          storeRange.LastLedger.Sequence,
 		LatestLedgerCloseTime: storeRange.LastLedger.CloseTime,
@@ -122,6 +126,6 @@ func GetTransaction(getter transactionGetter, request GetTransactionRequest) (Ge
 // NewGetTransactionHandler returns a get transaction json rpc handler
 func NewGetTransactionHandler(getter transactionGetter) jrpc2.Handler {
 	return handler.New(func(ctx context.Context, request GetTransactionRequest) (GetTransactionResponse, error) {
-		return GetTransaction(getter, request)
+		return GetTransaction(ctx, getter, request)
 	})
 }

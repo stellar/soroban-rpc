@@ -266,6 +266,9 @@ func (s *Service) ingest(ctx context.Context, sequence uint32) error {
 		}
 	}()
 
+	s.logger.Debugf("Ingesting ledger %d (%d tx): %+v",
+		sequence, ledgerCloseMeta.CountTransactions(), ledgerCloseMeta.V1)
+
 	if err := s.ingestLedgerEntryChanges(ctx, reader, tx, 0); err != nil {
 		return err
 	}

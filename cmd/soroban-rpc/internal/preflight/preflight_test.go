@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 	"github.com/stretchr/testify/require"
@@ -295,7 +296,7 @@ func getDB(t testing.TB, restartDB bool) *db.DB {
 	dbPath := path.Join(t.TempDir(), "soroban_rpc.sqlite")
 	dbInstance, err := db.OpenSQLiteDB(dbPath)
 	require.NoError(t, err)
-	readWriter := db.NewReadWriter(dbInstance, 100, 10000)
+	readWriter := db.NewReadWriter(dbInstance, 100, 10000, network.FutureNetworkPassphrase)
 	tx, err := readWriter.NewTx(context.Background())
 	require.NoError(t, err)
 	for _, e := range mockLedgerEntries {

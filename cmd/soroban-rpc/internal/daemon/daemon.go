@@ -132,6 +132,7 @@ func newCaptiveCore(cfg *config.Config, logger *supportlog.Entry) (*ledgerbacken
 func MustNew(cfg *config.Config) *Daemon {
 	logger := supportlog.New()
 	logger.SetLevel(cfg.LogLevel)
+	supportlog.SetLevel(cfg.LogLevel)
 
 	if cfg.LogFormat == config.LogFormatJSON {
 		logger.UseJSONFormatter()
@@ -234,8 +235,13 @@ func MustNew(cfg *config.Config) *Daemon {
 		maxRetentionWindow = ledgerbucketwindow.DefaultEventLedgerRetentionWindow
 	}
 	ingestService := ingest.NewService(ingest.Config{
-		Logger:            logger,
-		DB:                db.NewReadWriter(dbConn, maxLedgerEntryWriteBatchSize, maxRetentionWindow),
+		Logger: logger,
+		DB: db.NewReadWriter(
+			dbConn,
+			maxLedgerEntryWriteBatchSize,
+			maxRetentionWindow,
+			cfg.NetworkPassphrase,
+		),
 		EventStore:        eventStore,
 		NetworkPassPhrase: cfg.NetworkPassphrase,
 		Archive:           historyArchive,
