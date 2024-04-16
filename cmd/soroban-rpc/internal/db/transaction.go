@@ -117,10 +117,16 @@ func (txn *TransactionHandler) GetLedgerRange() ledgerbucketwindow.LedgerRange {
 func (txn *TransactionHandler) GetTransactionByHash(hash string) (
 	xdr.LedgerCloseMeta, ingest.LedgerTransaction, error,
 ) {
+	rawHash, err := hex.DecodeString(hash)
+	if err != nil {
+		return xdr.LedgerCloseMeta{}, ingest.LedgerTransaction{}, err
+	}
+
 	rows := sq.
 		Select("t.application_order", "lcm.meta").
 		From(fmt.Sprintf("%s t", transactionTableName)).
 		Join(fmt.Sprintf("%s lcm ON (t.ledger_sequence = lcm.sequence)", ledgerCloseMetaTableName)).
+		Where(sq.Eq{"hash": rawHash}).
 		Limit(1).
 		RunWith(txn.stmtCache).
 		QueryRow()
