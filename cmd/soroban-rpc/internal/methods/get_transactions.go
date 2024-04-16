@@ -28,26 +28,10 @@ type Range struct {
 	End transactions.Cursor
 }
 
-func (r Range) isValid(ctx context.Context, ledgerReader db.LedgerReader, ledgerEntryReader db.LedgerEntryReader) error {
-	//tx, err := ledgerEntryReader.NewTx(ctx)
-	//if err != nil {
-	//	return errors.New("could not read transaction")
-	//}
-	//defer func() {
-	//	_ = tx.Done()
-	//}()
-	//
-	//latestLedger, err := tx.GetLatestLedgerSequence()
-	//if err != nil {
-	//	return errors.New("could not get latest ledger")
-	//}
-	return nil
-}
-
 type GetTransactionsRequest struct {
-	StartLedger uint32
-	EndLedger   uint32
-	Pagination  *TransactionsPaginationOptions
+	StartLedger uint32                         `json:"startLedger"`
+	EndLedger   uint32                         `json:"endLedger"`
+	Pagination  *TransactionsPaginationOptions `json:"pagination,omitempty"`
 }
 
 func (req GetTransactionsRequest) isValid() error {
@@ -63,20 +47,20 @@ func (req GetTransactionsRequest) isValid() error {
 }
 
 type TransactionInfo struct {
-	Result           []byte // XDR encoded xdr.TransactionResult
-	Meta             []byte // XDR encoded xdr.TransactionMeta
-	Envelope         []byte // XDR encoded xdr.TransactionEnvelope
-	FeeBump          bool
-	ApplicationOrder int32
-	Successful       bool
-	LedgerSequence   uint
+	Result           []byte `json:"result"`
+	Meta             []byte `json:"meta"`
+	Envelope         []byte `json:"envelope"`
+	FeeBump          bool   `json:"feeBump"`
+	ApplicationOrder int32  `json:"applicationOrder"`
+	Successful       bool   `json:"successful"`
+	LedgerSequence   uint   `json:"ledgerSequence"`
 }
 
 type GetTransactionsResponse struct {
-	Transactions               []TransactionInfo `json:"transactions"`
-	LatestLedger               int64             `json:"latestLedger"`
-	LatestLedgerCloseTimestamp int64             `json:"latestLedgerCloseTimestamp"`
-	Pagination                 *TransactionsPaginationOptions
+	Transactions               []TransactionInfo              `json:"transactions"`
+	LatestLedger               int64                          `json:"latestLedger"`
+	LatestLedgerCloseTimestamp int64                          `json:"latestLedgerCloseTimestamp"`
+	Pagination                 *TransactionsPaginationOptions `json:"pagination"`
 }
 
 type transactionsRPCHandler struct {
@@ -97,20 +81,8 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 		}
 	}
 
-	start := transactions.NewCursor(request.StartLedger, 0, 0)
-	endLedger, found, err := h.ledgerReader.GetLedger(ctx, request.EndLedger)
-	if err != nil || !found {
-		if err == nil {
-			err = errors.New("ledger close meta not found")
-		}
-		return GetTransactionsResponse{}, &jrpc2.Error{
-			Code:    jrpc2.InvalidParams,
-			Message: err.Error(),
-		}
-	}
-	end := transactions.NewCursor(request.EndLedger, uint32(endLedger.CountTransactions()), 0)
-
 	// Move start to pagination cursor
+	start := transactions.NewCursor(request.StartLedger, 0, 0)
 	limit := h.defaultLimit
 	if request.Pagination != nil {
 		if request.Pagination.Cursor != nil {
@@ -124,23 +96,11 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 		}
 	}
 
-	// Validate the range
-	ledgerRange := Range{
-		Start: start,
-		End:   end,
-	}
-	err = ledgerRange.isValid(ctx, h.ledgerReader, h.ledgerEntryReader)
-	if err != nil {
-		return GetTransactionsResponse{}, &jrpc2.Error{
-			Code:    jrpc2.InvalidParams,
-			Message: err.Error(),
-		}
-	}
-
 	// Iterate through each ledger and its transactions until limit or end range is reached
-	txns := make([]TransactionInfo, limit)
+	var txns []TransactionInfo
 	var cursor transactions.Cursor
-	for ledgerSeq := ledgerRange.Start.LedgerSequence; ledgerSeq <= ledgerRange.End.LedgerSequence; ledgerSeq++ {
+LedgerLoop:
+	for ledgerSeq := request.StartLedger; ledgerSeq <= request.EndLedger; ledgerSeq++ {
 		// Get ledger close meta from db
 		ledger, found, err := h.ledgerReader.GetLedger(ctx, ledgerSeq)
 		if (err != nil) || (!found) {
@@ -168,11 +128,8 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 
 		// Decode transaction info from ledger meta
 		txCount := ledger.CountTransactions()
-		for i := ledgerRange.Start.TxIdx; i < uint32(txCount); i++ {
+		for i := start.TxIdx; i < uint32(txCount); i++ {
 			cursor = transactions.NewCursor(ledger.LedgerSequence(), i, 0)
-			if ledgerRange.End.Cmp(&cursor) <= 0 {
-				break
-			}
 
 			hash := ledger.TransactionHash(int(i))
 			envelope, ok := byHash[hash]
@@ -214,7 +171,7 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 
 			txns = append(txns, txInfo)
 			if len(txns) >= int(limit) {
-				break
+				break LedgerLoop
 			}
 		}
 	}
