@@ -2,6 +2,7 @@ package methods
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
@@ -24,13 +25,23 @@ type GetTransactionsRequest struct {
 	Pagination  *TransactionsPaginationOptions `json:"pagination,omitempty"`
 }
 
-func (req GetTransactionsRequest) isValid() error {
+func (req *GetTransactionsRequest) isValid(maxLimit uint) error {
 	// Validate the start and end ledger sequence
 	if req.StartLedger < 0 {
 		return errors.New("start ledger cannot be negative")
 	}
 	if req.EndLedger < req.StartLedger {
 		return errors.New("end ledger cannot be less than start ledger")
+	}
+
+	// Validate pagination
+	if req.Pagination != nil && req.Pagination.Cursor != nil {
+		if req.StartLedger != 0 {
+			return errors.New("startLedger and cursor cannot both be set")
+		}
+	}
+	if req.Pagination != nil && req.Pagination.Limit > maxLimit {
+		return fmt.Errorf("limit must not exceed %d", maxLimit)
 	}
 
 	return nil
@@ -62,8 +73,8 @@ type transactionsRPCHandler struct {
 	networkPassphrase string
 }
 
-func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Context, request GetTransactionsRequest) (GetTransactionsResponse, error) {
-	err := request.isValid()
+func (h *transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Context, request GetTransactionsRequest) (GetTransactionsResponse, error) {
+	err := request.isValid(h.maxLimit)
 	if err != nil {
 		return GetTransactionsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidParams,
@@ -168,30 +179,8 @@ LedgerLoop:
 		}
 	}
 
-	tx, err := h.ledgerEntryReader.NewTx(ctx)
+	latestLedgerSequence, latestLedgerCloseTime, err := h.getLatestLedgerDetails(ctx)
 	if err != nil {
-		return GetTransactionsResponse{}, &jrpc2.Error{
-			Code:    jrpc2.InvalidParams,
-			Message: err.Error(),
-		}
-	}
-	defer func() {
-		_ = tx.Done()
-	}()
-
-	latestSequence, err := tx.GetLatestLedgerSequence()
-	if err != nil {
-		return GetTransactionsResponse{}, &jrpc2.Error{
-			Code:    jrpc2.InvalidParams,
-			Message: err.Error(),
-		}
-	}
-
-	latestLedger, found, err := h.ledgerReader.GetLedger(ctx, latestSequence)
-	if (err != nil) || (!found) {
-		if err == nil {
-			err = errors.New("ledger close meta not found")
-		}
 		return GetTransactionsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidParams,
 			Message: err.Error(),
@@ -200,14 +189,39 @@ LedgerLoop:
 
 	return GetTransactionsResponse{
 		Transactions:               txns,
-		LatestLedger:               int64(latestLedger.LedgerSequence()),
-		LatestLedgerCloseTimestamp: int64(latestLedger.LedgerHeaderHistoryEntry().Header.ScpValue.CloseTime),
+		LatestLedger:               latestLedgerSequence,
+		LatestLedgerCloseTimestamp: latestLedgerCloseTime,
 		Pagination: &TransactionsPaginationOptions{
 			Cursor: &cursor,
 			Limit:  limit,
 		},
 	}, nil
 
+}
+
+func (h *transactionsRPCHandler) getLatestLedgerDetails(ctx context.Context) (sequence int64, ledgerCloseTime int64, err error) {
+	tx, err := h.ledgerEntryReader.NewTx(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer func() {
+		_ = tx.Done()
+	}()
+
+	latestSequence, err := tx.GetLatestLedgerSequence()
+	if err != nil {
+		return 0, 0, err
+	}
+
+	latestLedger, found, err := h.ledgerReader.GetLedger(ctx, latestSequence)
+	if (err != nil) || (!found) {
+		if err == nil {
+			err = errors.New("ledger close meta not found")
+		}
+		return 0, 0, err
+	}
+
+	return int64(latestLedger.LedgerSequence()), int64(latestLedger.LedgerHeaderHistoryEntry().Header.ScpValue.CloseTime), nil
 }
 
 func NewGetTransactionsHandler(logger *log.Entry, ledgerReader db.LedgerReader, ledgerEntryReader db.LedgerEntryReader, maxLimit, defaultLimit uint, networkPassphrase string) jrpc2.Handler {
