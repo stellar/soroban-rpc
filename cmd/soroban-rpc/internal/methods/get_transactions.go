@@ -87,7 +87,7 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 	if request.Pagination != nil {
 		if request.Pagination.Cursor != nil {
 			start = *request.Pagination.Cursor
-			// increment event index because, when paginating,
+			// increment tx index because, when paginating,
 			// we start with the item right after the cursor
 			start.TxIdx++
 		}
@@ -100,7 +100,7 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 	var txns []TransactionInfo
 	var cursor transactions.Cursor
 LedgerLoop:
-	for ledgerSeq := request.StartLedger; ledgerSeq <= request.EndLedger; ledgerSeq++ {
+	for ledgerSeq := start.LedgerSequence; ledgerSeq <= request.EndLedger; ledgerSeq++ {
 		// Get ledger close meta from db
 		ledger, found, err := h.ledgerReader.GetLedger(ctx, ledgerSeq)
 		if (err != nil) || (!found) {
