@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/creachadair/jrpc2/handler"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
@@ -134,10 +133,10 @@ func (l *LedgerEntryChange) FromXDRDiff(diff preflight.XDRDiff) error {
 // LedgerEntryChange designates a change in a ledger entry. Before and After cannot be be omitted at the same time.
 // If Before is omitted, it constitutes a creation, if After is omitted, it constitutes a delation.
 type LedgerEntryChange struct {
-	Type   LedgerEntryChangeType
-	Key    string  // LedgerEntryKey in base64
-	Before *string `json:"before"` // LedgerEntry XDR in base64
-	After  *string `json:"after"`  // LedgerEntry XDR in base64
+	Type   LedgerEntryChangeType `json:"type"`
+	Key    string                `json:"key"`    // LedgerEntryKey in base64
+	Before *string               `json:"before"` // LedgerEntry XDR in base64
+	After  *string               `json:"after"`  // LedgerEntry XDR in base64
 }
 
 type SimulateTransactionResponse struct {
@@ -159,7 +158,7 @@ type PreflightGetter interface {
 // NewSimulateTransactionHandler returns a json rpc handler to run preflight simulations
 func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntryReader, ledgerReader db.LedgerReader, getter PreflightGetter) jrpc2.Handler {
 
-	return handler.New(func(ctx context.Context, request SimulateTransactionRequest) SimulateTransactionResponse {
+	return NewHandler(func(ctx context.Context, request SimulateTransactionRequest) SimulateTransactionResponse {
 		var txEnvelope xdr.TransactionEnvelope
 		if err := xdr.SafeUnmarshalBase64(request.Transaction, &txEnvelope); err != nil {
 			logger.WithError(err).WithField("request", request).

@@ -65,6 +65,35 @@ func (w *LedgerBucketWindow[T]) Len() uint32 {
 	return uint32(len(w.buckets))
 }
 
+type LedgerInfo struct {
+	Sequence  uint32
+	CloseTime int64
+}
+
+type LedgerRange struct {
+	FirstLedger LedgerInfo
+	LastLedger  LedgerInfo
+}
+
+func (w *LedgerBucketWindow[T]) GetLedgerRange() LedgerRange {
+	length := w.Len()
+	if length == 0 {
+		return LedgerRange{}
+	}
+	firstBucket := w.Get(0)
+	lastBucket := w.Get(length - 1)
+	return LedgerRange{
+		FirstLedger: LedgerInfo{
+			Sequence:  firstBucket.LedgerSeq,
+			CloseTime: firstBucket.LedgerCloseTimestamp,
+		},
+		LastLedger: LedgerInfo{
+			Sequence:  lastBucket.LedgerSeq,
+			CloseTime: lastBucket.LedgerCloseTimestamp,
+		},
+	}
+}
+
 // Get obtains a bucket from the window
 func (w *LedgerBucketWindow[T]) Get(i uint32) *LedgerBucket[T] {
 	length := w.Len()

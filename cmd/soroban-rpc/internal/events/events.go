@@ -265,3 +265,10 @@ func readEvents(networkPassphrase string, ledgerCloseMeta xdr.LedgerCloseMeta) (
 	}
 	return events, err
 }
+
+// GetLedgerRange returns the first and latest ledger available in the store.
+func (m *MemoryStore) GetLedgerRange() ledgerbucketwindow.LedgerRange {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	return m.eventsByLedger.GetLedgerRange()
+}

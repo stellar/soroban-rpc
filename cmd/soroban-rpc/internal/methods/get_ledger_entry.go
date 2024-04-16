@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/creachadair/jrpc2/handler"
-
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
@@ -33,7 +31,7 @@ type GetLedgerEntryResponse struct {
 // Deprecated. use NewGetLedgerEntriesHandler instead.
 // TODO(https://github.com/stellar/soroban-tools/issues/374) remove after getLedgerEntries is deployed.
 func NewGetLedgerEntryHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntryReader) jrpc2.Handler {
-	return handler.New(func(ctx context.Context, request GetLedgerEntryRequest) (GetLedgerEntryResponse, error) {
+	return NewHandler(func(ctx context.Context, request GetLedgerEntryRequest) (GetLedgerEntryResponse, error) {
 		var key xdr.LedgerKey
 		if err := xdr.SafeUnmarshalBase64(request.Key, &key); err != nil {
 			logger.WithError(err).WithField("request", request).

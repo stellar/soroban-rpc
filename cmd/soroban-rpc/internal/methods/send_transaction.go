@@ -5,14 +5,12 @@ import (
 	"encoding/hex"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/creachadair/jrpc2/handler"
 	"github.com/stellar/go/network"
 	proto "github.com/stellar/go/protocols/stellarcore"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 )
 
 // SendTransactionResponse represents the transaction submission response returned Soroban-RPC
@@ -45,16 +43,10 @@ type SendTransactionRequest struct {
 	Transaction string `json:"transaction"`
 }
 
-// LatestLedgerStore is a store which returns the latest ingested ledger.
-type LatestLedgerStore interface {
-	// GetLatestLedger returns the latest ingested ledger.
-	GetLatestLedger() transactions.LedgerInfo
-}
-
 // NewSendTransactionHandler returns a submit transaction json rpc handler
-func NewSendTransactionHandler(daemon interfaces.Daemon, logger *log.Entry, store LatestLedgerStore, passphrase string) jrpc2.Handler {
+func NewSendTransactionHandler(daemon interfaces.Daemon, logger *log.Entry, ledgerRangeGetter LedgerRangeGetter, passphrase string) jrpc2.Handler {
 	submitter := daemon.CoreClient()
-	return handler.New(func(ctx context.Context, request SendTransactionRequest) (SendTransactionResponse, error) {
+	return NewHandler(func(ctx context.Context, request SendTransactionRequest) (SendTransactionResponse, error) {
 		var envelope xdr.TransactionEnvelope
 		err := xdr.SafeUnmarshalBase64(request.Transaction, &envelope)
 		if err != nil {
@@ -74,7 +66,7 @@ func NewSendTransactionHandler(daemon interfaces.Daemon, logger *log.Entry, stor
 		}
 		txHash := hex.EncodeToString(hash[:])
 
-		ledgerInfo := store.GetLatestLedger()
+		latestLedgerInfo := ledgerRangeGetter.GetLedgerRange().LastLedger
 		resp, err := submitter.SubmitTransaction(ctx, request.Transaction)
 		if err != nil {
 			logger.WithError(err).
@@ -110,15 +102,15 @@ func NewSendTransactionHandler(daemon interfaces.Daemon, logger *log.Entry, stor
 				DiagnosticEventsXDR:   events,
 				Status:                resp.Status,
 				Hash:                  txHash,
-				LatestLedger:          ledgerInfo.Sequence,
-				LatestLedgerCloseTime: ledgerInfo.CloseTime,
+				LatestLedger:          latestLedgerInfo.Sequence,
+				LatestLedgerCloseTime: latestLedgerInfo.CloseTime,
 			}, nil
 		case proto.TXStatusPending, proto.TXStatusDuplicate, proto.TXStatusTryAgainLater:
 			return SendTransactionResponse{
 				Status:                resp.Status,
 				Hash:                  txHash,
-				LatestLedger:          ledgerInfo.Sequence,
-				LatestLedgerCloseTime: ledgerInfo.CloseTime,
+				LatestLedger:          latestLedgerInfo.Sequence,
+				LatestLedgerCloseTime: latestLedgerInfo.CloseTime,
 			}, nil
 		default:
 			logger.WithField("status", resp.Status).

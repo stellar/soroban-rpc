@@ -7,9 +7,9 @@ import (
 	"fmt"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/creachadair/jrpc2/handler"
 	"github.com/stellar/go/xdr"
 
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 )
 
@@ -67,7 +67,7 @@ type GetTransactionRequest struct {
 }
 
 type transactionGetter interface {
-	GetTransaction(hash xdr.Hash) (transactions.Transaction, bool, transactions.StoreRange)
+	GetTransaction(hash xdr.Hash) (transactions.Transaction, bool, ledgerbucketwindow.LedgerRange)
 }
 
 func GetTransaction(getter transactionGetter, request GetTransactionRequest) (GetTransactionResponse, error) {
@@ -120,7 +120,7 @@ func GetTransaction(getter transactionGetter, request GetTransactionRequest) (Ge
 
 // NewGetTransactionHandler returns a get transaction json rpc handler
 func NewGetTransactionHandler(getter transactionGetter) jrpc2.Handler {
-	return handler.New(func(ctx context.Context, request GetTransactionRequest) (GetTransactionResponse, error) {
+	return NewHandler(func(ctx context.Context, request GetTransactionRequest) (GetTransactionResponse, error) {
 		return GetTransaction(getter, request)
 	})
 }

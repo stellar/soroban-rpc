@@ -34,10 +34,11 @@ import (
 )
 
 const (
-	prometheusNamespace          = "soroban_rpc"
-	maxLedgerEntryWriteBatchSize = 150
-	defaultReadTimeout           = 5 * time.Second
-	defaultShutdownGracePeriod   = 10 * time.Second
+	prometheusNamespace                   = "soroban_rpc"
+	maxLedgerEntryWriteBatchSize          = 150
+	defaultReadTimeout                    = 5 * time.Second
+	defaultShutdownGracePeriod            = 10 * time.Second
+	inMemoryInitializationLedgerLogPeriod = 1_000_000
 )
 
 type Daemon struct {
@@ -137,6 +138,11 @@ func MustNew(cfg *config.Config) *Daemon {
 		logger.UseJSONFormatter()
 	}
 
+	logger.WithFields(supportlog.F{
+		"version": config.Version,
+		"commit":  config.CommitHash,
+	}).Info("starting Soroban RPC")
+
 	core, err := newCaptiveCore(cfg, logger)
 	if err != nil {
 		logger.WithError(err).Fatal("could not create captive core")
@@ -196,7 +202,20 @@ func MustNew(cfg *config.Config) *Daemon {
 	// NOTE: We could optimize this to avoid unnecessary ingestion calls
 	//       (the range of txmetads can be larger than the store retention windows)
 	//       but it's probably not worth the pain.
+	var initialSeq uint32
+	var currentSeq uint32
 	err = db.NewLedgerReader(dbConn).StreamAllLedgers(readTxMetaCtx, func(txmeta xdr.LedgerCloseMeta) error {
+		currentSeq = txmeta.LedgerSequence()
+		if initialSeq == 0 {
+			initialSeq = currentSeq
+			logger.WithFields(supportlog.F{
+				"seq": currentSeq,
+			}).Info("initializing in-memory store")
+		} else if (currentSeq-initialSeq)%inMemoryInitializationLedgerLogPeriod == 0 {
+			logger.WithFields(supportlog.F{
+				"seq": currentSeq,
+			}).Debug("still initializing in-memory store")
+		}
 		if err := eventStore.IngestEvents(txmeta); err != nil {
 			logger.WithError(err).Fatal("could not initialize event memory store")
 		}
@@ -205,6 +224,11 @@ func MustNew(cfg *config.Config) *Daemon {
 		}
 		return nil
 	})
+	if currentSeq != 0 {
+		logger.WithFields(supportlog.F{
+			"seq": currentSeq,
+		}).Info("finished initializing in-memory store")
+	}
 	if err != nil {
 		logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
 	}
@@ -285,10 +309,8 @@ func MustNew(cfg *config.Config) *Daemon {
 
 func (d *Daemon) Run() {
 	d.logger.WithFields(supportlog.F{
-		"version": config.Version,
-		"commit":  config.CommitHash,
-		"addr":    d.server.Addr,
-	}).Info("starting Soroban JSON RPC server")
+		"addr": d.server.Addr,
+	}).Info("starting HTTP server")
 
 	panicGroup := util.UnrecoverablePanicGroup.Log(d.logger)
 	panicGroup.Go(func() {
