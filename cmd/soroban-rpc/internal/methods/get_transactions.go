@@ -2,14 +2,12 @@ package methods
 
 import (
 	"context"
-	"encoding/hex"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
-	"github.com/stellar/go/network"
+	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/log"
-	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
@@ -113,17 +111,20 @@ LedgerLoop:
 			}
 		}
 
-		// Build transaction envelopes in the ledger
-		byHash := map[xdr.Hash]xdr.TransactionEnvelope{}
-		for _, tx := range ledger.TransactionEnvelopes() {
-			hash, err := network.HashTransactionInEnvelope(tx, h.networkPassphrase)
-			if err != nil {
-				return GetTransactionsResponse{}, &jrpc2.Error{
-					Code:    jrpc2.InvalidParams,
-					Message: err.Error(),
-				}
+		// Initialise tx reader and move it to start idx.
+		reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(h.networkPassphrase, ledger)
+		if err != nil {
+			return GetTransactionsResponse{}, &jrpc2.Error{
+				Code:    jrpc2.InvalidParams,
+				Message: err.Error(),
 			}
-			byHash[hash] = tx
+		}
+		err = reader.Seek(int(start.TxIdx))
+		if err != nil {
+			return GetTransactionsResponse{}, &jrpc2.Error{
+				Code:    jrpc2.InvalidParams,
+				Message: err.Error(),
+			}
 		}
 
 		// Decode transaction info from ledger meta
@@ -131,38 +132,33 @@ LedgerLoop:
 		for i := start.TxIdx; i < uint32(txCount); i++ {
 			cursor = transactions.NewCursor(ledger.LedgerSequence(), i, 0)
 
-			hash := ledger.TransactionHash(int(i))
-			envelope, ok := byHash[hash]
-			if !ok {
-				hexHash := hex.EncodeToString(hash[:])
-				err = errors.Errorf("unknown tx hash in LedgerCloseMeta: %v", hexHash)
+			tx, err := reader.Read()
+			if err != nil {
 				return GetTransactionsResponse{}, &jrpc2.Error{
 					Code:    jrpc2.InvalidParams,
 					Message: err.Error(),
 				}
 			}
-			txResult := ledger.TransactionResultPair(int(i))
-			unsafeMeta := ledger.TxApplyProcessing(int(i))
 
 			txInfo := TransactionInfo{
-				FeeBump:          envelope.IsFeeBump(),
-				ApplicationOrder: int32(i + 1),
-				Successful:       txResult.Result.Successful(),
+				FeeBump:          tx.Envelope.IsFeeBump(),
+				ApplicationOrder: int32(tx.Index),
+				Successful:       tx.Result.Result.Successful(),
 				LedgerSequence:   uint(ledger.LedgerSequence()),
 			}
-			if txInfo.Result, err = txResult.Result.MarshalBinary(); err != nil {
+			if txInfo.Result, err = tx.Result.Result.MarshalBinary(); err != nil {
 				return GetTransactionsResponse{}, &jrpc2.Error{
 					Code:    jrpc2.InvalidParams,
 					Message: err.Error(),
 				}
 			}
-			if txInfo.Meta, err = unsafeMeta.MarshalBinary(); err != nil {
+			if txInfo.Meta, err = tx.UnsafeMeta.MarshalBinary(); err != nil {
 				return GetTransactionsResponse{}, &jrpc2.Error{
 					Code:    jrpc2.InvalidParams,
 					Message: err.Error(),
 				}
 			}
-			if txInfo.Envelope, err = envelope.MarshalBinary(); err != nil {
+			if txInfo.Envelope, err = tx.Envelope.MarshalBinary(); err != nil {
 				return GetTransactionsResponse{}, &jrpc2.Error{
 					Code:    jrpc2.InvalidParams,
 					Message: err.Error(),
