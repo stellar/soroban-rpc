@@ -156,6 +156,7 @@ func (pwp *PreflightWorkerPool) GetPreflight(ctx context.Context, params Preflig
 		Footprint:         params.Footprint,
 		ResourceConfig:    params.ResourceConfig,
 		EnableDebug:       pwp.enableDebug,
+		ProtocolVersion:   params.ProtocolVersion,
 	}
 	resultC := make(chan workerResult)
 	select {

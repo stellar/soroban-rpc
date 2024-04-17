@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/creachadair/jrpc2/handler"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
@@ -24,7 +23,7 @@ type LedgerRangeGetter interface {
 
 // NewHealthCheck returns a health check json rpc handler
 func NewHealthCheck(retentionWindow uint32, ledgerRangeGetter LedgerRangeGetter, maxHealthyLedgerLatency time.Duration) jrpc2.Handler {
-	return handler.New(func(ctx context.Context) (HealthCheckResult, error) {
+	return NewHandler(func(ctx context.Context) (HealthCheckResult, error) {
 		ledgerRange := ledgerRangeGetter.GetLedgerRange()
 		if ledgerRange.LastLedger.Sequence < 1 {
 			return HealthCheckResult{}, jrpc2.Error{
