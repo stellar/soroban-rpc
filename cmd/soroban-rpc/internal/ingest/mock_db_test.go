@@ -81,3 +81,12 @@ func (m MockLedgerWriter) InsertLedger(ledger xdr.LedgerCloseMeta) error {
 	args := m.Called(ledger)
 	return args.Error(0)
 }
+
+type MockTransactionWriter struct {
+	mock.Mock
+}
+
+func (m MockTransactionWriter) InsertTransactions(ledger xdr.LedgerCloseMeta) error {
+	args := m.Called(ledger)
+	return args.Error(0)
+}

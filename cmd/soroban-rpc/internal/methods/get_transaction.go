@@ -93,11 +93,11 @@ func GetTransaction(
 	if err != nil {
 		return GetTransactionResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidParams,
-			Message: fmt.Sprintf("db connection failed: %v", err),
+			Message: "could not create read transaction",
 		}
 	}
-
 	defer reader.Done()
+
 	tx, found, storeRange := reader.GetTransaction(log, txHash)
 	response := GetTransactionResponse{
 		LatestLedger:          storeRange.LastLedger.Sequence,
@@ -120,10 +120,9 @@ func GetTransaction(
 	response.ResultMetaXdr = base64.StdEncoding.EncodeToString(tx.Meta)
 	response.DiagnosticEventsXDR = base64EncodeSlice(tx.Events)
 
+	response.Status = TransactionStatusFailed
 	if tx.Successful {
 		response.Status = TransactionStatusSuccess
-	} else {
-		response.Status = TransactionStatusFailed
 	}
 	return response, nil
 }

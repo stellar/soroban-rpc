@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"path"
 	"sync"
 	"testing"
 	"time"
@@ -565,23 +564,5 @@ func BenchmarkLedgerUpdate(b *testing.B) {
 			assert.NoError(b, writer.UpsertLedgerEntry(entry))
 		}
 		assert.NoError(b, tx.Commit(uint32(i+1)))
-	}
-}
-
-func NewTestDB(tb testing.TB) *DB {
-	tmp := tb.TempDir()
-	dbPath := path.Join(tmp, "db.sqlite")
-	db, err := OpenSQLiteDB(dbPath)
-	if err != nil {
-		assert.NoError(tb, db.Close())
-	}
-	tb.Cleanup(func() {
-		assert.NoError(tb, db.Close())
-	})
-	return &DB{
-		SessionInterface: db,
-		cache: dbCache{
-			ledgerEntries: newTransactionalCache(),
-		},
 	}
 }
