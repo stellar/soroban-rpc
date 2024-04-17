@@ -215,7 +215,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 		{
 			methodName:           "simulateTransaction",
-			underlyingHandler:    methods.NewSimulateTransactionHandler(params.Logger, params.LedgerEntryReader, params.LedgerReader, params.PreflightGetter),
+			underlyingHandler:    methods.NewSimulateTransactionHandler(params.Logger, params.LedgerEntryReader, params.LedgerReader, params.Daemon, params.PreflightGetter),
 			longName:             "simulate_transaction",
 			queueLimit:           cfg.RequestBacklogSimulateTransactionQueueLimit,
 			requestDurationLimit: cfg.MaxSimulateTransactionExecutionDuration,
