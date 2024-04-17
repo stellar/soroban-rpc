@@ -147,29 +147,22 @@ LedgerLoop:
 				}
 			}
 
+			txResult, txMeta, txEnvelope, err := h.getTransactionDetails(tx)
+			if err != nil {
+				return GetTransactionsResponse{}, &jrpc2.Error{
+					Code:    jrpc2.InvalidParams,
+					Message: err.Error(),
+				}
+			}
+
 			txInfo := TransactionInfo{
+				Result:           txResult,
+				Meta:             txMeta,
+				Envelope:         txEnvelope,
 				FeeBump:          tx.Envelope.IsFeeBump(),
 				ApplicationOrder: int32(tx.Index),
 				Successful:       tx.Result.Result.Successful(),
 				LedgerSequence:   uint(ledger.LedgerSequence()),
-			}
-			if txInfo.Result, err = tx.Result.Result.MarshalBinary(); err != nil {
-				return GetTransactionsResponse{}, &jrpc2.Error{
-					Code:    jrpc2.InvalidParams,
-					Message: err.Error(),
-				}
-			}
-			if txInfo.Meta, err = tx.UnsafeMeta.MarshalBinary(); err != nil {
-				return GetTransactionsResponse{}, &jrpc2.Error{
-					Code:    jrpc2.InvalidParams,
-					Message: err.Error(),
-				}
-			}
-			if txInfo.Envelope, err = tx.Envelope.MarshalBinary(); err != nil {
-				return GetTransactionsResponse{}, &jrpc2.Error{
-					Code:    jrpc2.InvalidParams,
-					Message: err.Error(),
-				}
 			}
 
 			txns = append(txns, txInfo)
@@ -199,16 +192,25 @@ LedgerLoop:
 
 }
 
-func (h *transactionsRPCHandler) getLatestLedgerDetails(ctx context.Context) (sequence int64, ledgerCloseTime int64, err error) {
-	tx, err := h.ledgerEntryReader.NewTx(ctx)
+func (h *transactionsRPCHandler) getTransactionDetails(tx ingest.LedgerTransaction) ([]byte, []byte, []byte, error) {
+	txResult, err := tx.Result.Result.MarshalBinary()
 	if err != nil {
-		return 0, 0, err
+		return nil, nil, nil, err
 	}
-	defer func() {
-		_ = tx.Done()
-	}()
+	txMeta, err := tx.UnsafeMeta.MarshalBinary()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	txEnvelope, err := tx.Envelope.MarshalBinary()
+	if err != nil {
+		return nil, nil, nil, err
+	}
 
-	latestSequence, err := tx.GetLatestLedgerSequence()
+	return txResult, txMeta, txEnvelope, nil
+}
+
+func (h *transactionsRPCHandler) getLatestLedgerDetails(ctx context.Context) (sequence int64, ledgerCloseTime int64, err error) {
+	latestSequence, err := h.ledgerEntryReader.GetLatestLedgerSequence(ctx)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -221,7 +223,7 @@ func (h *transactionsRPCHandler) getLatestLedgerDetails(ctx context.Context) (se
 		return 0, 0, err
 	}
 
-	return int64(latestLedger.LedgerSequence()), int64(latestLedger.LedgerHeaderHistoryEntry().Header.ScpValue.CloseTime), nil
+	return int64(latestSequence), int64(latestLedger.LedgerHeaderHistoryEntry().Header.ScpValue.CloseTime), nil
 }
 
 func NewGetTransactionsHandler(logger *log.Entry, ledgerReader db.LedgerReader, ledgerEntryReader db.LedgerEntryReader, maxLimit, defaultLimit uint, networkPassphrase string) jrpc2.Handler {

@@ -58,10 +58,6 @@ func (ledgerReader *ConstantLedgerReader) StreamAllLedgers(ctx context.Context, 
 	return nil
 }
 
-func (ledgerReader *ConstantLedgerReader) GetLedgers(ctx context.Context, startSequence uint32, endSequence uint32) ([]xdr.LedgerCloseMeta, error) {
-	return []xdr.LedgerCloseMeta{}, nil
-}
-
 func createLedger(ledgerSequence uint32, protocolVersion uint32, hash byte) xdr.LedgerCloseMeta {
 	return xdr.LedgerCloseMeta{
 		V: 1,
