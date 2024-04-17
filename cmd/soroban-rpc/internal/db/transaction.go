@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -67,6 +68,10 @@ func NewTransactionReader(db db.SessionInterface, passphrase string) Transaction
 	return &transactionHandler{db: db, passphrase: passphrase}
 }
 
+func NewTransactionWriter(db db.SessionInterface, stmtCache *sq.StmtCache, passphrase string) TransactionWriter {
+	return &transactionHandler{db: db, stmtCache: stmtCache, passphrase: passphrase}
+}
+
 func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error {
 	start := time.Now()
 	txCount := lcm.CountTransactions()
@@ -123,6 +128,21 @@ func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 		WithField("total_duration", time.Since(start)).
 		WithField("sql_duration", time.Since(mid)).
 		Infof("Ingested %d transaction lookups", len(transactions))
+	return err
+}
+
+// trimTransactions removes all transactions which fall outside the ledger retention window.
+func (txn *transactionHandler) trimTransactions(latestLedgerSeq uint32, retentionWindow uint32) error {
+	if latestLedgerSeq+1 <= retentionWindow {
+		return nil
+	}
+
+	cutoff := latestLedgerSeq + 1 - retentionWindow
+	_, err := sq.StatementBuilder.
+		RunWith(txn.stmtCache).
+		Delete(transactionTableName).
+		Where(sq.Lt{"ledger_sequence": cutoff}).
+		Exec()
 	return err
 }
 

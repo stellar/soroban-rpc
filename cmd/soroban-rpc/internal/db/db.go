@@ -184,7 +184,7 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 			maxBatchSize:            rw.maxBatchSize,
 		},
 		ledgerRetentionWindow: rw.ledgerRetentionWindow,
-		txWriter: &transactionHandler{
+		txWriter: transactionHandler{
 			db:         txSession,
 			stmtCache:  stmtCache,
 			passphrase: rw.passphrase,
@@ -199,7 +199,7 @@ type writeTx struct {
 	stmtCache             *sq.StmtCache
 	ledgerEntryWriter     ledgerEntryWriter
 	ledgerWriter          ledgerWriter
-	txWriter              TransactionWriter
+	txWriter              transactionHandler
 	ledgerRetentionWindow uint32
 }
 
@@ -212,7 +212,7 @@ func (w writeTx) LedgerWriter() LedgerWriter {
 }
 
 func (w writeTx) TransactionWriter() TransactionWriter {
-	return w.txWriter
+	return &w.txWriter
 }
 
 func (w writeTx) Commit(ledgerSeq uint32) error {
@@ -221,6 +221,9 @@ func (w writeTx) Commit(ledgerSeq uint32) error {
 	}
 
 	if err := w.ledgerWriter.trimLedgers(ledgerSeq, w.ledgerRetentionWindow); err != nil {
+		return err
+	}
+	if err := w.txWriter.trimTransactions(ledgerSeq, w.ledgerRetentionWindow); err != nil {
 		return err
 	}
 
