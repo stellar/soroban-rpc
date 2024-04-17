@@ -243,7 +243,6 @@ func (i *Test) populateVersionInfo() {
 		return string(out)
 	}
 
-	config.CaptiveCoreVersionInfo = execFunction("stellar-core", "version")
 	config.Version = execFunction("git", "describe", "--tags", "--always", "--abbrev=0", "--match='v[0-9]*.[0-9]*.[0-9]*'")
 	config.CommitHash = execFunction("git", "rev-parse", "HEAD")
 	config.BuildTimestamp = execFunction("date", "+%Y-%m-%dT%H:%M:%S")
