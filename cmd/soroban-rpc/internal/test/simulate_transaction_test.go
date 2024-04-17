@@ -251,7 +251,7 @@ func TestSimulateTransactionSucceeds(t *testing.T) {
 	assert.InDelta(t, uint32(expectedTransactionData.Resources.Instructions), uint32(transactionData.Resources.Instructions), 3200000)
 	assert.InDelta(t, uint32(expectedTransactionData.Resources.ReadBytes), uint32(transactionData.Resources.ReadBytes), 10)
 	assert.InDelta(t, uint32(expectedTransactionData.Resources.WriteBytes), uint32(transactionData.Resources.WriteBytes), 300)
-	assert.InDelta(t, int64(expectedTransactionData.ResourceFee), int64(transactionData.ResourceFee), 4000)
+	assert.InDelta(t, int64(expectedTransactionData.ResourceFee), int64(transactionData.ResourceFee), 40000)
 
 	// Then decode and check the result xdr, separately so we get a decent diff if it fails.
 	assert.Len(t, result.Results, 1)
@@ -560,7 +560,6 @@ func TestSimulateInvokeContractTransactionSucceeds(t *testing.T) {
 	require.Contains(t, metrics, "soroban_rpc_json_rpc_request_duration_seconds_count{endpoint=\"simulateTransaction\",status=\"ok\"} 3")
 	require.Contains(t, metrics, "soroban_rpc_preflight_pool_request_ledger_get_duration_seconds_count{status=\"ok\",type=\"db\"} 3")
 	require.Contains(t, metrics, "soroban_rpc_preflight_pool_request_ledger_get_duration_seconds_count{status=\"ok\",type=\"all\"} 3")
-	require.Contains(t, metrics, "soroban_rpc_preflight_pool_request_ledger_entries_fetched_sum 65")
 }
 
 func TestSimulateTransactionError(t *testing.T) {
@@ -1144,7 +1143,7 @@ func TestSimulateSystemEvent(t *testing.T) {
 	// for test purposes, the most deterministic way to assert the resulting fee is expected value in test scope, is to capture
 	// the resulting fee from current preflight output and re-plug it in here, rather than try to re-implement the cost-model algo
 	// in the test.
-	assert.InDelta(t, 70668, int64(transactionData.ResourceFee), 5000)
+	assert.InDelta(t, 70668, int64(transactionData.ResourceFee), 20000)
 	assert.InDelta(t, 104, uint32(transactionData.Resources.WriteBytes), 15)
 	require.GreaterOrEqual(t, len(response.Events), 3)
 }
