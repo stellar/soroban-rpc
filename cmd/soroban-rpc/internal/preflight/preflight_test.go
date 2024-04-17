@@ -21,7 +21,7 @@ var mockContractHash = xdr.Hash{0xd, 0xe, 0xf}
 var contractCostParams = func() *xdr.ContractCostParams {
 	var result xdr.ContractCostParams
 
-	for i := 0; i < 45; i++ {
+	for i := 0; i < 23; i++ {
 		result = append(result, xdr.ContractCostParamEntry{
 			Ext:        xdr.ExtensionPoint{},
 			ConstTerm:  xdr.Int64((i + 1) * 10),
@@ -359,7 +359,8 @@ func getPreflightParameters(t testing.TB, dbConfig *preflightParametersDBConfig)
 		NetworkPassphrase: "foo",
 		LedgerEntryReadTx: ledgerEntryReadTx,
 		BucketListSize:    200,
-		ProtocolVersion:   20,
+		// TODO: test with multiple protocol versions
+		ProtocolVersion: 20,
 	}
 	return params
 }
