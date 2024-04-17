@@ -19,6 +19,7 @@ import (
 	"github.com/stellar/go/ingest/ledgerbackend"
 	supporthttp "github.com/stellar/go/support/http"
 	supportlog "github.com/stellar/go/support/log"
+	"github.com/stellar/go/support/ordered"
 	"github.com/stellar/go/support/storage"
 	"github.com/stellar/go/xdr"
 
@@ -228,11 +229,15 @@ func MustNew(cfg *config.Config) *Daemon {
 	onIngestionRetry := func(err error, dur time.Duration) {
 		logger.WithError(err).Error("could not run ingestion. Retrying")
 	}
-	maxRetentionWindow := cfg.EventLedgerRetentionWindow
-	if cfg.TransactionLedgerRetentionWindow > maxRetentionWindow {
-		maxRetentionWindow = cfg.TransactionLedgerRetentionWindow
-	} else if cfg.EventLedgerRetentionWindow == 0 && cfg.TransactionLedgerRetentionWindow > ledgerbucketwindow.DefaultEventLedgerRetentionWindow {
-		maxRetentionWindow = ledgerbucketwindow.DefaultEventLedgerRetentionWindow
+
+	// Take the larger of (event retention, tx retention) and then the smaller
+	// of (tx retention, default event retention) if event retention wasn't
+	// specified, for some reason...?
+	maxRetentionWindow := ordered.Max(cfg.EventLedgerRetentionWindow, cfg.TransactionLedgerRetentionWindow)
+	if cfg.EventLedgerRetentionWindow <= 0 {
+		maxRetentionWindow = ordered.Min(
+			maxRetentionWindow,
+			ledgerbucketwindow.DefaultEventLedgerRetentionWindow)
 	}
 	ingestService := ingest.NewService(ingest.Config{
 		Logger: logger,

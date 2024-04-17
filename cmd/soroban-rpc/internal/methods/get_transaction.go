@@ -11,7 +11,6 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
 const (
@@ -67,18 +66,10 @@ type GetTransactionRequest struct {
 	Hash string `json:"hash"`
 }
 
-type transactionGetter interface {
-	GetTransaction(
-		ctx context.Context,
-		logger *log.Entry,
-		hash xdr.Hash,
-	) (db.Transaction, bool, ledgerbucketwindow.LedgerRange)
-}
-
 func GetTransaction(
 	ctx context.Context,
 	log *log.Entry,
-	getter transactionGetter,
+	txGetter db.TransactionReader,
 	request GetTransactionRequest,
 ) (GetTransactionResponse, error) {
 	// parse hash
@@ -98,7 +89,16 @@ func GetTransaction(
 		}
 	}
 
-	tx, found, storeRange := getter.GetTransaction(ctx, log, txHash)
+	reader, err := txGetter.NewTx(ctx)
+	if err != nil {
+		return GetTransactionResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InvalidParams,
+			Message: fmt.Sprintf("db connection failed: %v", err),
+		}
+	}
+
+	defer reader.Done()
+	tx, found, storeRange := reader.GetTransaction(log, txHash)
 	response := GetTransactionResponse{
 		LatestLedger:          storeRange.LastLedger.Sequence,
 		LatestLedgerCloseTime: storeRange.LastLedger.CloseTime,
@@ -129,7 +129,7 @@ func GetTransaction(
 }
 
 // NewGetTransactionHandler returns a get transaction json rpc handler
-func NewGetTransactionHandler(logger *log.Entry, getter transactionGetter) jrpc2.Handler {
+func NewGetTransactionHandler(logger *log.Entry, getter db.TransactionReader) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context, request GetTransactionRequest) (GetTransactionResponse, error) {
 		return GetTransaction(ctx, logger.WithContext(ctx), getter, request)
 	})

@@ -184,7 +184,11 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 			maxBatchSize:            rw.maxBatchSize,
 		},
 		ledgerRetentionWindow: rw.ledgerRetentionWindow,
-		txWriter:              &transactionHandler{stmtCache: stmtCache, passphrase: rw.passphrase},
+		txWriter: &transactionHandler{
+			db:         txSession,
+			stmtCache:  stmtCache,
+			passphrase: rw.passphrase,
+		},
 	}, nil
 }
 
