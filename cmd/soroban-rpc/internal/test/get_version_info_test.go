@@ -26,4 +26,5 @@ func TestGetVersionInfoSucceeds(t *testing.T) {
 	assert.NotEmpty(t, result.BuildTimestamp)
 	assert.NotEmpty(t, result.CommitHash)
 	assert.NotEmpty(t, result.CaptiveCoreVersion)
+	assert.NotEmpty(t, result.ProtocolVersion)
 }

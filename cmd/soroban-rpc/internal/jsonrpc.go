@@ -173,7 +173,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 		{
 			methodName:           "getVersionInfo",
-			underlyingHandler:    methods.NewGetVersionInfoHandler(params.Logger, params.Daemon),
+			underlyingHandler:    methods.NewGetVersionInfoHandler(params.Logger, params.LedgerEntryReader, params.LedgerReader, params.Daemon),
 			longName:             "get_version_info",
 			queueLimit:           cfg.RequestBacklogGetVersionInfoQueueLimit,
 			requestDurationLimit: cfg.MaxGetVersionInfoExecutionDuration,
