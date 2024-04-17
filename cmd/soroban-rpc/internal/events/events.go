@@ -203,7 +203,7 @@ func (m *MemoryStore) IngestEvents(ledgerCloseMeta xdr.LedgerCloseMeta) error {
 	}
 	bucket := ledgerbucketwindow.LedgerBucket[[]event]{
 		LedgerSeq:            ledgerCloseMeta.LedgerSequence(),
-		LedgerCloseTimestamp: int64(ledgerCloseMeta.LedgerHeaderHistoryEntry().Header.ScpValue.CloseTime),
+		LedgerCloseTimestamp: ledgerCloseMeta.LedgerCloseTime(),
 		BucketContent:        events,
 	}
 	m.lock.Lock()

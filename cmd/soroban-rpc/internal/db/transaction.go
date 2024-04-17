@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"sync"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -40,8 +41,6 @@ type TransactionWriter interface {
 // read-only DB session to perform actual DB reads on.
 type TransactionReader interface {
 	NewTx(ctx context.Context) (TransactionReaderTx, error)
-
-	// temporary hack
 	GetLedgerRange(ctx context.Context) ledgerbucketwindow.LedgerRange
 }
 
@@ -54,9 +53,10 @@ type TransactionReaderTx interface {
 }
 
 type transactionHandler struct {
-	db         db.SessionInterface
-	stmtCache  *sq.StmtCache
-	passphrase string
+	db          db.SessionInterface
+	stmtCache   *sq.StmtCache
+	passphrase  string
+	ledgerRange ledgerRangeCache
 }
 
 type transactionReaderTx struct {
@@ -71,15 +71,14 @@ func NewTransactionReader(db db.SessionInterface, passphrase string) Transaction
 
 func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error {
 	start := time.Now()
+	txn.ledgerRange.Update(&lcm)
 	txCount := lcm.CountTransactions()
 	L := log.
 		WithField("ledger_seq", lcm.LedgerSequence()).
 		WithField("tx_count", txCount)
 
 	if txn.stmtCache == nil {
-		err := errors.New("TransactionWriter incorrectly initialized")
-		L.WithError(err).Errorf("stmtCache missing in transactionHandler")
-		return err
+		return errors.New("TransactionWriter incorrectly initialized without stmtCache")
 	}
 
 	if txCount == 0 {
@@ -139,13 +138,22 @@ func (txn *transactionHandler) NewTx(ctx context.Context) (TransactionReaderTx, 
 	return &transactionReaderTx{ctx: ctx, db: sesh, passphrase: txn.passphrase}, nil
 }
 
+// GetLedgerRange will either return its cached ledger range or will actually
+// fetch it from the database and update the internal cache for next time.
 func (txn *transactionHandler) GetLedgerRange(ctx context.Context) ledgerbucketwindow.LedgerRange {
+	if txn.ledgerRange.IsLoaded() {
+		return txn.ledgerRange.Read()
+	}
+
 	reader, err := txn.NewTx(ctx)
 	defer reader.Done()
 	if err != nil {
 		return ledgerbucketwindow.LedgerRange{}
 	}
-	return reader.GetLedgerRange()
+
+	lRange := reader.GetLedgerRange()
+	txn.ledgerRange.Set(lRange)
+	return lRange
 }
 
 func (txn *transactionReaderTx) Done() error {
@@ -199,11 +207,11 @@ func (txn *transactionReaderTx) GetLedgerRange() ledgerbucketwindow.LedgerRange 
 	ledgerRange = ledgerbucketwindow.LedgerRange{
 		FirstLedger: ledgerbucketwindow.LedgerInfo{
 			Sequence:  lcm1.LedgerSequence(),
-			CloseTime: int64(lcm1.LedgerHeaderHistoryEntry().Header.ScpValue.CloseTime),
+			CloseTime: lcm1.LedgerCloseTime(),
 		},
 		LastLedger: ledgerbucketwindow.LedgerInfo{
 			Sequence:  lcm2.LedgerSequence(),
-			CloseTime: int64(lcm2.LedgerHeaderHistoryEntry().Header.ScpValue.CloseTime),
+			CloseTime: lcm2.LedgerCloseTime(),
 		},
 	}
 
@@ -224,12 +232,9 @@ func (txn *transactionReaderTx) GetTransaction(log *log.Entry, hash xdr.Hash) (
 ) {
 	start := time.Now()
 	tx := Transaction{}
-	fmt.Println("0")
 	ledgerRange := txn.GetLedgerRange()
 	hexHash := hex.EncodeToString(hash[:])
-	fmt.Println("1")
 	lcm, ingestTx, err := txn.getTransactionByHash(hexHash)
-	fmt.Println("2")
 	if err != nil {
 		log.WithField("error", err).
 			WithField("txhash", hexHash).
@@ -245,7 +250,7 @@ func (txn *transactionReaderTx) GetTransaction(log *log.Entry, hash xdr.Hash) (
 	tx.Successful = ingestTx.Result.Successful()
 	tx.Ledger = ledgerbucketwindow.LedgerInfo{
 		Sequence:  lcm.LedgerSequence(),
-		CloseTime: int64(lcm.LedgerHeaderHistoryEntry().Header.ScpValue.CloseTime),
+		CloseTime: lcm.LedgerCloseTime(),
 	}
 
 	if tx.Result, err = ingestTx.Result.MarshalBinary(); err != nil {
@@ -327,4 +332,40 @@ func (txn *transactionReaderTx) getTransactionByHash(hash string) (
 
 	ledgerTx, err := reader.Read()
 	return lcm, ledgerTx, err
+}
+
+// ledgerRangeCache is a small abstraction to make it easier to store the known
+// ledger range in memory rather than fetching it from the database every time.
+type ledgerRangeCache struct {
+	sync.RWMutex
+	ledgerRange ledgerbucketwindow.LedgerRange
+}
+
+func (lr *ledgerRangeCache) IsLoaded() bool {
+	// There's no need for a reader lock because we don't care what the value is
+	// as long as it's non-zero for both.
+	return lr.ledgerRange.FirstLedger.Sequence != 0 &&
+		lr.ledgerRange.LastLedger.Sequence != 0
+}
+
+func (lr *ledgerRangeCache) Set(ledgerRange ledgerbucketwindow.LedgerRange) {
+	lr.Lock()
+	defer lr.Unlock()
+	lr.ledgerRange = ledgerRange
+}
+
+// Update preserves the condition that the upper ledger bound only increases.
+func (lr *ledgerRangeCache) Update(lcm *xdr.LedgerCloseMeta) {
+	lr.Lock()
+	defer lr.Unlock()
+	if lcm.LedgerSequence() > lr.ledgerRange.LastLedger.Sequence {
+		lr.ledgerRange.LastLedger.Sequence = lcm.LedgerSequence()
+		lr.ledgerRange.LastLedger.CloseTime = lcm.LedgerCloseTime()
+	}
+}
+
+func (lr *ledgerRangeCache) Read() ledgerbucketwindow.LedgerRange {
+	lr.RLock()
+	defer lr.RUnlock()
+	return lr.ledgerRange
 }
