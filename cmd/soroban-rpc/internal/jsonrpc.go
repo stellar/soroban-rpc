@@ -46,7 +46,7 @@ func (h Handler) Close() {
 
 type HandlerParams struct {
 	EventStore        *events.MemoryStore
-	TransactionGetter *db.TransactionHandler
+	TransactionReader db.TransactionReader
 	LedgerEntryReader db.LedgerEntryReader
 	LedgerReader      db.LedgerReader
 	Logger            *log.Entry
@@ -139,7 +139,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 	var retentionWindow = cfg.EventLedgerRetentionWindow
 	if cfg.TransactionLedgerRetentionWindow > cfg.EventLedgerRetentionWindow {
 		retentionWindow = cfg.TransactionLedgerRetentionWindow
-		ledgerRangeGetter = params.TransactionGetter
+		ledgerRangeGetter = params.TransactionReader
 	}
 
 	handlers := []struct {
@@ -193,7 +193,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 		{
 			methodName:           "getTransaction",
-			underlyingHandler:    methods.NewGetTransactionHandler(params.TransactionGetter),
+			underlyingHandler:    methods.NewGetTransactionHandler(params.Logger, params.TransactionReader),
 			longName:             "get_transaction",
 			queueLimit:           cfg.RequestBacklogGetTransactionQueueLimit,
 			requestDurationLimit: cfg.MaxGetTransactionExecutionDuration,
@@ -201,7 +201,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		{
 			methodName: "sendTransaction",
 			underlyingHandler: methods.NewSendTransactionHandler(
-				params.Daemon, params.Logger, params.TransactionGetter, cfg.NetworkPassphrase,
+				params.Daemon, params.Logger, params.TransactionReader, cfg.NetworkPassphrase,
 			),
 			longName:             "send_transaction",
 			queueLimit:           cfg.RequestBacklogSendTransactionQueueLimit,

@@ -34,7 +34,7 @@ type ReadWriter interface {
 }
 
 type WriteTx interface {
-	TransactionHandler() *TransactionHandler
+	TransactionWriter() TransactionWriter
 	LedgerEntryWriter() LedgerEntryWriter
 	LedgerWriter() LedgerWriter
 
@@ -165,8 +165,6 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 		return nil, err
 	}
 	stmtCache := sq.NewStmtCache(txSession.GetTx())
-	txWriter := NewTransactionHandler(txSession, rw.passphrase)
-	txWriter.stmtCache = stmtCache
 
 	db := rw.db
 	return writeTx{
@@ -186,7 +184,7 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 			maxBatchSize:            rw.maxBatchSize,
 		},
 		ledgerRetentionWindow: rw.ledgerRetentionWindow,
-		txWriter:              txWriter,
+		txWriter:              &transactionHandler{stmtCache: stmtCache, passphrase: rw.passphrase},
 	}, nil
 }
 
@@ -197,9 +195,8 @@ type writeTx struct {
 	stmtCache             *sq.StmtCache
 	ledgerEntryWriter     ledgerEntryWriter
 	ledgerWriter          ledgerWriter
+	txWriter              TransactionWriter
 	ledgerRetentionWindow uint32
-
-	txWriter *TransactionHandler
 }
 
 func (w writeTx) LedgerEntryWriter() LedgerEntryWriter {
@@ -210,7 +207,7 @@ func (w writeTx) LedgerWriter() LedgerWriter {
 	return w.ledgerWriter
 }
 
-func (w writeTx) TransactionHandler() *TransactionHandler {
+func (w writeTx) TransactionWriter() TransactionWriter {
 	return w.txWriter
 }
 

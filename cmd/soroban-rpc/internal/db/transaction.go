@@ -30,17 +30,30 @@ type Transaction struct {
 	Ledger           ledgerbucketwindow.LedgerInfo
 }
 
-type TransactionHandler struct {
+type TransactionWriter interface {
+	InsertTransactions(lcm xdr.LedgerCloseMeta) error
+}
+
+type TransactionReader interface {
+	GetTransactionByHash(ctx context.Context, hash string) (
+		xdr.LedgerCloseMeta, ingest.LedgerTransaction, error)
+	GetTransaction(ctx context.Context, log *log.Entry, hash xdr.Hash) (
+		Transaction, bool, ledgerbucketwindow.LedgerRange)
+	GetLedgerRange(ctx context.Context) ledgerbucketwindow.LedgerRange
+}
+
+type transactionHandler struct {
 	stmtCache  *sq.StmtCache
 	db         db.SessionInterface
 	passphrase string
 }
 
-func NewTransactionHandler(db db.SessionInterface, passphrase string) *TransactionHandler {
-	return &TransactionHandler{db: db, passphrase: passphrase}
+func NewTransactionReader(db db.SessionInterface, passphrase string) TransactionReader {
+	return &transactionHandler{db: db, passphrase: passphrase}
 }
 
-func (txn *TransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error {
+func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error {
+	start := time.Now()
 	txCount := lcm.CountTransactions()
 	L := log.
 		WithField("ledger_seq", lcm.LedgerSequence()).
@@ -73,6 +86,7 @@ func (txn *TransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 		transactions[tx.Result.TransactionHash] = tx
 	}
 
+	mid := time.Now()
 	L.WithField("passphrase", txn.passphrase).
 		Debugf("Ingesting %d transaction lookups from ledger", len(transactions))
 
@@ -86,12 +100,15 @@ func (txn *TransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 
 	_, err = query.RunWith(txn.stmtCache).Exec()
 
-	L.WithError(err).Infof("Ingested %d transaction lookups", len(transactions))
+	L.WithError(err).
+		WithField("total_duration", time.Since(start)).
+		WithField("sql_duration", time.Since(mid)).
+		Infof("Ingested %d transaction lookups", len(transactions))
 	return err
 }
 
 // TODO: Make this return an error (need to fix in interface)
-func (txn *TransactionHandler) GetLedgerRange(ctx context.Context) ledgerbucketwindow.LedgerRange {
+func (txn *transactionHandler) GetLedgerRange(ctx context.Context) ledgerbucketwindow.LedgerRange {
 	log.Debugf("Retrieving ledger range from database")
 
 	ledgerRange := ledgerbucketwindow.LedgerRange{
@@ -171,7 +188,7 @@ func (txn *TransactionHandler) GetLedgerRange(ctx context.Context) ledgerbucketw
 	return ledgerRange
 }
 
-func (txn *TransactionHandler) GetTransactionByHash(ctx context.Context, hash string) (
+func (txn *transactionHandler) GetTransactionByHash(ctx context.Context, hash string) (
 	xdr.LedgerCloseMeta, ingest.LedgerTransaction, error,
 ) {
 	// input sanitization
@@ -226,7 +243,7 @@ func (txn *TransactionHandler) GetTransactionByHash(ctx context.Context, hash st
 //
 // Errors (i.e. the bool being false) should only occur if the XDR is out of
 // date or is otherwise incorrect/corrupted or the tx isn't in the DB.
-func (txn *TransactionHandler) GetTransaction(ctx context.Context, hash xdr.Hash) (
+func (txn *transactionHandler) GetTransaction(ctx context.Context, log *log.Entry, hash xdr.Hash) (
 	Transaction, bool, ledgerbucketwindow.LedgerRange,
 ) {
 	start := time.Now()
@@ -253,15 +270,15 @@ func (txn *TransactionHandler) GetTransaction(ctx context.Context, hash xdr.Hash
 	}
 
 	if tx.Result, err = ingestTx.Result.MarshalBinary(); err != nil {
-		log.WithField("error", err).Errorf("Failed to encode transaction Result")
+		log.WithError(err).Errorf("Failed to encode transaction Result")
 		return tx, false, ledgerRange
 	}
 	if tx.Meta, err = ingestTx.UnsafeMeta.MarshalBinary(); err != nil {
-		log.WithField("error", err).Errorf("Failed to encode transaction UnsafeMeta")
+		log.WithError(err).Errorf("Failed to encode transaction UnsafeMeta")
 		return tx, false, ledgerRange
 	}
 	if tx.Envelope, err = ingestTx.Envelope.MarshalBinary(); err != nil {
-		log.WithField("error", err).Errorf("Failed to encode transaction Envelope")
+		log.WithError(err).Errorf("Failed to encode transaction Envelope")
 		return tx, false, ledgerRange
 	}
 	if events, diagErr := ingestTx.GetDiagnosticEvents(); diagErr == nil {
@@ -269,14 +286,14 @@ func (txn *TransactionHandler) GetTransaction(ctx context.Context, hash xdr.Hash
 		for i, event := range events {
 			bytes, ierr := event.MarshalBinary()
 			if ierr != nil {
-				log.WithField("error", ierr).
+				log.WithError(ierr).
 					Errorf("Failed to encode transaction DiagnosticEvent %d", i)
 				return tx, false, ledgerRange
 			}
 			tx.Events = append(tx.Events, bytes)
 		}
 	} else {
-		log.WithField("error", diagErr).
+		log.WithError(diagErr).
 			Errorf("Failed to encode transaction DiagnosticEvents")
 		return tx, false, ledgerRange
 	}

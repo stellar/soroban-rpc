@@ -310,7 +310,7 @@ func (s *Service) ingestLedgerCloseMeta(tx db.WriteTx, ledgerCloseMeta xdr.Ledge
 		Observe(time.Since(startTime).Seconds())
 
 	startTime = time.Now()
-	if err := tx.TransactionHandler().InsertTransactions(ledgerCloseMeta); err != nil {
+	if err := tx.TransactionWriter().InsertTransactions(ledgerCloseMeta); err != nil {
 		return err
 	}
 	s.metrics.ingestionDurationMetric.
