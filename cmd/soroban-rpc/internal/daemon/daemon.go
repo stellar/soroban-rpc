@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"github.com/cenkalti/backoff/v4"
 	"net/http"
 	"net/http/pprof" //nolint:gosec
 	"os"
@@ -183,6 +184,24 @@ func MustNew(cfg *config.Config) *Daemon {
 			URL:  cfg.StellarCoreURL,
 			HTTP: &http.Client{Timeout: cfg.CoreRequestTimeout},
 		}, metricsRegistry),
+	}
+
+	fetchCaptiveCoreVersion := func() error {
+		coreClient := daemon.CoreClient()
+		info, err := coreClient.Info(context.Background())
+		if err != nil {
+			return err
+		}
+		config.CaptiveCoreVersion = info.Info.Build
+		return nil
+	}
+
+	backoffStrategy := backoff.NewExponentialBackOff()
+	backoffStrategy.MaxElapsedTime = 4 * time.Second
+	err = backoff.Retry(fetchCaptiveCoreVersion, backoffStrategy)
+	if err != nil {
+		logger.WithError(err).
+			Info("error occurred while calling Info endpoint of core")
 	}
 
 	eventStore := events.NewMemoryStore(

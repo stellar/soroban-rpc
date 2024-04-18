@@ -12,4 +12,7 @@ var (
 
 	// Branch is the git branch from which the soroban-rpc was built, injected during build time.
 	Branch = ""
+
+	// CaptiveCoreVersion is the Build value from /Info endpoint of core, injected during daemon.run()
+	CaptiveCoreVersion = ""
 )
