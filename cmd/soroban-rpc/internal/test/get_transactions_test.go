@@ -14,6 +14,11 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 )
 
+// buildTxParams constructs the parameters necessary for creating a transaction from the given account.
+//
+// account - the source account from which the transaction will originate. This account provides the starting sequence number.
+//
+// Returns a fully populated TransactionParams structure.
 func buildTxParams(account txnbuild.SimpleAccount) txnbuild.TransactionParams {
 	params := txnbuild.TransactionParams{
 		SourceAccount:        &account,
@@ -27,6 +32,15 @@ func buildTxParams(account txnbuild.SimpleAccount) txnbuild.TransactionParams {
 	return params
 }
 
+// sendTransaction submits a single transaction to the Stellar network via the given JSON-RPC client and returns
+// the transaction hash.
+//
+// t - the testing framework handle for assertions.
+// client - the JSON-RPC client used to send the transaction.
+// kp - the Stellar keypair used to sign the transaction.
+// transaction - the Stellar transaction to be sent.
+//
+// Returns the expected transaction hash as a hex string and any error encountered during the transaction submission.
 func sendTransaction(t *testing.T, client *jrpc2.Client, kp *keypair.Full, transaction *txnbuild.Transaction) (string, error) {
 	tx, err := transaction.Sign(StandaloneNetworkPassphrase, kp)
 	assert.NoError(t, err)
@@ -42,6 +56,14 @@ func sendTransaction(t *testing.T, client *jrpc2.Client, kp *keypair.Full, trans
 	return expectedHashHex, client.CallResult(context.Background(), "sendTransaction", request, &result)
 }
 
+// sendTransactions sends multiple transactions for testing purposes.
+// It sends a total of three transactions, each from a new account sequence, and gathers the ledger
+// numbers where these transactions were recorded.
+//
+// t - the testing framework handle for assertions.
+// client - the JSON-RPC client used to send the transactions.
+//
+// Returns a slice of ledger numbers corresponding to where each transaction was recorded.
 func sendTransactions(t *testing.T, client *jrpc2.Client) []uint32 {
 	kp := keypair.Root(StandaloneNetworkPassphrase)
 	address := kp.Address()

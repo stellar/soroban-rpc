@@ -19,7 +19,7 @@ const (
 	LatestLedgerCloseTimestamp int64  = 28419025
 )
 
-// createTestLedger Create a ledger with 2 transactions
+// createTestLedger Creates a test ledger with 2 transactions
 func createTestLedger(sequence uint32) xdr.LedgerCloseMeta {
 	meta := txMeta(sequence, true)
 	meta.V1.TxProcessing = append(meta.V1.TxProcessing, xdr.TransactionResultMeta{
@@ -36,6 +36,7 @@ func createTestLedger(sequence uint32) xdr.LedgerCloseMeta {
 	return meta
 }
 
+// getMockReaders build mock readers for interfaces - LedgerReader, LedgerEntryReader.
 func getMockReaders(ctrl *gomock.Controller, ledgerFound bool, err error) (*util.MockLedgerEntryReader, *util.MockLedgerReader) {
 	mockLedgerReader := util.NewMockLedgerReader(ctrl)
 	mockLedgerReader.EXPECT().

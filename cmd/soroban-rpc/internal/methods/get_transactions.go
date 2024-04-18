@@ -81,7 +81,7 @@ type transactionsRPCHandler struct {
 }
 
 // getTransactionsByLedgerSequence fetches transactions between the start and end ledgers, inclusive of both.
-// The number of ledgers returned are tuned using the pagination options - cursor and limit.
+// The number of ledgers returned can be tuned using the pagination options - cursor and limit.
 func (h *transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Context, request GetTransactionsRequest) (GetTransactionsResponse, error) {
 	err := request.isValid(h.maxLimit)
 	if err != nil {

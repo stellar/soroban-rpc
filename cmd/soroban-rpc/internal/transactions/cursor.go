@@ -11,13 +11,13 @@ import (
 )
 
 type Cursor struct {
-	// LedgerSequence is the sequence of the ledger which emitted the event.
+	// LedgerSequence is the sequence of the ledger.
 	LedgerSequence uint32
-	// TxIdx is the index of the transaction within the ledger which emitted the event.
+	// TxIdx is the index of the transaction within.
 	TxIdx uint32
-	// Op is the index of the operation within the transaction which emitted the event.
-	// Note: Currently, there is no use for it (events are transaction-wide and not operation-specific)
-	//       but we keep it in order to make the API future-proof.
+	// Op is the index of the operation within the transaction.
+	// Note: Currently, there is no use for it,
+	// but we keep it in order to make the API future-proof.
 	OpIdx uint32
 }
 
