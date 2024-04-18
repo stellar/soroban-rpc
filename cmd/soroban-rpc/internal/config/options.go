@@ -251,13 +251,13 @@ func (cfg *Config) options() ConfigOptions {
 			Name:         "max-transactions-limit",
 			Usage:        "Maximum amount of transactions allowed in a single getTransactions response",
 			ConfigKey:    &cfg.MaxTransactionsLimit,
-			DefaultValue: uint(10000),
+			DefaultValue: uint(200),
 		},
 		{
 			Name:         "default-transactions-limit",
 			Usage:        "Default cap on the amount of transactions included in a single getTransactions response",
 			ConfigKey:    &cfg.DefaultTransactionsLimit,
-			DefaultValue: uint(100),
+			DefaultValue: uint(50),
 			Validate: func(co *ConfigOption) error {
 				if cfg.DefaultTransactionsLimit > cfg.MaxTransactionsLimit {
 					return fmt.Errorf(
