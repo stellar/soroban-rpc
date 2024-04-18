@@ -176,9 +176,10 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 			_, err := db.ExecRaw(ctx, "PRAGMA wal_checkpoint(TRUNCATE)")
 			return err
 		},
-		tx:           txSession,
-		stmtCache:    stmtCache,
-		ledgerWriter: ledgerWriter{stmtCache: stmtCache},
+		tx:                    txSession,
+		stmtCache:             stmtCache,
+		ledgerRetentionWindow: rw.ledgerRetentionWindow,
+		ledgerWriter:          ledgerWriter{stmtCache: stmtCache},
 		ledgerEntryWriter: ledgerEntryWriter{
 			stmtCache:               stmtCache,
 			buffer:                  xdr.NewEncodingBuffer(),
@@ -186,7 +187,6 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 			ledgerEntryCacheWriteTx: db.cache.ledgerEntries.newWriteTx(rw.maxBatchSize),
 			maxBatchSize:            rw.maxBatchSize,
 		},
-		ledgerRetentionWindow: rw.ledgerRetentionWindow,
 		txWriter: transactionHandler{
 			db:         txSession,
 			stmtCache:  stmtCache,
@@ -230,8 +230,10 @@ func (w writeTx) Commit(ledgerSeq uint32) error {
 		return err
 	}
 
-	_, err := sq.Replace(metaTableName).RunWith(w.stmtCache).
-		Values(latestLedgerSequenceMetaKey, fmt.Sprintf("%d", ledgerSeq)).Exec()
+	_, err := sq.Replace(metaTableName).
+		Values(latestLedgerSequenceMetaKey, fmt.Sprintf("%d", ledgerSeq)).
+		RunWith(w.stmtCache).
+		Exec()
 	if err != nil {
 		return err
 	}

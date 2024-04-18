@@ -212,8 +212,8 @@ func (txn *transactionReaderTx) GetLedgerRange() ledgerbucketwindow.LedgerRange 
 	}
 	// Best effort: if the second fails later, we at least set the first.
 	ledgerRange.FirstLedger.Sequence = lcm1.LedgerSequence()
-	ledgerRange.LastLedger.Sequence = lcm1.LedgerSequence()
 	ledgerRange.FirstLedger.CloseTime = lcm1.LedgerCloseTime()
+	ledgerRange.LastLedger.Sequence = lcm1.LedgerSequence()
 	ledgerRange.LastLedger.CloseTime = lcm1.LedgerCloseTime()
 
 	oldestQ := sq.Select("meta").
@@ -231,8 +231,8 @@ func (txn *transactionReaderTx) GetLedgerRange() ledgerbucketwindow.LedgerRange 
 		log.Errorf("Error when unmarshaling oldest ledger: %v", err)
 		return ledgerRange
 	}
+	ledgerRange.FirstLedger.Sequence = lcm2.LedgerSequence()
 	ledgerRange.FirstLedger.CloseTime = lcm2.LedgerCloseTime()
-	ledgerRange.LastLedger.CloseTime = lcm2.LedgerCloseTime()
 
 	log.Debugf("Database ledger range: [%d, %d]",
 		ledgerRange.FirstLedger.Sequence, ledgerRange.LastLedger.Sequence)
