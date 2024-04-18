@@ -10,6 +10,7 @@ require (
 	github.com/creachadair/jrpc2 v1.2.0
 	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/go-git/go-git/v5 v5.9.0
+	github.com/golang/mock v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/pelletier/go-toml v1.9.5
 	github.com/prometheus/client_golang v1.17.0
@@ -18,7 +19,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/pflag v1.0.5
-	github.com/stellar/go v0.0.0-20240416162339-73233da7c30e
+	github.com/stellar/go v0.0.0-20240417192451-c63ad05d3e3b
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/mod v0.13.0
 )
@@ -37,7 +38,6 @@ require (
 	github.com/go-logr/logr v1.3.0 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/s2a-go v0.1.7 // indirect
 	github.com/google/uuid v1.5.0 // indirect

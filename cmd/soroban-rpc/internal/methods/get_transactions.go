@@ -223,7 +223,7 @@ func (h *transactionsRPCHandler) getLatestLedgerDetails(ctx context.Context) (se
 		return 0, 0, err
 	}
 
-	return int64(latestSequence), int64(latestLedger.LedgerHeaderHistoryEntry().Header.ScpValue.CloseTime), nil
+	return int64(latestSequence), latestLedger.LedgerCloseTime(), nil
 }
 
 func NewGetTransactionsHandler(logger *log.Entry, ledgerReader db.LedgerReader, ledgerEntryReader db.LedgerEntryReader, maxLimit, defaultLimit uint, networkPassphrase string) jrpc2.Handler {
