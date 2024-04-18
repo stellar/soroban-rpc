@@ -3,6 +3,7 @@ package methods
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
@@ -138,8 +139,13 @@ LedgerLoop:
 		}
 		err = reader.Seek(startTxIdx)
 		if err != nil {
-			// Seek returns EOF so we can move onto next ledger
-			continue
+			if err == io.EOF {
+				continue
+			}
+			return GetTransactionsResponse{}, &jrpc2.Error{
+				Code:    jrpc2.InvalidParams,
+				Message: err.Error(),
+			}
 		}
 
 		// Decode transaction info from ledger meta
