@@ -65,10 +65,10 @@ type TransactionInfo struct {
 
 // GetTransactionsResponse encapsulates the response structure for getTransactions queries.
 type GetTransactionsResponse struct {
-	Transactions               []TransactionInfo              `json:"transactions"`
-	LatestLedger               int64                          `json:"latestLedger"`
-	LatestLedgerCloseTimestamp int64                          `json:"latestLedgerCloseTimestamp"`
-	Pagination                 *TransactionsPaginationOptions `json:"pagination"`
+	Transactions               []TransactionInfo    `json:"transactions"`
+	LatestLedger               int64                `json:"latestLedger"`
+	LatestLedgerCloseTimestamp int64                `json:"latestLedgerCloseTimestamp"`
+	Cursor                     *transactions.Cursor `json:"cursor"`
 }
 
 type transactionsRPCHandler struct {
@@ -202,10 +202,7 @@ LedgerLoop:
 		Transactions:               txns,
 		LatestLedger:               latestLedgerSequence,
 		LatestLedgerCloseTimestamp: latestLedgerCloseTime,
-		Pagination: &TransactionsPaginationOptions{
-			Cursor: &cursor,
-			Limit:  limit,
-		},
+		Cursor:                     &cursor,
 	}, nil
 
 }

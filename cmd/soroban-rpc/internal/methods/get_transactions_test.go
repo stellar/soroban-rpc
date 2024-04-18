@@ -84,9 +84,8 @@ func TestGetTransactions_DefaultLimit(t *testing.T) {
 	assert.Equal(t, response.LatestLedgerCloseTimestamp, LatestLedgerCloseTimestamp)
 
 	// assert pagination
-	assert.Equal(t, int(response.Pagination.Limit), 10)
 	cursor := transactions.NewCursor(102, 1, 0)
-	assert.Equal(t, response.Pagination.Cursor, &cursor)
+	assert.Equal(t, response.Cursor, &cursor)
 
 	// assert transactions result
 	assert.Equal(t, len(response.Transactions), 4)
@@ -122,9 +121,8 @@ func TestGetTransactions_CustomLimit(t *testing.T) {
 	assert.Equal(t, response.LatestLedgerCloseTimestamp, LatestLedgerCloseTimestamp)
 
 	// assert pagination
-	assert.Equal(t, int(response.Pagination.Limit), 2)
 	cursor := transactions.NewCursor(101, 1, 0)
-	assert.Equal(t, response.Pagination.Cursor, &cursor)
+	assert.Equal(t, response.Cursor, &cursor)
 
 	// assert transactions result
 	assert.Equal(t, len(response.Transactions), 2)
@@ -167,9 +165,8 @@ func TestGetTransactions_CustomLimitAndCursor(t *testing.T) {
 	assert.Equal(t, response.LatestLedgerCloseTimestamp, LatestLedgerCloseTimestamp)
 
 	// assert pagination
-	assert.Equal(t, int(response.Pagination.Limit), 2)
 	cursor := transactions.NewCursor(102, 0, 0)
-	assert.Equal(t, response.Pagination.Cursor, &cursor)
+	assert.Equal(t, response.Cursor, &cursor)
 
 	// assert transactions result
 	assert.Equal(t, len(response.Transactions), 2)

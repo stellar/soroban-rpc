@@ -133,7 +133,7 @@ func TestGetTransactions(t *testing.T) {
 	assert.Equal(t, result.Transactions[0].LedgerSequence, ledgers[0])
 
 	// Get transactions using previous result's cursor
-	cursor := result.Pagination.Cursor
+	cursor := result.Cursor
 	request = methods.GetTransactionsRequest{
 		EndLedger: ledgers[2],
 		Pagination: &methods.TransactionsPaginationOptions{
@@ -146,5 +146,4 @@ func TestGetTransactions(t *testing.T) {
 	assert.Equal(t, len(result.Transactions), 2)
 	assert.Equal(t, result.Transactions[0].LedgerSequence, ledgers[1])
 	assert.Equal(t, result.Transactions[1].LedgerSequence, ledgers[2])
-
 }
