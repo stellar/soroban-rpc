@@ -155,6 +155,10 @@ LedgerLoop:
 
 			tx, err := reader.Read()
 			if err != nil {
+				if err == io.EOF {
+					// No more transactions to read. Start from next ledger
+					break
+				}
 				return GetTransactionsResponse{}, &jrpc2.Error{
 					Code:    jrpc2.InvalidParams,
 					Message: err.Error(),
