@@ -179,7 +179,8 @@ func getLedgerInfo(params PreflightParameters) (C.ledger_info_t, error) {
 		protocol_version:   C.uint32_t(params.ProtocolVersion),
 		timestamp:          C.uint64_t(time.Now().Unix()),
 		// Current base reserve is 0.5XLM (in stroops)
-		base_reserve: 5_000_000,
+		base_reserve:     5_000_000,
+		bucket_list_size: C.uint64_t(params.BucketListSize),
 	}
 	return li, nil
 }
