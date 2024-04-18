@@ -1655,7 +1655,8 @@ dependencies = [
 [[package]]
 name = "soroban-ledger-snapshot"
 version = "21.0.0"
-source = "git+https://github.com/stellar/rs-soroban-sdk?rev=c30bc769e379bef9b94a3ceb464aa78c1185eeb3#c30bc769e379bef9b94a3ceb464aa78c1185eeb3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8aae22ae3e2cfe1047a0305f7196b9233f8edb03b562713617c48485eebd9d8d"
 dependencies = [
  "serde",
  "serde_json",
@@ -1668,7 +1669,8 @@ dependencies = [
 [[package]]
 name = "soroban-sdk"
 version = "21.0.0"
-source = "git+https://github.com/stellar/rs-soroban-sdk?rev=c30bc769e379bef9b94a3ceb464aa78c1185eeb3#c30bc769e379bef9b94a3ceb464aa78c1185eeb3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1398500f1a4f9df3bdb4782c278c8339ff7218a336754d918d0e2a396fdbb28c"
 dependencies = [
  "bytes-lit",
  "rand",
@@ -1684,7 +1686,8 @@ dependencies = [
 [[package]]
 name = "soroban-sdk-macros"
 version = "21.0.0"
-source = "git+https://github.com/stellar/rs-soroban-sdk?rev=c30bc769e379bef9b94a3ceb464aa78c1185eeb3#c30bc769e379bef9b94a3ceb464aa78c1185eeb3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9997fdf17cfe67beece3d26da5f4742c7a2fb7c0e6e7cf946f256aea8e39e6d4"
 dependencies = [
  "crate-git-revision",
  "darling",
@@ -1716,7 +1719,8 @@ dependencies = [
 [[package]]
 name = "soroban-spec"
 version = "21.0.0"
-source = "git+https://github.com/stellar/rs-soroban-sdk?rev=c30bc769e379bef9b94a3ceb464aa78c1185eeb3#c30bc769e379bef9b94a3ceb464aa78c1185eeb3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "89764f150449f4a20e113b81b9b08462c9bce0cefaf38d6cd485f4ea4778563e"
 dependencies = [
  "base64 0.13.1",
  "stellar-xdr",
@@ -1727,7 +1731,8 @@ dependencies = [
 [[package]]
 name = "soroban-spec-rust"
 version = "21.0.0"
-source = "git+https://github.com/stellar/rs-soroban-sdk?rev=c30bc769e379bef9b94a3ceb464aa78c1185eeb3#c30bc769e379bef9b94a3ceb464aa78c1185eeb3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c4cbe0082ca3fa45816f000fd412fa23ab8a86368cc24fec9914d675053d0db"
 dependencies = [
  "prettyplease",
  "proc-macro2",
