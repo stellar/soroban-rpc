@@ -196,7 +196,7 @@ func TestGetTransactions_LedgerNotFound(t *testing.T) {
 	}
 
 	response, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
-	assert.Equal(t, err.Error(), "[-32602] ledger close meta not found")
+	assert.Equal(t, err.Error(), "[-32602] ledger close meta not found: 1")
 	assert.Nil(t, response.Transactions)
 }
 

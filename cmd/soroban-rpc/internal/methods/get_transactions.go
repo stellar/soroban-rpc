@@ -106,7 +106,7 @@ LedgerLoop:
 		ledger, found, err := h.ledgerReader.GetLedger(ctx, ledgerSeq)
 		if (err != nil) || (!found) {
 			if err == nil {
-				err = errors.New("ledger close meta not found")
+				err = errors.Errorf("ledger close meta not found: %d", ledgerSeq)
 			}
 			return GetTransactionsResponse{}, &jrpc2.Error{
 				Code:    jrpc2.InvalidParams,
@@ -218,7 +218,7 @@ func (h *transactionsRPCHandler) getLatestLedgerDetails(ctx context.Context) (se
 	latestLedger, found, err := h.ledgerReader.GetLedger(ctx, latestSequence)
 	if (err != nil) || (!found) {
 		if err == nil {
-			err = errors.New("ledger close meta not found")
+			err = errors.Errorf("ledger close meta not found: %d", latestSequence)
 		}
 		return 0, 0, err
 	}
