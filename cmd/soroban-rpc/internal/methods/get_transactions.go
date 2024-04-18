@@ -14,17 +14,21 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 )
 
+// TransactionsPaginationOptions defines the available options for paginating through transactions.
 type TransactionsPaginationOptions struct {
 	Cursor *transactions.Cursor `json:"cursor,omitempty"`
 	Limit  uint                 `json:"limit,omitempty"`
 }
 
+// GetTransactionsRequest represents the request parameters for fetching transactions within a range of ledgers.
 type GetTransactionsRequest struct {
 	StartLedger uint32                         `json:"startLedger"`
 	EndLedger   uint32                         `json:"endLedger"`
 	Pagination  *TransactionsPaginationOptions `json:"pagination,omitempty"`
 }
 
+// isValid checks the validity of the request parameters.
+// It returns an error if any parameter is out of the expected range or combination.
 func (req *GetTransactionsRequest) isValid(maxLimit uint) error {
 	// Validate the start and end ledger sequence
 	if req.StartLedger < 0 {
@@ -47,6 +51,7 @@ func (req *GetTransactionsRequest) isValid(maxLimit uint) error {
 	return nil
 }
 
+// TransactionInfo represents the decoded transaction information from the ledger close meta.
 type TransactionInfo struct {
 	Result           []byte `json:"result"`
 	Meta             []byte `json:"meta"`
@@ -57,6 +62,7 @@ type TransactionInfo struct {
 	LedgerSequence   uint   `json:"ledgerSequence"`
 }
 
+// GetTransactionsResponse encapsulates the response structure for getTransactions queries.
 type GetTransactionsResponse struct {
 	Transactions               []TransactionInfo              `json:"transactions"`
 	LatestLedger               int64                          `json:"latestLedger"`
@@ -73,6 +79,8 @@ type transactionsRPCHandler struct {
 	networkPassphrase string
 }
 
+// getTransactionsByLedgerSequence fetches transactions between the start and end ledgers, inclusive of both.
+// The number of ledgers returned are tuned using the pagination options - cursor and limit.
 func (h *transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Context, request GetTransactionsRequest) (GetTransactionsResponse, error) {
 	err := request.isValid(h.maxLimit)
 	if err != nil {
@@ -192,6 +200,7 @@ LedgerLoop:
 
 }
 
+// getTransactionDetails fetches XDR for the following transaction details - result, meta and envelope.
 func (h *transactionsRPCHandler) getTransactionDetails(tx ingest.LedgerTransaction) ([]byte, []byte, []byte, error) {
 	txResult, err := tx.Result.Result.MarshalBinary()
 	if err != nil {
@@ -209,6 +218,7 @@ func (h *transactionsRPCHandler) getTransactionDetails(tx ingest.LedgerTransacti
 	return txResult, txMeta, txEnvelope, nil
 }
 
+// getLatestLedgerDetails fetches the latest ledger sequence and close time.
 func (h *transactionsRPCHandler) getLatestLedgerDetails(ctx context.Context) (sequence int64, ledgerCloseTime int64, err error) {
 	latestSequence, err := h.ledgerEntryReader.GetLatestLedgerSequence(ctx)
 	if err != nil {
