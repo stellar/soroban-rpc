@@ -174,8 +174,7 @@ var mockLedgerEntriesWithoutTTLs = []xdr.LedgerEntry{
 		Data: xdr.LedgerEntryData{
 			Type: xdr.LedgerEntryTypeConfigSetting,
 			ConfigSetting: &xdr.ConfigSettingEntry{
-				ConfigSettingId: xdr.ConfigSettingIdConfigSettingContractCostParamsCpuInstructions,
-				// Obtained with TestGetLedgerEntryConfigSettings
+				ConfigSettingId:            xdr.ConfigSettingIdConfigSettingContractCostParamsCpuInstructions,
 				ContractCostParamsCpuInsns: contractCostParams,
 			},
 		},
@@ -185,8 +184,7 @@ var mockLedgerEntriesWithoutTTLs = []xdr.LedgerEntry{
 		Data: xdr.LedgerEntryData{
 			Type: xdr.LedgerEntryTypeConfigSetting,
 			ConfigSetting: &xdr.ConfigSettingEntry{
-				ConfigSettingId: xdr.ConfigSettingIdConfigSettingContractCostParamsMemoryBytes,
-				// Obtained with TestGetLedgerEntryConfigSettings
+				ConfigSettingId:            xdr.ConfigSettingIdConfigSettingContractCostParamsMemoryBytes,
 				ContractCostParamsMemBytes: contractCostParams,
 			},
 		},
@@ -362,7 +360,8 @@ func getPreflightParameters(t testing.TB, dbConfig *preflightParametersDBConfig)
 		NetworkPassphrase: "foo",
 		LedgerEntryReadTx: ledgerEntryReadTx,
 		BucketListSize:    200,
-		ProtocolVersion:   20,
+		// TODO: test with multiple protocol versions
+		ProtocolVersion: 20,
 	}
 	return params
 }

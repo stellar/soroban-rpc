@@ -35,6 +35,7 @@ pub struct CLedgerInfo {
     pub timestamp: u64,
     pub network_passphrase: *const libc::c_char,
     pub base_reserve: u32,
+    pub bucket_list_size: u64,
 }
 
 fn fill_ledger_info(c_ledger_info: CLedgerInfo, network_config: &NetworkConfig) -> LedgerInfo {
@@ -244,7 +245,8 @@ fn preflight_invoke_hf_op_or_maybe_panic(
     let source_account =
         AccountId::from_xdr(from_c_xdr(source_account), DEFAULT_XDR_RW_LIMITS).unwrap();
     let go_storage = Rc::new(GoLedgerStorage::new(handle));
-    let network_config = NetworkConfig::load_from_snapshot(go_storage.as_ref())?;
+    let network_config =
+        NetworkConfig::load_from_snapshot(go_storage.as_ref(), c_ledger_info.bucket_list_size)?;
     let ledger_info = fill_ledger_info(c_ledger_info, &network_config);
     let auto_restore_snapshot = Rc::new(AutoRestoringSnapshotSource::new(
         go_storage.clone(),
@@ -314,7 +316,8 @@ fn preflight_footprint_ttl_op_or_maybe_panic(
     let op_body = OperationBody::from_xdr(from_c_xdr(op_body), DEFAULT_XDR_RW_LIMITS)?;
     let footprint = LedgerFootprint::from_xdr(from_c_xdr(footprint), DEFAULT_XDR_RW_LIMITS)?;
     let go_storage = Rc::new(GoLedgerStorage::new(handle));
-    let network_config = NetworkConfig::load_from_snapshot(go_storage.as_ref())?;
+    let network_config =
+        NetworkConfig::load_from_snapshot(go_storage.as_ref(), c_ledger_info.bucket_list_size)?;
     let ledger_info = fill_ledger_info(c_ledger_info, &network_config);
     // TODO: It would make for a better UX if the user passed only the neccesary fields for every operation.
     // That would remove a possibility of providing bad operation body, or a possibility of filling wrong footprint
