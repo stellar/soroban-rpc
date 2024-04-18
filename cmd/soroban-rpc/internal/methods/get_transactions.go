@@ -60,7 +60,7 @@ type TransactionInfo struct {
 	FeeBump          bool   `json:"feeBump"`
 	ApplicationOrder int32  `json:"applicationOrder"`
 	Successful       bool   `json:"successful"`
-	LedgerSequence   uint   `json:"ledgerSequence"`
+	LedgerSequence   uint32 `json:"ledgerSequence"`
 }
 
 // GetTransactionsResponse encapsulates the response structure for getTransactions queries.
@@ -180,7 +180,7 @@ LedgerLoop:
 				FeeBump:          tx.Envelope.IsFeeBump(),
 				ApplicationOrder: int32(tx.Index),
 				Successful:       tx.Result.Result.Successful(),
-				LedgerSequence:   uint(ledger.LedgerSequence()),
+				LedgerSequence:   ledger.LedgerSequence(),
 			}
 
 			txns = append(txns, txInfo)
