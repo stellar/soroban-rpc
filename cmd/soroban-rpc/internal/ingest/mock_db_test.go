@@ -3,8 +3,10 @@ package ingest
 import (
 	"context"
 
-	"github.com/stellar/go/xdr"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
@@ -89,4 +91,8 @@ type MockTransactionWriter struct {
 func (m MockTransactionWriter) InsertTransactions(ledger xdr.LedgerCloseMeta) error {
 	args := m.Called(ledger)
 	return args.Error(0)
+}
+
+func (m MockTransactionWriter) RegisterMetrics(ingest, insert, count prometheus.Observer) {
+	m.Called(ingest, insert, count)
 }

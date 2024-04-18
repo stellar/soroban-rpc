@@ -135,27 +135,40 @@ func getLatestLedgerSequence(ctx context.Context, q db.SessionInterface, cache *
 	return result, nil
 }
 
+type ReadWriterMetrics struct {
+	TxIngestDuration, TxSqlDuration, TxCount prometheus.Observer
+}
+
 type readWriter struct {
 	db                    *DB
 	maxBatchSize          int
 	ledgerRetentionWindow uint32
 	passphrase            string
+
+	metrics *ReadWriterMetrics
 }
 
-// NewReadWriter constructs a new readWriter instance and configures the size of
-// ledger entry batches when writing ledger entries and the retention window for
-// how many historical ledgers are recorded in the database.
-func NewReadWriter(db *DB,
+// NewReadWriterWithMetrics constructs a new readWriter instance and configures
+// the size of ledger entry batches when writing ledger entries and the
+// retention window for how many historical ledgers are recorded in the
+// database, optionally storing metrics for various DB ops.
+func NewReadWriterWithMetrics(db *DB,
 	maxBatchSize int,
 	ledgerRetentionWindow uint32,
 	networkPassphrase string,
+	metrics *ReadWriterMetrics,
 ) ReadWriter {
 	return &readWriter{
 		db:                    db,
 		maxBatchSize:          maxBatchSize,
 		ledgerRetentionWindow: ledgerRetentionWindow,
 		passphrase:            networkPassphrase,
+		metrics:               metrics,
 	}
+}
+
+func NewReadWriter(db *DB, maxBatchSize int, ledgerRetentionWindow uint32, networkPassphrase string) ReadWriter {
+	return NewReadWriterWithMetrics(db, maxBatchSize, ledgerRetentionWindow, networkPassphrase, nil)
 }
 
 func (rw *readWriter) GetLatestLedgerSequence(ctx context.Context) (uint32, error) {
@@ -170,7 +183,7 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 	stmtCache := sq.NewStmtCache(txSession.GetTx())
 
 	db := rw.db
-	return writeTx{
+	writer := writeTx{
 		globalCache: &db.cache,
 		postCommit: func() error {
 			_, err := db.ExecRaw(ctx, "PRAGMA wal_checkpoint(TRUNCATE)")
@@ -192,7 +205,14 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 			stmtCache:  stmtCache,
 			passphrase: rw.passphrase,
 		},
-	}, nil
+	}
+	if rw.metrics != nil {
+		writer.txWriter.RegisterMetrics(
+			rw.metrics.TxIngestDuration,
+			rw.metrics.TxSqlDuration,
+			rw.metrics.TxCount)
+	}
+	return writer, nil
 }
 
 type writeTx struct {

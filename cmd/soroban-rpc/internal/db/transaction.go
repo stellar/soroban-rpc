@@ -9,11 +9,14 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/support/db"
 	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
+
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
@@ -35,6 +38,7 @@ type Transaction struct {
 // TransactionWriter is used during ingestion
 type TransactionWriter interface {
 	InsertTransactions(lcm xdr.LedgerCloseMeta) error
+	RegisterMetrics(ingest, insert, count prometheus.Observer)
 }
 
 // TransactionReader is used to serve requests and just returns a cloned,
@@ -56,6 +60,8 @@ type transactionHandler struct {
 	db         db.SessionInterface
 	stmtCache  *sq.StmtCache
 	passphrase string
+
+	ingestMetric, insertMetric, countMetric prometheus.Observer
 }
 
 type transactionReaderTx struct {
@@ -124,10 +130,23 @@ func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 	_, err = query.RunWith(txn.stmtCache).Exec()
 
 	L.WithError(err).
-		WithField("total_duration", time.Since(start)).
+		WithField("duration", time.Since(start)).
 		WithField("sql_duration", time.Since(mid)).
 		Infof("Ingested %d transaction lookups", len(transactions))
+
+	if txn.ingestMetric != nil {
+		txn.ingestMetric.Observe(time.Since(start).Seconds())
+		txn.insertMetric.Observe(time.Since(mid).Seconds())
+		txn.countMetric.Observe(float64(txCount))
+	}
+
 	return err
+}
+
+func (txn *transactionHandler) RegisterMetrics(ingest, insert, count prometheus.Observer) {
+	txn.ingestMetric = ingest
+	txn.insertMetric = insert
+	txn.countMetric = count
 }
 
 // trimTransactions removes all transactions which fall outside the ledger retention window.
@@ -183,10 +202,9 @@ func (txn *transactionReaderTx) GetLedgerRange() ledgerbucketwindow.LedgerRange 
 		OrderBy("sequence DESC").
 		Limit(1).
 		RunWith(sqlTx)
-
 	rows, err := newestQ.Query()
 	if err != nil {
-		log.Errorf("Error when querying database for ledger range: %v", err)
+		log.Errorf("Error when querying for latest ledger: %v", err)
 		return ledgerRange
 	}
 
@@ -195,7 +213,7 @@ func (txn *transactionReaderTx) GetLedgerRange() ledgerbucketwindow.LedgerRange 
 	// to sanity check that there is in fact a result.
 	if !rows.Next() {
 		if ierr := rows.Err(); ierr != nil {
-			log.Errorf("Error when querying database for ledger range: %v", ierr)
+			log.Errorf("Error when querying for latest ledger: %v", ierr)
 		}
 		return ledgerRange
 	}

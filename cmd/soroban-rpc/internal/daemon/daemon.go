@@ -230,6 +230,24 @@ func MustNew(cfg *config.Config) *Daemon {
 		logger.WithError(err).Error("could not run ingestion. Retrying")
 	}
 
+	// a metric for measuring latency of transaction store operations
+	txDurationMetric := prometheus.NewSummaryVec(prometheus.SummaryOpts{
+		Namespace: daemon.MetricsNamespace(), Subsystem: "transactions",
+		Name:       "operation_duration_seconds",
+		Help:       "transaction store operation durations, sliding window = 10m",
+		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+	},
+		[]string{"operation"},
+	)
+	txCountMetric := prometheus.NewSummary(prometheus.SummaryOpts{
+		Namespace: daemon.MetricsNamespace(), Subsystem: "transactions",
+		Name:       "count",
+		Help:       "count of transactions ingested, sliding window = 10m",
+		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+	})
+
+	daemon.metricsRegistry.MustRegister(txDurationMetric, txCountMetric)
+
 	// Take the larger of (event retention, tx retention) and then the smaller
 	// of (tx retention, default event retention) if event retention wasn't
 	// specified, for some reason...?
@@ -241,11 +259,16 @@ func MustNew(cfg *config.Config) *Daemon {
 	}
 	ingestService := ingest.NewService(ingest.Config{
 		Logger: logger,
-		DB: db.NewReadWriter(
+		DB: db.NewReadWriterWithMetrics(
 			dbConn,
 			maxLedgerEntryWriteBatchSize,
 			maxRetentionWindow,
 			cfg.NetworkPassphrase,
+			&db.ReadWriterMetrics{
+				TxIngestDuration: txDurationMetric.With(prometheus.Labels{"operation": "ingest"}),
+				TxSqlDuration:    txDurationMetric.With(prometheus.Labels{"operation": "insert"}),
+				TxCount:          txCountMetric,
+			},
 		),
 		EventStore:        eventStore,
 		NetworkPassPhrase: cfg.NetworkPassphrase,
