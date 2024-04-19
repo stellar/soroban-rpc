@@ -42,10 +42,17 @@ func NewHealthCheck(retentionWindow uint32, ledgerRangeGetter LedgerRangeGetter,
 				Message: msg,
 			}
 		}
+		status := "healthy"
+		latestLedger := ledgerRange.LastLedger.Sequence
+		oldestLedger := ledgerRange.FirstLedger.Sequence
+		rententionWindowFull := (latestLedger - oldestLedger) >= retentionWindow
+		if rententionWindowFull {
+			status += ", retention window full"
+		}
 		result := HealthCheckResult{
-			Status:                "healthy",
-			LatestLedger:          ledgerRange.LastLedger.Sequence,
-			OldestLedger:          ledgerRange.FirstLedger.Sequence,
+			Status:                status,
+			LatestLedger:          latestLedger,
+			OldestLedger:          oldestLedger,
 			LedgerRetentionWindow: retentionWindow,
 		}
 		return result, nil
