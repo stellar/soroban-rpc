@@ -29,40 +29,11 @@ version = "=21.0.0"
 # rev = "c30bc769e379bef9b94a3ceb464aa78c1185eeb3"
 # path = "../rs-soroban-sdk/soroban-spec"
 
-[workspace.dependencies.soroban-spec-rust]
-version = "=21.0.0"
-# git = "https://github.com/stellar/rs-soroban-sdk"
-# rev = "c30bc769e379bef9b94a3ceb464aa78c1185eeb3"
-# path = "../rs-soroban-sdk/soroban-spec-rust"
-
-[workspace.dependencies.soroban-spec-json]
-version = "20.3.0"
-git = "https://github.com/stellar/soroban-cli"
-rev = "c30bc769e379bef9b94a3ceb464aa78c1185eeb3"
-
-[workspace.dependencies.soroban-spec-typescript]
-version = "20.3.0"
-git = "https://github.com/stellar/soroban-cli"
-rev = "a59f5f421a27bab71472041fc619dd8b0d1cf902"
-
 [workspace.dependencies.soroban-sdk]
 version = "=21.0.0"
 # git = "https://github.com/stellar/rs-soroban-sdk"
 # rev = "c30bc769e379bef9b94a3ceb464aa78c1185eeb3"
 
-[workspace.dependencies.soroban-token-sdk]
-version = "=21.0.0"
-# git = "https://github.com/stellar/rs-soroban-sdk"
-# rev = "c30bc769e379bef9b94a3ceb464aa78c1185eeb3"
-
-[workspace.dependencies.soroban-ledger-snapshot]
-version = "=21.0.0"
-# git = "https://github.com/stellar/rs-soroban-sdk"
-# rev = "c30bc769e379bef9b94a3ceb464aa78c1185eeb3"
-
-[workspace.dependencies.stellar-rpc-client]
-version = "20.3.5"
-path = "cmd/crates/stellar-rpc-client"
 
 [workspace.dependencies.stellar-xdr]
 version = "=21.0.0"
@@ -71,49 +42,8 @@ default-features = true
 # rev = "a80c899c61e869fd00b7b475a4947ab6aaf9dcac"
 
 [workspace.dependencies]
-stellar-strkey = "0.0.7"
-sep5 = "0.0.2"
-base64 = "0.21.2"
-thiserror = "1.0.46"
+base64 = "0.22.0"
 sha2 = "0.10.7"
-ethnum = "1.3.2"
-hex = "0.4.3"
-itertools = "0.10.0"
-
-serde-aux = "4.1.2"
-serde_json = "1.0.82"
-serde = "1.0.82"
-
-clap = { version = "4.1.8", features = [
-    "derive",
-    "env",
-    "deprecated",
-    "string",
-] }
-clap_complete = "4.1.4"
-tracing = "0.1.37"
-tracing-subscriber = "0.3.16"
-tracing-appender = "0.2.2"
-which = "4.4.0"
-wasmparser = "0.90.0"
-termcolor = "1.1.3"
-termcolor_output = "1.0.1"
-ed25519-dalek = "2.0.0"
-
-# networking 
-http = "1.0.0"
-jsonrpsee-http-client = "0.20.1"
-jsonrpsee-core = "0.20.1"
-tokio = "1.28.1"
-
-# [patch."https://github.com/stellar/rs-soroban-env"]
-# soroban-env-host = { path = "../rs-soroban-env/soroban-env-host/" }
-# [patch."https://github.com/stellar/rs-soroban-sdk"]
-# soroban-spec = { path = "../rs-soroban-sdk/soroban-spec/" }
-# soroban-token-spec = { path = "../rs-soroban-sdk/soroban-token-spec/" }
-# soroban-sdk = { path = "../rs-soroban-sdk/soroban-sdk/" }
-# [patch."https://github.com/stellar/rs-stellar-xdr"]
-# stellar-xdr = { path = "../rs-stellar-xdr/" }
 
 [profile.test-wasms]
 inherits = "release"
