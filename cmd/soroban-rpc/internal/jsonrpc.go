@@ -134,13 +134,10 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 	}
 
-	// Get the largest history window
-	var ledgerRangeGetter methods.LedgerRangeGetter = params.EventStore
-	var retentionWindow = cfg.EventLedgerRetentionWindow
-	if cfg.TransactionLedgerRetentionWindow > cfg.EventLedgerRetentionWindow {
-		retentionWindow = cfg.TransactionLedgerRetentionWindow
-		ledgerRangeGetter = params.TransactionReader
-	}
+	// While we transition from in-memory to database-oriented history storage,
+	// the on-disk (transaction) retention window will always be larger than the
+	// in-memory (events) one.
+	var retentionWindow = cfg.TransactionLedgerRetentionWindow
 
 	handlers := []struct {
 		methodName           string
@@ -150,15 +147,17 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		requestDurationLimit time.Duration
 	}{
 		{
-			methodName:           "getHealth",
-			underlyingHandler:    methods.NewHealthCheck(retentionWindow, ledgerRangeGetter, cfg.MaxHealthyLedgerLatency),
+			methodName: "getHealth",
+			underlyingHandler: methods.NewHealthCheck(
+				retentionWindow, params.TransactionReader, cfg.MaxHealthyLedgerLatency),
 			longName:             "get_health",
 			queueLimit:           cfg.RequestBacklogGetHealthQueueLimit,
 			requestDurationLimit: cfg.MaxGetHealthExecutionDuration,
 		},
 		{
-			methodName:           "getEvents",
-			underlyingHandler:    methods.NewGetEventsHandler(params.EventStore, cfg.MaxEventsLimit, cfg.DefaultEventsLimit),
+			methodName: "getEvents",
+			underlyingHandler: methods.NewGetEventsHandler(
+				params.EventStore, cfg.MaxEventsLimit, cfg.DefaultEventsLimit),
 			longName:             "get_events",
 			queueLimit:           cfg.RequestBacklogGetEventsQueueLimit,
 			requestDurationLimit: cfg.MaxGetEventsExecutionDuration,
@@ -201,8 +200,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		{
 			methodName: "sendTransaction",
 			underlyingHandler: methods.NewSendTransactionHandler(
-				params.Daemon, params.Logger, params.TransactionReader, cfg.NetworkPassphrase,
-			),
+				params.Daemon, params.Logger, params.TransactionReader, cfg.NetworkPassphrase),
 			longName:             "send_transaction",
 			queueLimit:           cfg.RequestBacklogSendTransactionQueueLimit,
 			requestDurationLimit: cfg.MaxSendTransactionExecutionDuration,

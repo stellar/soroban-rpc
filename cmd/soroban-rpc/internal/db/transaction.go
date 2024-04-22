@@ -35,7 +35,7 @@ type Transaction struct {
 	Ledger           ledgerbucketwindow.LedgerInfo
 }
 
-// TransactionWriter is used during ingestion
+// TransactionWriter is used during ingestion to write LCM.
 type TransactionWriter interface {
 	InsertTransactions(lcm xdr.LedgerCloseMeta) error
 	RegisterMetrics(ingest, insert, count prometheus.Observer)
@@ -45,14 +45,13 @@ type TransactionWriter interface {
 // read-only DB session to perform actual DB reads on.
 type TransactionReader interface {
 	NewTx(ctx context.Context) (TransactionReaderTx, error)
-	GetLedgerRange(ctx context.Context) ledgerbucketwindow.LedgerRange
 }
 
 // TransactionReaderTx provides all of the public ways to read from the DB.
 // Note that `Done()` *MUST* be called to clean things up.
 type TransactionReaderTx interface {
 	GetTransaction(log *log.Entry, hash xdr.Hash) (Transaction, bool, ledgerbucketwindow.LedgerRange)
-	GetLedgerRange() ledgerbucketwindow.LedgerRange
+	GetLedgerRange() (ledgerbucketwindow.LedgerRange, error)
 	Done() error
 }
 
@@ -168,24 +167,12 @@ func (txn *transactionHandler) NewTx(ctx context.Context) (TransactionReaderTx, 
 	return &transactionReaderTx{ctx: ctx, db: sesh, passphrase: txn.passphrase}, nil
 }
 
-// GetLedgerRange will fetch from the database in an isolated tx.
-func (txn *transactionHandler) GetLedgerRange(ctx context.Context) ledgerbucketwindow.LedgerRange {
-	reader, err := txn.NewTx(ctx)
-	defer reader.Done()
-	if err != nil {
-		return ledgerbucketwindow.LedgerRange{}
-	}
-
-	lRange := reader.GetLedgerRange()
-	return lRange
-}
-
 func (txn *transactionReaderTx) Done() error {
 	return txn.db.Rollback()
 }
 
 // GetLedgerRange pulls the min/max ledger sequence numbers from the database.
-func (txn *transactionReaderTx) GetLedgerRange() ledgerbucketwindow.LedgerRange {
+func (txn *transactionReaderTx) GetLedgerRange() (ledgerbucketwindow.LedgerRange, error) {
 	var ledgerRange ledgerbucketwindow.LedgerRange
 	log.Debugf("Retrieving ledger range from database: %+v", txn)
 
@@ -197,29 +184,23 @@ func (txn *transactionReaderTx) GetLedgerRange() ledgerbucketwindow.LedgerRange 
 		RunWith(sqlTx)
 	rows, err := newestQ.Query()
 	if err != nil {
-		log.Errorf("Error when querying for latest ledger: %v", err)
-		return ledgerRange
+		return ledgerRange, errors.Wrap(err, "couldn't query latest ledger")
 	}
 
 	// There is almost certainly a row, but we want to avoid a race condition
 	// with ingestion as well as support test cases from an empty DB, so we need
 	// to sanity check that there is in fact a result.
 	if !rows.Next() {
+		retErr := errors.New("no ledgers in database")
 		if ierr := rows.Err(); ierr != nil {
-			log.Errorf("Error when querying for latest ledger: %v", ierr)
+			retErr = errors.Wrap(ierr, "couldn't query latest ledger")
 		}
-		return ledgerRange
+		return ledgerRange, retErr
 	}
 
-	var row1, row2 []byte
 	var lcm1, lcm2 xdr.LedgerCloseMeta
-	if err := rows.Scan(&row1); err != nil {
-		log.Errorf("Error when scanning newest ledger: %v", err)
-		return ledgerRange
-	}
-	if err := lcm1.UnmarshalBinary(row1); err != nil {
-		log.Errorf("Error when unmarshaling newest ledger: %v", err)
-		return ledgerRange
+	if err := rows.Scan(&lcm1); err != nil {
+		return ledgerRange, errors.Wrap(err, "couldn't read newest ledger")
 	}
 	// Best effort: if the second fails later, we at least set the first.
 	ledgerRange.FirstLedger.Sequence = lcm1.LedgerSequence()
@@ -234,20 +215,15 @@ func (txn *transactionReaderTx) GetLedgerRange() ledgerbucketwindow.LedgerRange 
 		RunWith(sqlTx).
 		QueryRow()
 
-	if err := oldestQ.Scan(&row2); err != nil {
-		log.Errorf("Error when scanning oldest ledger: %v", err)
-		return ledgerRange
-	}
-	if err := lcm2.UnmarshalBinary(row2); err != nil {
-		log.Errorf("Error when unmarshaling oldest ledger: %v", err)
-		return ledgerRange
+	if err := oldestQ.Scan(&lcm2); err != nil {
+		return ledgerRange, errors.Wrap(err, "couldn't read oldest ledger")
 	}
 	ledgerRange.FirstLedger.Sequence = lcm2.LedgerSequence()
 	ledgerRange.FirstLedger.CloseTime = lcm2.LedgerCloseTime()
 
 	log.Debugf("Database ledger range: [%d, %d]",
 		ledgerRange.FirstLedger.Sequence, ledgerRange.LastLedger.Sequence)
-	return ledgerRange
+	return ledgerRange, nil
 }
 
 // GetTransaction conforms to the interface in
@@ -261,8 +237,16 @@ func (txn *transactionReaderTx) GetTransaction(log *log.Entry, hash xdr.Hash) (
 ) {
 	start := time.Now()
 	tx := Transaction{}
-	ledgerRange := txn.GetLedgerRange()
 	hexHash := hex.EncodeToString(hash[:])
+
+	ledgerRange, err := txn.GetLedgerRange()
+	if err != nil {
+		log.WithField("error", err).
+			WithField("txhash", hexHash).
+			Errorf("Failed to fetch ledger range from database")
+		return tx, false, ledgerRange
+	}
+
 	lcm, ingestTx, err := txn.getTransactionByHash(hexHash)
 	if err != nil {
 		if err != io.EOF { // mark for "not in db"

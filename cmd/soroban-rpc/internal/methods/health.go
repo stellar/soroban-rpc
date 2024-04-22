@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/creachadair/jrpc2"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
 type HealthCheckResult struct {
@@ -16,13 +17,25 @@ type HealthCheckResult struct {
 }
 
 // NewHealthCheck returns a health check json rpc handler
-func NewHealthCheck(retentionWindow uint32, ledgerRangeGetter LedgerRangeGetter, maxHealthyLedgerLatency time.Duration) jrpc2.Handler {
+func NewHealthCheck(
+	retentionWindow uint32,
+	txReader db.TransactionReader,
+	maxHealthyLedgerLatency time.Duration,
+) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context) (HealthCheckResult, error) {
-		ledgerRange := ledgerRangeGetter.GetLedgerRange(ctx)
-		if ledgerRange.LastLedger.Sequence < 1 {
+		tx, err := txReader.NewTx(ctx)
+		if err != nil {
 			return HealthCheckResult{}, jrpc2.Error{
 				Code:    jrpc2.InternalError,
-				Message: "data stores are not initialized",
+				Message: "database read failed: " + err.Error(),
+			}
+		}
+
+		ledgerRange, err := tx.GetLedgerRange()
+		if err != nil || ledgerRange.LastLedger.Sequence < 1 {
+			return HealthCheckResult{}, jrpc2.Error{
+				Code:    jrpc2.InternalError,
+				Message: "data stores are not initialized " + err.Error(),
 			}
 		}
 
