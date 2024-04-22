@@ -1,7 +1,9 @@
 package test
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/jhttp"
@@ -9,6 +11,9 @@ import (
 	"github.com/stellar/go/txnbuild"
 	"github.com/stellar/go/xdr"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
 func TestUpgradeFrom20To21(t *testing.T) {
@@ -47,6 +52,23 @@ func TestUpgradeFrom20To21(t *testing.T) {
 	// Upgrade to protocol 21 and re-upload the contract, which should cause a caching of the contract
 	// estimations
 	test.UpgradeProtocol(21)
+	// Wait for the protocol version to propagate, so that the simulation library passes the right protocol
+	foundProtocol := uint32(0)
+	for i := 0; i < 60; i++ {
+		rpcDB := test.daemon.GetDB()
+		time.Sleep(time.Second)
+		lReader := db.NewLedgerReader(rpcDB)
+		latestLedgerSequence, err := db.NewLedgerEntryReader(rpcDB).GetLatestLedgerSequence(context.Background())
+		require.NoError(t, err)
+		latestLedger, present, err := lReader.GetLedger(context.Background(), latestLedgerSequence)
+		require.NoError(t, err)
+		require.True(t, present)
+		foundProtocol = uint32(latestLedger.V1.LedgerHeader.Header.LedgerVersion)
+		if foundProtocol == 21 {
+			break
+		}
+	}
+	require.Equal(t, uint32(21), foundProtocol, "rpc didn't start ingesting protocol 21")
 
 	params = preflightTransactionParams(t, client, txnbuild.TransactionParams{
 		SourceAccount:        &account,
