@@ -104,40 +104,14 @@ func TestUpgradeFrom20To21(t *testing.T) {
 
 	contractID := getContractID(t, address, testSalt, StandaloneNetworkPassphrase)
 	contractFnParameterSym := xdr.ScSymbol("world")
-	authAddrArg := "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H"
-	authAccountIDArg := xdr.MustAddress(authAddrArg)
-	tx, err = txnbuild.NewTransaction(txnbuild.TransactionParams{
-		SourceAccount:        &account,
-		IncrementSequenceNum: true,
-		Operations: []txnbuild.Operation{
-			&txnbuild.CreateAccount{
-				Destination:   authAddrArg,
-				Amount:        "100000",
-				SourceAccount: address,
-			},
-		},
-		BaseFee: txnbuild.MinBaseFee,
-		Preconditions: txnbuild.Preconditions{
-			TimeBounds: txnbuild.NewInfiniteTimeout(),
-		},
-	})
-	assert.NoError(t, err)
-	sendSuccessfulTransaction(t, client, sourceAccount, tx)
 	params = preflightTransactionParams(t, client, txnbuild.TransactionParams{
 		SourceAccount:        &account,
-		IncrementSequenceNum: false,
+		IncrementSequenceNum: true,
 		Operations: []txnbuild.Operation{
 			createInvokeHostOperation(
 				address,
 				contractID,
-				"auth",
-				xdr.ScVal{
-					Type: xdr.ScValTypeScvAddress,
-					Address: &xdr.ScAddress{
-						Type:      xdr.ScAddressTypeScAddressTypeAccount,
-						AccountId: &authAccountIDArg,
-					},
-				},
+				"hello",
 				xdr.ScVal{
 					Type: xdr.ScValTypeScvSymbol,
 					Sym:  &contractFnParameterSym,
