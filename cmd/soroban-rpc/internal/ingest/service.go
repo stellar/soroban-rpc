@@ -194,10 +194,9 @@ func (s *Service) maybeFillEntriesFromCheckpoint(ctx context.Context, archive hi
 		nextLedgerSeq := curLedgerSeq + 1
 		prepareRangeCtx, cancelPrepareRange := context.WithTimeout(ctx, s.timeout)
 		defer cancelPrepareRange()
-		if err = s.ledgerBackend.PrepareRange(prepareRangeCtx, backends.UnboundedRange(nextLedgerSeq)); err != nil {
-			return nextLedgerSeq, checkPointFillErr, err
-		}
-		return nextLedgerSeq, checkPointFillErr, nil
+		return nextLedgerSeq,
+			checkPointFillErr,
+			s.ledgerBackend.PrepareRange(prepareRangeCtx, backends.UnboundedRange(nextLedgerSeq))
 	}
 }
 
