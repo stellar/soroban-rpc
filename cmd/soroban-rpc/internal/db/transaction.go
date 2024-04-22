@@ -87,10 +87,7 @@ func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 
 	if txn.stmtCache == nil {
 		return errors.New("TransactionWriter incorrectly initialized without stmtCache")
-	}
-
-	if txCount == 0 {
-		L.Warnf("No transactions present in ledger: %+v", lcm)
+	} else if txCount == 0 {
 		return nil
 	}
 
@@ -117,15 +114,11 @@ func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 	}
 
 	mid := time.Now()
-	L.WithField("passphrase", txn.passphrase).
-		Debugf("Ingesting %d transaction lookups from ledger", len(transactions))
-
 	query := sq.Insert(transactionTableName).
-		Columns("hash", "ledger_sequence", "application_order", "is_soroban")
+		Columns("hash", "ledger_sequence", "application_order")
 	for hash, tx := range transactions {
 		hexHash := hex.EncodeToString(hash[:])
-		is_soroban := (tx.UnsafeMeta.V == 3 && tx.UnsafeMeta.V3.SorobanMeta != nil)
-		query = query.Values(hexHash, lcm.LedgerSequence(), tx.Index, is_soroban)
+		query = query.Values(hexHash, lcm.LedgerSequence(), tx.Index)
 	}
 	_, err = query.RunWith(txn.stmtCache).Exec()
 
