@@ -95,13 +95,7 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 
 	if i.protocolVersion == 0 {
 		// Default to the maximum supported protocol version
-		i.protocolVersion = maxSupportedProtocolVersion
-		// If the environment tells us that Core only supports up to certain version,
-		// use that.
-		maxSupportedCoreProtocolFromEnv := GetCoreMaxSupportedProtocol()
-		if maxSupportedCoreProtocolFromEnv != 0 && maxSupportedCoreProtocolFromEnv < maxSupportedProtocolVersion {
-			i.protocolVersion = maxSupportedCoreProtocolFromEnv
-		}
+		i.protocolVersion = GetCoreMaxSupportedProtocol()
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(&url.URL{Scheme: "http", Host: stellarCoreArchiveHost})
@@ -411,11 +405,12 @@ func findDockerComposePath() string {
 func GetCoreMaxSupportedProtocol() uint32 {
 	str := os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_CORE_MAX_SUPPORTED_PROTOCOL")
 	if str == "" {
-		return 0
+		return maxSupportedProtocolVersion
 	}
 	version, err := strconv.ParseUint(str, 10, 32)
 	if err != nil {
-		return 0
+		return maxSupportedProtocolVersion
 	}
+
 	return uint32(version)
 }
