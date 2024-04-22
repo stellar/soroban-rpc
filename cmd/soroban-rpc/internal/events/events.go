@@ -128,7 +128,7 @@ func (m *MemoryStore) Scan(eventRange Range, f ScanFunction) (lastLedgerInWindow
 		timestamp := bucket.LedgerCloseTimestamp
 		for _, event := range events {
 			cur := event.cursor(bucket.LedgerSeq)
-			if eventRange.End.Cmp(&cur) <= 0 {
+			if eventRange.End.Cmp(cur) <= 0 {
 				return
 			}
 			var diagnosticEvent xdr.DiagnosticEvent
@@ -153,7 +153,7 @@ func (m *MemoryStore) validateRange(eventRange *Range) error {
 	}
 	firstBucket := m.eventsByLedger.Get(0)
 	min := Cursor{Ledger: firstBucket.LedgerSeq}
-	if eventRange.Start.Cmp(&min) < 0 {
+	if eventRange.Start.Cmp(min) < 0 {
 		if eventRange.ClampStart {
 			eventRange.Start = min
 		} else {
@@ -161,10 +161,10 @@ func (m *MemoryStore) validateRange(eventRange *Range) error {
 		}
 	}
 	max := Cursor{Ledger: min.Ledger + m.eventsByLedger.Len()}
-	if eventRange.Start.Cmp(&max) >= 0 {
+	if eventRange.Start.Cmp(max) >= 0 {
 		return errors.New("start is after newest ledger")
 	}
-	if eventRange.End.Cmp(&max) > 0 {
+	if eventRange.End.Cmp(max) > 0 {
 		if eventRange.ClampEnd {
 			eventRange.End = max
 		} else {
@@ -172,7 +172,7 @@ func (m *MemoryStore) validateRange(eventRange *Range) error {
 		}
 	}
 
-	if eventRange.Start.Cmp(&eventRange.End) >= 0 {
+	if eventRange.Start.Cmp(eventRange.End) >= 0 {
 		return errors.New("start is not before end")
 	}
 
@@ -184,8 +184,7 @@ func (m *MemoryStore) validateRange(eventRange *Range) error {
 // events must be sorted in ascending order.
 func seek(events []event, cursor Cursor) []event {
 	j := sort.Search(len(events), func(i int) bool {
-		cur := events[i].cursor(cursor.Ledger)
-		return cursor.Cmp(&cur) <= 0
+		return cursor.Cmp(events[i].cursor(cursor.Ledger)) <= 0
 	})
 	return events[j:]
 }
