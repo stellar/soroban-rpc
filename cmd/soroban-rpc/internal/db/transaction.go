@@ -188,13 +188,13 @@ func (txn *transactionReaderTx) GetLedgerRange() (ledgerbucketwindow.LedgerRange
 
 	// There is almost certainly a row, but we want to avoid a race condition
 	// with ingestion as well as support test cases from an empty DB, so we need
-	// to sanity check that there is in fact a result.
+	// to sanity check that there is in fact a result. Note that no ledgers in
+	// the database isn't an error, it's just an empty range.
 	if !rows.Next() {
-		retErr := errors.New("no ledgers in database")
 		if ierr := rows.Err(); ierr != nil {
-			retErr = errors.Wrap(ierr, "couldn't query latest ledger")
+			return ledgerRange, errors.Wrap(ierr, "couldn't query latest ledger")
 		}
-		return ledgerRange, retErr
+		return ledgerRange, nil
 	}
 
 	var lcm1, lcm2 xdr.LedgerCloseMeta
