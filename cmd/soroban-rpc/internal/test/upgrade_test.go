@@ -52,20 +52,18 @@ func TestUpgradeFrom20To21(t *testing.T) {
 	// Upgrade to protocol 21 and re-upload the contract, which should cause a caching of the contract
 	// estimations
 	test.UpgradeProtocol(21)
-	// Wait for the ledger to advance, so that the simulation library passes the right protocol
+	// Wait for the ledger to advance, so that the simulation library passes the right protocol number
 	rpcDB := test.daemon.GetDB()
 	initialLedgerSequence, err := db.NewLedgerEntryReader(rpcDB).GetLatestLedgerSequence(context.Background())
-	require.NoError(t, err)
-	newLedgerSequence := uint32(0)
-	for i := 0; i < 60; i++ {
-		time.Sleep(time.Second)
-		newLedgerSequence, err = db.NewLedgerEntryReader(rpcDB).GetLatestLedgerSequence(context.Background())
-		require.NoError(t, err)
-		if newLedgerSequence > initialLedgerSequence {
-			break
-		}
-	}
-	require.Greater(t, newLedgerSequence, initialLedgerSequence, "rpc didn't start ingesting protocol 21")
+	require.Eventually(t,
+		func() bool {
+			newLedgerSequence, err := db.NewLedgerEntryReader(rpcDB).GetLatestLedgerSequence(context.Background())
+			require.NoError(t, err)
+			return newLedgerSequence > initialLedgerSequence
+		},
+		time.Minute,
+		time.Second,
+	)
 
 	params = preflightTransactionParams(t, client, txnbuild.TransactionParams{
 		SourceAccount:        &account,
@@ -123,6 +121,5 @@ func TestUpgradeFrom20To21(t *testing.T) {
 	tx, err = txnbuild.NewTransaction(params)
 	assert.NoError(t, err)
 
-	assert.NoError(t, err)
 	sendSuccessfulTransaction(t, client, sourceAccount, tx)
 }
