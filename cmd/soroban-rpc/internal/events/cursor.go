@@ -8,8 +8,6 @@ import (
 	"strings"
 
 	"github.com/stellar/go/toid"
-
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 )
 
 // Cursor represents the position of a Soroban event.
@@ -39,7 +37,7 @@ func (c Cursor) String() string {
 }
 
 // MarshalJSON marshals the cursor into JSON
-func (c *Cursor) MarshalJSON() ([]byte, error) {
+func (c Cursor) MarshalJSON() ([]byte, error) {
 	return json.Marshal(c.String())
 }
 
@@ -50,40 +48,35 @@ func (c *Cursor) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	parsed, err := c.ParseCursor(s)
-	if err != nil {
+	if parsed, err := ParseCursor(s); err != nil {
 		return err
-	}
-
-	if eventCursor, ok := parsed.(*Cursor); ok {
-		*c = *eventCursor
 	} else {
-		return fmt.Errorf("parsed cursor could not be converted to Event cursor")
+		*c = parsed
 	}
 	return nil
 }
 
 // ParseCursor parses the given string and returns the corresponding cursor
-func (c *Cursor) ParseCursor(input string) (interfaces.Cursor, error) {
+func ParseCursor(input string) (Cursor, error) {
 	parts := strings.SplitN(input, "-", 2)
 	if len(parts) != 2 {
-		return &Cursor{}, fmt.Errorf("invalid event id %s", input)
+		return Cursor{}, fmt.Errorf("invalid event id %s", input)
 	}
 
 	// Parse the first part (toid)
 	idInt, err := strconv.ParseInt(parts[0], 10, 64) //lint:ignore gomnd
 	if err != nil {
-		return &Cursor{}, fmt.Errorf("invalid event id %s: %w", input, err)
+		return Cursor{}, fmt.Errorf("invalid event id %s: %w", input, err)
 	}
 	parsed := toid.Parse(idInt)
 
 	// Parse the second part (event order)
 	eventOrder, err := strconv.ParseUint(parts[1], 10, 32) //lint:ignore gomnd
 	if err != nil {
-		return &Cursor{}, fmt.Errorf("invalid event id %s: %w", input, err)
+		return Cursor{}, fmt.Errorf("invalid event id %s: %w", input, err)
 	}
 
-	return &Cursor{
+	return Cursor{
 		Ledger: uint32(parsed.LedgerSequence),
 		Tx:     uint32(parsed.TransactionOrder),
 		Op:     uint32(parsed.OperationOrder),
@@ -105,19 +98,17 @@ func cmp(a, b uint32) int {
 // 0 is returned if the c is equal to other.
 // 1 is returned if c is greater than other.
 // -1 is returned if c is less than other.
-func (c Cursor) Cmp(other interfaces.Cursor) int {
-	otherCursor := other.(*Cursor)
-
-	if c.Ledger == otherCursor.Ledger {
-		if c.Tx == otherCursor.Tx {
-			if c.Op == otherCursor.Op {
-				return cmp(c.Event, otherCursor.Event)
+func (c Cursor) Cmp(other Cursor) int {
+	if c.Ledger == other.Ledger {
+		if c.Tx == other.Tx {
+			if c.Op == other.Op {
+				return cmp(c.Event, other.Event)
 			}
-			return cmp(c.Op, otherCursor.Op)
+			return cmp(c.Op, other.Op)
 		}
-		return cmp(c.Tx, otherCursor.Tx)
+		return cmp(c.Tx, other.Tx)
 	}
-	return cmp(c.Ledger, otherCursor.Ledger)
+	return cmp(c.Ledger, other.Ledger)
 }
 
 var (

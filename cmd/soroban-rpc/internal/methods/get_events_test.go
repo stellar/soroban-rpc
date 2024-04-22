@@ -410,7 +410,7 @@ func TestGetEventsRequestValid(t *testing.T) {
 	assert.EqualError(t, (&GetEventsRequest{
 		StartLedger: 1,
 		Filters:     []EventFilter{},
-		Pagination:  &EventsPaginationOptions{Cursor: &events.Cursor{}},
+		Pagination:  &PaginationOptions{Cursor: &events.Cursor{}},
 	}).Valid(1000), "startLedger and cursor cannot both be set")
 
 	assert.NoError(t, (&GetEventsRequest{
@@ -422,7 +422,7 @@ func TestGetEventsRequestValid(t *testing.T) {
 	assert.EqualError(t, (&GetEventsRequest{
 		StartLedger: 1,
 		Filters:     []EventFilter{},
-		Pagination:  &EventsPaginationOptions{Limit: 1001},
+		Pagination:  &PaginationOptions{Limit: 1001},
 	}).Valid(1000), "limit must not exceed 1000")
 
 	assert.EqualError(t, (&GetEventsRequest{
@@ -932,7 +932,7 @@ func TestGetEvents(t *testing.T) {
 		results, err := handler.getEvents(GetEventsRequest{
 			StartLedger: 1,
 			Filters:     []EventFilter{},
-			Pagination:  &EventsPaginationOptions{Limit: 10},
+			Pagination:  &PaginationOptions{Limit: 10},
 		})
 		assert.NoError(t, err)
 
@@ -1016,7 +1016,7 @@ func TestGetEvents(t *testing.T) {
 			defaultLimit: 100,
 		}
 		results, err := handler.getEvents(GetEventsRequest{
-			Pagination: &EventsPaginationOptions{
+			Pagination: &PaginationOptions{
 				Cursor: id,
 				Limit:  2,
 			},
@@ -1048,7 +1048,7 @@ func TestGetEvents(t *testing.T) {
 		assert.Equal(t, GetEventsResponse{expected, 5}, results)
 
 		results, err = handler.getEvents(GetEventsRequest{
-			Pagination: &EventsPaginationOptions{
+			Pagination: &PaginationOptions{
 				Cursor: &events.Cursor{Ledger: 5, Tx: 2, Op: 0, Event: 1},
 				Limit:  2,
 			},

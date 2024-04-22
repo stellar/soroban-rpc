@@ -10,15 +10,15 @@ import (
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/log"
+	"github.com/stellar/go/toid"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 )
 
 // TransactionsPaginationOptions defines the available options for paginating through transactions.
 type TransactionsPaginationOptions struct {
-	Cursor *transactions.Cursor `json:"cursor,omitempty"`
-	Limit  uint                 `json:"limit,omitempty"`
+	Cursor *toid.ID `json:"cursor,omitempty"`
+	Limit  uint     `json:"limit,omitempty"`
 }
 
 // GetTransactionsRequest represents the request parameters for fetching transactions within a range of ledgers.
@@ -65,10 +65,10 @@ type TransactionInfo struct {
 
 // GetTransactionsResponse encapsulates the response structure for getTransactions queries.
 type GetTransactionsResponse struct {
-	Transactions               []TransactionInfo    `json:"transactions"`
-	LatestLedger               int64                `json:"latestLedger"`
-	LatestLedgerCloseTimestamp int64                `json:"latestLedgerCloseTimestamp"`
-	Cursor                     *transactions.Cursor `json:"cursor"`
+	Transactions               []TransactionInfo `json:"transactions"`
+	LatestLedger               int64             `json:"latestLedger"`
+	LatestLedgerCloseTimestamp int64             `json:"latestLedgerCloseTimestamp"`
+	Cursor                     *toid.ID          `json:"cursor"`
 }
 
 type transactionsRPCHandler struct {
@@ -92,14 +92,14 @@ func (h *transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Con
 	}
 
 	// Move start to pagination cursor
-	start := transactions.NewCursor(request.StartLedger, 0, 0)
+	start := toid.New(int32(request.StartLedger), 0, 0)
 	limit := h.defaultLimit
 	if request.Pagination != nil {
 		if request.Pagination.Cursor != nil {
-			start = *request.Pagination.Cursor
+			start = request.Pagination.Cursor
 			// increment tx index because, when paginating,
 			// we start with the item right after the cursor
-			start.TxIdx++
+			start.TransactionOrder++
 		}
 		if request.Pagination.Limit > 0 {
 			limit = request.Pagination.Limit
@@ -108,11 +108,11 @@ func (h *transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Con
 
 	// Iterate through each ledger and its transactions until limit or end range is reached
 	var txns []TransactionInfo
-	var cursor transactions.Cursor
+	var cursor *toid.ID
 LedgerLoop:
-	for ledgerSeq := start.LedgerSequence; ledgerSeq <= request.EndLedger; ledgerSeq++ {
+	for ledgerSeq := start.LedgerSequence; ledgerSeq <= int32(request.EndLedger); ledgerSeq++ {
 		// Get ledger close meta from db
-		ledger, found, err := h.ledgerReader.GetLedger(ctx, ledgerSeq)
+		ledger, found, err := h.ledgerReader.GetLedger(ctx, uint32(ledgerSeq))
 		if (err != nil) || (!found) {
 			if err == nil {
 				err = errors.Errorf("ledger close meta not found: %d", ledgerSeq)
@@ -135,7 +135,7 @@ LedgerLoop:
 		// Move the reader to specific tx idx
 		startTxIdx := 0
 		if ledgerSeq == start.LedgerSequence {
-			startTxIdx = int(start.TxIdx)
+			startTxIdx = int(start.TransactionOrder)
 		}
 		err = reader.Seek(startTxIdx)
 		if err != nil {
@@ -151,7 +151,7 @@ LedgerLoop:
 		// Decode transaction info from ledger meta
 		txCount := ledger.CountTransactions()
 		for i := startTxIdx; i < txCount; i++ {
-			cursor = transactions.NewCursor(ledger.LedgerSequence(), uint32(i), 0)
+			cursor = toid.New(int32(ledger.LedgerSequence()), int32(uint32(i)), 0)
 
 			tx, err := reader.Read()
 			if err != nil {
@@ -202,7 +202,7 @@ LedgerLoop:
 		Transactions:               txns,
 		LatestLedger:               latestLedgerSequence,
 		LatestLedgerCloseTimestamp: latestLedgerCloseTime,
-		Cursor:                     &cursor,
+		Cursor:                     cursor,
 	}, nil
 
 }

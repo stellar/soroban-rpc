@@ -6,10 +6,10 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stellar/go/support/errors"
+	"github.com/stellar/go/toid"
 	"github.com/stellar/go/xdr"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/util"
 )
 
@@ -84,8 +84,7 @@ func TestGetTransactions_DefaultLimit(t *testing.T) {
 	assert.Equal(t, response.LatestLedgerCloseTimestamp, LatestLedgerCloseTimestamp)
 
 	// assert pagination
-	cursor := transactions.NewCursor(102, 1, 0)
-	assert.Equal(t, response.Cursor, &cursor)
+	assert.Equal(t, response.Cursor, toid.New(102, 1, 0))
 
 	// assert transactions result
 	assert.Equal(t, len(response.Transactions), 4)
@@ -121,8 +120,7 @@ func TestGetTransactions_CustomLimit(t *testing.T) {
 	assert.Equal(t, response.LatestLedgerCloseTimestamp, LatestLedgerCloseTimestamp)
 
 	// assert pagination
-	cursor := transactions.NewCursor(101, 1, 0)
-	assert.Equal(t, response.Cursor, &cursor)
+	assert.Equal(t, response.Cursor, toid.New(101, 1, 0))
 
 	// assert transactions result
 	assert.Equal(t, len(response.Transactions), 2)
@@ -148,10 +146,10 @@ func TestGetTransactions_CustomLimitAndCursor(t *testing.T) {
 	request := GetTransactionsRequest{
 		EndLedger: 2,
 		Pagination: &TransactionsPaginationOptions{
-			Cursor: &transactions.Cursor{
-				LedgerSequence: 1,
-				TxIdx:          0,
-				OpIdx:          0,
+			Cursor: &toid.ID{
+				LedgerSequence:   1,
+				TransactionOrder: 0,
+				OperationOrder:   0,
 			},
 			Limit: 2,
 		},
@@ -165,8 +163,8 @@ func TestGetTransactions_CustomLimitAndCursor(t *testing.T) {
 	assert.Equal(t, response.LatestLedgerCloseTimestamp, LatestLedgerCloseTimestamp)
 
 	// assert pagination
-	cursor := transactions.NewCursor(102, 0, 0)
-	assert.Equal(t, response.Cursor, &cursor)
+	cursor := toid.New(102, 0, 0)
+	assert.Equal(t, response.Cursor, cursor)
 
 	// assert transactions result
 	assert.Equal(t, len(response.Transactions), 2)

@@ -20,11 +20,3 @@ type CoreClient interface {
 	Info(ctx context.Context) (*proto.InfoResponse, error)
 	SubmitTransaction(context.Context, string) (*proto.TXResponse, error)
 }
-
-type Cursor interface {
-	String() string
-	MarshalJSON() ([]byte, error)
-	UnmarshalJSON(b []byte) error
-	Cmp(other Cursor) int
-	ParseCursor(input string) (Cursor, error)
-}
