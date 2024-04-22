@@ -78,11 +78,19 @@ func NewTransactionWriter(db db.SessionInterface, stmtCache *sq.StmtCache, passp
 }
 
 func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error {
-	start := time.Now()
+	start, mid := time.Now(), time.Now()
 	txCount := lcm.CountTransactions()
 	L := log.
 		WithField("ledger_seq", lcm.LedgerSequence()).
 		WithField("tx_count", txCount)
+
+	defer func() {
+		if txn.ingestMetric != nil {
+			txn.ingestMetric.Observe(time.Since(start).Seconds())
+			txn.insertMetric.Observe(time.Since(mid).Seconds())
+			txn.countMetric.Observe(float64(txCount))
+		}
+	}()
 
 	if txn.stmtCache == nil {
 		return errors.New("TransactionWriter incorrectly initialized without stmtCache")
@@ -112,12 +120,11 @@ func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 		transactions[tx.Result.TransactionHash] = tx
 	}
 
-	mid := time.Now()
+	mid = time.Now()
 	query := sq.Insert(transactionTableName).
 		Columns("hash", "ledger_sequence", "application_order")
 	for hash, tx := range transactions {
-		hexHash := hex.EncodeToString(hash[:])
-		query = query.Values(hexHash, lcm.LedgerSequence(), tx.Index)
+		query = query.Values(hash[:], lcm.LedgerSequence(), tx.Index)
 	}
 	_, err = query.RunWith(txn.stmtCache).Exec()
 
@@ -125,12 +132,6 @@ func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 		WithField("duration", time.Since(start)).
 		WithField("sql_duration", time.Since(mid)).
 		Infof("Ingested %d transaction lookups", len(transactions))
-
-	if txn.ingestMetric != nil {
-		txn.ingestMetric.Observe(time.Since(start).Seconds())
-		txn.insertMetric.Observe(time.Since(mid).Seconds())
-		txn.countMetric.Observe(float64(txCount))
-	}
 
 	return err
 }
@@ -236,14 +237,13 @@ func (txn *transactionReaderTx) GetTransaction(hash xdr.Hash) (
 ) {
 	start := time.Now()
 	tx := Transaction{}
-	hexHash := hex.EncodeToString(hash[:])
 
 	ledgerRange, err := txn.GetLedgerRange()
 	if err != nil && err != ErrEmptyDB {
 		return tx, ledgerRange, err
 	}
 
-	lcm, ingestTx, err := txn.getTransactionByHash(hexHash)
+	lcm, ingestTx, err := txn.getTransactionByHash(hash)
 	if err != nil {
 		return tx, ledgerRange, err
 	}
@@ -281,7 +281,7 @@ func (txn *transactionReaderTx) GetTransaction(hash xdr.Hash) (
 		return tx, ledgerRange, errors.Wrap(diagErr, "couldn't encode transaction DiagnosticEvents")
 	}
 
-	log.WithField("txhash", hexHash).
+	log.WithField("txhash", hex.EncodeToString(hash[:])).
 		WithField("duration", time.Since(start)).
 		Debugf("Fetched and encoded transaction from ledger %d", lcm.LedgerSequence())
 
@@ -294,13 +294,13 @@ func (txn *transactionReaderTx) GetTransaction(hash xdr.Hash) (
 // field.
 //
 // Note: Caller must do input sanitization on the hash.
-func (txn *transactionReaderTx) getTransactionByHash(hash string) (
+func (txn *transactionReaderTx) getTransactionByHash(hash xdr.Hash) (
 	xdr.LedgerCloseMeta, ingest.LedgerTransaction, error,
 ) {
 	rowQ := sq.Select("t.application_order", "lcm.meta").
 		From(fmt.Sprintf("%s t", transactionTableName)).
 		Join(fmt.Sprintf("%s lcm ON (t.ledger_sequence = lcm.sequence)", ledgerCloseMetaTableName)).
-		Where(sq.Eq{"t.hash": hash}).
+		Where(sq.Eq{"t.hash": []byte(hash[:])}).
 		Limit(1).
 		RunWith(txn.db.GetTx())
 
