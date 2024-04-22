@@ -1,6 +1,6 @@
 [package]
 name = "preflight"
-version = "20.3.5"
+version = "21.0.0"
 publish = false
 
 [lib]
