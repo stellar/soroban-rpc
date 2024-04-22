@@ -50,7 +50,7 @@ type TransactionReader interface {
 // TransactionReaderTx provides all of the public ways to read from the DB.
 // Note that `Done()` *MUST* be called to clean things up.
 type TransactionReaderTx interface {
-	GetTransaction(log *log.Entry, hash xdr.Hash) (Transaction, bool, ledgerbucketwindow.LedgerRange)
+	GetTransaction(hash xdr.Hash) (Transaction, error, ledgerbucketwindow.LedgerRange)
 	GetLedgerRange() (ledgerbucketwindow.LedgerRange, error)
 	Done() error
 }
@@ -174,7 +174,6 @@ func (txn *transactionReaderTx) Done() error {
 // GetLedgerRange pulls the min/max ledger sequence numbers from the database.
 func (txn *transactionReaderTx) GetLedgerRange() (ledgerbucketwindow.LedgerRange, error) {
 	var ledgerRange ledgerbucketwindow.LedgerRange
-	log.Debugf("Retrieving ledger range from database: %+v", txn)
 
 	sqlTx := txn.db.GetTx()
 	newestQ := sq.Select("meta").
@@ -232,8 +231,8 @@ func (txn *transactionReaderTx) GetLedgerRange() (ledgerbucketwindow.LedgerRange
 //
 // Errors (i.e. the bool being false) should only occur if the XDR is out of
 // date or is otherwise incorrect/corrupted or the tx really isn't in the DB.
-func (txn *transactionReaderTx) GetTransaction(log *log.Entry, hash xdr.Hash) (
-	Transaction, bool, ledgerbucketwindow.LedgerRange,
+func (txn *transactionReaderTx) GetTransaction(hash xdr.Hash) (
+	Transaction, error, ledgerbucketwindow.LedgerRange,
 ) {
 	start := time.Now()
 	tx := Transaction{}
@@ -241,20 +240,12 @@ func (txn *transactionReaderTx) GetTransaction(log *log.Entry, hash xdr.Hash) (
 
 	ledgerRange, err := txn.GetLedgerRange()
 	if err != nil {
-		log.WithField("error", err).
-			WithField("txhash", hexHash).
-			Errorf("Failed to fetch ledger range from database")
-		return tx, false, ledgerRange
+		return tx, err, ledgerRange
 	}
 
 	lcm, ingestTx, err := txn.getTransactionByHash(hexHash)
 	if err != nil {
-		if err != io.EOF { // mark for "not in db"
-			log.WithField("error", err).
-				WithField("txhash", hexHash).
-				Errorf("Failed to fetch transaction from database")
-		}
-		return tx, false, ledgerRange
+		return tx, err, ledgerRange
 	}
 
 	//
@@ -269,40 +260,32 @@ func (txn *transactionReaderTx) GetTransaction(log *log.Entry, hash xdr.Hash) (
 	}
 
 	if tx.Result, err = ingestTx.Result.Result.MarshalBinary(); err != nil {
-		log.WithError(err).Errorf("Failed to encode transaction Result")
-		return tx, false, ledgerRange
+		return tx, errors.Wrap(err, "couldn't encode transaction Result"), ledgerRange
 	}
 	if tx.Meta, err = ingestTx.UnsafeMeta.MarshalBinary(); err != nil {
-		log.WithError(err).Errorf("Failed to encode transaction UnsafeMeta")
-		return tx, false, ledgerRange
+		return tx, errors.Wrap(err, "couldn't encode transaction UnsafeMeta"), ledgerRange
 	}
 	if tx.Envelope, err = ingestTx.Envelope.MarshalBinary(); err != nil {
-		log.WithError(err).Errorf("Failed to encode transaction Envelope")
-		return tx, false, ledgerRange
+		return tx, errors.Wrap(err, "couldn't encode transaction Envelope"), ledgerRange
 	}
 	if events, diagErr := ingestTx.GetDiagnosticEvents(); diagErr == nil {
 		tx.Events = make([][]byte, 0, len(events))
 		for i, event := range events {
 			bytes, ierr := event.MarshalBinary()
 			if ierr != nil {
-				log.WithError(ierr).
-					Errorf("Failed to encode transaction DiagnosticEvent %d", i)
-				return tx, false, ledgerRange
+				return tx, errors.Wrapf(ierr, "couldn't encode transaction DiagnosticEvent %d", i), ledgerRange
 			}
 			tx.Events = append(tx.Events, bytes)
 		}
 	} else {
-		log.WithError(diagErr).
-			Errorf("Failed to encode transaction DiagnosticEvents")
-		return tx, false, ledgerRange
+		return tx, errors.Wrap(diagErr, "couldn't encode transaction DiagnosticEvents"), ledgerRange
 	}
 
 	log.WithField("txhash", hexHash).
 		WithField("duration", time.Since(start)).
-		Debugf("Fetched and encoded transaction from ledger %d",
-			lcm.LedgerSequence())
+		Debugf("Fetched and encoded transaction from ledger %d", lcm.LedgerSequence())
 
-	return tx, true, ledgerRange
+	return tx, nil, ledgerRange
 }
 
 // getTransactionByHash actually performs the DB ops to cross-reference a

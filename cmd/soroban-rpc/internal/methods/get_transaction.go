@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"io"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/stellar/go/support/log"
@@ -98,16 +99,22 @@ func GetTransaction(
 	}
 	defer reader.Done()
 
-	tx, found, storeRange := reader.GetTransaction(log, txHash)
+	tx, err, storeRange := reader.GetTransaction(txHash)
+
 	response := GetTransactionResponse{
 		LatestLedger:          storeRange.LastLedger.Sequence,
 		LatestLedgerCloseTime: storeRange.LastLedger.CloseTime,
 		OldestLedger:          storeRange.FirstLedger.Sequence,
 		OldestLedgerCloseTime: storeRange.FirstLedger.CloseTime,
 	}
-	if !found {
+	if err == io.EOF {
 		response.Status = TransactionStatusNotFound
 		return response, nil
+	} else if err != nil {
+		log.WithError(err).
+			WithField("hash", txHash).
+			Errorf("failed to fetch transaction")
+		return response, err
 	}
 
 	response.ApplicationOrder = tx.ApplicationOrder
@@ -130,6 +137,6 @@ func GetTransaction(
 // NewGetTransactionHandler returns a get transaction json rpc handler
 func NewGetTransactionHandler(logger *log.Entry, getter db.TransactionReader) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context, request GetTransactionRequest) (GetTransactionResponse, error) {
-		return GetTransaction(ctx, logger.WithContext(ctx), getter, request)
+		return GetTransaction(ctx, logger, getter, request)
 	})
 }
