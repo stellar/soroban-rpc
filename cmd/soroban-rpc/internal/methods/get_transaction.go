@@ -99,7 +99,7 @@ func GetTransaction(
 	}
 	defer reader.Done()
 
-	tx, err, storeRange := reader.GetTransaction(txHash)
+	tx, storeRange, err := reader.GetTransaction(txHash)
 
 	response := GetTransactionResponse{
 		LatestLedger:          storeRange.LastLedger.Sequence,
@@ -107,7 +107,7 @@ func GetTransaction(
 		OldestLedger:          storeRange.FirstLedger.Sequence,
 		OldestLedgerCloseTime: storeRange.FirstLedger.CloseTime,
 	}
-	if err == io.EOF {
+	if err == io.EOF || err == db.ErrEmptyDB {
 		response.Status = TransactionStatusNotFound
 		return response, nil
 	} else if err != nil {

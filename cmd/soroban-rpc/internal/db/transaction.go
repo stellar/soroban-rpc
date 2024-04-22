@@ -50,7 +50,7 @@ type TransactionReader interface {
 // TransactionReaderTx provides all of the public ways to read from the DB.
 // Note that `Done()` *MUST* be called to clean things up.
 type TransactionReaderTx interface {
-	GetTransaction(hash xdr.Hash) (Transaction, error, ledgerbucketwindow.LedgerRange)
+	GetTransaction(hash xdr.Hash) (Transaction, ledgerbucketwindow.LedgerRange, error)
 	GetLedgerRange() (ledgerbucketwindow.LedgerRange, error)
 	Done() error
 }
@@ -194,7 +194,7 @@ func (txn *transactionReaderTx) GetLedgerRange() (ledgerbucketwindow.LedgerRange
 		if ierr := rows.Err(); ierr != nil {
 			return ledgerRange, errors.Wrap(ierr, "couldn't query latest ledger")
 		}
-		return ledgerRange, nil
+		return ledgerRange, ErrEmptyDB
 	}
 
 	var lcm1, lcm2 xdr.LedgerCloseMeta
@@ -229,23 +229,23 @@ func (txn *transactionReaderTx) GetLedgerRange() (ledgerbucketwindow.LedgerRange
 // methods/get_transaction.go#NewGetTransactionHandler so that it can be used
 // directly against the RPC handler.
 //
-// Errors (i.e. the bool being false) should only occur if the XDR is out of
-// date or is otherwise incorrect/corrupted or the tx really isn't in the DB.
+// Errors occur if there are issues with the DB connection or the XDR is
+// corrupted somehow. If the transaction is not found, io.EOF is returned.
 func (txn *transactionReaderTx) GetTransaction(hash xdr.Hash) (
-	Transaction, error, ledgerbucketwindow.LedgerRange,
+	Transaction, ledgerbucketwindow.LedgerRange, error,
 ) {
 	start := time.Now()
 	tx := Transaction{}
 	hexHash := hex.EncodeToString(hash[:])
 
 	ledgerRange, err := txn.GetLedgerRange()
-	if err != nil {
-		return tx, err, ledgerRange
+	if err != nil && err != ErrEmptyDB {
+		return tx, ledgerRange, err
 	}
 
 	lcm, ingestTx, err := txn.getTransactionByHash(hexHash)
 	if err != nil {
-		return tx, err, ledgerRange
+		return tx, ledgerRange, err
 	}
 
 	//
@@ -260,32 +260,32 @@ func (txn *transactionReaderTx) GetTransaction(hash xdr.Hash) (
 	}
 
 	if tx.Result, err = ingestTx.Result.Result.MarshalBinary(); err != nil {
-		return tx, errors.Wrap(err, "couldn't encode transaction Result"), ledgerRange
+		return tx, ledgerRange, errors.Wrap(err, "couldn't encode transaction Result")
 	}
 	if tx.Meta, err = ingestTx.UnsafeMeta.MarshalBinary(); err != nil {
-		return tx, errors.Wrap(err, "couldn't encode transaction UnsafeMeta"), ledgerRange
+		return tx, ledgerRange, errors.Wrap(err, "couldn't encode transaction UnsafeMeta")
 	}
 	if tx.Envelope, err = ingestTx.Envelope.MarshalBinary(); err != nil {
-		return tx, errors.Wrap(err, "couldn't encode transaction Envelope"), ledgerRange
+		return tx, ledgerRange, errors.Wrap(err, "couldn't encode transaction Envelope")
 	}
 	if events, diagErr := ingestTx.GetDiagnosticEvents(); diagErr == nil {
 		tx.Events = make([][]byte, 0, len(events))
 		for i, event := range events {
 			bytes, ierr := event.MarshalBinary()
 			if ierr != nil {
-				return tx, errors.Wrapf(ierr, "couldn't encode transaction DiagnosticEvent %d", i), ledgerRange
+				return tx, ledgerRange, errors.Wrapf(ierr, "couldn't encode transaction DiagnosticEvent %d", i)
 			}
 			tx.Events = append(tx.Events, bytes)
 		}
 	} else {
-		return tx, errors.Wrap(diagErr, "couldn't encode transaction DiagnosticEvents"), ledgerRange
+		return tx, ledgerRange, errors.Wrap(diagErr, "couldn't encode transaction DiagnosticEvents")
 	}
 
 	log.WithField("txhash", hexHash).
 		WithField("duration", time.Since(start)).
 		Debugf("Fetched and encoded transaction from ledger %d", lcm.LedgerSequence())
 
-	return tx, nil, ledgerRange
+	return tx, ledgerRange, nil
 }
 
 // getTransactionByHash actually performs the DB ops to cross-reference a
