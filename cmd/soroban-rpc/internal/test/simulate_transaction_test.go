@@ -773,7 +773,7 @@ func TestSimulateTransactionExtendAndRestoreFootprint(t *testing.T) {
 		IncrementSequenceNum: true,
 		Operations: []txnbuild.Operation{
 			&txnbuild.ExtendFootprintTtl{
-				ExtendTo: 40,
+				ExtendTo: 20,
 				Ext: xdr.TransactionExt{
 					V: 1,
 					SorobanData: &xdr.SorobanTransactionData{
