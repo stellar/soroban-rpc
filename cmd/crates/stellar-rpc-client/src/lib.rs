@@ -7,21 +7,22 @@ use serde_aux::prelude::{
     deserialize_default_from_null, deserialize_number_from_string,
     deserialize_option_number_from_string,
 };
-use soroban_env_host::xdr::{
-    self, AccountEntry, AccountId, ContractDataEntry, DiagnosticEvent, Error as XdrError,
-    LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyAccount, Limited, PublicKey, ReadXdr,
-    SorobanAuthorizationEntry, SorobanResources, SorobanTransactionData, Transaction,
-    TransactionEnvelope, TransactionMeta, TransactionMetaV3, TransactionResult, Uint256, VecM,
-    WriteXdr,
+use stellar_xdr::curr::{
+    self as xdr, AccountEntry, AccountId, ContractDataEntry, ContractEventType, DiagnosticEvent,
+    Error as XdrError, Hash, LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyAccount,
+    Limited, Limits, PublicKey, ReadXdr, ScContractInstance, SorobanAuthorizationEntry,
+    SorobanResources, SorobanTransactionData, Transaction, TransactionEnvelope, TransactionMeta,
+    TransactionMetaV3, TransactionResult, TransactionV1Envelope, Uint256, VecM, WriteXdr,
 };
-use soroban_sdk::token;
-use soroban_sdk::xdr::Limits;
+
 use std::{
+    f64::consts::E,
     fmt::Display,
     str::FromStr,
+    sync::Arc,
     time::{Duration, Instant},
 };
-use stellar_xdr::curr::ContractEventType;
+
 use termcolor::{Color, ColorChoice, StandardStream, WriteColor};
 use termcolor_output::colored;
 use tokio::time::sleep;
@@ -58,7 +59,7 @@ pub enum Error {
     InvalidRpcUrlFromUriParts(http::uri::InvalidUriParts),
     #[error("invalid friendbot url: {0}")]
     InvalidUrl(String),
-    #[error("jsonrpc error: {0}")]
+    #[error(transparent)]
     JsonRpc(#[from] jsonrpsee_core::Error),
     #[error("json decoding error: {0}")]
     Serde(#[from] serde_json::Error),
@@ -90,12 +91,10 @@ pub enum Error {
     UnsupportedOperationType,
     #[error("unexpected contract code data type: {0:?}")]
     UnexpectedContractCodeDataType(LedgerEntryData),
+    #[error("unexpected contract instance type: {0:?}")]
+    UnexpectedContractInstance(xdr::ScVal),
     #[error("unexpected contract code got token")]
     UnexpectedToken(ContractDataEntry),
-    #[error(transparent)]
-    Spec(#[from] soroban_spec::read::FromWasmError),
-    #[error(transparent)]
-    SpecBase64(#[from] soroban_spec::read::ParseSpecBase64Error),
     #[error("Fee was too large {0}")]
     LargeFee(u64),
     #[error("Cannot authorize raw transactions")]
@@ -567,9 +566,11 @@ pub struct FullLedgerEntries {
     pub latest_ledger: i64,
 }
 
+#[derive(Debug, Clone)]
 pub struct Client {
-    base_url: String,
+    base_url: Arc<str>,
     timeout_in_secs: u64,
+    http_client: Arc<HttpClient>,
 }
 
 impl Client {
@@ -599,11 +600,31 @@ impl Client {
             }
         }
         let uri = Uri::from_parts(parts).map_err(Error::InvalidRpcUrlFromUriParts)?;
+        let base_url = Arc::from(uri.to_string());
         tracing::trace!(?uri);
+        let mut headers = HeaderMap::new();
+        headers.insert("X-Client-Name", unsafe {
+            "soroban-cli".parse().unwrap_unchecked()
+        });
+        let version = VERSION.unwrap_or("devel");
+        headers.insert("X-Client-Version", unsafe {
+            version.parse().unwrap_unchecked()
+        });
+        let http_client = Arc::new(
+            HttpClientBuilder::default()
+                .set_headers(headers)
+                .build(&base_url)?,
+        );
         Ok(Self {
-            base_url: uri.to_string(),
+            base_url,
             timeout_in_secs: 30,
+            http_client,
         })
+    }
+
+    #[must_use]
+    pub fn base_url(&self) -> &str {
+        &self.base_url
     }
 
     /// Create a new client with a timeout in seconds
@@ -614,17 +635,9 @@ impl Client {
         Ok(client)
     }
 
-    ///
-    /// # Errors
-    fn client(&self) -> Result<HttpClient, Error> {
-        let url = self.base_url.clone();
-        let mut headers = HeaderMap::new();
-        headers.insert("X-Client-Name", "soroban-cli".parse().unwrap());
-        let version = VERSION.unwrap_or("devel");
-        headers.insert("X-Client-Version", version.parse().unwrap());
-        Ok(HttpClientBuilder::default()
-            .set_headers(headers)
-            .build(url)?)
+    #[must_use]
+    pub fn client(&self) -> &HttpClient {
+        &self.http_client
     }
 
     ///
@@ -659,7 +672,7 @@ impl Client {
     pub async fn get_network(&self) -> Result<GetNetworkResponse, Error> {
         tracing::trace!("Getting network");
         Ok(self
-            .client()?
+            .client()
             .request("getNetwork", ObjectParams::new())
             .await?)
     }
@@ -669,7 +682,7 @@ impl Client {
     pub async fn get_latest_ledger(&self) -> Result<GetLatestLedgerResponse, Error> {
         tracing::trace!("Getting latest ledger");
         Ok(self
-            .client()?
+            .client()
             .request("getLatestLedger", ObjectParams::new())
             .await?)
     }
@@ -687,15 +700,7 @@ impl Client {
         let response = self.get_ledger_entries(&keys).await?;
         let entries = response.entries.unwrap_or_default();
         if entries.is_empty() {
-            return Err(Error::NotFound(
-                "Account".to_string(),
-                format!(
-                    r#"{address}
-Might need to fund account like:
-soroban config identity fund {address} --network <name>
-soroban config identity fund {address} --helper-url <url>"#
-                ),
-            ));
+            return Err(Error::NotFound("Account".to_string(), address.to_owned()));
         }
         let ledger_entry = &entries[0];
         let mut read = Limited::new(ledger_entry.xdr.as_bytes(), Limits::none());
@@ -707,13 +712,9 @@ soroban config identity fund {address} --helper-url <url>"#
         }
     }
 
-    ///
+    /// Send a transaction to the network and get back the hash of the transaction.
     /// # Errors
-    pub async fn send_transaction(
-        &self,
-        tx: &TransactionEnvelope,
-    ) -> Result<GetTransactionResponse, Error> {
-        let client = self.client()?;
+    pub async fn send_transaction(&self, tx: &TransactionEnvelope) -> Result<Hash, Error> {
         tracing::trace!("Sending:\n{tx:#?}");
         let mut oparams = ObjectParams::new();
         oparams.insert("transaction", tx.to_xdr_base64(Limits::none())?)?;
@@ -722,7 +723,8 @@ soroban config identity fund {address} --helper-url <url>"#
             error_result_xdr,
             status,
             ..
-        } = client
+        } = self
+            .client()
             .request("sendTransaction", oparams)
             .await
             .map_err(|err| {
@@ -740,15 +742,92 @@ soroban config identity fund {address} --helper-url <url>"#
                     .map_err(|_| Error::InvalidResponse)
                 })
                 .map(|r| r.result);
-            tracing::error!("TXN failed:\n {error:#?}");
+            tracing::error!("TXN {hash} failed:\n {error:#?}");
             return Err(Error::TransactionSubmissionFailed(format!("{:#?}", error?)));
         }
-        // even if status == "success" we need to query the transaction status in order to get the result
+        Ok(Hash::from_str(&hash)?)
+    }
 
+    ///
+    /// # Errors
+    pub async fn send_transaction_polling(
+        &self,
+        tx: &TransactionEnvelope,
+    ) -> Result<GetTransactionResponse, Error> {
+        let hash = self.send_transaction(tx).await?;
+        self.get_transaction_polling(&hash, None).await
+    }
+
+    ///
+    /// # Errors
+    pub async fn simulate_and_assemble_transaction(
+        &self,
+        tx: &Transaction,
+    ) -> Result<Assembled, Error> {
+        let sim_res = self
+            .simulate_transaction_envelope(&TransactionEnvelope::Tx(TransactionV1Envelope {
+                tx: tx.clone(),
+                signatures: VecM::default(),
+            }))
+            .await?;
+        match sim_res.error {
+            None => Ok(Assembled::new(tx, sim_res)?),
+            Some(e) => {
+                log::diagnostic_events(&sim_res.events, tracing::Level::ERROR);
+                Err(Error::TransactionSimulationFailed(e))
+            }
+        }
+    }
+
+    ///
+    /// # Errors
+    pub async fn simulate_transaction_envelope(
+        &self,
+        tx: &TransactionEnvelope,
+    ) -> Result<SimulateTransactionResponse, Error> {
+        tracing::trace!("Simulating:\n{tx:#?}");
+        let base64_tx = tx.to_xdr_base64(Limits::none())?;
+        let mut oparams = ObjectParams::new();
+        oparams.insert("transaction", base64_tx)?;
+        let sim_res = self
+            .client()
+            .request("simulateTransaction", oparams)
+            .await?;
+        tracing::trace!("Simulation response:\n {sim_res:#?}");
+        Ok(sim_res)
+    }
+
+    ///
+    /// # Errors
+    pub async fn get_transaction(&self, tx_id: &Hash) -> Result<GetTransactionResponse, Error> {
+        let mut oparams = ObjectParams::new();
+        oparams.insert("hash", tx_id)?;
+        Ok(self.client().request("getTransaction", oparams).await?)
+    }
+
+    /// Poll the transaction status. Can provide a timeout in seconds, otherwise uses the default timeout.
+    ///
+    /// It uses exponential backoff with a base of 1 second and a maximum of 30 seconds.
+    ///
+    /// # Errors
+    /// - `Error::TransactionSubmissionTimeout` if the transaction status is not found within the timeout
+    /// - `Error::TransactionSubmissionFailed` if the transaction status is "FAILED"
+    /// - `Error::UnexpectedTransactionStatus` if the transaction status is not one of "SUCCESS", "FAILED", or ``NOT_FOUND``
+    /// - `json_rpsee` Errors
+    pub async fn get_transaction_polling(
+        &self,
+        tx_id: &Hash,
+        timeout_s: Option<Duration>,
+    ) -> Result<GetTransactionResponse, Error> {
         // Poll the transaction status
         let start = Instant::now();
+        let timeout = timeout_s.unwrap_or(Duration::from_secs(self.timeout_in_secs));
+        // see https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=50731
+        // Is optimimal exponent for expontial backoff
+        let exponential_backoff: f64 = 1.0 / (1.0 - E.powf(-1.0));
+        let mut sleep_time = Duration::from_secs(1);
         loop {
-            let response: GetTransactionResponse = self.get_transaction(&hash).await?.try_into()?;
+            let response = self.get_transaction(tx_id).await?;
             match response.status.as_str() {
                 "SUCCESS" => {
                     // TODO: the caller should probably be printing this
@@ -768,99 +847,12 @@ soroban config identity fund {address} --helper-url <url>"#
                     return Err(Error::UnexpectedTransactionStatus(response.status));
                 }
             };
-            let duration = start.elapsed();
-            if duration.as_secs() > self.timeout_in_secs {
+            if start.elapsed() > timeout {
                 return Err(Error::TransactionSubmissionTimeout);
             }
-            sleep(Duration::from_secs(1)).await;
+            sleep(sleep_time).await;
+            sleep_time = Duration::from_secs_f64(sleep_time.as_secs_f64() * exponential_backoff);
         }
-    }
-
-    ///
-    /// # Errors
-    pub async fn simulate_transaction(
-        &self,
-        tx: &TransactionEnvelope,
-    ) -> Result<SimulateTransactionResponse, Error> {
-        tracing::trace!("Simulating:\n{tx:#?}");
-        let base64_tx = tx.to_xdr_base64(Limits::none())?;
-        let mut oparams = ObjectParams::new();
-        oparams.insert("transaction", base64_tx)?;
-        let response: SimulateTransactionResponse = self
-            .client()?
-            .request("simulateTransaction", oparams)
-            .await?;
-        tracing::trace!("Simulation response:\n {response:#?}");
-        match response.error {
-            None => Ok(response),
-            Some(e) => {
-                log::diagnostic_events(&response.events, tracing::Level::ERROR);
-                Err(Error::TransactionSimulationFailed(e))
-            }
-        }
-    }
-
-    ///
-    /// # Errors
-    pub async fn send_assembled_transaction(
-        &self,
-        txn: txn::Assembled,
-        source_key: &ed25519_dalek::SigningKey,
-        signers: &[ed25519_dalek::SigningKey],
-        network_passphrase: &str,
-        log_events: Option<LogEvents>,
-        log_resources: Option<LogResources>,
-    ) -> Result<GetTransactionResponse, Error> {
-        let seq_num = txn.sim_response().latest_ledger + 60; //5 min;
-        let authorized = txn
-            .handle_restore(self, source_key, network_passphrase)
-            .await?
-            .authorize(self, source_key, signers, seq_num, network_passphrase)
-            .await?;
-        authorized.log(log_events, log_resources)?;
-
-        let tx = authorized.sign(source_key, network_passphrase)?;
-        self.send_transaction(&tx).await
-    }
-
-    ///
-    /// # Errors
-    pub async fn prepare_and_send_transaction(
-        &self,
-        tx_without_preflight: &Transaction,
-        source_key: &ed25519_dalek::SigningKey,
-        signers: &[ed25519_dalek::SigningKey],
-        network_passphrase: &str,
-        log_events: Option<LogEvents>,
-        log_resources: Option<LogResources>,
-    ) -> Result<GetTransactionResponse, Error> {
-        let txn = txn::Assembled::new(tx_without_preflight, self).await?;
-        self.send_assembled_transaction(
-            txn,
-            source_key,
-            signers,
-            network_passphrase,
-            log_events,
-            log_resources,
-        )
-        .await
-    }
-
-    ///
-    /// # Errors
-    pub async fn create_assembled_transaction(
-        &self,
-        txn: &Transaction,
-    ) -> Result<txn::Assembled, Error> {
-        txn::Assembled::new(txn, self).await
-    }
-
-    ///
-    /// # Errors
-    pub async fn get_transaction(&self, tx_id: &str) -> Result<GetTransactionResponseRaw, Error> {
-        let mut oparams = ObjectParams::new();
-        oparams.insert("hash", tx_id)?;
-        Ok(self.client()?.request("getTransaction", oparams).await?)
     }
 
     ///
@@ -879,7 +871,7 @@ soroban config identity fund {address} --helper-url <url>"#
         }
         let mut oparams = ObjectParams::new();
         oparams.insert("keys", base64_keys)?;
-        Ok(self.client()?.request("getLedgerEntries", oparams).await?)
+        Ok(self.client().request("getLedgerEntries", oparams).await?)
     }
 
     ///
@@ -962,7 +954,7 @@ soroban config identity fund {address} --helper-url <url>"#
         oparams.insert("filters", vec![filters])?;
         oparams.insert("pagination", pagination)?;
 
-        Ok(self.client()?.request("getEvents", oparams).await?)
+        Ok(self.client().request("getEvents", oparams).await?)
     }
 
     ///
@@ -1024,27 +1016,19 @@ soroban config identity fund {address} --helper-url <url>"#
             scval => Err(Error::UnexpectedContractCodeDataType(scval)),
         }
     }
+
+    /// Get the contract instance from the network. Could be normal contract or native Stellar Asset Contract (SAC)
     ///
     /// # Errors
-    pub async fn get_remote_contract_spec(
+    /// - Could fail to find contract or have a network error
+    pub async fn get_contract_instance(
         &self,
         contract_id: &[u8; 32],
-    ) -> Result<Vec<xdr::ScSpecEntry>, Error> {
+    ) -> Result<ScContractInstance, Error> {
         let contract_data = self.get_contract_data(contract_id).await?;
         match contract_data.val {
-            xdr::ScVal::ContractInstance(xdr::ScContractInstance {
-                executable: xdr::ContractExecutable::Wasm(hash),
-                ..
-            }) => Ok(soroban_spec::read::from_wasm(
-                &self.get_remote_wasm_from_hash(hash).await?,
-            )?),
-            xdr::ScVal::ContractInstance(xdr::ScContractInstance {
-                executable: xdr::ContractExecutable::StellarAsset,
-                ..
-            }) => Ok(soroban_spec::read::parse_raw(
-                &token::StellarAssetSpec::spec_xdr(),
-            )?),
-            _ => Err(Error::Xdr(XdrError::Invalid)),
+            xdr::ScVal::ContractInstance(instance) => Ok(instance),
+            scval => Err(Error::UnexpectedContractInstance(scval)),
         }
     }
 }
@@ -1122,29 +1106,29 @@ mod tests {
     fn test_rpc_url_default_ports() {
         // Default ports are added.
         let client = Client::new("http://example.com").unwrap();
-        assert_eq!(client.base_url, "http://example.com:80/");
+        assert_eq!(client.base_url(), "http://example.com:80/");
         let client = Client::new("https://example.com").unwrap();
-        assert_eq!(client.base_url, "https://example.com:443/");
+        assert_eq!(client.base_url(), "https://example.com:443/");
 
         // Ports are not added when already present.
         let client = Client::new("http://example.com:8080").unwrap();
-        assert_eq!(client.base_url, "http://example.com:8080/");
+        assert_eq!(client.base_url(), "http://example.com:8080/");
         let client = Client::new("https://example.com:8080").unwrap();
-        assert_eq!(client.base_url, "https://example.com:8080/");
+        assert_eq!(client.base_url(), "https://example.com:8080/");
 
         // Paths are not modified.
         let client = Client::new("http://example.com/a/b/c").unwrap();
-        assert_eq!(client.base_url, "http://example.com:80/a/b/c");
+        assert_eq!(client.base_url(), "http://example.com:80/a/b/c");
         let client = Client::new("https://example.com/a/b/c").unwrap();
-        assert_eq!(client.base_url, "https://example.com:443/a/b/c");
+        assert_eq!(client.base_url(), "https://example.com:443/a/b/c");
         let client = Client::new("http://example.com/a/b/c/").unwrap();
-        assert_eq!(client.base_url, "http://example.com:80/a/b/c/");
+        assert_eq!(client.base_url(), "http://example.com:80/a/b/c/");
         let client = Client::new("https://example.com/a/b/c/").unwrap();
-        assert_eq!(client.base_url, "https://example.com:443/a/b/c/");
+        assert_eq!(client.base_url(), "https://example.com:443/a/b/c/");
         let client = Client::new("http://example.com/a/b:80/c/").unwrap();
-        assert_eq!(client.base_url, "http://example.com:80/a/b:80/c/");
+        assert_eq!(client.base_url(), "http://example.com:80/a/b:80/c/");
         let client = Client::new("https://example.com/a/b:80/c/").unwrap();
-        assert_eq!(client.base_url, "https://example.com:443/a/b:80/c/");
+        assert_eq!(client.base_url(), "https://example.com:443/a/b:80/c/");
     }
 
     #[test]
