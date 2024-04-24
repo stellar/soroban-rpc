@@ -247,39 +247,7 @@ func (txn *transactionReaderTx) GetTransaction(hash xdr.Hash) (
 	if err != nil {
 		return tx, ledgerRange, err
 	}
-
-	//
-	// On-the-fly ingestion: extract all of the fields, return best effort.
-	//
-	tx.FeeBump = ingestTx.Envelope.IsFeeBump()
-	tx.ApplicationOrder = int32(ingestTx.Index)
-	tx.Successful = ingestTx.Result.Successful()
-	tx.Ledger = ledgerbucketwindow.LedgerInfo{
-		Sequence:  lcm.LedgerSequence(),
-		CloseTime: lcm.LedgerCloseTime(),
-	}
-
-	if tx.Result, err = ingestTx.Result.Result.MarshalBinary(); err != nil {
-		return tx, ledgerRange, errors.Wrap(err, "couldn't encode transaction Result")
-	}
-	if tx.Meta, err = ingestTx.UnsafeMeta.MarshalBinary(); err != nil {
-		return tx, ledgerRange, errors.Wrap(err, "couldn't encode transaction UnsafeMeta")
-	}
-	if tx.Envelope, err = ingestTx.Envelope.MarshalBinary(); err != nil {
-		return tx, ledgerRange, errors.Wrap(err, "couldn't encode transaction Envelope")
-	}
-	if events, diagErr := ingestTx.GetDiagnosticEvents(); diagErr == nil {
-		tx.Events = make([][]byte, 0, len(events))
-		for i, event := range events {
-			bytes, ierr := event.MarshalBinary()
-			if ierr != nil {
-				return tx, ledgerRange, errors.Wrapf(ierr, "couldn't encode transaction DiagnosticEvent %d", i)
-			}
-			tx.Events = append(tx.Events, bytes)
-		}
-	} else {
-		return tx, ledgerRange, errors.Wrap(diagErr, "couldn't encode transaction DiagnosticEvents")
-	}
+	tx, err = ParseTransaction(lcm, ingestTx)
 
 	log.WithField("txhash", hex.EncodeToString(hash[:])).
 		WithField("duration", time.Since(start)).
@@ -344,4 +312,44 @@ func (txn *transactionReaderTx) getTransactionByHash(hash xdr.Hash) (
 
 	ledgerTx, err := reader.Read()
 	return lcm, ledgerTx, err
+}
+
+func ParseTransaction(lcm xdr.LedgerCloseMeta, ingestTx ingest.LedgerTransaction) (Transaction, error) {
+	var tx Transaction
+	var err error
+
+	//
+	// On-the-fly ingestion: extract all of the fields, return best effort.
+	//
+	tx.FeeBump = ingestTx.Envelope.IsFeeBump()
+	tx.ApplicationOrder = int32(ingestTx.Index)
+	tx.Successful = ingestTx.Result.Successful()
+	tx.Ledger = ledgerbucketwindow.LedgerInfo{
+		Sequence:  lcm.LedgerSequence(),
+		CloseTime: lcm.LedgerCloseTime(),
+	}
+
+	if tx.Result, err = ingestTx.Result.Result.MarshalBinary(); err != nil {
+		return tx, errors.Wrap(err, "couldn't encode transaction Result")
+	}
+	if tx.Meta, err = ingestTx.UnsafeMeta.MarshalBinary(); err != nil {
+		return tx, errors.Wrap(err, "couldn't encode transaction UnsafeMeta")
+	}
+	if tx.Envelope, err = ingestTx.Envelope.MarshalBinary(); err != nil {
+		return tx, errors.Wrap(err, "couldn't encode transaction Envelope")
+	}
+	if events, diagErr := ingestTx.GetDiagnosticEvents(); diagErr == nil {
+		tx.Events = make([][]byte, 0, len(events))
+		for i, event := range events {
+			bytes, ierr := event.MarshalBinary()
+			if ierr != nil {
+				return tx, errors.Wrapf(ierr, "couldn't encode transaction DiagnosticEvent %d", i)
+			}
+			tx.Events = append(tx.Events, bytes)
+		}
+	} else {
+		return tx, errors.Wrap(diagErr, "couldn't encode transaction DiagnosticEvents")
+	}
+
+	return tx, nil
 }
