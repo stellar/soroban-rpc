@@ -12,31 +12,31 @@ version = "21.0.1"
 rust-version = "1.74.0"
 
 [workspace.dependencies.soroban-env-host]
-version = "=21.0.0"
+version = "=21.0.1"
 # git = "https://github.com/stellar/rs-soroban-env"
 # rev = "27897f6073aec5241d3486690a33b22c80dd0718"
 # path = "../rs-soroban-env/soroban-env-host"
 
 [workspace.dependencies.soroban-simulation]
-version = "=21.0.0"
+version = "=21.0.1"
 # git = "https://github.com/stellar/rs-soroban-env"
 # rev = "27897f6073aec5241d3486690a33b22c80dd0718"
 # path = "../rs-soroban-env/soroban-simulation"
 
 [workspace.dependencies.soroban-spec]
-version = "=21.0.0"
+version = "=21.0.1-preview.1"
 # git = "https://github.com/stellar/rs-soroban-sdk"
 # rev = "c30bc769e379bef9b94a3ceb464aa78c1185eeb3"
 # path = "../rs-soroban-sdk/soroban-spec"
 
 [workspace.dependencies.soroban-sdk]
-version = "=21.0.0"
+version = "=21.0.1-preview.1"
 # git = "https://github.com/stellar/rs-soroban-sdk"
 # rev = "c30bc769e379bef9b94a3ceb464aa78c1185eeb3"
 
 
 [workspace.dependencies.stellar-xdr]
-version = "=21.0.0"
+version = "=21.0.1"
 default-features = true
 # git = "https://github.com/stellar/rs-stellar-xdr"
 # rev = "a80c899c61e869fd00b7b475a4947ab6aaf9dcac"
