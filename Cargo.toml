@@ -8,7 +8,7 @@ default-members = ["cmd/crates/stellar-rpc-client"]
 #exclude = ["cmd/crates/soroban-test/tests/fixtures/hello"]
 
 [workspace.package]
-version = "21.0.0"
+version = "21.0.1"
 rust-version = "1.74.0"
 
 [workspace.dependencies.soroban-env-host]
