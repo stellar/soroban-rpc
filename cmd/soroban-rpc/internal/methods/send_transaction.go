@@ -48,7 +48,7 @@ type SendTransactionRequest struct {
 func NewSendTransactionHandler(
 	daemon interfaces.Daemon,
 	logger *log.Entry,
-	txReader db.TransactionReader,
+	txReader db.TransactionDbReader,
 	passphrase string,
 ) jrpc2.Handler {
 	submitter := daemon.CoreClient()

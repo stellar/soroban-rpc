@@ -41,15 +41,15 @@ type TransactionWriter interface {
 	RegisterMetrics(ingest, insert, count prometheus.Observer)
 }
 
-// TransactionReader is used to serve requests and just returns a cloned,
+// TransactionDbReader is used to serve requests and just returns a cloned,
 // read-only DB session to perform actual DB reads on.
-type TransactionReader interface {
-	NewTx(ctx context.Context) (TransactionReaderTx, error)
+type TransactionDbReader interface {
+	NewTx(ctx context.Context) (TransactionReader, error)
 }
 
-// TransactionReaderTx provides all of the public ways to read from the DB.
+// TransactionReader provides all of the public ways to read from the DB.
 // Note that `Done()` *MUST* be called to clean things up.
-type TransactionReaderTx interface {
+type TransactionReader interface {
 	GetTransaction(hash xdr.Hash) (Transaction, ledgerbucketwindow.LedgerRange, error)
 	GetLedgerRange() (ledgerbucketwindow.LedgerRange, error)
 	Done() error
@@ -69,7 +69,7 @@ type transactionReaderTx struct {
 	passphrase string
 }
 
-func NewTransactionReader(db db.SessionInterface, passphrase string) TransactionReader {
+func NewTransactionReader(db db.SessionInterface, passphrase string) TransactionDbReader {
 	return &transactionHandler{db: db, passphrase: passphrase}
 }
 
@@ -159,7 +159,7 @@ func (txn *transactionHandler) trimTransactions(latestLedgerSeq uint32, retentio
 
 // NewTx creates a read-only SQL transaction on a cloned database session. You
 // MUST call `.Done()` on the resulting reader if there are no errors.
-func (txn *transactionHandler) NewTx(ctx context.Context) (TransactionReaderTx, error) {
+func (txn *transactionHandler) NewTx(ctx context.Context) (TransactionReader, error) {
 	sesh := txn.db.Clone()
 	if err := sesh.BeginTx(ctx, &sql.TxOptions{ReadOnly: true}); err != nil {
 		return nil, err
