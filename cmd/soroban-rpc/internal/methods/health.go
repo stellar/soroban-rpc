@@ -19,19 +19,11 @@ type HealthCheckResult struct {
 // NewHealthCheck returns a health check json rpc handler
 func NewHealthCheck(
 	retentionWindow uint32,
-	txReader db.TransactionDbReader,
+	reader db.TransactionReader,
 	maxHealthyLedgerLatency time.Duration,
 ) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context) (HealthCheckResult, error) {
-		tx, err := txReader.NewTx(ctx)
-		if err != nil {
-			return HealthCheckResult{}, jrpc2.Error{
-				Code:    jrpc2.InternalError,
-				Message: "database read failed: " + err.Error(),
-			}
-		}
-
-		ledgerRange, err := tx.GetLedgerRange()
+		ledgerRange, err := reader.GetLedgerRange(ctx)
 		if err != nil || ledgerRange.LastLedger.Sequence < 1 {
 			return HealthCheckResult{}, jrpc2.Error{
 				Code:    jrpc2.InternalError,

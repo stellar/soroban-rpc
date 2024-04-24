@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/go/network"
@@ -35,8 +34,6 @@ func TestGetTransaction(t *testing.T) {
 		store = db.NewTransactionReader(sesh, "passphrase")
 		rw    = db.NewReadWriter(sesh, 1, 100, "passphrase")
 	)
-
-	log.SetLevel(logrus.TraceLevel)
 
 	_, err := GetTransaction(ctx, log, store, GetTransactionRequest{"ab"})
 	require.EqualError(t, err, "[-32602] unexpected hash length (2)")

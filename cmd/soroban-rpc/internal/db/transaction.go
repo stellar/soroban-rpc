@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -41,18 +40,10 @@ type TransactionWriter interface {
 	RegisterMetrics(ingest, insert, count prometheus.Observer)
 }
 
-// TransactionDbReader is used to serve requests and just returns a cloned,
-// read-only DB session to perform actual DB reads on.
-type TransactionDbReader interface {
-	NewTx(ctx context.Context) (TransactionReader, error)
-}
-
 // TransactionReader provides all of the public ways to read from the DB.
-// Note that `Done()` *MUST* be called to clean things up.
 type TransactionReader interface {
-	GetTransaction(hash xdr.Hash) (Transaction, ledgerbucketwindow.LedgerRange, error)
-	GetLedgerRange() (ledgerbucketwindow.LedgerRange, error)
-	Done() error
+	GetTransaction(ctx context.Context, hash xdr.Hash) (Transaction, ledgerbucketwindow.LedgerRange, error)
+	GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error)
 }
 
 type transactionHandler struct {
@@ -63,13 +54,7 @@ type transactionHandler struct {
 	ingestMetric, insertMetric, countMetric prometheus.Observer
 }
 
-type transactionReaderTx struct {
-	ctx        context.Context
-	db         db.SessionInterface
-	passphrase string
-}
-
-func NewTransactionReader(db db.SessionInterface, passphrase string) TransactionDbReader {
+func NewTransactionReader(db db.SessionInterface, passphrase string) TransactionReader {
 	return &transactionHandler{db: db, passphrase: passphrase}
 }
 
@@ -157,32 +142,15 @@ func (txn *transactionHandler) trimTransactions(latestLedgerSeq uint32, retentio
 	return err
 }
 
-// NewTx creates a read-only SQL transaction on a cloned database session. You
-// MUST call `.Done()` on the resulting reader if there are no errors.
-func (txn *transactionHandler) NewTx(ctx context.Context) (TransactionReader, error) {
-	sesh := txn.db.Clone()
-	if err := sesh.BeginTx(ctx, &sql.TxOptions{ReadOnly: true}); err != nil {
-		return nil, err
-	}
-
-	return &transactionReaderTx{ctx: ctx, db: sesh, passphrase: txn.passphrase}, nil
-}
-
-func (txn *transactionReaderTx) Done() error {
-	return txn.db.Rollback()
-}
-
 // GetLedgerRange pulls the min/max ledger sequence numbers from the database.
-func (txn *transactionReaderTx) GetLedgerRange() (ledgerbucketwindow.LedgerRange, error) {
+func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
 	var ledgerRange ledgerbucketwindow.LedgerRange
 
-	sqlTx := txn.db.GetTx()
 	newestQ := sq.Select("meta").
 		From(ledgerCloseMetaTableName).
 		OrderBy("sequence DESC").
-		Limit(1).
-		RunWith(sqlTx)
-	rows, err := newestQ.Query()
+		Limit(1)
+	rows, err := txn.db.Query(ctx, newestQ)
 	if err != nil {
 		return ledgerRange, errors.Wrap(err, "couldn't query latest ledger")
 	}
@@ -211,11 +179,15 @@ func (txn *transactionReaderTx) GetLedgerRange() (ledgerbucketwindow.LedgerRange
 	oldestQ := sq.Select("meta").
 		From(ledgerCloseMetaTableName).
 		OrderBy("sequence ASC").
-		Limit(1).
-		RunWith(sqlTx).
-		QueryRow()
+		Limit(1)
+	rows, err = txn.db.Query(ctx, oldestQ)
+	if err != nil {
+		return ledgerRange, errors.Wrap(err, "couldn't query oldest ledger")
+	} else if !rows.Next() {
+		return ledgerRange, rows.Err()
+	}
 
-	if err := oldestQ.Scan(&lcm2); err != nil {
+	if err := rows.Scan(&lcm2); err != nil {
 		return ledgerRange, errors.Wrap(err, "couldn't read oldest ledger")
 	}
 	ledgerRange.FirstLedger.Sequence = lcm2.LedgerSequence()
@@ -232,22 +204,25 @@ func (txn *transactionReaderTx) GetLedgerRange() (ledgerbucketwindow.LedgerRange
 //
 // Errors occur if there are issues with the DB connection or the XDR is
 // corrupted somehow. If the transaction is not found, io.EOF is returned.
-func (txn *transactionReaderTx) GetTransaction(hash xdr.Hash) (
+func (txn *transactionHandler) GetTransaction(ctx context.Context, hash xdr.Hash) (
 	Transaction, ledgerbucketwindow.LedgerRange, error,
 ) {
 	start := time.Now()
 	tx := Transaction{}
 
-	ledgerRange, err := txn.GetLedgerRange()
+	ledgerRange, err := txn.GetLedgerRange(ctx)
 	if err != nil && err != ErrEmptyDB {
 		return tx, ledgerRange, err
 	}
 
-	lcm, ingestTx, err := txn.getTransactionByHash(hash)
+	lcm, ingestTx, err := txn.getTransactionByHash(ctx, hash)
 	if err != nil {
 		return tx, ledgerRange, err
 	}
 	tx, err = ParseTransaction(lcm, ingestTx)
+	if err != nil {
+		return tx, ledgerRange, err
+	}
 
 	log.WithField("txhash", hex.EncodeToString(hash[:])).
 		WithField("duration", time.Since(start)).
@@ -262,17 +237,16 @@ func (txn *transactionReaderTx) GetTransaction(hash xdr.Hash) (
 // field.
 //
 // Note: Caller must do input sanitization on the hash.
-func (txn *transactionReaderTx) getTransactionByHash(hash xdr.Hash) (
+func (txn *transactionHandler) getTransactionByHash(ctx context.Context, hash xdr.Hash) (
 	xdr.LedgerCloseMeta, ingest.LedgerTransaction, error,
 ) {
 	rowQ := sq.Select("t.application_order", "lcm.meta").
 		From(fmt.Sprintf("%s t", transactionTableName)).
 		Join(fmt.Sprintf("%s lcm ON (t.ledger_sequence = lcm.sequence)", ledgerCloseMetaTableName)).
 		Where(sq.Eq{"t.hash": []byte(hash[:])}).
-		Limit(1).
-		RunWith(txn.db.GetTx())
+		Limit(1)
 
-	rows, err := rowQ.Query()
+	rows, err := txn.db.Query(ctx, rowQ)
 	if err != nil {
 		return xdr.LedgerCloseMeta{}, ingest.LedgerTransaction{},
 			errors.Wrapf(err, "failed row read for txhash %s", hash)
@@ -289,17 +263,11 @@ func (txn *transactionReaderTx) getTransactionByHash(hash xdr.Hash) (
 
 	var (
 		txIndex int
-		meta    []byte
+		lcm     xdr.LedgerCloseMeta
 	)
-	if err := rows.Scan(&txIndex, &meta); err != nil {
+	if err := rows.Scan(&txIndex, &lcm); err != nil {
 		return xdr.LedgerCloseMeta{}, ingest.LedgerTransaction{},
-			errors.Wrapf(err, "db read from %s failed for txhash %s", transactionTableName, hash)
-	}
-
-	var lcm xdr.LedgerCloseMeta
-	if err := lcm.UnmarshalBinary(meta); err != nil {
-		return lcm, ingest.LedgerTransaction{},
-			errors.Wrapf(err, "ledger meta decode failed for txhash %s", hash)
+			errors.Wrapf(err, "db read failed for txhash %s", hash)
 	}
 
 	reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(txn.passphrase, lcm)

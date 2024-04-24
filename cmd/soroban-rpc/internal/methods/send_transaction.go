@@ -48,7 +48,7 @@ type SendTransactionRequest struct {
 func NewSendTransactionHandler(
 	daemon interfaces.Daemon,
 	logger *log.Entry,
-	txReader db.TransactionDbReader,
+	reader db.TransactionReader,
 	passphrase string,
 ) jrpc2.Handler {
 	submitter := daemon.CoreClient()
@@ -72,15 +72,7 @@ func NewSendTransactionHandler(
 		}
 		txHash := hex.EncodeToString(hash[:])
 
-		tx, err := txReader.NewTx(ctx)
-		if err != nil {
-			// This isn't fatal as we can still do txsub, but it's worth logging.
-			logger.WithError(err).
-				WithField("tx", request.Transaction).
-				Error("could not begin database transaction")
-		}
-
-		ledgerInfo, err := tx.GetLedgerRange()
+		ledgerInfo, err := reader.GetLedgerRange(ctx)
 		if err != nil { // still not fatal
 			logger.WithError(err).
 				WithField("tx", request.Transaction).

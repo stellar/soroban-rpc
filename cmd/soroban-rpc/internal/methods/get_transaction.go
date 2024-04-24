@@ -70,7 +70,7 @@ type GetTransactionRequest struct {
 func GetTransaction(
 	ctx context.Context,
 	log *log.Entry,
-	txGetter db.TransactionDbReader,
+	reader db.TransactionReader,
 	request GetTransactionRequest,
 ) (GetTransactionResponse, error) {
 	// parse hash
@@ -90,16 +90,7 @@ func GetTransaction(
 		}
 	}
 
-	reader, err := txGetter.NewTx(ctx)
-	if err != nil {
-		return GetTransactionResponse{}, &jrpc2.Error{
-			Code:    jrpc2.InvalidParams,
-			Message: "could not create read transaction",
-		}
-	}
-	defer reader.Done()
-
-	tx, storeRange, err := reader.GetTransaction(txHash)
+	tx, storeRange, err := reader.GetTransaction(ctx, txHash)
 
 	response := GetTransactionResponse{
 		LatestLedger:          storeRange.LastLedger.Sequence,
@@ -135,7 +126,7 @@ func GetTransaction(
 }
 
 // NewGetTransactionHandler returns a get transaction json rpc handler
-func NewGetTransactionHandler(logger *log.Entry, getter db.TransactionDbReader) jrpc2.Handler {
+func NewGetTransactionHandler(logger *log.Entry, getter db.TransactionReader) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context, request GetTransactionRequest) (GetTransactionResponse, error) {
 		return GetTransaction(ctx, logger, getter, request)
 	})
