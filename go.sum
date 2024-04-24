@@ -375,6 +375,7 @@ github.com/spf13/viper v1.17.0/go.mod h1:BmMMMLQXSbcHK6KAOiFLz0l5JHrU89OdIRHvsk0
 github.com/stellar/go v0.0.0-20240418095127-12bbc681b7dd h1:9yUSoNtvHX3Rc3VmDiXuJv3cZlVZF+L/sYWrrZsNHuU=
 github.com/stellar/go v0.0.0-20240418095127-12bbc681b7dd/go.mod h1:ckzsX0B0qfTMVZQJtPELJLs7cJ6xXMYHPVLyIsReGsU=
 github.com/stellar/go v0.0.0-20240424123228-a273a916c50c/go.mod h1:akvnE6X/mbM4XFwlbF9D1/Wtgh65neAf5FXXQdcFjmY=
+github.com/stellar/go v0.0.0-20240424155418-4fa8e69a8be4/go.mod h1:akvnE6X/mbM4XFwlbF9D1/Wtgh65neAf5FXXQdcFjmY=
 github.com/stellar/go-xdr v0.0.0-20231122183749-b53fb00bcac2 h1:OzCVd0SV5qE3ZcDeSFCmOWLZfEWZ3Oe8KtmSOYKEVWE=
 github.com/stellar/go-xdr v0.0.0-20231122183749-b53fb00bcac2/go.mod h1:yoxyU/M8nl9LKeWIoBrbDPQ7Cy+4jxRcWcOayZ4BMps=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
