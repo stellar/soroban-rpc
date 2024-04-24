@@ -11,11 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/stellar/go/network"
 	"github.com/stellar/go/xdr"
 )
-
-var passphrase = network.FutureNetworkPassphrase
 
 func getLedgerEntryAndLatestLedgerSequenceWithErr(db *DB, key xdr.LedgerKey) (bool, xdr.LedgerEntry, uint32, *uint32, error) {
 	tx, err := NewLedgerEntryReader(db).NewTx(context.Background())
