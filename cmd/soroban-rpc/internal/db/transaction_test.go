@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"encoding/hex"
-	"io"
 	"math/rand"
 	"testing"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +22,7 @@ func TestTransactionNotFound(t *testing.T) {
 
 	reader := NewTransactionReader(log, db, passphrase)
 	_, _, err := reader.GetTransaction(context.TODO(), xdr.Hash{})
-	require.Error(t, err, io.EOF)
+	require.Error(t, err, ErrNoTransaction)
 }
 
 func TestTransactionFound(t *testing.T) {
@@ -31,7 +31,6 @@ func TestTransactionFound(t *testing.T) {
 	log := log.DefaultLogger
 	log.SetLevel(logrus.TraceLevel)
 
-	reader := NewTransactionReader(log, db, passphrase)
 	writer := NewReadWriter(log, db, 10, 10, passphrase)
 	write, err := writer.NewTx(ctx)
 	require.NoError(t, err)
@@ -50,10 +49,12 @@ func TestTransactionFound(t *testing.T) {
 		t.Logf("hash: %v", hex.EncodeToString(b[:]))
 	}
 	require.NoError(t, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
+	// require.NoError(t, db.Commit())
 
 	// check 404 case
+	reader := NewTransactionReader(log, db, passphrase)
 	_, _, err = reader.GetTransaction(ctx, xdr.Hash{})
-	require.Error(t, err, io.EOF)
+	require.Error(t, err, ErrNoTransaction)
 
 	// check all 200 cases
 	for _, lcm := range lcms {
@@ -72,8 +73,7 @@ func BenchmarkTransactionFetch(b *testing.B) {
 	ctx := context.TODO()
 	log := log.DefaultLogger
 
-	reader := NewTransactionReader(log, db, passphrase)
-	writer := NewReadWriter(log, db, 10, 10, passphrase)
+	writer := NewReadWriter(log, db, 100, 1_000_000, passphrase)
 	write, err := writer.NewTx(ctx)
 	require.NoError(b, err)
 
@@ -88,6 +88,7 @@ func BenchmarkTransactionFetch(b *testing.B) {
 			"ingestion failed for ledger %+v", lcm)
 	}
 	require.NoError(b, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
+	reader := NewTransactionReader(log, db, passphrase)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

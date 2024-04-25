@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"io"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/stellar/go/support/log"
@@ -98,7 +97,7 @@ func GetTransaction(
 		OldestLedger:          storeRange.FirstLedger.Sequence,
 		OldestLedgerCloseTime: storeRange.FirstLedger.CloseTime,
 	}
-	if err == io.EOF || err == db.ErrEmptyDB {
+	if err == db.ErrNoTransaction {
 		response.Status = TransactionStatusNotFound
 		return response, nil
 	} else if err != nil {

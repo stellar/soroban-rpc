@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -19,9 +18,9 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
-const (
-	transactionTableName = "transactions"
-)
+const transactionTableName = "transactions"
+
+var ErrNoTransaction = errors.New("no transaction with this hash exists")
 
 type Transaction struct {
 	Result           []byte   // XDR encoded xdr.TransactionResult
@@ -255,7 +254,7 @@ func (txn *transactionHandler) getTransactionByHash(ctx context.Context, hash xd
 		return xdr.LedgerCloseMeta{}, ingest.LedgerTransaction{},
 			errors.Wrapf(err, "db read failed for txhash %s", hex.EncodeToString(hash[:]))
 	} else if len(rows) < 1 {
-		return xdr.LedgerCloseMeta{}, ingest.LedgerTransaction{}, io.EOF
+		return xdr.LedgerCloseMeta{}, ingest.LedgerTransaction{}, ErrNoTransaction
 	}
 
 	txIndex, lcm := rows[0].TxIndex, rows[0].Lcm
