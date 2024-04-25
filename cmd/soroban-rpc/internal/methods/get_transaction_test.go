@@ -166,6 +166,10 @@ func TestGetTransaction(t *testing.T) {
 	}, tx)
 }
 
+func ledgerCloseTime(ledgerSequence uint32) int64 {
+	return int64(ledgerSequence)*25 + 100
+}
+
 func txHash(acctSeq uint32) xdr.Hash {
 	envelope := txEnvelope(acctSeq)
 	hash, err := network.HashTransactionInEnvelope(envelope, "passphrase")
@@ -176,8 +180,18 @@ func txHash(acctSeq uint32) xdr.Hash {
 	return hash
 }
 
-func ledgerCloseTime(ledgerSequence uint32) int64 {
-	return int64(ledgerSequence)*25 + 100
+func txEnvelope(acctSeq uint32) xdr.TransactionEnvelope {
+	envelope, err := xdr.NewTransactionEnvelope(xdr.EnvelopeTypeEnvelopeTypeTx, xdr.TransactionV1Envelope{
+		Tx: xdr.Transaction{
+			Fee:           1,
+			SeqNum:        xdr.SequenceNumber(acctSeq),
+			SourceAccount: xdr.MustMuxedAddress("MA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVAAAAAAAAAAAAAJLK"),
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return envelope
 }
 
 func transactionResult(successful bool) xdr.TransactionResult {
@@ -287,18 +301,4 @@ func txMetaWithEvents(acctSeq uint32, successful bool) xdr.LedgerCloseMeta {
 	}
 
 	return meta
-}
-
-func txEnvelope(acctSeq uint32) xdr.TransactionEnvelope {
-	envelope, err := xdr.NewTransactionEnvelope(xdr.EnvelopeTypeEnvelopeTypeTx, xdr.TransactionV1Envelope{
-		Tx: xdr.Transaction{
-			Fee:           1,
-			SeqNum:        xdr.SequenceNumber(acctSeq),
-			SourceAccount: xdr.MustMuxedAddress("MA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVAAAAAAAAAAAAAJLK"),
-		},
-	})
-	if err != nil {
-		panic(err)
-	}
-	return envelope
 }

@@ -91,8 +91,11 @@ func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 	for i := 0; i < txCount; i++ {
 		tx, err := reader.Read()
 		if err != nil {
+
 			return errors.Wrapf(err, "failed reading tx %d", i)
 		}
+
+		txn.log.Debugf("Ingested tx hash %v", hex.EncodeToString(tx.Result.TransactionHash[:]))
 
 		// For fee-bump transactions, we store lookup entries for both the outer
 		// and inner hashes.
