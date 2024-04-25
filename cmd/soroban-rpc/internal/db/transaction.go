@@ -158,7 +158,7 @@ func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucket
 				Limit(1),
 			"m1",
 		)
-	oldestQ := sq.
+	sql, args, err := sq.
 		Select("m2.meta").
 		FromSelect(
 			sq.
@@ -167,41 +167,25 @@ func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucket
 				OrderBy("sequence DESC").
 				Limit(1),
 			"m2",
-		)
-
-	sql, args, err := oldestQ.ToSql()
+		).ToSql()
 	if err != nil {
 		return ledgerRange, errors.Wrap(err, "couldn't build ledger range query")
 	}
 
-	rows, err := txn.db.Query(ctx, newestQ.Suffix(" UNION ALL "+sql, args...))
-	if err != nil {
+	var lcms []xdr.LedgerCloseMeta
+	if err = txn.db.Select(ctx, &lcms, newestQ.Suffix(" UNION ALL "+sql, args...)); err != nil {
 		return ledgerRange, errors.Wrap(err, "couldn't query ledger range")
+	} else if len(lcms) < 2 {
+		// There is almost certainly a row, but we want to avoid a race condition
+		// with ingestion as well as support test cases from an empty DB, so we need
+		// to sanity check that there is in fact a result. Note that no ledgers in
+		// the database isn't an error, it's just an empty range.
+		return ledgerRange, nil
 	}
 
-	var lcm1, lcm2 xdr.LedgerCloseMeta
-	// There is almost certainly a row, but we want to avoid a race condition
-	// with ingestion as well as support test cases from an empty DB, so we need
-	// to sanity check that there is in fact a result. Note that no ledgers in
-	// the database isn't an error, it's just an empty range.
-	if !rows.Next() {
-		return ledgerRange, errors.Wrap(rows.Err(), "couldn't query ledger range") // nil if no row err
-	} else if err := rows.Scan(&lcm1); err != nil {
-		return ledgerRange, errors.Wrap(err, "couldn't read ledger")
-	}
-
-	// Best effort: if the second fails later, we at least set the first.
+	lcm1, lcm2 := lcms[0], lcms[1]
 	ledgerRange.FirstLedger.Sequence = lcm1.LedgerSequence()
 	ledgerRange.FirstLedger.CloseTime = lcm1.LedgerCloseTime()
-	ledgerRange.LastLedger.Sequence = lcm1.LedgerSequence()
-	ledgerRange.LastLedger.CloseTime = lcm1.LedgerCloseTime()
-
-	if !rows.Next() {
-		return ledgerRange, errors.Wrap(rows.Err(), "couldn't query ledger range") // nil if no row err
-	} else if err := rows.Scan(&lcm2); err != nil {
-		return ledgerRange, errors.Wrap(err, "couldn't read ledger")
-	}
-
 	ledgerRange.LastLedger.Sequence = lcm2.LedgerSequence()
 	ledgerRange.LastLedger.CloseTime = lcm2.LedgerCloseTime()
 
@@ -253,36 +237,25 @@ func (txn *transactionHandler) GetTransaction(ctx context.Context, hash xdr.Hash
 func (txn *transactionHandler) getTransactionByHash(ctx context.Context, hash xdr.Hash) (
 	xdr.LedgerCloseMeta, ingest.LedgerTransaction, error,
 ) {
-	rowQ := sq.Select("t.application_order", "lcm.meta").
+	var rows []struct {
+		TxIndex int                 `db:"application_order"`
+		Lcm     xdr.LedgerCloseMeta `db:"meta"`
+	}
+	rowQ := sq.
+		Select("t.application_order", "lcm.meta").
 		From(fmt.Sprintf("%s t", transactionTableName)).
 		Join(fmt.Sprintf("%s lcm ON (t.ledger_sequence = lcm.sequence)", ledgerCloseMetaTableName)).
 		Where(sq.Eq{"t.hash": []byte(hash[:])}).
 		Limit(1)
 
-	rows, err := txn.db.Query(ctx, rowQ)
-	if err != nil {
+	if err := txn.db.Select(ctx, &rows, rowQ); err != nil {
 		return xdr.LedgerCloseMeta{}, ingest.LedgerTransaction{},
-			errors.Wrapf(err, "failed row read for txhash %s", hash)
-	}
-	if !rows.Next() {
-		if ierr := rows.Err(); ierr != nil {
-			return xdr.LedgerCloseMeta{}, ingest.LedgerTransaction{},
-				errors.Wrapf(ierr, "failed to fetch txhash %s", hash)
-		}
-
-		// We use EOF to mark "this tx doesn't exist," since that isn't a real error.
+			errors.Wrapf(err, "db read failed for txhash %s", hex.EncodeToString(hash[:]))
+	} else if len(rows) < 1 {
 		return xdr.LedgerCloseMeta{}, ingest.LedgerTransaction{}, io.EOF
 	}
 
-	var (
-		txIndex int
-		lcm     xdr.LedgerCloseMeta
-	)
-	if err := rows.Scan(&txIndex, &lcm); err != nil {
-		return xdr.LedgerCloseMeta{}, ingest.LedgerTransaction{},
-			errors.Wrapf(err, "db read failed for txhash %s", hash)
-	}
-
+	txIndex, lcm := rows[0].TxIndex, rows[0].Lcm
 	reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(txn.passphrase, lcm)
 	reader.Seek(txIndex - 1)
 	if err != nil {
