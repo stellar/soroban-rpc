@@ -143,54 +143,69 @@ func (txn *transactionHandler) trimTransactions(latestLedgerSeq uint32, retentio
 func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
 	var ledgerRange ledgerbucketwindow.LedgerRange
 
-	newestQ := sq.Select("meta").
-		From(ledgerCloseMetaTableName).
-		OrderBy("sequence DESC").
-		Limit(1)
-	rows, err := txn.db.Query(ctx, newestQ)
+	//
+	// We use subqueries alongside a UNION ALL stitch in order to select the min
+	// and max from the ledger table in a single query and get around sqlite's
+	// limitations with parentheses (see https://stackoverflow.com/a/22609948).
+	//
+	newestQ := sq.
+		Select("m1.meta").
+		FromSelect(
+			sq.
+				Select("meta").
+				From(ledgerCloseMetaTableName).
+				OrderBy("sequence ASC").
+				Limit(1),
+			"m1",
+		)
+	oldestQ := sq.
+		Select("m2.meta").
+		FromSelect(
+			sq.
+				Select("meta").
+				From(ledgerCloseMetaTableName).
+				OrderBy("sequence DESC").
+				Limit(1),
+			"m2",
+		)
+
+	sql, args, err := oldestQ.ToSql()
 	if err != nil {
-		return ledgerRange, errors.Wrap(err, "couldn't query latest ledger")
+		return ledgerRange, errors.Wrap(err, "couldn't build ledger range query")
 	}
 
+	rows, err := txn.db.Query(ctx, newestQ.Suffix(" UNION ALL "+sql, args...))
+	if err != nil {
+		return ledgerRange, errors.Wrap(err, "couldn't query ledger range")
+	}
+
+	var lcm1, lcm2 xdr.LedgerCloseMeta
 	// There is almost certainly a row, but we want to avoid a race condition
 	// with ingestion as well as support test cases from an empty DB, so we need
 	// to sanity check that there is in fact a result. Note that no ledgers in
 	// the database isn't an error, it's just an empty range.
 	if !rows.Next() {
-		if ierr := rows.Err(); ierr != nil {
-			return ledgerRange, errors.Wrap(ierr, "couldn't query latest ledger")
-		}
-		return ledgerRange, ErrEmptyDB
+		return ledgerRange, errors.Wrap(rows.Err(), "couldn't query ledger range") // nil if no row err
+	} else if err := rows.Scan(&lcm1); err != nil {
+		return ledgerRange, errors.Wrap(err, "couldn't read ledger")
 	}
 
-	var lcm1, lcm2 xdr.LedgerCloseMeta
-	if err := rows.Scan(&lcm1); err != nil {
-		return ledgerRange, errors.Wrap(err, "couldn't read newest ledger")
-	}
 	// Best effort: if the second fails later, we at least set the first.
 	ledgerRange.FirstLedger.Sequence = lcm1.LedgerSequence()
 	ledgerRange.FirstLedger.CloseTime = lcm1.LedgerCloseTime()
 	ledgerRange.LastLedger.Sequence = lcm1.LedgerSequence()
 	ledgerRange.LastLedger.CloseTime = lcm1.LedgerCloseTime()
 
-	oldestQ := sq.Select("meta").
-		From(ledgerCloseMetaTableName).
-		OrderBy("sequence ASC").
-		Limit(1)
-	rows, err = txn.db.Query(ctx, oldestQ)
-	if err != nil {
-		return ledgerRange, errors.Wrap(err, "couldn't query oldest ledger")
-	} else if !rows.Next() {
-		return ledgerRange, rows.Err()
+	if !rows.Next() {
+		return ledgerRange, errors.Wrap(rows.Err(), "couldn't query ledger range") // nil if no row err
+	} else if err := rows.Scan(&lcm2); err != nil {
+		return ledgerRange, errors.Wrap(err, "couldn't read ledger")
 	}
 
-	if err := rows.Scan(&lcm2); err != nil {
-		return ledgerRange, errors.Wrap(err, "couldn't read oldest ledger")
-	}
-	ledgerRange.FirstLedger.Sequence = lcm2.LedgerSequence()
-	ledgerRange.FirstLedger.CloseTime = lcm2.LedgerCloseTime()
+	ledgerRange.LastLedger.Sequence = lcm2.LedgerSequence()
+	ledgerRange.LastLedger.CloseTime = lcm2.LedgerCloseTime()
 
-	log.Debugf("Database ledger range: [%d, %d]",
+	txn.log.Debugf("Database ledger range: [%d, %d]",
 		ledgerRange.FirstLedger.Sequence, ledgerRange.LastLedger.Sequence)
 	return ledgerRange, nil
 }
