@@ -32,7 +32,7 @@ func TestGetTransaction(t *testing.T) {
 		log   = log.DefaultLogger
 		sesh  = db.NewTestDB(t)
 		store = db.NewTransactionReader(log, sesh, "passphrase")
-		rw    = db.NewReadWriter(sesh, 1, 100, "passphrase")
+		rw    = db.NewReadWriter(log, sesh, 1, 100, "passphrase")
 	)
 
 	_, err := GetTransaction(ctx, log, store, GetTransactionRequest{"ab"})

@@ -7,10 +7,12 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/stellar/go/network"
+	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 )
 
 var passphrase = network.FutureNetworkPassphrase
+var logger = log.DefaultLogger
 
 func createLedger(ledgerSequence uint32) xdr.LedgerCloseMeta {
 	return xdr.LedgerCloseMeta{
@@ -70,7 +72,7 @@ func TestLedgers(t *testing.T) {
 
 	for i := 1; i <= 10; i++ {
 		ledgerSequence := uint32(i)
-		tx, err := NewReadWriter(db, 150, 15, passphrase).NewTx(context.Background())
+		tx, err := NewReadWriter(logger, db, 150, 15, passphrase).NewTx(context.Background())
 		assert.NoError(t, err)
 		assert.NoError(t, tx.LedgerWriter().InsertLedger(createLedger(ledgerSequence)))
 		assert.NoError(t, tx.Commit(ledgerSequence))
@@ -81,7 +83,7 @@ func TestLedgers(t *testing.T) {
 	assertLedgerRange(t, reader, 1, 10)
 
 	ledgerSequence := uint32(11)
-	tx, err := NewReadWriter(db, 150, 15, passphrase).NewTx(context.Background())
+	tx, err := NewReadWriter(logger, db, 150, 15, passphrase).NewTx(context.Background())
 	assert.NoError(t, err)
 	assert.NoError(t, tx.LedgerWriter().InsertLedger(createLedger(ledgerSequence)))
 	assert.NoError(t, tx.Commit(ledgerSequence))
@@ -89,7 +91,7 @@ func TestLedgers(t *testing.T) {
 	assertLedgerRange(t, reader, 1, 11)
 
 	ledgerSequence = uint32(12)
-	tx, err = NewReadWriter(db, 150, 5, passphrase).NewTx(context.Background())
+	tx, err = NewReadWriter(logger, db, 150, 5, passphrase).NewTx(context.Background())
 	assert.NoError(t, err)
 	assert.NoError(t, tx.LedgerWriter().InsertLedger(createLedger(ledgerSequence)))
 	assert.NoError(t, tx.Commit(ledgerSequence))
