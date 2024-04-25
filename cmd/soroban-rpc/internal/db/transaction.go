@@ -47,6 +47,7 @@ type TransactionReader interface {
 }
 
 type transactionHandler struct {
+	log        *log.Entry
 	db         db.SessionInterface
 	stmtCache  *sq.StmtCache
 	passphrase string
@@ -54,18 +55,14 @@ type transactionHandler struct {
 	ingestMetric, insertMetric, countMetric prometheus.Observer
 }
 
-func NewTransactionReader(db db.SessionInterface, passphrase string) TransactionReader {
-	return &transactionHandler{db: db, passphrase: passphrase}
-}
-
-func NewTransactionWriter(db db.SessionInterface, stmtCache *sq.StmtCache, passphrase string) TransactionWriter {
-	return &transactionHandler{db: db, stmtCache: stmtCache, passphrase: passphrase}
+func NewTransactionReader(log *log.Entry, db db.SessionInterface, passphrase string) TransactionReader {
+	return &transactionHandler{log: log, db: db, passphrase: passphrase}
 }
 
 func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error {
 	start, mid := time.Now(), time.Now()
 	txCount := lcm.CountTransactions()
-	L := log.
+	L := txn.log.
 		WithField("ledger_seq", lcm.LedgerSequence()).
 		WithField("tx_count", txCount)
 
@@ -224,7 +221,8 @@ func (txn *transactionHandler) GetTransaction(ctx context.Context, hash xdr.Hash
 		return tx, ledgerRange, err
 	}
 
-	log.WithField("txhash", hex.EncodeToString(hash[:])).
+	txn.log.
+		WithField("txhash", hex.EncodeToString(hash[:])).
 		WithField("duration", time.Since(start)).
 		Debugf("Fetched and encoded transaction from ledger %d", lcm.LedgerSequence())
 

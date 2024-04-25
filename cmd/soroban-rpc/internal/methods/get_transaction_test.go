@@ -31,7 +31,7 @@ func TestGetTransaction(t *testing.T) {
 		ctx   = context.TODO()
 		log   = log.DefaultLogger
 		sesh  = db.NewTestDB(t)
-		store = db.NewTransactionReader(sesh, "passphrase")
+		store = db.NewTransactionReader(log, sesh, "passphrase")
 		rw    = db.NewReadWriter(sesh, 1, 100, "passphrase")
 	)
 

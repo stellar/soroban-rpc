@@ -133,8 +133,6 @@ func newCaptiveCore(cfg *config.Config, logger *supportlog.Entry) (*ledgerbacken
 func MustNew(cfg *config.Config) *Daemon {
 	logger := supportlog.New()
 	logger.SetLevel(cfg.LogLevel)
-	supportlog.SetLevel(cfg.LogLevel)
-
 	if cfg.LogFormat == config.LogFormatJSON {
 		logger.UseJSONFormatter()
 	}
@@ -260,6 +258,7 @@ func MustNew(cfg *config.Config) *Daemon {
 	ingestService := ingest.NewService(ingest.Config{
 		Logger: logger,
 		DB: db.NewReadWriterWithMetrics(
+			logger,
 			dbConn,
 			maxLedgerEntryWriteBatchSize,
 			maxRetentionWindow,
@@ -296,7 +295,7 @@ func MustNew(cfg *config.Config) *Daemon {
 		Logger:            logger,
 		LedgerReader:      db.NewLedgerReader(dbConn),
 		LedgerEntryReader: db.NewLedgerEntryReader(dbConn),
-		TransactionReader: db.NewTransactionReader(dbConn, cfg.NetworkPassphrase),
+		TransactionReader: db.NewTransactionReader(logger, dbConn, cfg.NetworkPassphrase),
 		PreflightGetter:   preflightWorkerPool,
 	})
 

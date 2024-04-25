@@ -18,6 +18,7 @@ import (
 
 	"github.com/stellar/go/support/db"
 	"github.com/stellar/go/support/errors"
+	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 )
 
@@ -140,6 +141,7 @@ type ReadWriterMetrics struct {
 }
 
 type readWriter struct {
+	log                   *log.Entry
 	db                    *DB
 	maxBatchSize          int
 	ledgerRetentionWindow uint32
@@ -152,13 +154,16 @@ type readWriter struct {
 // the size of ledger entry batches when writing ledger entries and the
 // retention window for how many historical ledgers are recorded in the
 // database, optionally storing metrics for various DB ops.
-func NewReadWriterWithMetrics(db *DB,
+func NewReadWriterWithMetrics(
+	log *log.Entry,
+	db *DB,
 	maxBatchSize int,
 	ledgerRetentionWindow uint32,
 	networkPassphrase string,
 	metrics *ReadWriterMetrics,
 ) ReadWriter {
 	return &readWriter{
+		log:                   log,
 		db:                    db,
 		maxBatchSize:          maxBatchSize,
 		ledgerRetentionWindow: ledgerRetentionWindow,
@@ -167,8 +172,14 @@ func NewReadWriterWithMetrics(db *DB,
 	}
 }
 
-func NewReadWriter(db *DB, maxBatchSize int, ledgerRetentionWindow uint32, networkPassphrase string) ReadWriter {
-	return NewReadWriterWithMetrics(db, maxBatchSize, ledgerRetentionWindow, networkPassphrase, nil)
+func NewReadWriter(
+	log *log.Entry,
+	db *DB,
+	maxBatchSize int,
+	ledgerRetentionWindow uint32,
+	networkPassphrase string,
+) ReadWriter {
+	return NewReadWriterWithMetrics(log, db, maxBatchSize, ledgerRetentionWindow, networkPassphrase, nil)
 }
 
 func (rw *readWriter) GetLatestLedgerSequence(ctx context.Context) (uint32, error) {
@@ -201,6 +212,7 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 			maxBatchSize:            rw.maxBatchSize,
 		},
 		txWriter: transactionHandler{
+			log:        rw.log,
 			db:         txSession,
 			stmtCache:  stmtCache,
 			passphrase: rw.passphrase,
