@@ -68,7 +68,7 @@ type GetTransactionsResponse struct {
 	Transactions               []TransactionInfo `json:"transactions"`
 	LatestLedger               int64             `json:"latestLedger"`
 	LatestLedgerCloseTimestamp int64             `json:"latestLedgerCloseTimestamp"`
-	Cursor                     *toid.ID          `json:"cursor"`
+	Cursor                     string            `json:"cursor"`
 }
 
 type transactionsRPCHandler struct {
@@ -82,7 +82,7 @@ type transactionsRPCHandler struct {
 
 // getTransactionsByLedgerSequence fetches transactions between the start and end ledgers, inclusive of both.
 // The number of ledgers returned can be tuned using the pagination options - cursor and limit.
-func (h *transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Context, request GetTransactionsRequest) (GetTransactionsResponse, error) {
+func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Context, request GetTransactionsRequest) (GetTransactionsResponse, error) {
 	err := request.isValid(h.maxLimit)
 	if err != nil {
 		return GetTransactionsResponse{}, &jrpc2.Error{
@@ -151,7 +151,7 @@ LedgerLoop:
 		// Decode transaction info from ledger meta
 		txCount := ledger.CountTransactions()
 		for i := startTxIdx; i < txCount; i++ {
-			cursor = toid.New(int32(ledger.LedgerSequence()), int32(uint32(i)), 0)
+			cursor = toid.New(int32(ledger.LedgerSequence()), int32(i), 0)
 
 			tx, err := reader.Read()
 			if err != nil {
@@ -202,13 +202,13 @@ LedgerLoop:
 		Transactions:               txns,
 		LatestLedger:               latestLedgerSequence,
 		LatestLedgerCloseTimestamp: latestLedgerCloseTime,
-		Cursor:                     cursor,
+		Cursor:                     cursor.String(),
 	}, nil
 
 }
 
 // getTransactionDetails fetches XDR for the following transaction details - result, meta and envelope.
-func (h *transactionsRPCHandler) getTransactionDetails(tx ingest.LedgerTransaction) ([]byte, []byte, []byte, error) {
+func (h transactionsRPCHandler) getTransactionDetails(tx ingest.LedgerTransaction) ([]byte, []byte, []byte, error) {
 	txResult, err := tx.Result.Result.MarshalBinary()
 	if err != nil {
 		return nil, nil, nil, err
@@ -226,7 +226,7 @@ func (h *transactionsRPCHandler) getTransactionDetails(tx ingest.LedgerTransacti
 }
 
 // getLatestLedgerDetails fetches the latest ledger sequence and close time.
-func (h *transactionsRPCHandler) getLatestLedgerDetails(ctx context.Context) (sequence int64, ledgerCloseTime int64, err error) {
+func (h transactionsRPCHandler) getLatestLedgerDetails(ctx context.Context) (sequence int64, ledgerCloseTime int64, err error) {
 	latestSequence, err := h.ledgerEntryReader.GetLatestLedgerSequence(ctx)
 	if err != nil {
 		return 0, 0, err
