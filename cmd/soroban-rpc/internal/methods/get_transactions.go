@@ -136,15 +136,11 @@ LedgerLoop:
 		startTxIdx := 0
 		if ledgerSeq == start.LedgerSequence {
 			startTxIdx = int(start.TransactionOrder)
-		}
-		err = reader.Seek(startTxIdx)
-		if err != nil {
-			if err == io.EOF {
-				continue
-			}
-			return GetTransactionsResponse{}, &jrpc2.Error{
-				Code:    jrpc2.InvalidParams,
-				Message: err.Error(),
+			if ierr := reader.Seek(startTxIdx); ierr != nil && ierr != io.EOF {
+				return GetTransactionsResponse{}, &jrpc2.Error{
+					Code:    jrpc2.InvalidParams,
+					Message: err.Error(),
+				}
 			}
 		}
 
