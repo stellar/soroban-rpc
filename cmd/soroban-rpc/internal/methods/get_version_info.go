@@ -22,8 +22,17 @@ type GetVersionInfoResponse struct {
 }
 
 func NewGetVersionInfoHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntryReader, ledgerReader db.LedgerReader, daemon interfaces.Daemon) jrpc2.Handler {
-	//coreClient := daemon.CoreClient()
+	coreClient := daemon.CoreClient()
 	return handler.New(func(ctx context.Context, request GetVersionInfoRequest) (GetVersionInfoResponse, error) {
+
+		var captiveCoreVersion string
+		info, err := coreClient.Info(ctx)
+		if err != nil {
+			logger.WithError(err).WithField("request", request).
+				Info("error occurred while calling Info endpoint of core")
+		} else {
+			captiveCoreVersion = info.Info.Build
+		}
 
 		// Fetch Protocol version
 		var protocolVersion uint32
@@ -52,7 +61,7 @@ func NewGetVersionInfoHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntr
 			Version:            config.Version,
 			CommitHash:         config.CommitHash,
 			BuildTimestamp:     config.BuildTimestamp,
-			CaptiveCoreVersion: config.CaptiveCoreVersion,
+			CaptiveCoreVersion: captiveCoreVersion,
 			ProtocolVersion:    protocolVersion,
 		}, nil
 	})
