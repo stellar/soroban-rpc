@@ -32,7 +32,7 @@ import (
 
 const (
 	StandaloneNetworkPassphrase = "Standalone Network ; February 2017"
-	stellarCoreProtocolVersion  = 20
+	maxSupportedProtocolVersion = 21
 	stellarCorePort             = 11626
 	stellarCoreArchiveHost      = "localhost:1570"
 	goModFile                   = "go.mod"
@@ -48,12 +48,15 @@ const (
 
 type TestConfig struct {
 	historyArchiveProxyCallback func(*http.Request)
+	ProtocolVersion             uint32
 }
 
 type Test struct {
 	t *testing.T
 
 	composePath string // docker compose yml file
+
+	protocolVersion uint32
 
 	daemon *daemon.Daemon
 
@@ -80,12 +83,19 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 		t:           t,
 		composePath: findDockerComposePath(),
 	}
+
 	i.masterAccount = &txnbuild.SimpleAccount{
 		AccountID: i.MasterKey().Address(),
 		Sequence:  0,
 	}
 	if cfg != nil {
 		i.historyArchiveProxyCallback = cfg.historyArchiveProxyCallback
+		i.protocolVersion = cfg.ProtocolVersion
+	}
+
+	if i.protocolVersion == 0 {
+		// Default to the maximum supported protocol version
+		i.protocolVersion = GetCoreMaxSupportedProtocol()
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(&url.URL{Scheme: "http", Host: stellarCoreArchiveHost})
@@ -213,6 +223,13 @@ func (i *Test) runComposeCommand(args ...string) {
 	cmdline := append([]string{"-f", integrationYaml}, args...)
 	cmd := exec.Command("docker-compose", cmdline...)
 
+	if img := os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_DOCKER_IMG"); img != "" {
+		cmd.Env = os.Environ()
+		cmd.Env = append(
+			cmd.Environ(),
+			fmt.Sprintf("CORE_IMAGE=%s", img),
+		)
+	}
 	i.t.Log("Running", cmd.Env, cmd.Args)
 	out, innerErr := cmd.Output()
 	if exitErr, ok := innerErr.(*exec.ExitError); ok {
@@ -302,7 +319,7 @@ func (i *Test) waitForCore() {
 		break
 	}
 
-	i.UpgradeProtocol(stellarCoreProtocolVersion)
+	i.UpgradeProtocol(i.protocolVersion)
 
 	for t := 0; t < 5; t++ {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -407,4 +424,17 @@ func findDockerComposePath() string {
 
 	// Directly jump down to the folder that should contain the configs
 	return filepath.Join(current, "cmd", "soroban-rpc", "internal", "test")
+}
+
+func GetCoreMaxSupportedProtocol() uint32 {
+	str := os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_CORE_MAX_SUPPORTED_PROTOCOL")
+	if str == "" {
+		return maxSupportedProtocolVersion
+	}
+	version, err := strconv.ParseUint(str, 10, 32)
+	if err != nil {
+		return maxSupportedProtocolVersion
+	}
+
+	return uint32(version)
 }
