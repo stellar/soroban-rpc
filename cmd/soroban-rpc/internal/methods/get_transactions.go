@@ -30,7 +30,7 @@ type GetTransactionsRequest struct {
 
 // isValid checks the validity of the request parameters.
 // It returns an error if any parameter is out of the expected range or combination.
-func (req *GetTransactionsRequest) isValid(maxLimit uint) error {
+func (req GetTransactionsRequest) isValid(maxLimit uint) error {
 	// Validate the start and end ledger sequence
 	if req.StartLedger < 0 {
 		return errors.New("start ledger cannot be negative")
@@ -52,8 +52,8 @@ func (req *GetTransactionsRequest) isValid(maxLimit uint) error {
 	return nil
 }
 
-// TransactionInfo represents the decoded transaction information from the ledger close meta.
-type TransactionInfo struct {
+// transactionInfo represents the decoded transaction information from the ledger close meta.
+type transactionInfo struct {
 	Result           []byte `json:"result"`
 	Meta             []byte `json:"meta"`
 	Envelope         []byte `json:"envelope"`
@@ -65,7 +65,7 @@ type TransactionInfo struct {
 
 // GetTransactionsResponse encapsulates the response structure for getTransactions queries.
 type GetTransactionsResponse struct {
-	Transactions               []TransactionInfo `json:"transactions"`
+	Transactions               []transactionInfo `json:"transactions"`
 	LatestLedger               int64             `json:"latestLedger"`
 	LatestLedgerCloseTimestamp int64             `json:"latestLedgerCloseTimestamp"`
 	Cursor                     string            `json:"cursor"`
@@ -107,7 +107,7 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 	}
 
 	// Iterate through each ledger and its transactions until limit or end range is reached
-	var txns []TransactionInfo
+	var txns []transactionInfo
 	var cursor *toid.ID
 LedgerLoop:
 	for ledgerSeq := start.LedgerSequence; ledgerSeq <= int32(request.EndLedger); ledgerSeq++ {
@@ -169,7 +169,7 @@ LedgerLoop:
 				}
 			}
 
-			txInfo := TransactionInfo{
+			txInfo := transactionInfo{
 				Result:           txResult,
 				Meta:             txMeta,
 				Envelope:         txEnvelope,

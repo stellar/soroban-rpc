@@ -15,6 +15,10 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 )
 
+const (
+	Cursor int64 = 55834574848
+)
+
 // buildTxParams constructs the parameters necessary for creating a transaction from the given account.
 //
 // account - the source account from which the transaction will originate. This account provides the starting sequence number.
@@ -134,7 +138,7 @@ func TestGetTransactions(t *testing.T) {
 	assert.Equal(t, result.Transactions[0].LedgerSequence, ledgers[0])
 
 	// Get transactions using previous result's cursor
-	cursor := toid.Parse(55834574848)
+	cursor := toid.Parse(Cursor)
 	request = methods.GetTransactionsRequest{
 		EndLedger: ledgers[2],
 		Pagination: &methods.TransactionsPaginationOptions{
