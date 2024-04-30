@@ -42,14 +42,12 @@ func TestTransactionFound(t *testing.T) {
 		txMeta(1237, true),
 	}
 
+	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
 	for _, lcm := range lcms {
-		require.NoError(t, write.TransactionWriter().InsertTransactions(lcm),
-			"ingestion failed for ledger %+v", lcm.V1)
-		b := lcm.TransactionHash(0)
-		t.Logf("hash: %v", hex.EncodeToString(b[:]))
+		require.NoError(t, ledgerW.InsertLedger(lcm), "ingestion failed for ledger %+v", lcm.V1)
+		require.NoError(t, txW.InsertTransactions(lcm), "ingestion failed for ledger %+v", lcm.V1)
 	}
 	require.NoError(t, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
-	// require.NoError(t, db.Commit())
 
 	// check 404 case
 	reader := NewTransactionReader(log, db, passphrase)
@@ -59,12 +57,15 @@ func TestTransactionFound(t *testing.T) {
 	// check all 200 cases
 	for _, lcm := range lcms {
 		h := lcm.TransactionHash(0)
-		_, lRange, err := reader.GetTransaction(ctx, h)
-		assert.NoError(t, err, "failed to find txhash %s in db", hex.EncodeToString(h[:]))
-		assert.EqualValues(t, 1234, lRange.FirstLedger.Sequence)
-		assert.EqualValues(t, 1237, lRange.LastLedger.Sequence)
-		// assert.Equal(t, tx.ApplicationOrder, 0)
-		// assert.Equal(t, tx.Envelope, []byte{})
+		tx, lRange, err := reader.GetTransaction(ctx, h)
+		require.NoError(t, err, "failed to find txhash %s in db", hex.EncodeToString(h[:]))
+		assert.EqualValues(t, 1234+100, lRange.FirstLedger.Sequence)
+		assert.EqualValues(t, 1237+100, lRange.LastLedger.Sequence)
+		assert.EqualValues(t, 1, tx.ApplicationOrder)
+
+		expectedEnvelope, err := lcm.TransactionEnvelopes()[0].MarshalBinary()
+		require.NoError(t, err)
+		assert.Equal(t, expectedEnvelope, tx.Envelope)
 	}
 }
 
@@ -83,20 +84,25 @@ func BenchmarkTransactionFetch(b *testing.B) {
 		lcms = append(lcms, txMeta(1234+i, i%2 == 0))
 	}
 
+	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
 	for _, lcm := range lcms {
-		require.NoError(b, write.TransactionWriter().InsertTransactions(lcm),
-			"ingestion failed for ledger %+v", lcm)
+		require.NoError(b, ledgerW.InsertLedger(lcm))
+		require.NoError(b, txW.InsertTransactions(lcm))
 	}
 	require.NoError(b, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
 	reader := NewTransactionReader(log, db, passphrase)
 
+	randoms := make([]int, b.N)
+	for i := 0; i < b.N; i++ {
+		randoms[i] = rand.Intn(len(lcms))
+	}
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		r := rand.Intn(len(lcms))
-		reader.GetTransaction(ctx, lcms[r].TransactionHash(0))
-		// tx, _, err := reader.GetTransaction(ctx, lcms[r].TransactionHash(0))
-		// require.NoError(b, err)
-		// assert.Equal(b, i%2 == 0, tx.Successful)
+		r := randoms[i]
+		tx, _, err := reader.GetTransaction(ctx, lcms[r].TransactionHash(0))
+		require.NoError(b, err)
+		assert.Equal(b, r%2 == 0, tx.Successful)
 	}
 }
 

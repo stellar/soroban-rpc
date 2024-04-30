@@ -90,11 +90,8 @@ func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 	for i := 0; i < txCount; i++ {
 		tx, err := reader.Read()
 		if err != nil {
-
 			return errors.Wrapf(err, "failed reading tx %d", i)
 		}
-
-		txn.log.Debugf("Ingested tx hash %v", hex.EncodeToString(tx.Result.TransactionHash[:]))
 
 		// For fee-bump transactions, we store lookup entries for both the outer
 		// and inner hashes.
@@ -175,7 +172,7 @@ func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucket
 	}
 
 	var lcms []xdr.LedgerCloseMeta
-	if err = txn.db.Select(ctx, &lcms, newestQ.Suffix(" UNION ALL "+sql, args...)); err != nil {
+	if err = txn.db.Select(ctx, &lcms, newestQ.Suffix("UNION ALL "+sql, args...)); err != nil {
 		return ledgerRange, errors.Wrap(err, "couldn't query ledger range")
 	} else if len(lcms) < 2 {
 		// There is almost certainly a row, but we want to avoid a race condition
