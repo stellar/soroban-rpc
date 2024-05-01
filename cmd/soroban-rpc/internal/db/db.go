@@ -20,6 +20,7 @@ import (
 	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 )
 
 //go:embed migrations/*.sql
@@ -150,25 +151,47 @@ type readWriter struct {
 	metrics *ReadWriterMetrics
 }
 
-// NewReadWriterWithMetrics constructs a new readWriter instance and configures
-// the size of ledger entry batches when writing ledger entries and the
-// retention window for how many historical ledgers are recorded in the
-// database, optionally storing metrics for various DB ops.
+// NewReadWriter constructs a new readWriter instance and configures the size of
+// ledger entry batches when writing ledger entries and the retention window for
+// how many historical ledgers are recorded in the database, hooking up
+// metrics for various DB ops.
 func NewReadWriterWithMetrics(
 	log *log.Entry,
 	db *DB,
+	daemon interfaces.Daemon,
 	maxBatchSize int,
 	ledgerRetentionWindow uint32,
 	networkPassphrase string,
-	metrics *ReadWriterMetrics,
 ) ReadWriter {
+	// a metric for measuring latency of transaction store operations
+	txDurationMetric := prometheus.NewSummaryVec(prometheus.SummaryOpts{
+		Namespace: daemon.MetricsNamespace(), Subsystem: "transactions",
+		Name:       "operation_duration_seconds",
+		Help:       "transaction store operation durations, sliding window = 10m",
+		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+	},
+		[]string{"operation"},
+	)
+	txCountMetric := prometheus.NewSummary(prometheus.SummaryOpts{
+		Namespace: daemon.MetricsNamespace(), Subsystem: "transactions",
+		Name:       "count",
+		Help:       "count of transactions ingested, sliding window = 10m",
+		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+	})
+
+	daemon.MetricsRegistry().MustRegister(txDurationMetric, txCountMetric)
+
 	return &readWriter{
 		log:                   log,
 		db:                    db,
 		maxBatchSize:          maxBatchSize,
 		ledgerRetentionWindow: ledgerRetentionWindow,
 		passphrase:            networkPassphrase,
-		metrics:               metrics,
+		metrics: &ReadWriterMetrics{
+			TxIngestDuration: txDurationMetric.With(prometheus.Labels{"operation": "ingest"}),
+			TxSqlDuration:    txDurationMetric.With(prometheus.Labels{"operation": "insert"}),
+			TxCount:          txCountMetric,
+		},
 	}
 }
 
@@ -179,7 +202,14 @@ func NewReadWriter(
 	ledgerRetentionWindow uint32,
 	networkPassphrase string,
 ) ReadWriter {
-	return NewReadWriterWithMetrics(log, db, maxBatchSize, ledgerRetentionWindow, networkPassphrase, nil)
+	return &readWriter{
+		log:                   log,
+		db:                    db,
+		maxBatchSize:          maxBatchSize,
+		ledgerRetentionWindow: ledgerRetentionWindow,
+		passphrase:            networkPassphrase,
+		metrics:               nil,
+	}
 }
 
 func (rw *readWriter) GetLatestLedgerSequence(ctx context.Context) (uint32, error) {

@@ -18,6 +18,7 @@ import (
 	"github.com/stellar/go/historyarchive"
 	"github.com/stellar/go/ingest/ledgerbackend"
 	supporthttp "github.com/stellar/go/support/http"
+	"github.com/stellar/go/support/log"
 	supportlog "github.com/stellar/go/support/log"
 	"github.com/stellar/go/support/ordered"
 	"github.com/stellar/go/support/storage"
@@ -228,24 +229,6 @@ func MustNew(cfg *config.Config) *Daemon {
 		logger.WithError(err).Error("could not run ingestion. Retrying")
 	}
 
-	// a metric for measuring latency of transaction store operations
-	txDurationMetric := prometheus.NewSummaryVec(prometheus.SummaryOpts{
-		Namespace: daemon.MetricsNamespace(), Subsystem: "transactions",
-		Name:       "operation_duration_seconds",
-		Help:       "transaction store operation durations, sliding window = 10m",
-		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
-	},
-		[]string{"operation"},
-	)
-	txCountMetric := prometheus.NewSummary(prometheus.SummaryOpts{
-		Namespace: daemon.MetricsNamespace(), Subsystem: "transactions",
-		Name:       "count",
-		Help:       "count of transactions ingested, sliding window = 10m",
-		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
-	})
-
-	daemon.metricsRegistry.MustRegister(txDurationMetric, txCountMetric)
-
 	// Take the larger of (event retention, tx retention) and then the smaller
 	// of (tx retention, default event retention) if event retention wasn't
 	// specified, for some reason...?
@@ -260,14 +243,10 @@ func MustNew(cfg *config.Config) *Daemon {
 		DB: db.NewReadWriterWithMetrics(
 			logger,
 			dbConn,
+			daemon,
 			maxLedgerEntryWriteBatchSize,
 			maxRetentionWindow,
 			cfg.NetworkPassphrase,
-			&db.ReadWriterMetrics{
-				TxIngestDuration: txDurationMetric.With(prometheus.Labels{"operation": "ingest"}),
-				TxSqlDuration:    txDurationMetric.With(prometheus.Labels{"operation": "insert"}),
-				TxCount:          txCountMetric,
-			},
 		),
 		EventStore:        eventStore,
 		NetworkPassPhrase: cfg.NetworkPassphrase,
@@ -363,4 +342,8 @@ func (d *Daemon) Run() {
 	case <-d.done:
 		return
 	}
+}
+
+func (d *Daemon) GetGlobals() (*db.DB, *log.Entry, *prometheus.Registry) {
+	return d.db, d.logger, d.metricsRegistry
 }
