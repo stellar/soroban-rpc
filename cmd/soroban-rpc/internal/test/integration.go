@@ -108,7 +108,6 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 	}))
 
 	i.runComposeCommand("up", "--detach", "--quiet-pull", "--no-color")
-	i.populateVersionInfo()
 	i.prepareShutdownHandlers()
 	i.coreClient = &stellarcore.Client{URL: "http://localhost:" + strconv.Itoa(stellarCorePort)}
 	i.waitForCore()

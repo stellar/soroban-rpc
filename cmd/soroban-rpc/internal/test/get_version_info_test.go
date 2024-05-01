@@ -13,7 +13,7 @@ import (
 
 func TestGetVersionInfoSucceeds(t *testing.T) {
 	test := NewTest(t, nil)
-
+	test.populateVersionInfo()
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
 	request := methods.GetVersionInfoRequest{}
