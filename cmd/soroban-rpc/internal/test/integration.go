@@ -241,29 +241,6 @@ func (i *Test) runComposeCommand(args ...string) {
 	}
 }
 
-// Runs git commands to fetch version information
-func (i *Test) populateVersionInfo() {
-
-	execFunction := func(command string, args ...string) string {
-		cmd := exec.Command(command, args...)
-		i.t.Log("Running", cmd.Env, cmd.Args)
-		out, innerErr := cmd.Output()
-		if exitErr, ok := innerErr.(*exec.ExitError); ok {
-			fmt.Printf("stdout:\n%s\n", string(out))
-			fmt.Printf("stderr:\n%s\n", string(exitErr.Stderr))
-		}
-
-		if innerErr != nil {
-			i.t.Fatalf("Command %s failed: %v", cmd.Env, innerErr)
-		}
-		return string(out)
-	}
-
-	config.Version = execFunction("git", "describe", "--tags", "--always", "--abbrev=0", "--match='v[0-9]*.[0-9]*.[0-9]*'")
-	config.CommitHash = execFunction("git", "rev-parse", "HEAD")
-	config.BuildTimestamp = execFunction("date", "+%Y-%m-%dT%H:%M:%S")
-}
-
 func (i *Test) prepareShutdownHandlers() {
 	i.shutdownCalls = append(i.shutdownCalls,
 		func() {
