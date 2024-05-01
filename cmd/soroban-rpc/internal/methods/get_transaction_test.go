@@ -15,18 +15,6 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
-func writeLedger(t *testing.T, rw db.ReadWriter, lcm xdr.LedgerCloseMeta) {
-	writer, err := rw.NewTx(context.TODO())
-	require.NoError(t, err)
-
-	ledgerW := writer.LedgerWriter()
-	txW := writer.TransactionWriter()
-
-	require.NoError(t, ledgerW.InsertLedger(lcm))
-	require.NoError(t, txW.InsertTransactions(lcm))
-	require.NoError(t, writer.Commit(lcm.LedgerSequence()))
-}
-
 func TestGetTransaction(t *testing.T) {
 	var (
 		ctx   = context.TODO()
@@ -146,6 +134,7 @@ func TestGetTransaction(t *testing.T) {
 	diagnosticEvents, err := meta.V1.TxProcessing[0].TxApplyProcessing.GetDiagnosticEvents()
 	require.NoError(t, err)
 	expectedEventsMeta, err := xdr.MarshalBase64(diagnosticEvents[0])
+	require.NoError(t, err)
 
 	tx, err = GetTransaction(ctx, log, store, GetTransactionRequest{hash})
 	require.NoError(t, err)
@@ -301,4 +290,16 @@ func txMetaWithEvents(acctSeq uint32, successful bool) xdr.LedgerCloseMeta {
 	}
 
 	return meta
+}
+
+func writeLedger(t *testing.T, rw db.ReadWriter, lcm xdr.LedgerCloseMeta) {
+	writer, err := rw.NewTx(context.TODO())
+	require.NoError(t, err)
+
+	ledgerW := writer.LedgerWriter()
+	txW := writer.TransactionWriter()
+
+	require.NoError(t, ledgerW.InsertLedger(lcm))
+	require.NoError(t, txW.InsertTransactions(lcm))
+	require.NoError(t, writer.Commit(lcm.LedgerSequence()))
 }
