@@ -17,22 +17,30 @@ import (
 func TestGetVersionInfoSucceeds(t *testing.T) {
 	test := NewTest(t, nil)
 
+	version, commitHash, buildTimeStamp := config.Version, config.CommitHash, config.BuildTimestamp
+
 	populateVersionInfo(test)
-	defer resetVersionInfo(test)
+
+	// reset to previous config values
+	t.Cleanup(func() {
+		config.Version = version
+		config.CommitHash = commitHash
+		config.BuildTimestamp = buildTimeStamp
+	})
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
-	request := methods.GetVersionInfoRequest{}
 
 	var result methods.GetVersionInfoResponse
-	err := client.CallResult(context.Background(), "getVersionInfo", request, &result)
+	err := client.CallResult(context.Background(), "getVersionInfo", nil, &result)
 	assert.NoError(t, err)
 
-	assert.NotEmpty(t, result.Version)
-	assert.NotEmpty(t, result.BuildTimestamp)
-	assert.NotEmpty(t, result.CommitHash)
+	assert.Equal(t, config.Version, result.Version)
+	assert.Equal(t, config.BuildTimestamp, result.BuildTimestamp)
+	assert.Equal(t, config.CommitHash, result.CommitHash)
+	assert.Equal(t, test.protocolVersion, result.ProtocolVersion)
 	assert.NotEmpty(t, result.CaptiveCoreVersion)
-	assert.NotEmpty(t, result.ProtocolVersion)
+
 }
 
 // Runs git commands to fetch version information
@@ -56,13 +64,4 @@ func populateVersionInfo(test *Test) {
 	config.Version = execFunction("git", "describe", "--tags", "--always", "--abbrev=0", "--match='v[0-9]*.[0-9]*.[0-9]*'")
 	config.CommitHash = execFunction("git", "rev-parse", "HEAD")
 	config.BuildTimestamp = execFunction("date", "+%Y-%m-%dT%H:%M:%S")
-}
-
-func resetVersionInfo(test *Test) {
-
-	test.t.Log("Reset version information to default values")
-
-	config.Version = "0.0.0"
-	config.CommitHash = ""
-	config.BuildTimestamp = ""
 }
