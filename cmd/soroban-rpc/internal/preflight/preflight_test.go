@@ -13,6 +13,7 @@ import (
 	"github.com/stellar/go/xdr"
 	"github.com/stretchr/testify/require"
 
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
@@ -294,15 +295,18 @@ func getDB(t testing.TB, restartDB bool) *db.DB {
 	dbPath := path.Join(t.TempDir(), "soroban_rpc.sqlite")
 	dbInstance, err := db.OpenSQLiteDB(dbPath)
 	require.NoError(t, err)
-	readWriter := db.NewReadWriter(log.DefaultLogger, dbInstance, 100, 10000, network.FutureNetworkPassphrase)
+
+	readWriter := db.NewReadWriter(log.DefaultLogger, dbInstance, interfaces.MakeNoOpDeamon(),
+		100, 10000, network.FutureNetworkPassphrase)
 	tx, err := readWriter.NewTx(context.Background())
 	require.NoError(t, err)
+
 	for _, e := range mockLedgerEntries {
 		err := tx.LedgerEntryWriter().UpsertLedgerEntry(e)
 		require.NoError(t, err)
 	}
-	err = tx.Commit(2)
-	require.NoError(t, err)
+	require.NoError(t, tx.Commit(2))
+
 	if restartDB {
 		// Restarting the DB resets the ledger entries write-through cache
 		require.NoError(t, dbInstance.Close())

@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -99,4 +100,22 @@ func TestLedgers(t *testing.T) {
 	assert.NoError(t, tx.Commit(ledgerSequence))
 
 	assertLedgerRange(t, reader, 8, 12)
+}
+
+func NewTestDB(tb testing.TB) *DB {
+	tmp := tb.TempDir()
+	dbPath := path.Join(tmp, "db.sqlite")
+	db, err := OpenSQLiteDB(dbPath)
+	if err != nil {
+		assert.NoError(tb, db.Close())
+	}
+	tb.Cleanup(func() {
+		assert.NoError(tb, db.Close())
+	})
+	return &DB{
+		SessionInterface: db,
+		cache: dbCache{
+			ledgerEntries: newTransactionalCache(),
+		},
+	}
 }

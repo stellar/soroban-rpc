@@ -5,16 +5,13 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
-	"path"
 	"strconv"
 	"sync"
-	"testing"
 
 	sq "github.com/Masterminds/squirrel"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/prometheus/client_golang/prometheus"
 	migrate "github.com/rubenv/sql-migrate"
-	"github.com/stretchr/testify/assert"
 
 	"github.com/stellar/go/support/db"
 	"github.com/stellar/go/support/errors"
@@ -332,23 +329,4 @@ func runMigrations(db *sql.DB, dialect string) error {
 	}
 	_, err := migrate.ExecMax(db, dialect, m, migrate.Up, 0)
 	return err
-}
-
-// NewTestDB is here so that other packages in sRPC can use it
-func NewTestDB(tb testing.TB) *DB {
-	tmp := tb.TempDir()
-	dbPath := path.Join(tmp, "db.sqlite")
-	db, err := OpenSQLiteDB(dbPath)
-	if err != nil {
-		assert.NoError(tb, db.Close())
-	}
-	tb.Cleanup(func() {
-		assert.NoError(tb, db.Close())
-	})
-	return &DB{
-		SessionInterface: db,
-		cache: dbCache{
-			ledgerEntries: newTransactionalCache(),
-		},
-	}
 }
