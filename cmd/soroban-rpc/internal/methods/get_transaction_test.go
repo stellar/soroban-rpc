@@ -12,19 +12,14 @@ import (
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
 func TestGetTransaction(t *testing.T) {
-	// txStore := db.NewMockTransactionReader("passphrase")
-
 	var (
 		ctx   = context.TODO()
 		log   = log.DefaultLogger
-		sesh  = db.NewTestDB(t)
-		store = db.NewTransactionReader(log, sesh, "passphrase")
-		rw    = db.NewReadWriter(log, sesh, interfaces.MakeNoOpDeamon(), 1, 100, "passphrase")
+		store = db.NewMockTransactionStore("passphrase")
 	)
 	log.SetLevel(logrus.DebugLevel)
 
@@ -39,7 +34,7 @@ func TestGetTransaction(t *testing.T) {
 	require.Equal(t, GetTransactionResponse{Status: TransactionStatusNotFound}, tx)
 
 	meta := txMeta(1, true)
-	writeLedger(t, rw, meta)
+	writeLedger(t, store, meta)
 
 	xdrHash := txHash(1)
 	hash = hex.EncodeToString(xdrHash[:])
@@ -70,7 +65,7 @@ func TestGetTransaction(t *testing.T) {
 
 	// ingest another (failed) transaction
 	meta = txMeta(2, false)
-	writeLedger(t, rw, meta)
+	writeLedger(t, store, meta)
 
 	// the first transaction should still be there
 	tx, err = GetTransaction(ctx, log, store, GetTransactionRequest{hash})
@@ -122,7 +117,7 @@ func TestGetTransaction(t *testing.T) {
 
 	// Test Txn with events
 	meta = txMetaWithEvents(3, true)
-	writeLedger(t, rw, meta)
+	writeLedger(t, store, meta)
 
 	xdrHash = txHash(3)
 	hash = hex.EncodeToString(xdrHash[:])
@@ -295,14 +290,6 @@ func txMetaWithEvents(acctSeq uint32, successful bool) xdr.LedgerCloseMeta {
 	return meta
 }
 
-func writeLedger(t *testing.T, rw db.ReadWriter, lcm xdr.LedgerCloseMeta) {
-	writer, err := rw.NewTx(context.TODO())
-	require.NoError(t, err)
-
-	ledgerW := writer.LedgerWriter()
-	txW := writer.TransactionWriter()
-
-	require.NoError(t, ledgerW.InsertLedger(lcm))
-	require.NoError(t, txW.InsertTransactions(lcm))
-	require.NoError(t, writer.Commit(lcm.LedgerSequence()))
+func writeLedger(t *testing.T, rw db.TransactionWriter, lcm xdr.LedgerCloseMeta) {
+	require.NoError(t, rw.InsertTransactions(lcm))
 }
