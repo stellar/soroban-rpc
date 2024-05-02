@@ -34,7 +34,7 @@ func TestGetTransaction(t *testing.T) {
 	require.Equal(t, GetTransactionResponse{Status: TransactionStatusNotFound}, tx)
 
 	meta := txMeta(1, true)
-	writeLedger(t, store, meta)
+	require.NoError(t, store.InsertTransactions(meta))
 
 	xdrHash := txHash(1)
 	hash = hex.EncodeToString(xdrHash[:])
@@ -65,7 +65,7 @@ func TestGetTransaction(t *testing.T) {
 
 	// ingest another (failed) transaction
 	meta = txMeta(2, false)
-	writeLedger(t, store, meta)
+	require.NoError(t, store.InsertTransactions(meta))
 
 	// the first transaction should still be there
 	tx, err = GetTransaction(ctx, log, store, GetTransactionRequest{hash})
@@ -117,7 +117,7 @@ func TestGetTransaction(t *testing.T) {
 
 	// Test Txn with events
 	meta = txMetaWithEvents(3, true)
-	writeLedger(t, store, meta)
+	require.NoError(t, store.InsertTransactions(meta))
 
 	xdrHash = txHash(3)
 	hash = hex.EncodeToString(xdrHash[:])
@@ -288,8 +288,4 @@ func txMetaWithEvents(acctSeq uint32, successful bool) xdr.LedgerCloseMeta {
 	}
 
 	return meta
-}
-
-func writeLedger(t *testing.T, rw db.TransactionWriter, lcm xdr.LedgerCloseMeta) {
-	require.NoError(t, rw.InsertTransactions(lcm))
 }
