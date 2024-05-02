@@ -36,7 +36,7 @@ type Transaction struct {
 // TransactionWriter is used during ingestion to write LCM.
 type TransactionWriter interface {
 	InsertTransactions(lcm xdr.LedgerCloseMeta) error
-	RegisterMetrics(ingest, insert, count prometheus.Observer)
+	RegisterMetrics(ingest, count prometheus.Observer)
 }
 
 // TransactionReader provides all of the public ways to read from the DB.
@@ -51,7 +51,7 @@ type transactionHandler struct {
 	stmtCache  *sq.StmtCache
 	passphrase string
 
-	ingestMetric, insertMetric, countMetric prometheus.Observer
+	ingestMetric, countMetric prometheus.Observer
 }
 
 func NewTransactionReader(log *log.Entry, db db.SessionInterface, passphrase string) TransactionReader {
@@ -59,7 +59,7 @@ func NewTransactionReader(log *log.Entry, db db.SessionInterface, passphrase str
 }
 
 func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error {
-	start, mid := time.Now(), time.Now()
+	start := time.Now()
 	txCount := lcm.CountTransactions()
 	L := txn.log.
 		WithField("ledger_seq", lcm.LedgerSequence()).
@@ -68,7 +68,6 @@ func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 	defer func() {
 		if txn.ingestMetric != nil {
 			txn.ingestMetric.Observe(time.Since(start).Seconds())
-			txn.insertMetric.Observe(time.Since(mid).Seconds())
 			txn.countMetric.Observe(float64(txCount))
 		}
 	}()
@@ -101,7 +100,6 @@ func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 		transactions[tx.Result.TransactionHash] = tx
 	}
 
-	mid = time.Now()
 	query := sq.Insert(transactionTableName).
 		Columns("hash", "ledger_sequence", "application_order")
 	for hash, tx := range transactions {
@@ -111,15 +109,13 @@ func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 
 	L.WithError(err).
 		WithField("duration", time.Since(start)).
-		WithField("sql_duration", time.Since(mid)).
 		Infof("Ingested %d transaction lookups", len(transactions))
 
 	return err
 }
 
-func (txn *transactionHandler) RegisterMetrics(ingest, insert, count prometheus.Observer) {
+func (txn *transactionHandler) RegisterMetrics(ingest, count prometheus.Observer) {
 	txn.ingestMetric = ingest
-	txn.insertMetric = insert
 	txn.countMetric = count
 }
 

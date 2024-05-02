@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 
 	"github.com/creachadair/jrpc2"
@@ -97,7 +98,7 @@ func GetTransaction(
 		OldestLedger:          storeRange.FirstLedger.Sequence,
 		OldestLedgerCloseTime: storeRange.FirstLedger.CloseTime,
 	}
-	if err == db.ErrNoTransaction {
+	if errors.Is(err, db.ErrNoTransaction) {
 		response.Status = TransactionStatusNotFound
 		return response, nil
 	} else if err != nil {

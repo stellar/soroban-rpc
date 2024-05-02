@@ -12,16 +12,19 @@ import (
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
 func TestGetTransaction(t *testing.T) {
+	// txStore := db.NewMockTransactionReader("passphrase")
+
 	var (
 		ctx   = context.TODO()
 		log   = log.DefaultLogger
 		sesh  = db.NewTestDB(t)
 		store = db.NewTransactionReader(log, sesh, "passphrase")
-		rw    = db.NewReadWriter(log, sesh, 1, 100, "passphrase")
+		rw    = db.NewReadWriter(log, sesh, interfaces.MakeNoOpDeamon(), 1, 100, "passphrase")
 	)
 	log.SetLevel(logrus.DebugLevel)
 

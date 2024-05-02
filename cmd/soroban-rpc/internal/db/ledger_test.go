@@ -9,6 +9,7 @@ import (
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 )
 
 var passphrase = network.FutureNetworkPassphrase
@@ -64,6 +65,7 @@ func assertLedgerRange(t *testing.T, reader LedgerReader, start, end uint32) {
 
 func TestLedgers(t *testing.T) {
 	db := NewTestDB(t)
+	daemon := interfaces.MakeNoOpDeamon()
 
 	reader := NewLedgerReader(db)
 	_, exists, err := reader.GetLedger(context.Background(), 1)
@@ -72,7 +74,7 @@ func TestLedgers(t *testing.T) {
 
 	for i := 1; i <= 10; i++ {
 		ledgerSequence := uint32(i)
-		tx, err := NewReadWriter(logger, db, 150, 15, passphrase).NewTx(context.Background())
+		tx, err := NewReadWriter(logger, db, daemon, 150, 15, passphrase).NewTx(context.Background())
 		assert.NoError(t, err)
 		assert.NoError(t, tx.LedgerWriter().InsertLedger(createLedger(ledgerSequence)))
 		assert.NoError(t, tx.Commit(ledgerSequence))
@@ -83,7 +85,7 @@ func TestLedgers(t *testing.T) {
 	assertLedgerRange(t, reader, 1, 10)
 
 	ledgerSequence := uint32(11)
-	tx, err := NewReadWriter(logger, db, 150, 15, passphrase).NewTx(context.Background())
+	tx, err := NewReadWriter(logger, db, daemon, 150, 15, passphrase).NewTx(context.Background())
 	assert.NoError(t, err)
 	assert.NoError(t, tx.LedgerWriter().InsertLedger(createLedger(ledgerSequence)))
 	assert.NoError(t, tx.Commit(ledgerSequence))
@@ -91,7 +93,7 @@ func TestLedgers(t *testing.T) {
 	assertLedgerRange(t, reader, 1, 11)
 
 	ledgerSequence = uint32(12)
-	tx, err = NewReadWriter(logger, db, 150, 5, passphrase).NewTx(context.Background())
+	tx, err = NewReadWriter(logger, db, daemon, 150, 5, passphrase).NewTx(context.Background())
 	assert.NoError(t, err)
 	assert.NoError(t, tx.LedgerWriter().InsertLedger(createLedger(ledgerSequence)))
 	assert.NoError(t, tx.Commit(ledgerSequence))

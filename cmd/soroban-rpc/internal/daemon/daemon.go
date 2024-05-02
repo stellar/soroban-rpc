@@ -18,7 +18,6 @@ import (
 	"github.com/stellar/go/historyarchive"
 	"github.com/stellar/go/ingest/ledgerbackend"
 	supporthttp "github.com/stellar/go/support/http"
-	"github.com/stellar/go/support/log"
 	supportlog "github.com/stellar/go/support/log"
 	"github.com/stellar/go/support/ordered"
 	"github.com/stellar/go/support/storage"
@@ -240,7 +239,7 @@ func MustNew(cfg *config.Config) *Daemon {
 	}
 	ingestService := ingest.NewService(ingest.Config{
 		Logger: logger,
-		DB: db.NewReadWriterWithMetrics(
+		DB: db.NewReadWriter(
 			logger,
 			dbConn,
 			daemon,
@@ -342,8 +341,4 @@ func (d *Daemon) Run() {
 	case <-d.done:
 		return
 	}
-}
-
-func (d *Daemon) GetGlobals() (*db.DB, *log.Entry, *prometheus.Registry) {
-	return d.db, d.logger, d.metricsRegistry
 }

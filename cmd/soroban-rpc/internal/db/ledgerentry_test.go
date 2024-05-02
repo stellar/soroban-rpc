@@ -13,6 +13,7 @@ import (
 
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 )
 
 func getLedgerEntryAndLatestLedgerSequenceWithErr(db *DB, key xdr.LedgerKey) (bool, xdr.LedgerEntry, uint32, *uint32, error) {
@@ -45,7 +46,8 @@ func getLedgerEntryAndLatestLedgerSequence(t require.TestingT, db *DB, key xdr.L
 }
 
 func makeReadWriter(db *DB, batchSize, retentionWindow int) ReadWriter {
-	return NewReadWriter(log.DefaultLogger, db, batchSize, uint32(retentionWindow), passphrase)
+	return NewReadWriter(log.DefaultLogger, db, interfaces.MakeNoOpDeamon(),
+		batchSize, uint32(retentionWindow), passphrase)
 }
 
 func TestGoldenPath(t *testing.T) {

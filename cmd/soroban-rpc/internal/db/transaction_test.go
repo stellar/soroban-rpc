@@ -10,6 +10,7 @@ import (
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,7 +32,7 @@ func TestTransactionFound(t *testing.T) {
 	log := log.DefaultLogger
 	log.SetLevel(logrus.TraceLevel)
 
-	writer := NewReadWriter(log, db, 10, 10, passphrase)
+	writer := NewReadWriter(log, db, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
 	write, err := writer.NewTx(ctx)
 	require.NoError(t, err)
 
@@ -74,7 +75,7 @@ func BenchmarkTransactionFetch(b *testing.B) {
 	ctx := context.TODO()
 	log := log.DefaultLogger
 
-	writer := NewReadWriter(log, db, 100, 1_000_000, passphrase)
+	writer := NewReadWriter(log, db, interfaces.MakeNoOpDeamon(), 100, 1_000_000, passphrase)
 	write, err := writer.NewTx(ctx)
 	require.NoError(b, err)
 

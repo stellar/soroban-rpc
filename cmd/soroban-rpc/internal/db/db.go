@@ -138,7 +138,7 @@ func getLatestLedgerSequence(ctx context.Context, q db.SessionInterface, cache *
 }
 
 type ReadWriterMetrics struct {
-	TxIngestDuration, TxSqlDuration, TxCount prometheus.Observer
+	TxIngestDuration, TxCount prometheus.Observer
 }
 
 type readWriter struct {
@@ -148,14 +148,14 @@ type readWriter struct {
 	ledgerRetentionWindow uint32
 	passphrase            string
 
-	metrics *ReadWriterMetrics
+	metrics ReadWriterMetrics
 }
 
 // NewReadWriter constructs a new readWriter instance and configures the size of
 // ledger entry batches when writing ledger entries and the retention window for
-// how many historical ledgers are recorded in the database, hooking up
-// metrics for various DB ops.
-func NewReadWriterWithMetrics(
+// how many historical ledgers are recorded in the database, hooking up metrics
+// for various DB ops.
+func NewReadWriter(
 	log *log.Entry,
 	db *DB,
 	daemon interfaces.Daemon,
@@ -187,28 +187,10 @@ func NewReadWriterWithMetrics(
 		maxBatchSize:          maxBatchSize,
 		ledgerRetentionWindow: ledgerRetentionWindow,
 		passphrase:            networkPassphrase,
-		metrics: &ReadWriterMetrics{
+		metrics: ReadWriterMetrics{
 			TxIngestDuration: txDurationMetric.With(prometheus.Labels{"operation": "ingest"}),
-			TxSqlDuration:    txDurationMetric.With(prometheus.Labels{"operation": "insert"}),
 			TxCount:          txCountMetric,
 		},
-	}
-}
-
-func NewReadWriter(
-	log *log.Entry,
-	db *DB,
-	maxBatchSize int,
-	ledgerRetentionWindow uint32,
-	networkPassphrase string,
-) ReadWriter {
-	return &readWriter{
-		log:                   log,
-		db:                    db,
-		maxBatchSize:          maxBatchSize,
-		ledgerRetentionWindow: ledgerRetentionWindow,
-		passphrase:            networkPassphrase,
-		metrics:               nil,
 	}
 }
 
@@ -248,12 +230,10 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 			passphrase: rw.passphrase,
 		},
 	}
-	if rw.metrics != nil {
-		writer.txWriter.RegisterMetrics(
-			rw.metrics.TxIngestDuration,
-			rw.metrics.TxSqlDuration,
-			rw.metrics.TxCount)
-	}
+	writer.txWriter.RegisterMetrics(
+		rw.metrics.TxIngestDuration,
+		rw.metrics.TxCount)
+
 	return writer, nil
 }
 

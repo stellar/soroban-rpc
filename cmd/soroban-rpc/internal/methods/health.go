@@ -25,9 +25,13 @@ func NewHealthCheck(
 	return NewHandler(func(ctx context.Context) (HealthCheckResult, error) {
 		ledgerRange, err := reader.GetLedgerRange(ctx)
 		if err != nil || ledgerRange.LastLedger.Sequence < 1 {
+			extra := ""
+			if err != nil {
+				extra = fmt.Sprintf(": %s", err.Error())
+			}
 			return HealthCheckResult{}, jrpc2.Error{
 				Code:    jrpc2.InternalError,
-				Message: "data stores are not initialized " + err.Error(),
+				Message: "data stores are not initialized" + extra,
 			}
 		}
 
@@ -35,7 +39,8 @@ func NewHealthCheck(
 		lastKnownLedgerLatency := time.Since(lastKnownLedgerCloseTime)
 		if lastKnownLedgerLatency > maxHealthyLedgerLatency {
 			roundedLatency := lastKnownLedgerLatency.Round(time.Second)
-			msg := fmt.Sprintf("latency (%s) since last known ledger closed is too high (>%s)", roundedLatency, maxHealthyLedgerLatency)
+			msg := fmt.Sprintf("latency (%s) since last known ledger closed is too high (>%s)",
+				roundedLatency, maxHealthyLedgerLatency)
 			return HealthCheckResult{}, jrpc2.Error{
 				Code:    jrpc2.InternalError,
 				Message: msg,
