@@ -325,6 +325,13 @@ func (cfg *Config) options() ConfigOptions {
 			Validate:     positive,
 		},
 		{
+			TomlKey:      strutils.KebabToConstantCase("request-backlog-get-version-info-queue-limit"),
+			Usage:        "Maximum number of outstanding GetVersionInfo requests",
+			ConfigKey:    &cfg.RequestBacklogGetVersionInfoQueueLimit,
+			DefaultValue: uint(1000),
+			Validate:     positive,
+		},
+		{
 			TomlKey:      strutils.KebabToConstantCase("request-backlog-get-latest-ledger-queue-limit"),
 			Usage:        "Maximum number of outstanding GetLatestsLedger requests",
 			ConfigKey:    &cfg.RequestBacklogGetLatestLedgerQueueLimit,
@@ -387,6 +394,12 @@ func (cfg *Config) options() ConfigOptions {
 			TomlKey:      strutils.KebabToConstantCase("max-get-network-execution-duration"),
 			Usage:        "The maximum duration of time allowed for processing a getNetwork request. When that time elapses, the rpc server would return -32001 and abort the request's execution",
 			ConfigKey:    &cfg.MaxGetNetworkExecutionDuration,
+			DefaultValue: 5 * time.Second,
+		},
+		{
+			TomlKey:      strutils.KebabToConstantCase("max-get-version-info-execution-duration"),
+			Usage:        "The maximum duration of time allowed for processing a getVersionInfo request. When that time elapses, the rpc server would return -32001 and abort the request's execution",
+			ConfigKey:    &cfg.MaxGetVersionInfoExecutionDuration,
 			DefaultValue: 5 * time.Second,
 		},
 		{

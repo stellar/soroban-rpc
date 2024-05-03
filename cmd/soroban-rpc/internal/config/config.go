@@ -46,6 +46,7 @@ type Config struct {
 	RequestBacklogGetHealthQueueLimit           uint
 	RequestBacklogGetEventsQueueLimit           uint
 	RequestBacklogGetNetworkQueueLimit          uint
+	RequestBacklogGetVersionInfoQueueLimit      uint
 	RequestBacklogGetLatestLedgerQueueLimit     uint
 	RequestBacklogGetLedgerEntriesQueueLimit    uint
 	RequestBacklogGetTransactionQueueLimit      uint
@@ -56,6 +57,7 @@ type Config struct {
 	MaxGetHealthExecutionDuration               time.Duration
 	MaxGetEventsExecutionDuration               time.Duration
 	MaxGetNetworkExecutionDuration              time.Duration
+	MaxGetVersionInfoExecutionDuration          time.Duration
 	MaxGetLatestLedgerExecutionDuration         time.Duration
 	MaxGetLedgerEntriesExecutionDuration        time.Duration
 	MaxGetTransactionExecutionDuration          time.Duration
