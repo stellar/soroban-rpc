@@ -108,9 +108,9 @@ func TestGetTransactions(t *testing.T) {
 	err := client.CallResult(context.Background(), "getTransactions", request, &result)
 	assert.NoError(t, err)
 	assert.Equal(t, len(result.Transactions), 3)
-	assert.Equal(t, result.Transactions[0].LedgerSequence, ledgers[0])
-	assert.Equal(t, result.Transactions[1].LedgerSequence, ledgers[1])
-	assert.Equal(t, result.Transactions[2].LedgerSequence, ledgers[2])
+	assert.Equal(t, result.Transactions[0].Ledger.Sequence, ledgers[0])
+	assert.Equal(t, result.Transactions[1].Ledger.Sequence, ledgers[1])
+	assert.Equal(t, result.Transactions[2].Ledger.Sequence, ledgers[2])
 
 	// Get transactions from single ledger
 	//request = methods.GetTransactionsRequest{

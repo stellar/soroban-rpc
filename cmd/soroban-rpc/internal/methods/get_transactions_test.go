@@ -17,6 +17,7 @@ const (
 
 // createTestLedger Creates a test ledger with 2 transactions
 func createTestLedger(sequence uint32) xdr.LedgerCloseMeta {
+	sequence = sequence - 100
 	meta := txMeta(sequence, true)
 	meta.V1.TxProcessing = append(meta.V1.TxProcessing, xdr.TransactionResultMeta{
 		TxApplyProcessing: xdr.TransactionMeta{
@@ -35,7 +36,7 @@ func createTestLedger(sequence uint32) xdr.LedgerCloseMeta {
 func TestGetTransactions_DefaultLimit(t *testing.T) {
 	mockDbReader := db.NewMockTransactionStore(NetworkPassphrase)
 	for i := 1; i <= 10; i++ {
-		meta := createTestLedger(uint32(i - 100))
+		meta := createTestLedger(uint32(i))
 		err := mockDbReader.InsertTransactions(meta)
 		assert.NoError(t, err)
 	}
@@ -67,38 +68,41 @@ func TestGetTransactions_DefaultLimit(t *testing.T) {
 	assert.Equal(t, len(response.Transactions), 10)
 }
 
-//func TestGetTransactions_DefaultLimitExceedsLatestLedger(t *testing.T) {
-//	ctrl := gomock.NewController(t)
-//	defer ctrl.Finish()
-//
-//	mockLedgerEntryReader, mockLedgerReader := getMockReaders(ctrl, true, 3, nil)
-//
-//	handler := transactionsRPCHandler{
-//		ledgerReader:      mockLedgerReader,
-//		ledgerEntryReader: mockLedgerEntryReader,
-//		maxLimit:          100,
-//		defaultLimit:      10,
-//		networkPassphrase: NetworkPassphrase,
-//	}
-//
-//	request := GetTransactionsRequest{
-//		StartLedger: 1,
-//	}
-//
-//	response, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
-//	assert.NoError(t, err)
-//
-//	// assert latest ledger details
-//	assert.Equal(t, response.LatestLedger, int64(3))
-//	assert.Equal(t, response.LatestLedgerCloseTimestamp, int64(175))
-//
-//	// assert pagination
-//	assert.Equal(t, response.Cursor, toid.New(3, 1, 0).String())
-//
-//	// assert transactions result
-//	assert.Equal(t, len(response.Transactions), 6)
-//}
-//
+func TestGetTransactions_DefaultLimitExceedsLatestLedger(t *testing.T) {
+	mockDbReader := db.NewMockTransactionStore(NetworkPassphrase)
+	for i := 1; i <= 3; i++ {
+		meta := createTestLedger(uint32(i))
+		err := mockDbReader.InsertTransactions(meta)
+		assert.NoError(t, err)
+	}
+	mockLedgerReader := db.NewMockLedgerReader(mockDbReader)
+
+	handler := transactionsRPCHandler{
+		ledgerReader:      mockLedgerReader,
+		dbReader:          mockDbReader,
+		maxLimit:          100,
+		defaultLimit:      10,
+		networkPassphrase: NetworkPassphrase,
+	}
+
+	request := GetTransactionsRequest{
+		StartLedger: 1,
+	}
+
+	response, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
+	assert.NoError(t, err)
+
+	// assert latest ledger details
+	assert.Equal(t, response.LatestLedger, uint32(3))
+	assert.Equal(t, response.LatestLedgerCloseTime, int64(175))
+
+	// assert pagination
+	assert.Equal(t, response.Cursor, toid.New(3, 1, 0).String())
+
+	// assert transactions result
+	assert.Equal(t, len(response.Transactions), 6)
+}
+
 //func TestGetTransactions_CustomLimit(t *testing.T) {
 //	ctrl := gomock.NewController(t)
 //	defer ctrl.Finish()

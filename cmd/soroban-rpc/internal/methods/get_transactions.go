@@ -28,9 +28,7 @@ type GetTransactionsRequest struct {
 }
 
 // isValid checks the validity of the request parameters.
-// It returns an error if any parameter is out of the expected range or combination.
 func (req GetTransactionsRequest) isValid(maxLimit uint) error {
-	// Validate pagination and start ledger sequence
 	if req.Pagination != nil && req.Pagination.Cursor != nil {
 		if req.StartLedger != 0 {
 			return errors.New("startLedger and cursor cannot both be set")
@@ -45,25 +43,14 @@ func (req GetTransactionsRequest) isValid(maxLimit uint) error {
 	return nil
 }
 
-// transactionInfo represents the decoded transaction information from the ledger close meta.
-type transactionInfo struct {
-	Result           []byte `json:"result"`
-	Meta             []byte `json:"meta"`
-	Envelope         []byte `json:"envelope"`
-	FeeBump          bool   `json:"feeBump"`
-	ApplicationOrder int32  `json:"applicationOrder"`
-	Successful       bool   `json:"successful"`
-	LedgerSequence   uint32 `json:"ledgerSequence"`
-}
-
 // GetTransactionsResponse encapsulates the response structure for getTransactions queries.
 type GetTransactionsResponse struct {
-	Transactions          []transactionInfo `json:"transactions"`
-	LatestLedger          uint32            `json:"latestLedger"`
-	LatestLedgerCloseTime int64             `json:"latestLedgerCloseTimestamp"`
-	OldestLedger          uint32            `json:"oldestLedger"`
-	OldestLedgerCloseTime int64             `json:"oldestLedgerCloseTimestamp"`
-	Cursor                string            `json:"cursor"`
+	Transactions          []db.Transaction `json:"transactions"`
+	LatestLedger          uint32           `json:"latestLedger"`
+	LatestLedgerCloseTime int64            `json:"latestLedgerCloseTimestamp"`
+	OldestLedger          uint32           `json:"oldestLedger"`
+	OldestLedgerCloseTime int64            `json:"oldestLedgerCloseTimestamp"`
+	Cursor                string           `json:"cursor"`
 }
 
 type transactionsRPCHandler struct {
@@ -111,7 +98,7 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 
 	// Iterate through each ledger and its transactions until limit or end range is reached.
 	// The latest ledger acts as the end ledger range for the request.
-	var txns []transactionInfo
+	var txns []db.Transaction
 	var cursor *toid.ID
 LedgerLoop:
 	for ledgerSeq := start.LedgerSequence; ledgerSeq <= int32(ledgerRange.LastLedger.Sequence); ledgerSeq++ {
@@ -153,7 +140,7 @@ LedgerLoop:
 		for i := startTxIdx; i < txCount; i++ {
 			cursor = toid.New(int32(ledger.LedgerSequence()), int32(i), 0)
 
-			tx, err := reader.Read()
+			ingestTx, err := reader.Read()
 			if err != nil {
 				if err == io.EOF {
 					// No more transactions to read. Start from next ledger
@@ -165,7 +152,7 @@ LedgerLoop:
 				}
 			}
 
-			txResult, txMeta, txEnvelope, err := h.getTransactionDetails(tx)
+			tx, err := db.ParseTransaction(ledger, ingestTx)
 			if err != nil {
 				return GetTransactionsResponse{}, &jrpc2.Error{
 					Code:    jrpc2.InvalidParams,
@@ -173,17 +160,7 @@ LedgerLoop:
 				}
 			}
 
-			txInfo := transactionInfo{
-				Result:           txResult,
-				Meta:             txMeta,
-				Envelope:         txEnvelope,
-				FeeBump:          tx.Envelope.IsFeeBump(),
-				ApplicationOrder: int32(tx.Index),
-				Successful:       tx.Result.Result.Successful(),
-				LedgerSequence:   ledger.LedgerSequence(),
-			}
-
-			txns = append(txns, txInfo)
+			txns = append(txns, tx)
 			if len(txns) >= int(limit) {
 				break LedgerLoop
 			}
@@ -198,24 +175,6 @@ LedgerLoop:
 		OldestLedgerCloseTime: ledgerRange.FirstLedger.CloseTime,
 		Cursor:                cursor.String(),
 	}, nil
-}
-
-// getTransactionDetails fetches XDR for the following transaction details - result, meta and envelope.
-func (h transactionsRPCHandler) getTransactionDetails(tx ingest.LedgerTransaction) ([]byte, []byte, []byte, error) {
-	txResult, err := tx.Result.Result.MarshalBinary()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	txMeta, err := tx.UnsafeMeta.MarshalBinary()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	txEnvelope, err := tx.Envelope.MarshalBinary()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	return txResult, txMeta, txEnvelope, nil
 }
 
 func NewGetTransactionsHandler(logger *log.Entry, ledgerReader db.LedgerReader, dbReader db.TransactionReader, maxLimit, defaultLimit uint, networkPassphrase string) jrpc2.Handler {
