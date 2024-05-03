@@ -35,7 +35,7 @@ func (req GetTransactionsRequest) isValid(maxLimit uint) error {
 		if req.StartLedger != 0 {
 			return errors.New("startLedger and cursor cannot both be set")
 		}
-	} else if req.StartLedger <= 1 {
+	} else if req.StartLedger < 1 {
 		return errors.New("start ledger cannot be negative")
 	}
 	if req.Pagination != nil && req.Pagination.Limit > maxLimit {
