@@ -19,6 +19,7 @@ import (
 	"github.com/stellar/go/ingest/ledgerbackend"
 	supporthttp "github.com/stellar/go/support/http"
 	supportlog "github.com/stellar/go/support/log"
+	"github.com/stellar/go/support/ordered"
 	"github.com/stellar/go/support/storage"
 	"github.com/stellar/go/xdr"
 
@@ -29,7 +30,6 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ingest"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/preflight"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/util"
 )
 
@@ -133,7 +133,6 @@ func newCaptiveCore(cfg *config.Config, logger *supportlog.Entry) (*ledgerbacken
 func MustNew(cfg *config.Config) *Daemon {
 	logger := supportlog.New()
 	logger.SetLevel(cfg.LogLevel)
-
 	if cfg.LogFormat == config.LogFormatJSON {
 		logger.UseJSONFormatter()
 	}
@@ -149,7 +148,7 @@ func MustNew(cfg *config.Config) *Daemon {
 	}
 
 	if len(cfg.HistoryArchiveURLs) == 0 {
-		logger.Fatal("no history archives url were provided")
+		logger.Fatal("no history archives URLs were provided")
 	}
 
 	historyArchive, err := historyarchive.NewArchivePool(
@@ -190,11 +189,6 @@ func MustNew(cfg *config.Config) *Daemon {
 		cfg.NetworkPassphrase,
 		cfg.EventLedgerRetentionWindow,
 	)
-	transactionStore := transactions.NewMemoryStore(
-		daemon,
-		cfg.NetworkPassphrase,
-		cfg.TransactionLedgerRetentionWindow,
-	)
 
 	// initialize the stores using what was on the DB
 	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
@@ -219,9 +213,6 @@ func MustNew(cfg *config.Config) *Daemon {
 		if err := eventStore.IngestEvents(txmeta); err != nil {
 			logger.WithError(err).Fatal("could not initialize event memory store")
 		}
-		if err := transactionStore.IngestTransactions(txmeta); err != nil {
-			logger.WithError(err).Fatal("could not initialize transaction memory store")
-		}
 		return nil
 	})
 	if currentSeq != 0 {
@@ -236,17 +227,27 @@ func MustNew(cfg *config.Config) *Daemon {
 	onIngestionRetry := func(err error, dur time.Duration) {
 		logger.WithError(err).Error("could not run ingestion. Retrying")
 	}
-	maxRetentionWindow := cfg.EventLedgerRetentionWindow
-	if cfg.TransactionLedgerRetentionWindow > maxRetentionWindow {
-		maxRetentionWindow = cfg.TransactionLedgerRetentionWindow
-	} else if cfg.EventLedgerRetentionWindow == 0 && cfg.TransactionLedgerRetentionWindow > ledgerbucketwindow.DefaultEventLedgerRetentionWindow {
-		maxRetentionWindow = ledgerbucketwindow.DefaultEventLedgerRetentionWindow
+
+	// Take the larger of (event retention, tx retention) and then the smaller
+	// of (tx retention, default event retention) if event retention wasn't
+	// specified, for some reason...?
+	maxRetentionWindow := ordered.Max(cfg.EventLedgerRetentionWindow, cfg.TransactionLedgerRetentionWindow)
+	if cfg.EventLedgerRetentionWindow <= 0 {
+		maxRetentionWindow = ordered.Min(
+			maxRetentionWindow,
+			ledgerbucketwindow.DefaultEventLedgerRetentionWindow)
 	}
 	ingestService := ingest.NewService(ingest.Config{
-		Logger:            logger,
-		DB:                db.NewReadWriter(dbConn, maxLedgerEntryWriteBatchSize, maxRetentionWindow),
+		Logger: logger,
+		DB: db.NewReadWriter(
+			logger,
+			dbConn,
+			daemon,
+			maxLedgerEntryWriteBatchSize,
+			maxRetentionWindow,
+			cfg.NetworkPassphrase,
+		),
 		EventStore:        eventStore,
-		TransactionStore:  transactionStore,
 		NetworkPassPhrase: cfg.NetworkPassphrase,
 		Archive:           historyArchive,
 		LedgerBackend:     core,
@@ -269,10 +270,10 @@ func MustNew(cfg *config.Config) *Daemon {
 	jsonRPCHandler := internal.NewJSONRPCHandler(cfg, internal.HandlerParams{
 		Daemon:            daemon,
 		EventStore:        eventStore,
-		TransactionStore:  transactionStore,
 		Logger:            logger,
 		LedgerReader:      db.NewLedgerReader(dbConn),
 		LedgerEntryReader: db.NewLedgerEntryReader(dbConn),
+		TransactionReader: db.NewTransactionReader(logger, dbConn, cfg.NetworkPassphrase),
 		PreflightGetter:   preflightWorkerPool,
 	})
 

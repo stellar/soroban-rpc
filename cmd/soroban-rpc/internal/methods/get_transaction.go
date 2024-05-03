@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 
 	"github.com/creachadair/jrpc2"
+	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
 const (
@@ -66,11 +67,12 @@ type GetTransactionRequest struct {
 	Hash string `json:"hash"`
 }
 
-type transactionGetter interface {
-	GetTransaction(hash xdr.Hash) (transactions.Transaction, bool, ledgerbucketwindow.LedgerRange)
-}
-
-func GetTransaction(getter transactionGetter, request GetTransactionRequest) (GetTransactionResponse, error) {
+func GetTransaction(
+	ctx context.Context,
+	log *log.Entry,
+	reader db.TransactionReader,
+	request GetTransactionRequest,
+) (GetTransactionResponse, error) {
 	// parse hash
 	if hex.DecodedLen(len(request.Hash)) != len(xdr.Hash{}) {
 		return GetTransactionResponse{}, &jrpc2.Error{
@@ -88,16 +90,22 @@ func GetTransaction(getter transactionGetter, request GetTransactionRequest) (Ge
 		}
 	}
 
-	tx, found, storeRange := getter.GetTransaction(txHash)
+	tx, storeRange, err := reader.GetTransaction(ctx, txHash)
+
 	response := GetTransactionResponse{
 		LatestLedger:          storeRange.LastLedger.Sequence,
 		LatestLedgerCloseTime: storeRange.LastLedger.CloseTime,
 		OldestLedger:          storeRange.FirstLedger.Sequence,
 		OldestLedgerCloseTime: storeRange.FirstLedger.CloseTime,
 	}
-	if !found {
+	if errors.Is(err, db.ErrNoTransaction) {
 		response.Status = TransactionStatusNotFound
 		return response, nil
+	} else if err != nil {
+		log.WithError(err).
+			WithField("hash", txHash).
+			Errorf("failed to fetch transaction")
+		return response, err
 	}
 
 	response.ApplicationOrder = tx.ApplicationOrder
@@ -110,17 +118,16 @@ func GetTransaction(getter transactionGetter, request GetTransactionRequest) (Ge
 	response.ResultMetaXdr = base64.StdEncoding.EncodeToString(tx.Meta)
 	response.DiagnosticEventsXDR = base64EncodeSlice(tx.Events)
 
+	response.Status = TransactionStatusFailed
 	if tx.Successful {
 		response.Status = TransactionStatusSuccess
-	} else {
-		response.Status = TransactionStatusFailed
 	}
 	return response, nil
 }
 
 // NewGetTransactionHandler returns a get transaction json rpc handler
-func NewGetTransactionHandler(getter transactionGetter) jrpc2.Handler {
+func NewGetTransactionHandler(logger *log.Entry, getter db.TransactionReader) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context, request GetTransactionRequest) (GetTransactionResponse, error) {
-		return GetTransaction(getter, request)
+		return GetTransaction(ctx, logger, getter, request)
 	})
 }

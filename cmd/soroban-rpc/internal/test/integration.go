@@ -178,7 +178,8 @@ func (i *Test) launchDaemon(coreBinaryPath string) {
 	config.LogLevel = logrus.DebugLevel
 	config.SQLiteDBPath = path.Join(i.t.TempDir(), "soroban_rpc.sqlite")
 	config.IngestionTimeout = 10 * time.Minute
-	config.EventLedgerRetentionWindow = ledgerbucketwindow.DefaultEventLedgerRetentionWindow
+	config.EventLedgerRetentionWindow = ledgerbucketwindow.OneDayOfLedgers
+	config.TransactionLedgerRetentionWindow = ledgerbucketwindow.OneDayOfLedgers
 	config.CheckpointFrequency = checkpointFrequency
 	config.MaxHealthyLedgerLatency = time.Second * 10
 	config.PreflightEnableDebug = true
@@ -211,7 +212,7 @@ func (i *Test) launchDaemon(coreBinaryPath string) {
 		time.Sleep(time.Second)
 	}
 	if !success {
-		i.t.Fatalf("LedgerEntryStorage failed to sync in 1 minute")
+		i.t.Fatal("LedgerEntryStorage failed to sync in 1 minute")
 	}
 }
 

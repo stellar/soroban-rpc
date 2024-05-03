@@ -3,8 +3,10 @@ package ingest
 import (
 	"context"
 
-	"github.com/stellar/go/xdr"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
@@ -44,6 +46,11 @@ func (m MockTx) LedgerWriter() db.LedgerWriter {
 	return args.Get(0).(db.LedgerWriter)
 }
 
+func (m MockTx) TransactionWriter() db.TransactionWriter {
+	args := m.Called()
+	return args.Get(0).(db.TransactionWriter)
+}
+
 func (m MockTx) Commit(ledgerSeq uint32) error {
 	args := m.Called(ledgerSeq)
 	return args.Error(0)
@@ -75,4 +82,17 @@ type MockLedgerWriter struct {
 func (m MockLedgerWriter) InsertLedger(ledger xdr.LedgerCloseMeta) error {
 	args := m.Called(ledger)
 	return args.Error(0)
+}
+
+type MockTransactionWriter struct {
+	mock.Mock
+}
+
+func (m MockTransactionWriter) InsertTransactions(ledger xdr.LedgerCloseMeta) error {
+	args := m.Called(ledger)
+	return args.Error(0)
+}
+
+func (m MockTransactionWriter) RegisterMetrics(ingest, count prometheus.Observer) {
+	m.Called(ingest, count)
 }
