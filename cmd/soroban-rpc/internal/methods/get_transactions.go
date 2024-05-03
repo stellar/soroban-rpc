@@ -41,9 +41,7 @@ func (req GetTransactionsRequest) isValid(maxLimit uint) error {
 
 	// Validate pagination
 	if req.Pagination != nil && req.Pagination.Cursor != nil {
-		if req.StartLedger != 0 {
-			return errors.New("startLedger and cursor cannot both be set")
-		}
+		return errors.New("startLedger and cursor cannot both be set")
 	}
 	if req.Pagination != nil && req.Pagination.Limit > maxLimit {
 		return fmt.Errorf("limit must not exceed %d", maxLimit)
