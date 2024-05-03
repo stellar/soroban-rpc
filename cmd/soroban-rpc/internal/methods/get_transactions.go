@@ -58,17 +58,17 @@ type transactionInfo struct {
 
 // GetTransactionsResponse encapsulates the response structure for getTransactions queries.
 type GetTransactionsResponse struct {
-	Transactions               []transactionInfo `json:"transactions"`
-	LatestLedger               int64             `json:"latestLedger"`
-	LatestLedgerCloseTimestamp int64             `json:"latestLedgerCloseTimestamp"`
-	OldestLedger               int64             `json:"oldestLedger"`
-	OldestLedgerCloseTimestamp int64             `json:"oldestLedgerCloseTimestamp"`
-	Cursor                     string            `json:"cursor"`
+	Transactions          []transactionInfo `json:"transactions"`
+	LatestLedger          uint32            `json:"latestLedger"`
+	LatestLedgerCloseTime int64             `json:"latestLedgerCloseTimestamp"`
+	OldestLedger          uint32            `json:"oldestLedger"`
+	OldestLedgerCloseTime int64             `json:"oldestLedgerCloseTimestamp"`
+	Cursor                string            `json:"cursor"`
 }
 
 type transactionsRPCHandler struct {
 	ledgerReader      db.LedgerReader
-	ledgerEntryReader db.LedgerEntryReader
+	dbReader          db.TransactionReader
 	maxLimit          uint
 	defaultLimit      uint
 	logger            *log.Entry
@@ -101,8 +101,7 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 		}
 	}
 
-	// The latest ledger acts as the end ledger range for the request.
-	latestLedgerSequence, _, err := h.getLatestLedgerDetails(ctx)
+	ledgerRange, err := h.dbReader.GetLedgerRange(ctx)
 	if err != nil {
 		return GetTransactionsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidParams,
@@ -110,11 +109,12 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 		}
 	}
 
-	// Iterate through each ledger and its transactions until limit or end range is reached
+	// Iterate through each ledger and its transactions until limit or end range is reached.
+	// The latest ledger acts as the end ledger range for the request.
 	var txns []transactionInfo
 	var cursor *toid.ID
 LedgerLoop:
-	for ledgerSeq := start.LedgerSequence; ledgerSeq <= int32(latestLedgerSequence); ledgerSeq++ {
+	for ledgerSeq := start.LedgerSequence; ledgerSeq <= int32(ledgerRange.LastLedger.Sequence); ledgerSeq++ {
 		// Get ledger close meta from db
 		ledger, found, err := h.ledgerReader.GetLedger(ctx, uint32(ledgerSeq))
 		if (err != nil) || (!found) {
@@ -190,21 +190,14 @@ LedgerLoop:
 		}
 	}
 
-	latestLedgerSequence, latestLedgerCloseTime, err := h.getLatestLedgerDetails(ctx)
-	if err != nil {
-		return GetTransactionsResponse{}, &jrpc2.Error{
-			Code:    jrpc2.InvalidParams,
-			Message: err.Error(),
-		}
-	}
-
 	return GetTransactionsResponse{
-		Transactions:               txns,
-		LatestLedger:               latestLedgerSequence,
-		LatestLedgerCloseTimestamp: latestLedgerCloseTime,
-		Cursor:                     cursor.String(),
+		Transactions:          txns,
+		LatestLedger:          ledgerRange.LastLedger.Sequence,
+		LatestLedgerCloseTime: ledgerRange.LastLedger.CloseTime,
+		OldestLedger:          ledgerRange.FirstLedger.Sequence,
+		OldestLedgerCloseTime: ledgerRange.FirstLedger.CloseTime,
+		Cursor:                cursor.String(),
 	}, nil
-
 }
 
 // getTransactionDetails fetches XDR for the following transaction details - result, meta and envelope.
@@ -225,28 +218,10 @@ func (h transactionsRPCHandler) getTransactionDetails(tx ingest.LedgerTransactio
 	return txResult, txMeta, txEnvelope, nil
 }
 
-// getLatestLedgerDetails fetches the latest ledger sequence and close time.
-func (h transactionsRPCHandler) getLatestLedgerDetails(ctx context.Context) (sequence int64, ledgerCloseTime int64, err error) {
-	latestSequence, err := h.ledgerEntryReader.GetLatestLedgerSequence(ctx)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	latestLedger, found, err := h.ledgerReader.GetLedger(ctx, latestSequence)
-	if (err != nil) || (!found) {
-		if err == nil {
-			err = errors.Errorf("ledger close meta not found: %d", latestSequence)
-		}
-		return 0, 0, err
-	}
-
-	return int64(latestSequence), latestLedger.LedgerCloseTime(), nil
-}
-
-func NewGetTransactionsHandler(logger *log.Entry, ledgerReader db.LedgerReader, ledgerEntryReader db.LedgerEntryReader, maxLimit, defaultLimit uint, networkPassphrase string) jrpc2.Handler {
+func NewGetTransactionsHandler(logger *log.Entry, ledgerReader db.LedgerReader, dbReader db.TransactionReader, maxLimit, defaultLimit uint, networkPassphrase string) jrpc2.Handler {
 	transactionsHandler := transactionsRPCHandler{
 		ledgerReader:      ledgerReader,
-		ledgerEntryReader: ledgerEntryReader,
+		dbReader:          dbReader,
 		maxLimit:          maxLimit,
 		defaultLimit:      defaultLimit,
 		logger:            logger,
