@@ -1,23 +1,20 @@
-use ed25519_dalek::Signer;
+// use ed25519_dalek::Signer;
 use sha2::{Digest, Sha256};
-use soroban_env_host::xdr::{
-    self, AccountId, DecoratedSignature, ExtensionPoint, Hash, HashIdPreimage,
-    HashIdPreimageSorobanAuthorization, InvokeHostFunctionOp, LedgerFootprint, Limits, Memo,
-    Operation, OperationBody, Preconditions, PublicKey, ReadXdr, RestoreFootprintOp, ScAddress,
-    ScMap, ScSymbol, ScVal, Signature, SignatureHint, SorobanAddressCredentials,
-    SorobanAuthorizationEntry, SorobanAuthorizedFunction, SorobanCredentials, SorobanResources,
-    SorobanTransactionData, Transaction, TransactionEnvelope, TransactionExt,
-    TransactionSignaturePayload, TransactionSignaturePayloadTaggedTransaction,
-    TransactionV1Envelope, Uint256, VecM, WriteXdr,
+use stellar_xdr::curr::{
+    self as xdr, ExtensionPoint, Hash, InvokeHostFunctionOp, LedgerFootprint, Limits, Memo,
+    Operation, OperationBody, Preconditions, ReadXdr, RestoreFootprintOp,
+    SorobanAuthorizationEntry, SorobanAuthorizedFunction, SorobanResources, SorobanTransactionData,
+    Transaction, TransactionExt, TransactionSignaturePayload,
+    TransactionSignaturePayloadTaggedTransaction, VecM, WriteXdr,
 };
 
-use super::{Client, Error, RestorePreamble, SimulateTransactionResponse};
+use super::{Error, RestorePreamble, SimulateTransactionResponse};
 
 use super::{LogEvents, LogResources};
 
 pub struct Assembled {
-    txn: Transaction,
-    sim_res: SimulateTransactionResponse,
+    pub(crate) txn: Transaction,
+    pub(crate) sim_res: SimulateTransactionResponse,
 }
 
 /// Represents an assembled transaction ready to be signed and submitted to the network.
@@ -33,8 +30,7 @@ impl Assembled {
     /// # Errors
     ///
     /// Returns an error if simulation fails or if assembling the transaction fails.
-    pub async fn new(txn: &Transaction, client: &Client) -> Result<Self, Error> {
-        let sim_res = Self::simulate(txn, client).await?;
+    pub fn new(txn: &Transaction, sim_res: SimulateTransactionResponse) -> Result<Self, Error> {
         let txn = assemble(txn, &sim_res)?;
         Ok(Self { txn, sim_res })
     }
@@ -57,90 +53,14 @@ impl Assembled {
         Ok(Sha256::digest(signature_payload.to_xdr(Limits::none())?).into())
     }
 
-    ///
-    /// Signs the assembled transaction.
-    ///
-    /// # Arguments
-    ///
-    /// * `key` - The signing key.
-    /// * `network_passphrase` - The network passphrase.
+    ///  Create a transaction for restoring any data in the `restore_preamble` field of the `SimulateTransactionResponse`.
     ///
     /// # Errors
-    ///
-    /// Returns an error if signing the transaction fails.
-    pub fn sign(
-        self,
-        key: &ed25519_dalek::SigningKey,
-        network_passphrase: &str,
-    ) -> Result<TransactionEnvelope, xdr::Error> {
-        let tx = self.transaction();
-        let tx_hash = self.hash(network_passphrase)?;
-        let tx_signature = key.sign(&tx_hash);
-
-        let decorated_signature = DecoratedSignature {
-            hint: SignatureHint(key.verifying_key().to_bytes()[28..].try_into()?),
-            signature: Signature(tx_signature.to_bytes().try_into()?),
-        };
-
-        Ok(TransactionEnvelope::Tx(TransactionV1Envelope {
-            tx: tx.clone(),
-            signatures: vec![decorated_signature].try_into()?,
-        }))
-    }
-
-    ///
-    /// Simulates the assembled transaction.
-    ///
-    /// # Arguments
-    ///
-    /// * `tx` - The original transaction.
-    /// * `client` - The client used for simulation.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if simulation fails.
-    pub async fn simulate(
-        tx: &Transaction,
-        client: &Client,
-    ) -> Result<SimulateTransactionResponse, Error> {
-        client
-            .simulate_transaction(&TransactionEnvelope::Tx(TransactionV1Envelope {
-                tx: tx.clone(),
-                signatures: VecM::default(),
-            }))
-            .await
-    }
-
-    ///
-    /// Handles the restore process for the assembled transaction.
-    ///
-    /// # Arguments
-    ///
-    /// * `client` - The client used for submission.
-    /// * `source_key` - The signing key of the source account.
-    /// * `network_passphrase` - The network passphrase.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the restore process fails.
-    pub async fn handle_restore(
-        self,
-        client: &Client,
-        source_key: &ed25519_dalek::SigningKey,
-        network_passphrase: &str,
-    ) -> Result<Self, Error> {
+    pub fn restore_txn(&self) -> Result<Option<Transaction>, Error> {
         if let Some(restore_preamble) = &self.sim_res.restore_preamble {
-            // Build and submit the restore transaction
-            client
-                .send_transaction(
-                    &Assembled::new(&restore(self.transaction(), restore_preamble)?, client)
-                        .await?
-                        .sign(source_key, network_passphrase)?,
-                )
-                .await?;
-            Ok(self.bump_seq_num())
+            restore(self.transaction(), restore_preamble).map(Option::Some)
         } else {
-            Ok(self)
+            Ok(None)
         }
     }
 
@@ -154,29 +74,6 @@ impl Assembled {
     #[must_use]
     pub fn sim_response(&self) -> &SimulateTransactionResponse {
         &self.sim_res
-    }
-
-    ///
-    /// # Errors
-    pub async fn authorize(
-        self,
-        client: &Client,
-        source_key: &ed25519_dalek::SigningKey,
-        signers: &[ed25519_dalek::SigningKey],
-        seq_num: u32,
-        network_passphrase: &str,
-    ) -> Result<Self, Error> {
-        if let Some(txn) = sign_soroban_authorizations(
-            self.transaction(),
-            source_key,
-            signers,
-            seq_num,
-            network_passphrase,
-        )? {
-            Self::new(&txn, client).await
-        } else {
-            Ok(self)
-        }
     }
 
     #[must_use]
@@ -268,7 +165,7 @@ impl Assembled {
 // submission to the network.
 ///
 /// # Errors
-pub fn assemble(
+fn assemble(
     raw: &Transaction,
     simulation: &SimulateTransactionResponse,
 ) -> Result<Transaction, Error> {
@@ -342,157 +239,7 @@ fn requires_auth(txn: &Transaction) -> Option<xdr::Operation> {
     .then(move || op.clone())
 }
 
-// Use the given source_key and signers, to sign all SorobanAuthorizationEntry's in the given
-// transaction. If unable to sign, return an error.
-fn sign_soroban_authorizations(
-    raw: &Transaction,
-    source_key: &ed25519_dalek::SigningKey,
-    signers: &[ed25519_dalek::SigningKey],
-    signature_expiration_ledger: u32,
-    network_passphrase: &str,
-) -> Result<Option<Transaction>, Error> {
-    let mut tx = raw.clone();
-    let Some(mut op) = requires_auth(&tx) else {
-        return Ok(None);
-    };
-
-    let Operation {
-        body: OperationBody::InvokeHostFunction(ref mut body),
-        ..
-    } = op
-    else {
-        return Ok(None);
-    };
-
-    let network_id = Hash(Sha256::digest(network_passphrase.as_bytes()).into());
-
-    let verification_key = source_key.verifying_key();
-    let source_address = verification_key.as_bytes();
-
-    let signed_auths = body
-        .auth
-        .as_slice()
-        .iter()
-        .map(|raw_auth| {
-            let mut auth = raw_auth.clone();
-            let SorobanAuthorizationEntry {
-                credentials: SorobanCredentials::Address(ref mut credentials),
-                ..
-            } = auth
-            else {
-                // Doesn't need special signing
-                return Ok(auth);
-            };
-            let SorobanAddressCredentials { ref address, .. } = credentials;
-
-            // See if we have a signer for this authorizationEntry
-            // If not, then we Error
-            let needle = match address {
-                ScAddress::Account(AccountId(PublicKey::PublicKeyTypeEd25519(Uint256(ref a)))) => a,
-                ScAddress::Contract(Hash(c)) => {
-                    // This address is for a contract. This means we're using a custom
-                    // smart-contract account. Currently the CLI doesn't support that yet.
-                    return Err(Error::MissingSignerForAddress {
-                        address: stellar_strkey::Strkey::Contract(stellar_strkey::Contract(*c))
-                            .to_string(),
-                    });
-                }
-            };
-            let signer = if let Some(s) = signers
-                .iter()
-                .find(|s| needle == s.verifying_key().as_bytes())
-            {
-                s
-            } else if needle == source_address {
-                // This is the source address, so we can sign it
-                source_key
-            } else {
-                // We don't have a signer for this address
-                return Err(Error::MissingSignerForAddress {
-                    address: stellar_strkey::Strkey::PublicKeyEd25519(
-                        stellar_strkey::ed25519::PublicKey(*needle),
-                    )
-                    .to_string(),
-                });
-            };
-
-            sign_soroban_authorization_entry(
-                raw_auth,
-                signer,
-                signature_expiration_ledger,
-                &network_id,
-            )
-        })
-        .collect::<Result<Vec<_>, Error>>()?;
-
-    body.auth = signed_auths.try_into()?;
-    tx.operations = vec![op].try_into()?;
-    Ok(Some(tx))
-}
-
-fn sign_soroban_authorization_entry(
-    raw: &SorobanAuthorizationEntry,
-    signer: &ed25519_dalek::SigningKey,
-    signature_expiration_ledger: u32,
-    network_id: &Hash,
-) -> Result<SorobanAuthorizationEntry, Error> {
-    let mut auth = raw.clone();
-    let SorobanAuthorizationEntry {
-        credentials: SorobanCredentials::Address(ref mut credentials),
-        ..
-    } = auth
-    else {
-        // Doesn't need special signing
-        return Ok(auth);
-    };
-    let SorobanAddressCredentials { nonce, .. } = credentials;
-
-    let preimage = HashIdPreimage::SorobanAuthorization(HashIdPreimageSorobanAuthorization {
-        network_id: network_id.clone(),
-        invocation: auth.root_invocation.clone(),
-        nonce: *nonce,
-        signature_expiration_ledger,
-    })
-    .to_xdr(Limits::none())?;
-
-    let payload = Sha256::digest(preimage);
-    let signature = signer.sign(&payload);
-
-    let map = ScMap::sorted_from(vec![
-        (
-            ScVal::Symbol(ScSymbol("public_key".try_into()?)),
-            ScVal::Bytes(
-                signer
-                    .verifying_key()
-                    .to_bytes()
-                    .to_vec()
-                    .try_into()
-                    .map_err(Error::Xdr)?,
-            ),
-        ),
-        (
-            ScVal::Symbol(ScSymbol("signature".try_into()?)),
-            ScVal::Bytes(
-                signature
-                    .to_bytes()
-                    .to_vec()
-                    .try_into()
-                    .map_err(Error::Xdr)?,
-            ),
-        ),
-    ])
-    .map_err(Error::Xdr)?;
-    credentials.signature = ScVal::Vec(Some(
-        vec![ScVal::Map(Some(map))].try_into().map_err(Error::Xdr)?,
-    ));
-    credentials.signature_expiration_ledger = signature_expiration_ledger;
-    auth.credentials = SorobanCredentials::Address(credentials.clone());
-    Ok(auth)
-}
-
-///
-/// # Errors
-pub fn restore(parent: &Transaction, restore: &RestorePreamble) -> Result<Transaction, Error> {
+fn restore(parent: &Transaction, restore: &RestorePreamble) -> Result<Transaction, Error> {
     let transaction_data =
         SorobanTransactionData::from_xdr_base64(&restore.transaction_data, Limits::none())?;
     let fee = u32::try_from(restore.min_resource_fee)
@@ -522,14 +269,14 @@ mod tests {
     use super::*;
 
     use super::super::SimulateHostFunctionResultRaw;
-    use soroban_env_host::xdr::{
-        self, AccountId, ChangeTrustAsset, ChangeTrustOp, ExtensionPoint, Hash, HostFunction,
+    use stellar_strkey::ed25519::PublicKey as Ed25519PublicKey;
+    use stellar_xdr::curr::{
+        AccountId, ChangeTrustAsset, ChangeTrustOp, ExtensionPoint, Hash, HostFunction,
         InvokeContractArgs, InvokeHostFunctionOp, LedgerFootprint, Memo, MuxedAccount, Operation,
         Preconditions, PublicKey, ScAddress, ScSymbol, ScVal, SequenceNumber,
         SorobanAuthorizedFunction, SorobanAuthorizedInvocation, SorobanResources,
         SorobanTransactionData, Uint256, WriteXdr,
     };
-    use stellar_strkey::ed25519::PublicKey as Ed25519PublicKey;
 
     const SOURCE: &str = "GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI";
 
