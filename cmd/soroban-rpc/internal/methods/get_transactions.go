@@ -24,24 +24,19 @@ type TransactionsPaginationOptions struct {
 // GetTransactionsRequest represents the request parameters for fetching transactions within a range of ledgers.
 type GetTransactionsRequest struct {
 	StartLedger uint32                         `json:"startLedger"`
-	EndLedger   uint32                         `json:"endLedger"`
 	Pagination  *TransactionsPaginationOptions `json:"pagination,omitempty"`
 }
 
 // isValid checks the validity of the request parameters.
 // It returns an error if any parameter is out of the expected range or combination.
 func (req GetTransactionsRequest) isValid(maxLimit uint) error {
-	// Validate the start and end ledger sequence
-	if req.StartLedger < 0 {
-		return errors.New("start ledger cannot be negative")
-	}
-	if req.EndLedger < req.StartLedger {
-		return errors.New("end ledger cannot be less than start ledger")
-	}
-
-	// Validate pagination
+	// Validate pagination and start ledger sequence
 	if req.Pagination != nil && req.Pagination.Cursor != nil {
-		return errors.New("startLedger and cursor cannot both be set")
+		if req.StartLedger != 0 {
+			return errors.New("startLedger and cursor cannot both be set")
+		}
+	} else if req.StartLedger <= 1 {
+		return errors.New("start ledger cannot be negative")
 	}
 	if req.Pagination != nil && req.Pagination.Limit > maxLimit {
 		return fmt.Errorf("limit must not exceed %d", maxLimit)
@@ -66,6 +61,8 @@ type GetTransactionsResponse struct {
 	Transactions               []transactionInfo `json:"transactions"`
 	LatestLedger               int64             `json:"latestLedger"`
 	LatestLedgerCloseTimestamp int64             `json:"latestLedgerCloseTimestamp"`
+	OldestLedger               int64             `json:"oldestLedger"`
+	OldestLedgerCloseTimestamp int64             `json:"oldestLedgerCloseTimestamp"`
 	Cursor                     string            `json:"cursor"`
 }
 
@@ -104,11 +101,20 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 		}
 	}
 
+	// The latest ledger acts as the end ledger range for the request.
+	latestLedgerSequence, _, err := h.getLatestLedgerDetails(ctx)
+	if err != nil {
+		return GetTransactionsResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InvalidParams,
+			Message: err.Error(),
+		}
+	}
+
 	// Iterate through each ledger and its transactions until limit or end range is reached
 	var txns []transactionInfo
 	var cursor *toid.ID
 LedgerLoop:
-	for ledgerSeq := start.LedgerSequence; ledgerSeq <= int32(request.EndLedger); ledgerSeq++ {
+	for ledgerSeq := start.LedgerSequence; ledgerSeq <= int32(latestLedgerSequence); ledgerSeq++ {
 		// Get ledger close meta from db
 		ledger, found, err := h.ledgerReader.GetLedger(ctx, uint32(ledgerSeq))
 		if (err != nil) || (!found) {
