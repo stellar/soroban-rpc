@@ -24,7 +24,7 @@ func MakeNoOpDeamon() *noOpDaemon {
 }
 
 func (d *noOpDaemon) MetricsRegistry() *prometheus.Registry {
-	return d.metricsRegistry
+	return prometheus.NewRegistry() // so that you can register metrics many times
 }
 
 func (d *noOpDaemon) MetricsNamespace() string {

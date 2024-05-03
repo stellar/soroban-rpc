@@ -286,8 +286,7 @@ func sendSuccessfulTransaction(t *testing.T, client *jrpc2.Client, kp *keypair.F
 
 	request := methods.SendTransactionRequest{Transaction: b64}
 	var result methods.SendTransactionResponse
-	err = client.CallResult(context.Background(), "sendTransaction", request, &result)
-	assert.NoError(t, err)
+	assert.NoError(t, client.CallResult(context.Background(), "sendTransaction", request, &result))
 
 	expectedHashHex, err := tx.HashHex(StandaloneNetworkPassphrase)
 	assert.NoError(t, err)
@@ -297,7 +296,7 @@ func sendSuccessfulTransaction(t *testing.T, client *jrpc2.Client, kp *keypair.F
 		var txResult xdr.TransactionResult
 		err := xdr.SafeUnmarshalBase64(result.ErrorResultXDR, &txResult)
 		assert.NoError(t, err)
-		fmt.Printf("error: %#v\n", txResult)
+		t.Logf("error: %#v\n", txResult)
 	}
 	assert.NotZero(t, result.LatestLedger)
 	assert.NotZero(t, result.LatestLedgerCloseTime)
@@ -305,24 +304,24 @@ func sendSuccessfulTransaction(t *testing.T, client *jrpc2.Client, kp *keypair.F
 	response := getTransaction(t, client, expectedHashHex)
 	if !assert.Equal(t, methods.TransactionStatusSuccess, response.Status) {
 		var txResult xdr.TransactionResult
-		err := xdr.SafeUnmarshalBase64(response.ResultXdr, &txResult)
-		assert.NoError(t, err)
-		fmt.Printf("error: %#v\n", txResult)
+		assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultXdr, &txResult))
+		t.Logf("error: %#v\n", txResult)
+
 		var txMeta xdr.TransactionMeta
-		err = xdr.SafeUnmarshalBase64(response.ResultMetaXdr, &txMeta)
-		assert.NoError(t, err)
+		assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultMetaXdr, &txMeta))
+
 		if txMeta.V == 3 && txMeta.V3.SorobanMeta != nil {
 			if len(txMeta.V3.SorobanMeta.Events) > 0 {
-				fmt.Println("Contract events:")
+				t.Log("Contract events:")
 				for i, e := range txMeta.V3.SorobanMeta.Events {
-					fmt.Printf("  %d: %s\n", i, e)
+					t.Logf("  %d: %s\n", i, e)
 				}
 			}
 
 			if len(txMeta.V3.SorobanMeta.DiagnosticEvents) > 0 {
-				fmt.Println("Diagnostic events:")
+				t.Log("Diagnostic events:")
 				for i, d := range txMeta.V3.SorobanMeta.DiagnosticEvents {
-					fmt.Printf("  %d: %s\n", i, d)
+					t.Logf("  %d: %s\n", i, d)
 				}
 			}
 		}

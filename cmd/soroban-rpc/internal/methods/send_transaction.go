@@ -11,6 +11,7 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
 // SendTransactionResponse represents the transaction submission response returned Soroban-RPC
@@ -44,7 +45,12 @@ type SendTransactionRequest struct {
 }
 
 // NewSendTransactionHandler returns a submit transaction json rpc handler
-func NewSendTransactionHandler(daemon interfaces.Daemon, logger *log.Entry, ledgerRangeGetter LedgerRangeGetter, passphrase string) jrpc2.Handler {
+func NewSendTransactionHandler(
+	daemon interfaces.Daemon,
+	logger *log.Entry,
+	reader db.TransactionReader,
+	passphrase string,
+) jrpc2.Handler {
 	submitter := daemon.CoreClient()
 	return NewHandler(func(ctx context.Context, request SendTransactionRequest) (SendTransactionResponse, error) {
 		var envelope xdr.TransactionEnvelope
@@ -66,11 +72,19 @@ func NewSendTransactionHandler(daemon interfaces.Daemon, logger *log.Entry, ledg
 		}
 		txHash := hex.EncodeToString(hash[:])
 
-		latestLedgerInfo := ledgerRangeGetter.GetLedgerRange().LastLedger
+		ledgerInfo, err := reader.GetLedgerRange(ctx)
+		if err != nil { // still not fatal
+			logger.WithError(err).
+				WithField("tx", request.Transaction).
+				Error("could not fetch ledger range")
+		}
+		latestLedgerInfo := ledgerInfo.LastLedger
+
 		resp, err := submitter.SubmitTransaction(ctx, request.Transaction)
 		if err != nil {
 			logger.WithError(err).
-				WithField("tx", request.Transaction).Error("could not submit transaction")
+				WithField("tx", request.Transaction).
+				Error("could not submit transaction")
 			return SendTransactionResponse{}, &jrpc2.Error{
 				Code:    jrpc2.InternalError,
 				Message: "could not submit transaction to stellar-core",
