@@ -94,7 +94,10 @@ func NewMockLedgerReader(txn *mockTransactionHandler) *mockLedgerReader {
 }
 
 func (m *mockLedgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
-	lcm := m.txn.ledgerSeqToMeta[sequence]
+	lcm, ok := m.txn.ledgerSeqToMeta[sequence]
+	if !ok {
+		return xdr.LedgerCloseMeta{}, false, nil
+	}
 	return *lcm, true, nil
 }
 

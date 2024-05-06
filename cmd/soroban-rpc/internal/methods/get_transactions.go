@@ -13,6 +13,7 @@ import (
 	"github.com/stellar/go/toid"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
 // TransactionsPaginationOptions defines the available options for paginating through transactions.
@@ -28,14 +29,15 @@ type GetTransactionsRequest struct {
 }
 
 // isValid checks the validity of the request parameters.
-func (req GetTransactionsRequest) isValid(maxLimit uint) error {
+func (req GetTransactionsRequest) isValid(maxLimit uint, ledgerRange ledgerbucketwindow.LedgerRange) error {
 	if req.Pagination != nil && req.Pagination.Cursor != nil {
 		if req.StartLedger != 0 {
 			return errors.New("startLedger and cursor cannot both be set")
 		}
-	} else if req.StartLedger < 1 {
-		return errors.New("start ledger cannot be negative")
+	} else if req.StartLedger < ledgerRange.FirstLedger.Sequence || req.StartLedger > ledgerRange.LastLedger.Sequence {
+		return errors.Errorf("start ledger must be between the oldest ledger: %d and the latest ledger: %d for this rpc instance.", ledgerRange.FirstLedger.Sequence, ledgerRange.LastLedger.Sequence)
 	}
+
 	if req.Pagination != nil && req.Pagination.Limit > maxLimit {
 		return fmt.Errorf("limit must not exceed %d", maxLimit)
 	}
@@ -65,7 +67,15 @@ type transactionsRPCHandler struct {
 // getTransactionsByLedgerSequence fetches transactions between the start and end ledgers, inclusive of both.
 // The number of ledgers returned can be tuned using the pagination options - cursor and limit.
 func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Context, request GetTransactionsRequest) (GetTransactionsResponse, error) {
-	err := request.isValid(h.maxLimit)
+	ledgerRange, err := h.dbReader.GetLedgerRange(ctx)
+	if err != nil {
+		return GetTransactionsResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InvalidParams,
+			Message: err.Error(),
+		}
+	}
+
+	err = request.isValid(h.maxLimit, ledgerRange)
 	if err != nil {
 		return GetTransactionsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidParams,
@@ -85,14 +95,6 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 		}
 		if request.Pagination.Limit > 0 {
 			limit = request.Pagination.Limit
-		}
-	}
-
-	ledgerRange, err := h.dbReader.GetLedgerRange(ctx)
-	if err != nil {
-		return GetTransactionsResponse{}, &jrpc2.Error{
-			Code:    jrpc2.InvalidParams,
-			Message: err.Error(),
 		}
 	}
 
