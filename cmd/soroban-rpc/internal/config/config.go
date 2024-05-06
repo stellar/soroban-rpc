@@ -50,6 +50,7 @@ type Config struct {
 	RequestBacklogGetLatestLedgerQueueLimit     uint
 	RequestBacklogGetLedgerEntriesQueueLimit    uint
 	RequestBacklogGetTransactionQueueLimit      uint
+	RequestBacklogGetTransactionsQueueLimit     uint
 	RequestBacklogSendTransactionQueueLimit     uint
 	RequestBacklogSimulateTransactionQueueLimit uint
 	RequestExecutionWarningThreshold            time.Duration
@@ -61,6 +62,7 @@ type Config struct {
 	MaxGetLatestLedgerExecutionDuration         time.Duration
 	MaxGetLedgerEntriesExecutionDuration        time.Duration
 	MaxGetTransactionExecutionDuration          time.Duration
+	MaxGetTransactionsExecutionDuration         time.Duration
 	MaxSendTransactionExecutionDuration         time.Duration
 	MaxSimulateTransactionExecutionDuration     time.Duration
 
