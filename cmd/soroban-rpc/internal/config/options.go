@@ -359,7 +359,7 @@ func (cfg *Config) options() ConfigOptions {
 		{
 			TomlKey:      strutils.KebabToConstantCase("request-backlog-get-transactions-queue-limit"),
 			Usage:        "Maximum number of outstanding GetTransactions requests",
-			ConfigKey:    &cfg.RequestBacklogGetTransactionQueueLimit,
+			ConfigKey:    &cfg.RequestBacklogGetTransactionsQueueLimit,
 			DefaultValue: uint(1000),
 			Validate:     positive,
 		},
@@ -434,7 +434,7 @@ func (cfg *Config) options() ConfigOptions {
 		{
 			TomlKey:      strutils.KebabToConstantCase("max-get-transactions-execution-duration"),
 			Usage:        "The maximum duration of time allowed for processing a getTransactions request. When that time elapses, the rpc server would return -32001 and abort the request's execution",
-			ConfigKey:    &cfg.MaxGetTransactionExecutionDuration,
+			ConfigKey:    &cfg.MaxGetTransactionsExecutionDuration,
 			DefaultValue: 5 * time.Second,
 		},
 		{
