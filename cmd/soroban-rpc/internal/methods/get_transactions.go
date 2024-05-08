@@ -108,7 +108,7 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 	}
 
 	// Move start to pagination cursor
-	start := toid.New(int32(request.StartLedger), 0, 0)
+	start := toid.New(int32(request.StartLedger), 1, 0)
 	limit := h.defaultLimit
 	if request.Pagination != nil {
 		if request.Pagination.Cursor != nil {
@@ -150,10 +150,10 @@ LedgerLoop:
 		}
 
 		// Move the reader to specific tx idx
-		startTxIdx := 0
+		startTxIdx := 1
 		if ledgerSeq == start.LedgerSequence {
 			startTxIdx = int(start.TransactionOrder)
-			if ierr := reader.Seek(startTxIdx); ierr != nil && ierr != io.EOF {
+			if ierr := reader.Seek(startTxIdx - 1); ierr != nil && ierr != io.EOF {
 				return GetTransactionsResponse{}, &jrpc2.Error{
 					Code:    jrpc2.InvalidParams,
 					Message: err.Error(),
@@ -163,7 +163,7 @@ LedgerLoop:
 
 		// Decode transaction info from ledger meta
 		txCount := ledger.CountTransactions()
-		for i := startTxIdx; i < txCount; i++ {
+		for i := startTxIdx; i <= txCount; i++ {
 			cursor = toid.New(int32(ledger.LedgerSequence()), int32(i), 0)
 
 			ingestTx, err := reader.Read()
