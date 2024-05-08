@@ -109,9 +109,9 @@ func TestGetTransactions(t *testing.T) {
 	err := client.CallResult(context.Background(), "getTransactions", request, &result)
 	assert.NoError(t, err)
 	assert.Equal(t, len(result.Transactions), 3)
-	assert.Equal(t, result.Transactions[0].Ledger.Sequence, ledgers[0])
-	assert.Equal(t, result.Transactions[1].Ledger.Sequence, ledgers[1])
-	assert.Equal(t, result.Transactions[2].Ledger.Sequence, ledgers[2])
+	assert.Equal(t, result.Transactions[0].Ledger, ledgers[0])
+	assert.Equal(t, result.Transactions[1].Ledger, ledgers[1])
+	assert.Equal(t, result.Transactions[2].Ledger, ledgers[2])
 
 	// Get transactions with limit
 	request = methods.GetTransactionsRequest{
@@ -123,7 +123,7 @@ func TestGetTransactions(t *testing.T) {
 	err = client.CallResult(context.Background(), "getTransactions", request, &result)
 	assert.NoError(t, err)
 	assert.Equal(t, len(result.Transactions), 1)
-	assert.Equal(t, result.Transactions[0].Ledger.Sequence, ledgers[0])
+	assert.Equal(t, result.Transactions[0].Ledger, ledgers[0])
 
 	// Get transactions using previous result's cursor
 	cursor := toid.Parse(Cursor)
@@ -136,6 +136,6 @@ func TestGetTransactions(t *testing.T) {
 	err = client.CallResult(context.Background(), "getTransactions", request, &result)
 	assert.NoError(t, err)
 	assert.Equal(t, len(result.Transactions), 2)
-	assert.Equal(t, result.Transactions[0].Ledger.Sequence, ledgers[1])
-	assert.Equal(t, result.Transactions[1].Ledger.Sequence, ledgers[2])
+	assert.Equal(t, result.Transactions[0].Ledger, ledgers[1])
+	assert.Equal(t, result.Transactions[1].Ledger, ledgers[2])
 }

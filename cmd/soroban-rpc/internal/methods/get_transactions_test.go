@@ -139,8 +139,8 @@ func TestGetTransactions_CustomLimit(t *testing.T) {
 
 	// assert transactions result
 	assert.Equal(t, len(response.Transactions), 2)
-	assert.Equal(t, response.Transactions[0].Ledger.Sequence, uint32(1))
-	assert.Equal(t, response.Transactions[1].Ledger.Sequence, uint32(1))
+	assert.Equal(t, response.Transactions[0].Ledger, uint32(1))
+	assert.Equal(t, response.Transactions[1].Ledger, uint32(1))
 }
 
 func TestGetTransactions_CustomLimitAndCursor(t *testing.T) {
@@ -183,9 +183,9 @@ func TestGetTransactions_CustomLimitAndCursor(t *testing.T) {
 
 	// assert transactions result
 	assert.Equal(t, len(response.Transactions), 3)
-	assert.Equal(t, response.Transactions[0].Ledger.Sequence, uint32(2))
-	assert.Equal(t, response.Transactions[1].Ledger.Sequence, uint32(2))
-	assert.Equal(t, response.Transactions[2].Ledger.Sequence, uint32(3))
+	assert.Equal(t, response.Transactions[0].Ledger, uint32(2))
+	assert.Equal(t, response.Transactions[1].Ledger, uint32(2))
+	assert.Equal(t, response.Transactions[2].Ledger, uint32(3))
 }
 
 func TestGetTransactions_InvalidStartLedger(t *testing.T) {

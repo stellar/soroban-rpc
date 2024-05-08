@@ -2,6 +2,7 @@ package methods
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 
@@ -45,14 +46,37 @@ func (req GetTransactionsRequest) isValid(maxLimit uint, ledgerRange ledgerbucke
 	return nil
 }
 
+type transactionInfo struct {
+	// Successful indicates whether the transaction was successful or not
+	Successful bool `json:"status"`
+	// ApplicationOrder is the index of the transaction among all the transactions
+	// for that ledger.
+	ApplicationOrder int32 `json:"applicationOrder,omitempty"`
+	// FeeBump indicates whether the transaction is a feebump transaction
+	FeeBump bool `json:"feeBump,omitempty"`
+	// EnvelopeXdr is the TransactionEnvelope XDR value.
+	EnvelopeXdr string `json:"envelopeXdr,omitempty"`
+	// ResultXdr is the TransactionResult XDR value.
+	ResultXdr string `json:"resultXdr,omitempty"`
+	// ResultMetaXdr is the TransactionMeta XDR value.
+	ResultMetaXdr string `json:"resultMetaXdr,omitempty"`
+	// DiagnosticEventsXDR is present only if transaction was not successful.
+	// DiagnosticEventsXDR is a base64-encoded slice of xdr.DiagnosticEvent
+	DiagnosticEventsXDR []string `json:"diagnosticEventsXdr,omitempty"`
+	// Ledger is the sequence of the ledger which included the transaction.
+	Ledger uint32 `json:"ledger,omitempty"`
+	// LedgerCloseTime is the unix timestamp of when the transaction was included in the ledger.
+	LedgerCloseTime int64 `json:"createdAt,string,omitempty"`
+}
+
 // GetTransactionsResponse encapsulates the response structure for getTransactions queries.
 type GetTransactionsResponse struct {
-	Transactions          []db.Transaction `json:"transactions"`
-	LatestLedger          uint32           `json:"latestLedger"`
-	LatestLedgerCloseTime int64            `json:"latestLedgerCloseTimestamp"`
-	OldestLedger          uint32           `json:"oldestLedger"`
-	OldestLedgerCloseTime int64            `json:"oldestLedgerCloseTimestamp"`
-	Cursor                string           `json:"cursor"`
+	Transactions          []transactionInfo `json:"transactions"`
+	LatestLedger          uint32            `json:"latestLedger"`
+	LatestLedgerCloseTime int64             `json:"latestLedgerCloseTimestamp"`
+	OldestLedger          uint32            `json:"oldestLedger"`
+	OldestLedgerCloseTime int64             `json:"oldestLedgerCloseTimestamp"`
+	Cursor                string            `json:"cursor"`
 }
 
 type transactionsRPCHandler struct {
@@ -100,7 +124,7 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 
 	// Iterate through each ledger and its transactions until limit or end range is reached.
 	// The latest ledger acts as the end ledger range for the request.
-	var txns []db.Transaction
+	var txns []transactionInfo
 	var cursor *toid.ID
 LedgerLoop:
 	for ledgerSeq := start.LedgerSequence; ledgerSeq <= int32(ledgerRange.LastLedger.Sequence); ledgerSeq++ {
@@ -162,7 +186,18 @@ LedgerLoop:
 				}
 			}
 
-			txns = append(txns, tx)
+			txInfo := transactionInfo{
+				Successful:          tx.Successful,
+				ApplicationOrder:    tx.ApplicationOrder,
+				FeeBump:             tx.FeeBump,
+				ResultXdr:           base64.StdEncoding.EncodeToString(tx.Result),
+				ResultMetaXdr:       base64.StdEncoding.EncodeToString(tx.Meta),
+				EnvelopeXdr:         base64.StdEncoding.EncodeToString(tx.Envelope),
+				DiagnosticEventsXDR: base64EncodeSlice(tx.Events),
+				Ledger:              tx.Ledger.Sequence,
+				LedgerCloseTime:     tx.Ledger.CloseTime,
+			}
+			txns = append(txns, txInfo)
 			if len(txns) >= int(limit) {
 				break LedgerLoop
 			}
