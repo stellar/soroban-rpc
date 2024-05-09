@@ -190,7 +190,7 @@ func (l *LedgerEntryChange) jsonXdrDiff(diff preflight.XDRDiff, key xdr.LedgerKe
 }
 
 // LedgerEntryChange designates a change in a ledger entry. Before and After cannot be omitted at the same time.
-// If Before is omitted, it constitutes a creation, if After is omitted, it constitutes a delation.
+// If Before is omitted, it constitutes a creation, if After is omitted, it constitutes a deletion.
 type LedgerEntryChange struct {
 	Type LedgerEntryChangeType `json:"type"`
 

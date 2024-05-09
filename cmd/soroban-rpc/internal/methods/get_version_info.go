@@ -14,12 +14,11 @@ import (
 )
 
 type GetVersionInfoResponse struct {
-	Version string `json:"version"`
-	// TODO: casing to be fixed by https://github.com/stellar/soroban-rpc/pull/164
-	CommitHash         string `json:"commit_hash"`          //nolint:tagliatelle
-	BuildTimestamp     string `json:"build_time_stamp"`     //nolint:tagliatelle
-	CaptiveCoreVersion string `json:"captive_core_version"` //nolint:tagliatelle
-	ProtocolVersion    uint32 `json:"protocol_version"`     //nolint:tagliatelle
+	Version            string `json:"version"`
+	CommitHash         string `json:"commitHash"`
+	BuildTimestamp     string `json:"buildTimestamp"`
+	CaptiveCoreVersion string `json:"captiveCoreVersion"`
+	ProtocolVersion    uint32 `json:"protocolVersion"`
 }
 
 func NewGetVersionInfoHandler(
