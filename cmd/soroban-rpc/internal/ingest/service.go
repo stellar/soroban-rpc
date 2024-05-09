@@ -18,6 +18,7 @@ import (
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/feewindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/util"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
@@ -35,6 +36,7 @@ type Config struct {
 	DB                db.ReadWriter
 	EventStore        *events.MemoryStore
 	TransactionStore  *transactions.MemoryStore
+	FeeWindows        *feewindow.FeeWindows
 	NetworkPassPhrase string
 	Archive           historyarchive.ArchiveInterface
 	LedgerBackend     backends.LedgerBackend
@@ -135,6 +137,7 @@ type Service struct {
 	db                db.ReadWriter
 	eventStore        *events.MemoryStore
 	transactionStore  *transactions.MemoryStore
+	feeWindows        *feewindow.FeeWindows
 	ledgerBackend     backends.LedgerBackend
 	timeout           time.Duration
 	networkPassPhrase string
@@ -332,5 +335,10 @@ func (s *Service) ingestLedgerCloseMeta(tx db.WriteTx, ledgerCloseMeta xdr.Ledge
 	if err := s.transactionStore.IngestTransactions(ledgerCloseMeta); err != nil {
 		return err
 	}
+
+	if err := s.feeWindows.IngestFees(ledgerCloseMeta); err != nil {
+		return err
+	}
+
 	return nil
 }

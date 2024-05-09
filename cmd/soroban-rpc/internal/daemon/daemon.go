@@ -26,8 +26,8 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/feewindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ingest"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/preflight"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/util"
@@ -195,12 +195,13 @@ func MustNew(cfg *config.Config) *Daemon {
 		cfg.NetworkPassphrase,
 		cfg.TransactionLedgerRetentionWindow,
 	)
+	feewindows := feewindow.NewFeeWindows(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow, cfg.NetworkPassphrase)
 
 	// initialize the stores using what was on the DB
 	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
 	defer cancelReadTxMeta()
 	// NOTE: We could optimize this to avoid unnecessary ingestion calls
-	//       (the range of txmetads can be larger than the store retention windows)
+	//       (the range of txmetas can be larger than the individual store retention windows)
 	//       but it's probably not worth the pain.
 	var initialSeq uint32
 	var currentSeq uint32
@@ -222,6 +223,9 @@ func MustNew(cfg *config.Config) *Daemon {
 		if err := transactionStore.IngestTransactions(txmeta); err != nil {
 			logger.WithError(err).Fatal("could not initialize transaction memory store")
 		}
+		if err := feewindows.IngestFees(txmeta); err != nil {
+			logger.WithError(err).Fatal("could not initialize fee stats")
+		}
 		return nil
 	})
 	if currentSeq != 0 {
@@ -236,12 +240,7 @@ func MustNew(cfg *config.Config) *Daemon {
 	onIngestionRetry := func(err error, dur time.Duration) {
 		logger.WithError(err).Error("could not run ingestion. Retrying")
 	}
-	maxRetentionWindow := cfg.EventLedgerRetentionWindow
-	if cfg.TransactionLedgerRetentionWindow > maxRetentionWindow {
-		maxRetentionWindow = cfg.TransactionLedgerRetentionWindow
-	} else if cfg.EventLedgerRetentionWindow == 0 && cfg.TransactionLedgerRetentionWindow > ledgerbucketwindow.DefaultEventLedgerRetentionWindow {
-		maxRetentionWindow = ledgerbucketwindow.DefaultEventLedgerRetentionWindow
-	}
+	maxRetentionWindow := max(cfg.EventLedgerRetentionWindow, cfg.TransactionLedgerRetentionWindow, cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow)
 	ingestService := ingest.NewService(ingest.Config{
 		Logger:            logger,
 		DB:                db.NewReadWriter(dbConn, maxLedgerEntryWriteBatchSize, maxRetentionWindow),
@@ -253,6 +252,7 @@ func MustNew(cfg *config.Config) *Daemon {
 		Timeout:           cfg.IngestionTimeout,
 		OnIngestionRetry:  onIngestionRetry,
 		Daemon:            daemon,
+		FeeWindows:        feewindows,
 	})
 
 	ledgerEntryReader := db.NewLedgerEntryReader(dbConn)

@@ -226,6 +226,20 @@ func (cfg *Config) options() ConfigOptions {
 			Validate:     positive,
 		},
 		{
+			Name:         "classic-fee-stats-retention-window",
+			Usage:        "configures classic fee stats retention window expressed in number of ledgers",
+			ConfigKey:    &cfg.ClassicFeeStatsLedgerRetentionWindow,
+			DefaultValue: uint32(5),
+			Validate:     positive,
+		},
+		{
+			Name:         "soroban-fee-stats-retention-window",
+			Usage:        "configures soroban inclusion fee stats retention window expressed in number of ledgers",
+			ConfigKey:    &cfg.TransactionLedgerRetentionWindow,
+			DefaultValue: uint32(50),
+			Validate:     positive,
+		},
+		{
 			Name:         "max-events-limit",
 			Usage:        "Maximum amount of events allowed in a single getEvents response",
 			ConfigKey:    &cfg.MaxEventsLimit,
@@ -345,6 +359,13 @@ func (cfg *Config) options() ConfigOptions {
 			Validate:     positive,
 		},
 		{
+			TomlKey:      strutils.KebabToConstantCase("request-backlog-get-fee-stats-queue-limit"),
+			Usage:        "Maximum number of outstanding GetFeeStats requests",
+			ConfigKey:    &cfg.RequestBacklogGetFeeStatsTransactionQueueLimit,
+			DefaultValue: uint(100),
+			Validate:     positive,
+		},
+		{
 			TomlKey:      strutils.KebabToConstantCase("request-execution-warning-threshold"),
 			Usage:        "The request execution warning threshold is the predetermined maximum duration of time that a request can take to be processed before a warning would be generated",
 			ConfigKey:    &cfg.RequestExecutionWarningThreshold,
@@ -409,6 +430,12 @@ func (cfg *Config) options() ConfigOptions {
 			Usage:        "The maximum duration of time allowed for processing a simulateTransaction request. When that time elapses, the rpc server would return -32001 and abort the request's execution",
 			ConfigKey:    &cfg.MaxSimulateTransactionExecutionDuration,
 			DefaultValue: 15 * time.Second,
+		},
+		{
+			TomlKey:      strutils.KebabToConstantCase("max-get-fee-stats-execution-duration"),
+			Usage:        "The maximum duration of time allowed for processing a getFeeStats request. When that time elapses, the rpc server would return -32001 and abort the request's execution",
+			ConfigKey:    &cfg.MaxGetFeeStatsExecutionDuration,
+			DefaultValue: 5 * time.Second,
 		},
 	}
 	return *cfg.optionsCache
