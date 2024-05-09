@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	Cursor int64 = 55834578944
+	Cursor int64 = 55834578945
 )
 
 // buildTxParams constructs the parameters necessary for creating a transaction from the given account.

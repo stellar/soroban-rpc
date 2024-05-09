@@ -108,7 +108,7 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 	}
 
 	// Move start to pagination cursor
-	start := toid.New(int32(request.StartLedger), 1, 0)
+	start := toid.New(int32(request.StartLedger), 1, 1)
 	limit := h.defaultLimit
 	if request.Pagination != nil {
 		if request.Pagination.Cursor != nil {
@@ -164,7 +164,7 @@ LedgerLoop:
 		// Decode transaction info from ledger meta
 		txCount := ledger.CountTransactions()
 		for i := startTxIdx; i <= txCount; i++ {
-			cursor = toid.New(int32(ledger.LedgerSequence()), int32(i), 0)
+			cursor = toid.New(int32(ledger.LedgerSequence()), int32(i), 1)
 
 			ingestTx, err := reader.Read()
 			if err != nil {

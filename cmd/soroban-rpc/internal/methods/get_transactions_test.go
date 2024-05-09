@@ -62,7 +62,7 @@ func TestGetTransactions_DefaultLimit(t *testing.T) {
 	assert.Equal(t, response.LatestLedgerCloseTime, int64(350))
 
 	// assert pagination
-	assert.Equal(t, response.Cursor, toid.New(5, 2, 0).String())
+	assert.Equal(t, response.Cursor, toid.New(5, 2, 1).String())
 
 	// assert transactions result
 	assert.Equal(t, len(response.Transactions), 10)
@@ -97,7 +97,7 @@ func TestGetTransactions_DefaultLimitExceedsLatestLedger(t *testing.T) {
 	assert.Equal(t, response.LatestLedgerCloseTime, int64(175))
 
 	// assert pagination
-	assert.Equal(t, response.Cursor, toid.New(3, 2, 0).String())
+	assert.Equal(t, response.Cursor, toid.New(3, 2, 1).String())
 
 	// assert transactions result
 	assert.Equal(t, len(response.Transactions), 6)
@@ -135,7 +135,7 @@ func TestGetTransactions_CustomLimit(t *testing.T) {
 	assert.Equal(t, response.LatestLedgerCloseTime, int64(350))
 
 	// assert pagination
-	assert.Equal(t, response.Cursor, toid.New(1, 2, 0).String())
+	assert.Equal(t, response.Cursor, toid.New(1, 2, 1).String())
 
 	// assert transactions result
 	assert.Equal(t, len(response.Transactions), 2)
@@ -165,7 +165,7 @@ func TestGetTransactions_CustomLimitAndCursor(t *testing.T) {
 			Cursor: &toid.ID{
 				LedgerSequence:   1,
 				TransactionOrder: 2,
-				OperationOrder:   0,
+				OperationOrder:   1,
 			},
 			Limit: 3,
 		},
@@ -179,7 +179,7 @@ func TestGetTransactions_CustomLimitAndCursor(t *testing.T) {
 	assert.Equal(t, response.LatestLedgerCloseTime, int64(350))
 
 	// assert pagination
-	assert.Equal(t, response.Cursor, toid.New(3, 1, 0).String())
+	assert.Equal(t, response.Cursor, toid.New(3, 1, 1).String())
 
 	// assert transactions result
 	assert.Equal(t, len(response.Transactions), 3)
