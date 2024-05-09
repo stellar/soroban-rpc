@@ -51,22 +51,22 @@ type transactionInfo struct {
 	Successful bool `json:"status"`
 	// ApplicationOrder is the index of the transaction among all the transactions
 	// for that ledger.
-	ApplicationOrder int32 `json:"applicationOrder,omitempty"`
+	ApplicationOrder int32 `json:"applicationOrder"`
 	// FeeBump indicates whether the transaction is a feebump transaction
-	FeeBump bool `json:"feeBump,omitempty"`
+	FeeBump bool `json:"feeBump"`
 	// EnvelopeXdr is the TransactionEnvelope XDR value.
-	EnvelopeXdr string `json:"envelopeXdr,omitempty"`
+	EnvelopeXdr string `json:"envelopeXdr"`
 	// ResultXdr is the TransactionResult XDR value.
-	ResultXdr string `json:"resultXdr,omitempty"`
+	ResultXdr string `json:"resultXdr"`
 	// ResultMetaXdr is the TransactionMeta XDR value.
-	ResultMetaXdr string `json:"resultMetaXdr,omitempty"`
+	ResultMetaXdr string `json:"resultMetaXdr"`
 	// DiagnosticEventsXDR is present only if transaction was not successful.
 	// DiagnosticEventsXDR is a base64-encoded slice of xdr.DiagnosticEvent
 	DiagnosticEventsXDR []string `json:"diagnosticEventsXdr,omitempty"`
 	// Ledger is the sequence of the ledger which included the transaction.
-	Ledger uint32 `json:"ledger,omitempty"`
+	Ledger uint32 `json:"ledger"`
 	// LedgerCloseTime is the unix timestamp of when the transaction was included in the ledger.
-	LedgerCloseTime int64 `json:"createdAt,string,omitempty"`
+	LedgerCloseTime int64 `json:"createdAt"`
 }
 
 // GetTransactionsResponse encapsulates the response structure for getTransactions queries.
