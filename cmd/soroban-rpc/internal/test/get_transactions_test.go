@@ -19,12 +19,12 @@ const (
 	Cursor int64 = 55834578945
 )
 
-// buildTxParams constructs the parameters necessary for creating a transaction from the given account.
+// buildSetOptionsTxParams constructs the parameters necessary for creating a transaction from the given account.
 //
 // account - the source account from which the transaction will originate. This account provides the starting sequence number.
 //
 // Returns a fully populated TransactionParams structure.
-func buildTxParams(account txnbuild.SimpleAccount) txnbuild.TransactionParams {
+func buildSetOptionsTxParams(account txnbuild.SimpleAccount) txnbuild.TransactionParams {
 	params := txnbuild.TransactionParams{
 		SourceAccount:        &account,
 		IncrementSequenceNum: true,
@@ -76,7 +76,7 @@ func sendTransactions(t *testing.T, client *jrpc2.Client) []uint32 {
 	var hashes []string
 	for i := 0; i <= 2; i++ {
 		account := txnbuild.NewSimpleAccount(address, int64(i))
-		tx, err := txnbuild.NewTransaction(buildTxParams(account))
+		tx, err := txnbuild.NewTransaction(buildSetOptionsTxParams(account))
 		assert.NoError(t, err)
 
 		hash, err := sendTransaction(t, client, kp, tx)
