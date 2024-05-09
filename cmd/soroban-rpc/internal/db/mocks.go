@@ -104,3 +104,7 @@ func (m *mockLedgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.
 func (m *mockLedgerReader) StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error {
 	return nil
 }
+
+var _ TransactionReader = &mockTransactionHandler{}
+var _ TransactionWriter = &mockTransactionHandler{}
+var _ LedgerReader = &mockLedgerReader{}
