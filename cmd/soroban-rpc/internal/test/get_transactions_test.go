@@ -4,7 +4,6 @@ import (
 	"context"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/jhttp"
@@ -34,30 +33,6 @@ func buildSetOptionsTxParams(account txnbuild.SimpleAccount) txnbuild.Transactio
 	return params
 }
 
-// sendTransaction submits a single transaction to the Stellar network via the given JSON-RPC client and returns
-// the transaction hash.
-//
-// t - the testing framework handle for assertions.
-// client - the JSON-RPC client used to send the transaction.
-// kp - the Stellar keypair used to sign the transaction.
-// transaction - the Stellar transaction to be sent.
-//
-// Returns the expected transaction hash as a hex string and any error encountered during the transaction submission.
-func sendTransaction(t *testing.T, client *jrpc2.Client, kp *keypair.Full, transaction *txnbuild.Transaction) (string, error) {
-	tx, err := transaction.Sign(StandaloneNetworkPassphrase, kp)
-	assert.NoError(t, err)
-	b64, err := tx.Base64()
-	assert.NoError(t, err)
-
-	request := methods.SendTransactionRequest{Transaction: b64}
-	var result methods.SendTransactionResponse
-
-	expectedHashHex, err := tx.HashHex(StandaloneNetworkPassphrase)
-	assert.NoError(t, err)
-
-	return expectedHashHex, client.CallResult(context.Background(), "sendTransaction", request, &result)
-}
-
 // sendTransactions sends multiple transactions for testing purposes.
 // It sends a total of three transactions, each from a new account sequence, and gathers the ledger
 // numbers where these transactions were recorded.
@@ -70,23 +45,14 @@ func sendTransactions(t *testing.T, client *jrpc2.Client) []uint32 {
 	kp := keypair.Root(StandaloneNetworkPassphrase)
 	address := kp.Address()
 
-	var hashes []string
+	var ledgers []uint32
 	for i := 0; i <= 2; i++ {
 		account := txnbuild.NewSimpleAccount(address, int64(i))
 		tx, err := txnbuild.NewTransaction(buildSetOptionsTxParams(account))
 		assert.NoError(t, err)
 
-		hash, err := sendTransaction(t, client, kp, tx)
-		assert.NoError(t, err)
-		hashes = append(hashes, hash)
-		time.Sleep(1 * time.Second)
-	}
-
-	var ledgers []uint32
-	for _, hash := range hashes {
-		response := getTransaction(t, client, hash)
-		assert.NotNil(t, response)
-		ledgers = append(ledgers, response.Ledger)
+		txResponse := sendSuccessfulTransaction(t, client, kp, tx)
+		ledgers = append(ledgers, txResponse.Ledger)
 	}
 	return ledgers
 }
