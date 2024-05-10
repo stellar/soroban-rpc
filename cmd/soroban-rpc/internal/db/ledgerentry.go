@@ -215,7 +215,7 @@ func (l *ledgerEntryReadTx) getRawLedgerEntries(keys ...string) (map[string]stri
 			}
 		}
 	}
-	return result, nil
+	return result, q.Err()
 }
 
 func GetLedgerEntry(tx LedgerEntryReadTx, key xdr.LedgerKey) (bool, xdr.LedgerEntry, *uint32, error) {
