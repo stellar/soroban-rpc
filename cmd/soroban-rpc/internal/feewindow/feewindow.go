@@ -150,7 +150,6 @@ func (fw *FeeWindows) IngestFees(meta xdr.LedgerCloseMeta) error {
 		if len(ops) == 1 {
 			switch ops[0].Body.Type {
 			case xdr.OperationTypeInvokeHostFunction, xdr.OperationTypeExtendFootprintTtl, xdr.OperationTypeRestoreFootprint:
-				// TODO: should we really include the fees of ExtendFootprintTtl and RestoreFootprint ?
 				if tx.Envelope.V1 == nil || tx.Envelope.V1.Tx.Ext.SorobanData != nil {
 					// this shouldn't happen
 					continue
