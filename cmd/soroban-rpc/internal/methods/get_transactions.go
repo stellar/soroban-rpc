@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
@@ -19,8 +20,8 @@ import (
 
 // TransactionsPaginationOptions defines the available options for paginating through transactions.
 type TransactionsPaginationOptions struct {
-	Cursor *toid.ID `json:"cursor,omitempty"`
-	Limit  uint     `json:"limit,omitempty"`
+	Cursor string `json:"cursor,omitempty"`
+	Limit  uint   `json:"limit,omitempty"`
 }
 
 // GetTransactionsRequest represents the request parameters for fetching transactions within a range of ledgers.
@@ -31,7 +32,7 @@ type GetTransactionsRequest struct {
 
 // isValid checks the validity of the request parameters.
 func (req GetTransactionsRequest) isValid(maxLimit uint, ledgerRange ledgerbucketwindow.LedgerRange) error {
-	if req.Pagination != nil && req.Pagination.Cursor != nil {
+	if req.Pagination != nil && req.Pagination.Cursor != "" {
 		if req.StartLedger != 0 {
 			return errors.New("startLedger and cursor cannot both be set")
 		}
@@ -111,8 +112,16 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 	start := toid.New(int32(request.StartLedger), 1, 1)
 	limit := h.defaultLimit
 	if request.Pagination != nil {
-		if request.Pagination.Cursor != nil {
-			start = request.Pagination.Cursor
+		if request.Pagination.Cursor != "" {
+			cursorInt, err := strconv.ParseInt(request.Pagination.Cursor, 10, 64)
+			if err != nil {
+				return GetTransactionsResponse{}, &jrpc2.Error{
+					Code:    jrpc2.InvalidParams,
+					Message: err.Error(),
+				}
+			}
+
+			*start = toid.Parse(cursorInt)
 			// increment tx index because, when paginating,
 			// we start with the item right after the cursor
 			start.TransactionOrder++

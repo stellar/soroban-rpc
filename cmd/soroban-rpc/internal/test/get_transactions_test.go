@@ -2,13 +2,11 @@ package test
 
 import (
 	"context"
-	"strconv"
 	"testing"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/stellar/go/keypair"
-	"github.com/stellar/go/toid"
 	"github.com/stellar/go/txnbuild"
 	"github.com/stretchr/testify/assert"
 
@@ -89,12 +87,9 @@ func TestGetTransactions(t *testing.T) {
 	assert.Equal(t, result.Transactions[0].Ledger, ledgers[0])
 
 	// Get transactions using previous result's cursor
-	c, err := strconv.ParseInt(result.Cursor, 10, 64)
-	assert.NoError(t, err)
-	cursor := toid.Parse(c)
 	request = methods.GetTransactionsRequest{
 		Pagination: &methods.TransactionsPaginationOptions{
-			Cursor: &cursor,
+			Cursor: result.Cursor,
 			Limit:  5,
 		},
 	}

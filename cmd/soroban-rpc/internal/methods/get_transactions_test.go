@@ -162,12 +162,8 @@ func TestGetTransactions_CustomLimitAndCursor(t *testing.T) {
 
 	request := GetTransactionsRequest{
 		Pagination: &TransactionsPaginationOptions{
-			Cursor: &toid.ID{
-				LedgerSequence:   1,
-				TransactionOrder: 2,
-				OperationOrder:   1,
-			},
-			Limit: 3,
+			Cursor: toid.New(1, 2, 1).String(),
+			Limit:  3,
 		},
 	}
 
