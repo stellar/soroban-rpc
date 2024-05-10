@@ -95,7 +95,7 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 	ledgerRange, err := h.dbReader.GetLedgerRange(ctx)
 	if err != nil {
 		return GetTransactionsResponse{}, &jrpc2.Error{
-			Code:    jrpc2.InvalidParams,
+			Code:    jrpc2.InternalError,
 			Message: err.Error(),
 		}
 	}
@@ -103,7 +103,7 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 	err = request.isValid(h.maxLimit, ledgerRange)
 	if err != nil {
 		return GetTransactionsResponse{}, &jrpc2.Error{
-			Code:    jrpc2.InvalidParams,
+			Code:    jrpc2.InvalidRequest,
 			Message: err.Error(),
 		}
 	}
@@ -144,7 +144,7 @@ LedgerLoop:
 				err = errors.Errorf("ledger close meta not found: %d", ledgerSeq)
 			}
 			return GetTransactionsResponse{}, &jrpc2.Error{
-				Code:    jrpc2.InvalidParams,
+				Code:    jrpc2.InternalError,
 				Message: err.Error(),
 			}
 		}
@@ -153,7 +153,7 @@ LedgerLoop:
 		reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(h.networkPassphrase, ledger)
 		if err != nil {
 			return GetTransactionsResponse{}, &jrpc2.Error{
-				Code:    jrpc2.InvalidParams,
+				Code:    jrpc2.InternalError,
 				Message: err.Error(),
 			}
 		}
@@ -164,7 +164,7 @@ LedgerLoop:
 			startTxIdx = int(start.TransactionOrder)
 			if ierr := reader.Seek(startTxIdx - 1); ierr != nil && ierr != io.EOF {
 				return GetTransactionsResponse{}, &jrpc2.Error{
-					Code:    jrpc2.InvalidParams,
+					Code:    jrpc2.InternalError,
 					Message: err.Error(),
 				}
 			}
@@ -182,7 +182,7 @@ LedgerLoop:
 					break
 				}
 				return GetTransactionsResponse{}, &jrpc2.Error{
-					Code:    jrpc2.InvalidParams,
+					Code:    jrpc2.InternalError,
 					Message: err.Error(),
 				}
 			}
@@ -190,7 +190,7 @@ LedgerLoop:
 			tx, err := db.ParseTransaction(ledger, ingestTx)
 			if err != nil {
 				return GetTransactionsResponse{}, &jrpc2.Error{
-					Code:    jrpc2.InvalidParams,
+					Code:    jrpc2.InternalError,
 					Message: err.Error(),
 				}
 			}
