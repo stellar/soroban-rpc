@@ -46,7 +46,7 @@ func (req GetTransactionsRequest) isValid(maxLimit uint, ledgerRange ledgerbucke
 	return nil
 }
 
-type transactionInfo struct {
+type TransactionInfo struct {
 	// Successful indicates whether the transaction was successful or not
 	Successful bool `json:"status"`
 	// ApplicationOrder is the index of the transaction among all the transactions
@@ -71,7 +71,7 @@ type transactionInfo struct {
 
 // GetTransactionsResponse encapsulates the response structure for getTransactions queries.
 type GetTransactionsResponse struct {
-	Transactions          []transactionInfo `json:"transactions"`
+	Transactions          []TransactionInfo `json:"transactions"`
 	LatestLedger          uint32            `json:"latestLedger"`
 	LatestLedgerCloseTime int64             `json:"latestLedgerCloseTimestamp"`
 	OldestLedger          uint32            `json:"oldestLedger"`
@@ -124,7 +124,7 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 
 	// Iterate through each ledger and its transactions until limit or end range is reached.
 	// The latest ledger acts as the end ledger range for the request.
-	var txns []transactionInfo
+	var txns []TransactionInfo
 	var cursor *toid.ID
 LedgerLoop:
 	for ledgerSeq := start.LedgerSequence; ledgerSeq <= int32(ledgerRange.LastLedger.Sequence); ledgerSeq++ {
@@ -186,7 +186,7 @@ LedgerLoop:
 				}
 			}
 
-			txInfo := transactionInfo{
+			txInfo := TransactionInfo{
 				Successful:          tx.Successful,
 				ApplicationOrder:    tx.ApplicationOrder,
 				FeeBump:             tx.FeeBump,

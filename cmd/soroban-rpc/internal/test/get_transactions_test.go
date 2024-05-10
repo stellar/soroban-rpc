@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -13,10 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
-)
-
-const (
-	Cursor int64 = 55834578945
 )
 
 // buildSetOptionsTxParams constructs the parameters necessary for creating a transaction from the given account.
@@ -126,7 +123,9 @@ func TestGetTransactions(t *testing.T) {
 	assert.Equal(t, result.Transactions[0].Ledger, ledgers[0])
 
 	// Get transactions using previous result's cursor
-	cursor := toid.Parse(Cursor)
+	c, err := strconv.ParseInt(result.Cursor, 10, 64)
+	assert.NoError(t, err)
+	cursor := toid.Parse(c)
 	request = methods.GetTransactionsRequest{
 		Pagination: &methods.TransactionsPaginationOptions{
 			Cursor: &cursor,
