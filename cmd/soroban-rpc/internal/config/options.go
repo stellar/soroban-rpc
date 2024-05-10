@@ -201,7 +201,7 @@ func (cfg *Config) options() ConfigOptions {
 			Name:         "ingestion-timeout",
 			Usage:        "Ingestion Timeout when bootstrapping data (checkpoint and in-memory initialization) and preparing ledger reads",
 			ConfigKey:    &cfg.IngestionTimeout,
-			DefaultValue: 40 * time.Minute,
+			DefaultValue: 50 * time.Minute,
 		},
 		{
 			Name:         "checkpoint-frequency",
