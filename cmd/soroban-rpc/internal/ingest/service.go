@@ -85,6 +85,7 @@ func newService(cfg Config) *Service {
 		db:                cfg.DB,
 		eventStore:        cfg.EventStore,
 		transactionStore:  cfg.TransactionStore,
+		feeWindows:        cfg.FeeWindows,
 		ledgerBackend:     cfg.LedgerBackend,
 		networkPassPhrase: cfg.NetworkPassPhrase,
 		timeout:           cfg.Timeout,

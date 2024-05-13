@@ -235,7 +235,7 @@ func (cfg *Config) options() ConfigOptions {
 		{
 			Name:         "soroban-fee-stats-retention-window",
 			Usage:        "configures soroban inclusion fee stats retention window expressed in number of ledgers",
-			ConfigKey:    &cfg.TransactionLedgerRetentionWindow,
+			ConfigKey:    &cfg.SorobanFeeStatsLedgerRetentionWindow,
 			DefaultValue: uint32(50),
 			Validate:     positive,
 		},
