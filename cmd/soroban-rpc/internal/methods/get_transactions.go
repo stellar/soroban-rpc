@@ -184,7 +184,7 @@ LedgerLoop:
 					break
 				}
 				return GetTransactionsResponse{}, &jrpc2.Error{
-					Code:    jrpc2.InternalError,
+					Code:    jrpc2.InvalidParams,
 					Message: err.Error(),
 				}
 			}
