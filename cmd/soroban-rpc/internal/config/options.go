@@ -252,6 +252,28 @@ func (cfg *Config) options() ConfigOptions {
 			},
 		},
 		{
+			Name:         "max-transactions-limit",
+			Usage:        "Maximum amount of transactions allowed in a single getTransactions response",
+			ConfigKey:    &cfg.MaxTransactionsLimit,
+			DefaultValue: uint(200),
+		},
+		{
+			Name:         "default-transactions-limit",
+			Usage:        "Default cap on the amount of transactions included in a single getTransactions response",
+			ConfigKey:    &cfg.DefaultTransactionsLimit,
+			DefaultValue: uint(50),
+			Validate: func(co *ConfigOption) error {
+				if cfg.DefaultTransactionsLimit > cfg.MaxTransactionsLimit {
+					return fmt.Errorf(
+						"default-transactions-limit (%v) cannot exceed max-transactions-limit (%v)",
+						cfg.DefaultTransactionsLimit,
+						cfg.MaxTransactionsLimit,
+					)
+				}
+				return nil
+			},
+		},
+		{
 			Name: "max-healthy-ledger-latency",
 			Usage: "maximum ledger latency (i.e. time elapsed since the last known ledger closing time) considered to be healthy" +
 				" (used for the /health endpoint)",
@@ -335,6 +357,13 @@ func (cfg *Config) options() ConfigOptions {
 			Validate:     positive,
 		},
 		{
+			TomlKey:      strutils.KebabToConstantCase("request-backlog-get-transactions-queue-limit"),
+			Usage:        "Maximum number of outstanding GetTransactions requests",
+			ConfigKey:    &cfg.RequestBacklogGetTransactionsQueueLimit,
+			DefaultValue: uint(1000),
+			Validate:     positive,
+		},
+		{
 			TomlKey:      strutils.KebabToConstantCase("request-backlog-send-transaction-queue-limit"),
 			Usage:        "Maximum number of outstanding SendTransaction requests",
 			ConfigKey:    &cfg.RequestBacklogSendTransactionQueueLimit,
@@ -400,6 +429,12 @@ func (cfg *Config) options() ConfigOptions {
 			TomlKey:      strutils.KebabToConstantCase("max-get-transaction-execution-duration"),
 			Usage:        "The maximum duration of time allowed for processing a getTransaction request. When that time elapses, the rpc server would return -32001 and abort the request's execution",
 			ConfigKey:    &cfg.MaxGetTransactionExecutionDuration,
+			DefaultValue: 5 * time.Second,
+		},
+		{
+			TomlKey:      strutils.KebabToConstantCase("max-get-transactions-execution-duration"),
+			Usage:        "The maximum duration of time allowed for processing a getTransactions request. When that time elapses, the rpc server would return -32001 and abort the request's execution",
+			ConfigKey:    &cfg.MaxGetTransactionsExecutionDuration,
 			DefaultValue: 5 * time.Second,
 		},
 		{

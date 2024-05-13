@@ -15,20 +15,24 @@ import (
 type mockTransactionHandler struct {
 	passphrase string
 
-	ledgerRange ledgerbucketwindow.LedgerRange
-	txs         map[string]ingest.LedgerTransaction
-	ledgers     map[string]*xdr.LedgerCloseMeta
+	ledgerRange     ledgerbucketwindow.LedgerRange
+	txs             map[string]ingest.LedgerTransaction
+	txHashToMeta    map[string]*xdr.LedgerCloseMeta
+	ledgerSeqToMeta map[uint32]*xdr.LedgerCloseMeta
 }
 
 func NewMockTransactionStore(passphrase string) *mockTransactionHandler {
 	return &mockTransactionHandler{
-		passphrase: passphrase,
-		txs:        make(map[string]ingest.LedgerTransaction),
-		ledgers:    make(map[string]*xdr.LedgerCloseMeta),
+		passphrase:      passphrase,
+		txs:             make(map[string]ingest.LedgerTransaction),
+		txHashToMeta:    make(map[string]*xdr.LedgerCloseMeta),
+		ledgerSeqToMeta: make(map[uint32]*xdr.LedgerCloseMeta),
 	}
 }
 
 func (txn *mockTransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error {
+	txn.ledgerSeqToMeta[lcm.LedgerSequence()] = &lcm
+
 	reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(txn.passphrase, lcm)
 	if err != nil {
 		return err
@@ -44,7 +48,7 @@ func (txn *mockTransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) e
 
 		h := tx.Result.TransactionHash.HexString()
 		txn.txs[h] = tx
-		txn.ledgers[h] = &lcm
+		txn.txHashToMeta[h] = &lcm
 	}
 
 	if lcmSeq := lcm.LedgerSequence(); lcmSeq < txn.ledgerRange.FirstLedger.Sequence ||
@@ -72,12 +76,35 @@ func (txn *mockTransactionHandler) GetTransaction(ctx context.Context, hash xdr.
 	if tx, ok := txn.txs[hash.HexString()]; !ok {
 		return Transaction{}, txn.ledgerRange, ErrNoTransaction
 	} else {
-		itx, err := ParseTransaction(*txn.ledgers[hash.HexString()], tx)
+		itx, err := ParseTransaction(*txn.txHashToMeta[hash.HexString()], tx)
 		return itx, txn.ledgerRange, err
 	}
 }
 
 func (txn *mockTransactionHandler) RegisterMetrics(_, _ prometheus.Observer) {}
 
+type mockLedgerReader struct {
+	txn mockTransactionHandler
+}
+
+func NewMockLedgerReader(txn *mockTransactionHandler) *mockLedgerReader {
+	return &mockLedgerReader{
+		txn: *txn,
+	}
+}
+
+func (m *mockLedgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
+	lcm, ok := m.txn.ledgerSeqToMeta[sequence]
+	if !ok {
+		return xdr.LedgerCloseMeta{}, false, nil
+	}
+	return *lcm, true, nil
+}
+
+func (m *mockLedgerReader) StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error {
+	return nil
+}
+
 var _ TransactionReader = &mockTransactionHandler{}
 var _ TransactionWriter = &mockTransactionHandler{}
+var _ LedgerReader = &mockLedgerReader{}
