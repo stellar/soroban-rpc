@@ -139,15 +139,15 @@ LedgerLoop:
 	for ledgerSeq := start.LedgerSequence; ledgerSeq <= int32(ledgerRange.LastLedger.Sequence); ledgerSeq++ {
 		// Get ledger close meta from db
 		ledger, found, err := h.ledgerReader.GetLedger(ctx, uint32(ledgerSeq))
-		if !found {
-			return GetTransactionsResponse{}, &jrpc2.Error{
-				Code:    jrpc2.InvalidParams,
-				Message: errors.Errorf("ledger close meta not found: %d", ledgerSeq).Error(),
-			}
-		} else if err != nil {
+		if err != nil {
 			return GetTransactionsResponse{}, &jrpc2.Error{
 				Code:    jrpc2.InternalError,
 				Message: err.Error(),
+			}
+		} else if !found {
+			return GetTransactionsResponse{}, &jrpc2.Error{
+				Code:    jrpc2.InvalidParams,
+				Message: errors.Errorf("ledger close meta not found: %d", ledgerSeq).Error(),
 			}
 		}
 
