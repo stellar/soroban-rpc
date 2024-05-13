@@ -27,7 +27,7 @@ type Config struct {
 	DefaultEventsLimit                          uint
 	DefaultTransactionsLimit                    uint
 	EventLedgerRetentionWindow                  uint32
-	LedgerRetentionWindow                       uint32
+	HistoryRetentionWindow                      uint32
 	FriendbotURL                                string
 	HistoryArchiveURLs                          []string
 	HistoryArchiveUserAgent                     string

@@ -228,14 +228,21 @@ func MustNew(cfg *config.Config) *Daemon {
 		logger.WithError(err).Error("could not run ingestion. Retrying")
 	}
 
-	// Take the larger of (event retention, tx retention) and then the smaller
-	// of (tx retention, default event retention) if event retention wasn't
-	// specified, for some reason...?
-	maxRetentionWindow := ordered.Max(cfg.EventLedgerRetentionWindow, cfg.TransactionLedgerRetentionWindow)
-	if cfg.EventLedgerRetentionWindow <= 0 {
-		maxRetentionWindow = ordered.Min(
-			maxRetentionWindow,
-			ledgerbucketwindow.DefaultEventLedgerRetentionWindow)
+	var maxRetentionWindow uint32
+
+	if cfg.HistoryRetentionWindow > 0 {
+		maxRetentionWindow = cfg.HistoryRetentionWindow
+	} else {
+		// TODO: Discard this logic once we fully move from in-memory to on-disk storage
+		// Take the larger of (event retention, tx retention) and then the smaller
+		// of (tx retention, default event retention) if event retention wasn't
+		// specified, for some reason...?
+		maxRetentionWindow := ordered.Max(cfg.EventLedgerRetentionWindow, cfg.TransactionLedgerRetentionWindow)
+		if cfg.EventLedgerRetentionWindow <= 0 {
+			maxRetentionWindow = ordered.Min(
+				maxRetentionWindow,
+				ledgerbucketwindow.DefaultEventLedgerRetentionWindow)
+		}
 	}
 	ingestService := ingest.NewService(ingest.Config{
 		Logger: logger,
