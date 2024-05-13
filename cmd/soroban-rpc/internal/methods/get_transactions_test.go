@@ -239,7 +239,7 @@ func TestGetTransactions_LedgerNotFound(t *testing.T) {
 	}
 
 	response, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
-	expectedErr := errors.Errorf("[%d] ledger close meta not found: 2", jrpc2.InternalError)
+	expectedErr := errors.Errorf("[%d] ledger close meta not found: 2", jrpc2.InvalidParams)
 	assert.Equal(t, expectedErr.Error(), err.Error())
 	assert.Nil(t, response.Transactions)
 }

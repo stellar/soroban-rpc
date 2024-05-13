@@ -140,11 +140,13 @@ LedgerLoop:
 		// Get ledger close meta from db
 		ledger, found, err := h.ledgerReader.GetLedger(ctx, uint32(ledgerSeq))
 		if (err != nil) || (!found) {
+			code := jrpc2.InternalError
 			if err == nil {
 				err = errors.Errorf("ledger close meta not found: %d", ledgerSeq)
+				code = jrpc2.InvalidParams
 			}
 			return GetTransactionsResponse{}, &jrpc2.Error{
-				Code:    jrpc2.InternalError,
+				Code:    code,
 				Message: err.Error(),
 			}
 		}
