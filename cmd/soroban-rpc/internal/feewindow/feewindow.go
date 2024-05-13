@@ -155,7 +155,7 @@ func (fw *FeeWindows) IngestFees(meta xdr.LedgerCloseMeta) error {
 					continue
 				}
 				inclusionFee := uint64(tx.Envelope.V1.Tx.Fee) - uint64(tx.Envelope.V1.Tx.Ext.SorobanData.ResourceFee)
-				classicFees = append(sorobanInclusionFees, inclusionFee)
+				sorobanInclusionFees = append(sorobanInclusionFees, inclusionFee)
 				continue
 			}
 		}
