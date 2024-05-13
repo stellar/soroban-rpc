@@ -220,18 +220,22 @@ func (cfg *Config) options() ConfigOptions {
 
 		{
 			Name: "event-retention-window",
-			Usage: fmt.Sprintf("configures the event retention window expressed in number of ledgers,"+
-				" the default value is %d which corresponds to about 24 hours of history", ledgerbucketwindow.DefaultEventLedgerRetentionWindow),
+			Usage: fmt.Sprintf(
+				"configures the event retention window expressed in number of ledgers,"+
+					" the default value is %d which corresponds to about 24 hours of history",
+				ledgerbucketwindow.DefaultEventLedgerRetentionWindow),
 			ConfigKey:    &cfg.EventLedgerRetentionWindow,
 			DefaultValue: uint32(ledgerbucketwindow.DefaultEventLedgerRetentionWindow),
 			Validate:     positive,
 		},
 		{
 			Name: "transaction-retention-window",
-			Usage: "configures the transaction retention window expressed in number of ledgers," +
-				" the default value is 1440 which corresponds to about 2 hours of history",
+			Usage: fmt.Sprintf(
+				"configures the transaction retention window expressed in number of ledgers,"+
+					" the default value is %d which corresponds to about 24 hours of history",
+				ledgerbucketwindow.OneDayOfLedgers),
 			ConfigKey:    &cfg.TransactionLedgerRetentionWindow,
-			DefaultValue: uint32(1440),
+			DefaultValue: uint32(ledgerbucketwindow.OneDayOfLedgers),
 			Validate:     positive,
 		},
 		{
@@ -251,6 +255,28 @@ func (cfg *Config) options() ConfigOptions {
 						"default-events-limit (%v) cannot exceed max-events-limit (%v)",
 						cfg.DefaultEventsLimit,
 						cfg.MaxEventsLimit,
+					)
+				}
+				return nil
+			},
+		},
+		{
+			Name:         "max-transactions-limit",
+			Usage:        "Maximum amount of transactions allowed in a single getTransactions response",
+			ConfigKey:    &cfg.MaxTransactionsLimit,
+			DefaultValue: uint(200),
+		},
+		{
+			Name:         "default-transactions-limit",
+			Usage:        "Default cap on the amount of transactions included in a single getTransactions response",
+			ConfigKey:    &cfg.DefaultTransactionsLimit,
+			DefaultValue: uint(50),
+			Validate: func(co *ConfigOption) error {
+				if cfg.DefaultTransactionsLimit > cfg.MaxTransactionsLimit {
+					return fmt.Errorf(
+						"default-transactions-limit (%v) cannot exceed max-transactions-limit (%v)",
+						cfg.DefaultTransactionsLimit,
+						cfg.MaxTransactionsLimit,
 					)
 				}
 				return nil
@@ -312,6 +338,13 @@ func (cfg *Config) options() ConfigOptions {
 			Validate:     positive,
 		},
 		{
+			TomlKey:      strutils.KebabToConstantCase("request-backlog-get-version-info-queue-limit"),
+			Usage:        "Maximum number of outstanding GetVersionInfo requests",
+			ConfigKey:    &cfg.RequestBacklogGetVersionInfoQueueLimit,
+			DefaultValue: uint(1000),
+			Validate:     positive,
+		},
+		{
 			TomlKey:      strutils.KebabToConstantCase("request-backlog-get-latest-ledger-queue-limit"),
 			Usage:        "Maximum number of outstanding GetLatestsLedger requests",
 			ConfigKey:    &cfg.RequestBacklogGetLatestLedgerQueueLimit,
@@ -329,6 +362,13 @@ func (cfg *Config) options() ConfigOptions {
 			TomlKey:      strutils.KebabToConstantCase("request-backlog-get-transaction-queue-limit"),
 			Usage:        "Maximum number of outstanding GetTransaction requests",
 			ConfigKey:    &cfg.RequestBacklogGetTransactionQueueLimit,
+			DefaultValue: uint(1000),
+			Validate:     positive,
+		},
+		{
+			TomlKey:      strutils.KebabToConstantCase("request-backlog-get-transactions-queue-limit"),
+			Usage:        "Maximum number of outstanding GetTransactions requests",
+			ConfigKey:    &cfg.RequestBacklogGetTransactionsQueueLimit,
 			DefaultValue: uint(1000),
 			Validate:     positive,
 		},
@@ -377,6 +417,12 @@ func (cfg *Config) options() ConfigOptions {
 			DefaultValue: 5 * time.Second,
 		},
 		{
+			TomlKey:      strutils.KebabToConstantCase("max-get-version-info-execution-duration"),
+			Usage:        "The maximum duration of time allowed for processing a getVersionInfo request. When that time elapses, the rpc server would return -32001 and abort the request's execution",
+			ConfigKey:    &cfg.MaxGetVersionInfoExecutionDuration,
+			DefaultValue: 5 * time.Second,
+		},
+		{
 			TomlKey:      strutils.KebabToConstantCase("max-get-latest-ledger-execution-duration"),
 			Usage:        "The maximum duration of time allowed for processing a getLatestLedger request. When that time elapses, the rpc server would return -32001 and abort the request's execution",
 			ConfigKey:    &cfg.MaxGetLatestLedgerExecutionDuration,
@@ -392,6 +438,12 @@ func (cfg *Config) options() ConfigOptions {
 			TomlKey:      strutils.KebabToConstantCase("max-get-transaction-execution-duration"),
 			Usage:        "The maximum duration of time allowed for processing a getTransaction request. When that time elapses, the rpc server would return -32001 and abort the request's execution",
 			ConfigKey:    &cfg.MaxGetTransactionExecutionDuration,
+			DefaultValue: 5 * time.Second,
+		},
+		{
+			TomlKey:      strutils.KebabToConstantCase("max-get-transactions-execution-duration"),
+			Usage:        "The maximum duration of time allowed for processing a getTransactions request. When that time elapses, the rpc server would return -32001 and abort the request's execution",
+			ConfigKey:    &cfg.MaxGetTransactionsExecutionDuration,
 			DefaultValue: 5 * time.Second,
 		},
 		{

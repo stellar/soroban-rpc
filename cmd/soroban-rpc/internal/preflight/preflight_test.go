@@ -8,10 +8,12 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 	"github.com/stretchr/testify/require"
 
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
@@ -173,8 +175,7 @@ var mockLedgerEntriesWithoutTTLs = []xdr.LedgerEntry{
 		Data: xdr.LedgerEntryData{
 			Type: xdr.LedgerEntryTypeConfigSetting,
 			ConfigSetting: &xdr.ConfigSettingEntry{
-				ConfigSettingId: xdr.ConfigSettingIdConfigSettingContractCostParamsCpuInstructions,
-				// Obtained with TestGetLedgerEntryConfigSettings
+				ConfigSettingId:            xdr.ConfigSettingIdConfigSettingContractCostParamsCpuInstructions,
 				ContractCostParamsCpuInsns: contractCostParams,
 			},
 		},
@@ -184,8 +185,7 @@ var mockLedgerEntriesWithoutTTLs = []xdr.LedgerEntry{
 		Data: xdr.LedgerEntryData{
 			Type: xdr.LedgerEntryTypeConfigSetting,
 			ConfigSetting: &xdr.ConfigSettingEntry{
-				ConfigSettingId: xdr.ConfigSettingIdConfigSettingContractCostParamsMemoryBytes,
-				// Obtained with TestGetLedgerEntryConfigSettings
+				ConfigSettingId:            xdr.ConfigSettingIdConfigSettingContractCostParamsMemoryBytes,
 				ContractCostParamsMemBytes: contractCostParams,
 			},
 		},
@@ -295,15 +295,18 @@ func getDB(t testing.TB, restartDB bool) *db.DB {
 	dbPath := path.Join(t.TempDir(), "soroban_rpc.sqlite")
 	dbInstance, err := db.OpenSQLiteDB(dbPath)
 	require.NoError(t, err)
-	readWriter := db.NewReadWriter(dbInstance, 100, 10000)
+
+	readWriter := db.NewReadWriter(log.DefaultLogger, dbInstance, interfaces.MakeNoOpDeamon(),
+		100, 10000, network.FutureNetworkPassphrase)
 	tx, err := readWriter.NewTx(context.Background())
 	require.NoError(t, err)
+
 	for _, e := range mockLedgerEntries {
 		err := tx.LedgerEntryWriter().UpsertLedgerEntry(e)
 		require.NoError(t, err)
 	}
-	err = tx.Commit(2)
-	require.NoError(t, err)
+	require.NoError(t, tx.Commit(2))
+
 	if restartDB {
 		// Restarting the DB resets the ledger entries write-through cache
 		require.NoError(t, dbInstance.Close())
@@ -361,6 +364,8 @@ func getPreflightParameters(t testing.TB, dbConfig *preflightParametersDBConfig)
 		NetworkPassphrase: "foo",
 		LedgerEntryReadTx: ledgerEntryReadTx,
 		BucketListSize:    200,
+		// TODO: test with multiple protocol versions
+		ProtocolVersion: 20,
 	}
 	return params
 }

@@ -21,7 +21,6 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/util"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 )
 
 const (
@@ -34,7 +33,6 @@ type Config struct {
 	Logger            *log.Entry
 	DB                db.ReadWriter
 	EventStore        *events.MemoryStore
-	TransactionStore  *transactions.MemoryStore
 	NetworkPassPhrase string
 	Archive           historyarchive.ArchiveInterface
 	LedgerBackend     backends.LedgerBackend
@@ -82,7 +80,6 @@ func newService(cfg Config) *Service {
 		logger:            cfg.Logger,
 		db:                cfg.DB,
 		eventStore:        cfg.EventStore,
-		transactionStore:  cfg.TransactionStore,
 		ledgerBackend:     cfg.LedgerBackend,
 		networkPassPhrase: cfg.NetworkPassPhrase,
 		timeout:           cfg.Timeout,
@@ -134,7 +131,6 @@ type Service struct {
 	logger            *log.Entry
 	db                db.ReadWriter
 	eventStore        *events.MemoryStore
-	transactionStore  *transactions.MemoryStore
 	ledgerBackend     backends.LedgerBackend
 	timeout           time.Duration
 	networkPassPhrase string
@@ -156,13 +152,6 @@ func (s *Service) run(ctx context.Context, archive historyarchive.ArchiveInterfa
 	if err != nil {
 		return err
 	}
-
-	prepareRangeCtx, cancelPrepareRange := context.WithTimeout(ctx, s.timeout)
-	if err := s.ledgerBackend.PrepareRange(prepareRangeCtx, backends.UnboundedRange(nextLedgerSeq)); err != nil {
-		cancelPrepareRange()
-		return err
-	}
-	cancelPrepareRange()
 
 	// Make sure that the checkpoint prefill (if any), happened before starting to apply deltas
 	if err := <-checkPointFillErr; err != nil {
@@ -202,15 +191,21 @@ func (s *Service) maybeFillEntriesFromCheckpoint(ctx context.Context, archive hi
 		return 0, checkPointFillErr, err
 	} else {
 		checkPointFillErr <- nil
-		return curLedgerSeq + 1, checkPointFillErr, nil
+		nextLedgerSeq := curLedgerSeq + 1
+		prepareRangeCtx, cancelPrepareRange := context.WithTimeout(ctx, s.timeout)
+		defer cancelPrepareRange()
+		return nextLedgerSeq,
+			checkPointFillErr,
+			s.ledgerBackend.PrepareRange(prepareRangeCtx, backends.UnboundedRange(nextLedgerSeq))
 	}
 }
 
 func (s *Service) fillEntriesFromCheckpoint(ctx context.Context, archive historyarchive.ArchiveInterface, checkpointLedger uint32) error {
-	checkpointCtx, cancelCheckpointCtx := context.WithTimeout(ctx, s.timeout)
-	defer cancelCheckpointCtx()
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithTimeout(ctx, s.timeout)
+	defer cancel()
 
-	reader, err := ingest.NewCheckpointChangeReader(checkpointCtx, archive, checkpointLedger)
+	reader, err := ingest.NewCheckpointChangeReader(ctx, archive, checkpointLedger)
 	if err != nil {
 		return err
 	}
@@ -219,6 +214,12 @@ func (s *Service) fillEntriesFromCheckpoint(ctx context.Context, archive history
 	if err != nil {
 		return err
 	}
+
+	prepareRangeErr := make(chan error, 1)
+	go func() {
+		prepareRangeErr <- s.ledgerBackend.PrepareRange(ctx, backends.UnboundedRange(checkpointLedger))
+	}()
+
 	transactionCommitted := false
 	defer func() {
 		if !transactionCommitted {
@@ -234,6 +235,15 @@ func (s *Service) fillEntriesFromCheckpoint(ctx context.Context, archive history
 		return err
 	}
 	if err := reader.Close(); err != nil {
+		return err
+	}
+
+	if err := <-prepareRangeErr; err != nil {
+		return err
+	}
+	if ledgerCloseMeta, err := s.ledgerBackend.GetLedger(ctx, checkpointLedger); err != nil {
+		return err
+	} else if err = reader.VerifyBucketList(ledgerCloseMeta.BucketListHash()); err != nil {
 		return err
 	}
 
@@ -273,6 +283,7 @@ func (s *Service) ingest(ctx context.Context, sequence uint32) error {
 	if err := s.ingestLedgerEntryChanges(ctx, reader, tx, 0); err != nil {
 		return err
 	}
+
 	if err := reader.Close(); err != nil {
 		return err
 	}
@@ -294,10 +305,13 @@ func (s *Service) ingest(ctx context.Context, sequence uint32) error {
 	if err := tx.Commit(sequence); err != nil {
 		return err
 	}
-	s.logger.Debugf("Ingested ledger %d", sequence)
+	s.logger.
+		WithField("duration", time.Since(startTime).Seconds()).
+		Debugf("Ingested ledger %d", sequence)
 
 	s.metrics.ingestionDurationMetric.
-		With(prometheus.Labels{"type": "total"}).Observe(time.Since(startTime).Seconds())
+		With(prometheus.Labels{"type": "total"}).
+		Observe(time.Since(startTime).Seconds())
 	s.metrics.latestLedgerMetric.Set(float64(sequence))
 	return nil
 }
@@ -308,14 +322,20 @@ func (s *Service) ingestLedgerCloseMeta(tx db.WriteTx, ledgerCloseMeta xdr.Ledge
 		return err
 	}
 	s.metrics.ingestionDurationMetric.
-		With(prometheus.Labels{"type": "ledger_close_meta"}).Observe(time.Since(startTime).Seconds())
+		With(prometheus.Labels{"type": "ledger_close_meta"}).
+		Observe(time.Since(startTime).Seconds())
+
+	startTime = time.Now()
+	if err := tx.TransactionWriter().InsertTransactions(ledgerCloseMeta); err != nil {
+		return err
+	}
+	s.metrics.ingestionDurationMetric.
+		With(prometheus.Labels{"type": "transactions"}).
+		Observe(time.Since(startTime).Seconds())
 
 	if err := s.eventStore.IngestEvents(ledgerCloseMeta); err != nil {
 		return err
 	}
 
-	if err := s.transactionStore.IngestTransactions(ledgerCloseMeta); err != nil {
-		return err
-	}
 	return nil
 }

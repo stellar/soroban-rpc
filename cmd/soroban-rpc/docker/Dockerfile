@@ -28,7 +28,7 @@ ENV STELLAR_CORE_BINARY_PATH /usr/bin/stellar-core
 ENV DEBIAN_FRONTEND=noninteractive
 
 # ca-certificates are required to make tls connections
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl wget gnupg apt-utils
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl jq wget gnupg apt-utils
 RUN wget -qO - https://apt.stellar.org/SDF.asc | APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=true apt-key add -
 RUN echo "deb https://apt.stellar.org focal stable" >/etc/apt/sources.list.d/SDF.list
 RUN echo "deb https://apt.stellar.org focal unstable" >/etc/apt/sources.list.d/SDF-unstable.list

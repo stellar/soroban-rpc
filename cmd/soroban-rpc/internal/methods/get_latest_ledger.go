@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/creachadair/jrpc2/handler"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
@@ -20,7 +19,7 @@ type GetLatestLedgerResponse struct {
 
 // NewGetLatestLedgerHandler returns a JSON RPC handler to retrieve the latest ledger entry from Stellar core.
 func NewGetLatestLedgerHandler(ledgerEntryReader db.LedgerEntryReader, ledgerReader db.LedgerReader) jrpc2.Handler {
-	return handler.New(func(ctx context.Context) (GetLatestLedgerResponse, error) {
+	return NewHandler(func(ctx context.Context) (GetLatestLedgerResponse, error) {
 		tx, err := ledgerEntryReader.NewTx(ctx)
 		if err != nil {
 			return GetLatestLedgerResponse{}, &jrpc2.Error{
