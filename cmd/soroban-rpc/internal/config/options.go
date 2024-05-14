@@ -211,10 +211,10 @@ func (cfg *Config) options() ConfigOptions {
 		},
 		{
 			Name: "history-retention-window",
-			Usage: fmt.Sprintf("configures the history retention window expressed in number of ledgers," +
-				" the default value is 120960 which corresponds to about 7 days of history"),
+			Usage: fmt.Sprintf("configures the history retention window expressed in number of ledgers,"+
+				" the default value is %d which corresponds to about 7 days of history", ledgerbucketwindow.SevenDaysOfLedgers),
 			ConfigKey:    &cfg.HistoryRetentionWindow,
-			DefaultValue: uint32(120960),
+			DefaultValue: uint32(ledgerbucketwindow.SevenDaysOfLedgers),
 			Validate:     positive,
 		},
 
@@ -231,9 +231,8 @@ func (cfg *Config) options() ConfigOptions {
 		{
 			Name: "transaction-retention-window",
 			Usage: fmt.Sprintf(
-				"configures the transaction retention window expressed in number of ledgers,"+
-					" the default value is %d which corresponds to about 24 hours of history"+
-					"\n\n DEPRECATED: Please use the history-retention-window instead", ledgerbucketwindow.OneDayOfLedgers),
+				"DEPRECATED - The usage of the flag transaction-retention-window has been deprecated. ," +
+					"RPC now uses history-retention-window by default and this flag will soon be removed in future. "),
 			ConfigKey:    &cfg.TransactionLedgerRetentionWindow,
 			DefaultValue: uint32(ledgerbucketwindow.OneDayOfLedgers),
 			Validate:     positive,

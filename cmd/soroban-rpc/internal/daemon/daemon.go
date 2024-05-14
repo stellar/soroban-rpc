@@ -137,6 +137,11 @@ func MustNew(cfg *config.Config) *Daemon {
 		logger.UseJSONFormatter()
 	}
 
+	if cfg.TransactionLedgerRetentionWindow > 0 {
+		logger.Info("DEPRECATION WARNING: transaction-retention-window has been deprecated" +
+			" Please use history-retention-window instead")
+	}
+
 	logger.WithFields(supportlog.F{
 		"version": config.Version,
 		"commit":  config.CommitHash,

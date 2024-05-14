@@ -22,6 +22,7 @@ type LedgerBucket[T any] struct {
 
 // OneDayOfLedgers is (roughly) a 24 hour window of ledgers.
 const OneDayOfLedgers = 17280
+const SevenDaysOfLedgers = 120960
 
 // DefaultEventLedgerRetentionWindow represents the max number of ledgers we
 // would like to keep an incoming event in memory.
