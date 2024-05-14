@@ -49,7 +49,7 @@ func (r ledgerReader) StreamAllLedgers(ctx context.Context, f StreamLedgerFn) er
 			return err
 		}
 	}
-	return nil
+	return q.Err()
 }
 
 // GetLedger fetches a single ledger from the db.
