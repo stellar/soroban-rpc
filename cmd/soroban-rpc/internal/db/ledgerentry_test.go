@@ -502,6 +502,9 @@ func benchmarkLedgerEntry(b *testing.B, cached bool) {
 	tx, err := NewReadWriter(db, 150, 15).NewTx(context.Background())
 	assert.NoError(b, err)
 	assert.NoError(b, tx.LedgerEntryWriter().UpsertLedgerEntry(entry))
+	expLedgerKey, err := entryKeyToTTLEntryKey(key)
+	assert.NoError(b, err)
+	assert.NoError(b, tx.LedgerEntryWriter().UpsertLedgerEntry(getTTLLedgerEntry(expLedgerKey)))
 	assert.NoError(b, tx.Commit(2))
 	reader := NewLedgerEntryReader(db)
 	const numQueriesPerOp = 15
