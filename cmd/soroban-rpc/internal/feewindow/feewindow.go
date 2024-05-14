@@ -12,26 +12,26 @@ import (
 )
 
 type FeeDistribution struct {
-	Max   uint64
-	Min   uint64
-	Mode  uint64
-	P10   uint64
-	P20   uint64
-	P30   uint64
-	P40   uint64
-	P50   uint64
-	P60   uint64
-	P70   uint64
-	P80   uint64
-	P90   uint64
-	P95   uint64
-	P99   uint64
-	Count uint64
+	Max         uint64
+	Min         uint64
+	Mode        uint64
+	P10         uint64
+	P20         uint64
+	P30         uint64
+	P40         uint64
+	P50         uint64
+	P60         uint64
+	P70         uint64
+	P80         uint64
+	P90         uint64
+	P95         uint64
+	P99         uint64
+	FeeCount    uint64
+	LedgerCount uint32
 }
 
 type FeeWindow struct {
 	lock          sync.RWMutex
-	totalFeeCount uint64
 	feesPerLedger *ledgerbucketwindow.LedgerBucketWindow[[]uint64]
 	distribution  FeeDistribution
 }
@@ -39,7 +39,6 @@ type FeeWindow struct {
 func NewFeeWindow(retentionWindow uint32) *FeeWindow {
 	window := ledgerbucketwindow.NewLedgerBucketWindow[[]uint64](retentionWindow)
 	return &FeeWindow{
-		totalFeeCount: 0,
 		feesPerLedger: window,
 	}
 }
@@ -56,12 +55,12 @@ func (fw *FeeWindow) AppendLedgerFees(fees ledgerbucketwindow.LedgerBucket[[]uin
 	for i := uint32(0); i < fw.feesPerLedger.Len(); i++ {
 		allFees = append(allFees, fw.feesPerLedger.Get(i).BucketContent...)
 	}
-	fw.distribution = computeFeeDistribution(allFees)
+	fw.distribution = computeFeeDistribution(allFees, fw.feesPerLedger.Len())
 
 	return nil
 }
 
-func computeFeeDistribution(fees []uint64) FeeDistribution {
+func computeFeeDistribution(fees []uint64, ledgerCount uint32) FeeDistribution {
 	if len(fees) == 0 {
 		return FeeDistribution{}
 	}
@@ -93,21 +92,22 @@ func computeFeeDistribution(fees []uint64) FeeDistribution {
 		return fees[kth-1]
 	}
 	return FeeDistribution{
-		Max:   fees[len(fees)-1],
-		Min:   fees[0],
-		Mode:  mode,
-		P10:   percentile(10),
-		P20:   percentile(20),
-		P30:   percentile(30),
-		P40:   percentile(40),
-		P50:   percentile(50),
-		P60:   percentile(60),
-		P70:   percentile(70),
-		P80:   percentile(80),
-		P90:   percentile(90),
-		P95:   percentile(95),
-		P99:   percentile(99),
-		Count: count,
+		Max:         fees[len(fees)-1],
+		Min:         fees[0],
+		Mode:        mode,
+		P10:         percentile(10),
+		P20:         percentile(20),
+		P30:         percentile(30),
+		P40:         percentile(40),
+		P50:         percentile(50),
+		P60:         percentile(60),
+		P70:         percentile(70),
+		P80:         percentile(80),
+		P90:         percentile(90),
+		P95:         percentile(95),
+		P99:         percentile(99),
+		FeeCount:    count,
+		LedgerCount: ledgerCount,
 	}
 }
 
