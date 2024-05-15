@@ -212,10 +212,8 @@ func (cfg *Config) options() ConfigOptions {
 		{
 			Name: "history-retention-window",
 			Usage: fmt.Sprintf("configures the history retention window expressed in number of ledgers,"+
-				" the default value is %d which corresponds to about 7 days of history", ledgerbucketwindow.SevenDaysOfLedgers),
-			ConfigKey:    &cfg.HistoryRetentionWindow,
-			DefaultValue: uint32(ledgerbucketwindow.SevenDaysOfLedgers),
-			Validate:     positive,
+				" the maximum value can be %d which corresponds to about 7 days of history", ledgerbucketwindow.SevenDaysOfLedgers),
+			ConfigKey: &cfg.HistoryRetentionWindow,
 		},
 
 		{
