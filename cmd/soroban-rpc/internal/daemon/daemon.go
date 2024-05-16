@@ -103,13 +103,14 @@ func (d *Daemon) Close() error {
 // newCaptiveCore creates a new captive core backend instance and returns it.
 func newCaptiveCore(cfg *config.Config, logger *supportlog.Entry) (*ledgerbackend.CaptiveStellarCore, error) {
 	captiveCoreTomlParams := ledgerbackend.CaptiveCoreTomlParams{
-		HTTPPort:                       &cfg.CaptiveCoreHTTPPort,
-		HistoryArchiveURLs:             cfg.HistoryArchiveURLs,
-		NetworkPassphrase:              cfg.NetworkPassphrase,
-		Strict:                         true,
-		UseDB:                          true,
-		EnforceSorobanDiagnosticEvents: true,
-		CoreBinaryPath:                 cfg.StellarCoreBinaryPath,
+		HTTPPort:                           &cfg.CaptiveCoreHTTPPort,
+		HistoryArchiveURLs:                 cfg.HistoryArchiveURLs,
+		NetworkPassphrase:                  cfg.NetworkPassphrase,
+		Strict:                             true,
+		UseDB:                              true,
+		EnforceSorobanDiagnosticEvents:     true,
+		EnforceSorobanTransactionMetaExtV1: true,
+		CoreBinaryPath:                     cfg.StellarCoreBinaryPath,
 	}
 	captiveCoreToml, err := ledgerbackend.NewCaptiveCoreTomlFromFile(cfg.CaptiveCoreConfigPath, captiveCoreTomlParams)
 	if err != nil {
