@@ -8,6 +8,15 @@
 You can opt-in to longer transaction retention by setting `--transaction-retention-window` / `TRANSACTION_RETENTION_WINDOW` to a higher number of ledgers. This will also retain corresponding number of ledgers in the database. Keep in mind, of course, that this will cause an increase in disk usage for the growing database.
 
 
+## [v21.2.0](https://github.com/stellar/soroban-rpc/compare/v21.1.0...v21.2.0)
+
+### Added
+* Dependencies have been updated (`stellar/go`) to enable `ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION` by default ([#179](https://github.com/stellar/soroban-rpc/pull/179)).
+
+### Fixed
+* The Captive Core path is supplied correctly for TOML generation ([#178](https://github.com/stellar/soroban-rpc/pull/178)).
+
+
 ## [v21.1.0](https://github.com/stellar/soroban-rpc/compare/v21.0.1...v21.1.0)
 
 ### Added
