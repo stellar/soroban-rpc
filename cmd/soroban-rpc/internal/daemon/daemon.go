@@ -270,6 +270,7 @@ func MustNew(cfg *config.Config) *Daemon {
 		Daemon:            daemon,
 		EventStore:        eventStore,
 		TransactionStore:  transactionStore,
+		FeeStatWindows:    feewindows,
 		Logger:            logger,
 		LedgerReader:      db.NewLedgerReader(dbConn),
 		LedgerEntryReader: db.NewLedgerEntryReader(dbConn),

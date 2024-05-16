@@ -55,8 +55,8 @@ type GetFeeStatsResult struct {
 	LatestLedger        uint32          `json:"latestLedger"`
 }
 
-// NewGetFeeStatsHandler returns a health check json rpc handler
-func NewGetFeeStats(windows *feewindow.FeeWindows, ledgerRangeGetter LedgerRangeGetter) jrpc2.Handler {
+// NewGetFeeStatsHandler returns a handler obtaining fee statistics
+func NewGetFeeStatsHandler(windows *feewindow.FeeWindows, ledgerRangeGetter LedgerRangeGetter) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context) (GetFeeStatsResult, error) {
 		result := GetFeeStatsResult{
 			SorobanInclusionFee: convertFeeDistribution(windows.SorobanInclusionFeeWindow.GetFeeDistribution()),

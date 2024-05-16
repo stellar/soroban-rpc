@@ -146,20 +146,23 @@ func (fw *FeeWindows) IngestFees(meta xdr.LedgerCloseMeta) error {
 		if err != nil {
 			return err
 		}
+		feeCharged := uint64(tx.Result.Result.FeeCharged)
 		ops := tx.Envelope.Operations()
 		if len(ops) == 1 {
 			switch ops[0].Body.Type {
 			case xdr.OperationTypeInvokeHostFunction, xdr.OperationTypeExtendFootprintTtl, xdr.OperationTypeRestoreFootprint:
-				if tx.Envelope.V1 == nil || tx.Envelope.V1.Tx.Ext.SorobanData != nil {
-					// this shouldn't happen
+				if tx.UnsafeMeta.V != 3 || tx.UnsafeMeta.V3.SorobanMeta == nil || tx.UnsafeMeta.V3.SorobanMeta.Ext.V != 1 {
 					continue
 				}
-				inclusionFee := uint64(tx.Envelope.V1.Tx.Fee) - uint64(tx.Envelope.V1.Tx.Ext.SorobanData.ResourceFee)
+				sorobanFees := tx.UnsafeMeta.V3.SorobanMeta.Ext.V1
+				// TODO: this seems incorrect, since in integration tests it's larger than feeCharged
+				sorobanFeeCharged := sorobanFees.RentFeeCharged + sorobanFees.TotalNonRefundableResourceFeeCharged + sorobanFees.TotalRefundableResourceFeeCharged
+				inclusionFee := feeCharged - uint64(sorobanFeeCharged)
 				sorobanInclusionFees = append(sorobanInclusionFees, inclusionFee)
 				continue
 			}
 		}
-		classicFees = append(classicFees, uint64(tx.Envelope.Fee()))
+		classicFees = append(classicFees, feeCharged)
 
 	}
 	bucket := ledgerbucketwindow.LedgerBucket[[]uint64]{

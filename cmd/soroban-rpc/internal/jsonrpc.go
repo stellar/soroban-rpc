@@ -224,7 +224,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 		{
 			methodName:           "getFeeStats",
-			underlyingHandler:    methods.NewGetFeeStats(params.FeeStatWindows, ledgerRangeGetter),
+			underlyingHandler:    methods.NewGetFeeStatsHandler(params.FeeStatWindows, ledgerRangeGetter),
 			longName:             "get_fee_stats",
 			queueLimit:           cfg.RequestBacklogGetFeeStatsTransactionQueueLimit,
 			requestDurationLimit: cfg.MaxGetFeeStatsExecutionDuration,

@@ -36,7 +36,6 @@ const (
 	stellarCorePort             = 11626
 	stellarCoreArchiveHost      = "localhost:1570"
 	goModFile                   = "go.mod"
-	goMonorepoGithubPath        = "github.com/stellar/go"
 
 	friendbotURL = "http://localhost:8000/friendbot"
 	// Needed when Core is run with ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING=true
