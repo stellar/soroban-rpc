@@ -1,7 +1,16 @@
-# Changelog 
+# Changelog
 
 ## Unreleased
 n/a
+
+
+## [v21.2.0](https://github.com/stellar/soroban-rpc/compare/v21.1.0...v21.2.0)
+
+### Added
+* Dependencies have been updated (`stellar/go`) to enable `ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION` by default ([#179](https://github.com/stellar/soroban-rpc/pull/179)).
+
+### Fixed
+* The Captive Core path is supplied correctly for TOML generation ([#178](https://github.com/stellar/soroban-rpc/pull/178)).
 
 
 ## [v21.1.0](https://github.com/stellar/soroban-rpc/compare/v21.0.1...v21.1.0)
@@ -20,10 +29,10 @@ interface getVersionInfo {
 ```
 
 ### Fixed
-* Deadlock on events ingestion error ([#167](https://github.com/stellar/soroban-rpc/pull/167)). 
-* Correctly report row iteration errors in `StreamAllLedgers` ([#168](https://github.com/stellar/soroban-rpc/pull/168)). 
-* Increase default ingestion timeout ([#169](https://github.com/stellar/soroban-rpc/pull/169)). 
-* Surface an ignored error in `getRawLedgerEntries()` ([#170](https://github.com/stellar/soroban-rpc/pull/170)). 
+* Deadlock on events ingestion error ([#167](https://github.com/stellar/soroban-rpc/pull/167)).
+* Correctly report row iteration errors in `StreamAllLedgers` ([#168](https://github.com/stellar/soroban-rpc/pull/168)).
+* Increase default ingestion timeout ([#169](https://github.com/stellar/soroban-rpc/pull/169)).
+* Surface an ignored error in `getRawLedgerEntries()` ([#170](https://github.com/stellar/soroban-rpc/pull/170)).
 
 
 # Formatting Guidelines
