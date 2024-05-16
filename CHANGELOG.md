@@ -19,7 +19,7 @@ interface Request {
 }
 
 interface Response {
-  transactions: Transaction[];
+  transactions: Transaction[];        // see below
   latestLedger: number;               // uint32
   latestLedgerCloseTimestamp: number; // int64
   oldestLedger: number;               // uint32
@@ -29,14 +29,14 @@ interface Response {
 
 interface Transaction {
   status: boolean;          // whether or not the transaction succeeded
-	applicationOrder: number; // int32, index of the transaction in the ledger
-	feeBump: boolean;         // if it's a fee-bump transaction
-	envelopeXdr: string;      // TransactionEnvelope XDR
-	resultXdr: string;        // TransactionResult XDR
-	resultMetaXdr: string;    // TransactionMeta XDR
-	ledger: number;           // uint32, ledger sequence with this transaction
-	createdAt: int64;         // int64, UNIX timestamp the transaction's inclusion
-	diagnosticEventsXdr?: string[]; // if failed, DiagnosticEvent XDRs
+  applicationOrder: number; // int32, index of the transaction in the ledger
+  feeBump: boolean;         // if it's a fee-bump transaction
+  envelopeXdr: string;      // TransactionEnvelope XDR
+  resultXdr: string;        // TransactionResult XDR
+  resultMetaXdr: string;    // TransactionMeta XDR
+  ledger: number;           // uint32, ledger sequence with this transaction
+  createdAt: int64;         // int64, UNIX timestamp the transaction's inclusion
+  diagnosticEventsXdr?: string[]; // if failed, DiagnosticEvent XDRs
 }
 ```
 
