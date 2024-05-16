@@ -109,6 +109,7 @@ func newCaptiveCore(cfg *config.Config, logger *supportlog.Entry) (*ledgerbacken
 		Strict:                         true,
 		UseDB:                          true,
 		EnforceSorobanDiagnosticEvents: true,
+		CoreBinaryPath:                 cfg.StellarCoreBinaryPath,
 	}
 	captiveCoreToml, err := ledgerbackend.NewCaptiveCoreTomlFromFile(cfg.CaptiveCoreConfigPath, captiveCoreTomlParams)
 	if err != nil {
