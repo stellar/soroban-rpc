@@ -163,7 +163,7 @@ func TestComputeFeeDistributionAgainstAlternative(t *testing.T) {
 
 func generateFees(l *int) []uint64 {
 	var length int
-	if l == nil {
+	if l != nil {
 		length = *l
 	} else {
 		// Generate sequences with a length between 0 and 1000
