@@ -155,14 +155,14 @@ func (fw *FeeWindows) IngestFees(meta xdr.LedgerCloseMeta) error {
 					continue
 				}
 				sorobanFees := tx.UnsafeMeta.V3.SorobanMeta.Ext.V1
-				// TODO: this seems incorrect, since in integration tests it's larger than feeCharged
-				sorobanFeeCharged := sorobanFees.RentFeeCharged + sorobanFees.TotalNonRefundableResourceFeeCharged + sorobanFees.TotalRefundableResourceFeeCharged
-				inclusionFee := feeCharged - uint64(sorobanFeeCharged)
+				resourceFeeCharged := sorobanFees.TotalNonRefundableResourceFeeCharged + sorobanFees.TotalRefundableResourceFeeCharged
+				inclusionFee := feeCharged - uint64(resourceFeeCharged)
 				sorobanInclusionFees = append(sorobanInclusionFees, inclusionFee)
 				continue
 			}
 		}
-		classicFees = append(classicFees, feeCharged)
+		feePerOp := feeCharged / uint64(len(ops))
+		classicFees = append(classicFees, feePerOp)
 
 	}
 	bucket := ledgerbucketwindow.LedgerBucket[[]uint64]{

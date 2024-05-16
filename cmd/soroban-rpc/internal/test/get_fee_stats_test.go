@@ -47,8 +47,8 @@ func TestGetFeeStats(t *testing.T) {
 	var sorobanTxMeta xdr.TransactionMeta
 	require.NoError(t, xdr.SafeUnmarshalBase64(sorobanTxResponse.ResultMetaXdr, &sorobanTxMeta))
 	sorobanFees := sorobanTxMeta.MustV3().SorobanMeta.Ext.MustV1()
-	sorobanNonInclusionFee := sorobanFees.RentFeeCharged + sorobanFees.TotalRefundableResourceFeeCharged + sorobanFees.TotalNonRefundableResourceFeeCharged
-	sorobanInclusionFee := uint64(sorobanTotalFee - sorobanNonInclusionFee)
+	sorobanResourceFeeCharged := sorobanFees.TotalRefundableResourceFeeCharged + sorobanFees.TotalNonRefundableResourceFeeCharged
+	sorobanInclusionFee := uint64(sorobanTotalFee - sorobanResourceFeeCharged)
 
 	// Submit classic transaction
 	params = txnbuild.TransactionParams{
