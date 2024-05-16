@@ -148,6 +148,10 @@ func (fw *FeeWindows) IngestFees(meta xdr.LedgerCloseMeta) error {
 		}
 		feeCharged := uint64(tx.Result.Result.FeeCharged)
 		ops := tx.Envelope.Operations()
+		if len(ops) == 0 {
+			// should not happen
+			continue
+		}
 		if len(ops) == 1 {
 			switch ops[0].Body.Type {
 			case xdr.OperationTypeInvokeHostFunction, xdr.OperationTypeExtendFootprintTtl, xdr.OperationTypeRestoreFootprint:
