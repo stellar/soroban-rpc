@@ -79,11 +79,17 @@ func computeFeeDistribution(fees []uint64, ledgerCount uint32) FeeDistribution {
 
 		if localRepetitions > maxRepetitions {
 			maxRepetitions = localRepetitions
-			mode = fees[i]
+			mode = lastVal
 		}
 		lastVal = fees[i]
 		localRepetitions = 0
 	}
+
+	if localRepetitions > maxRepetitions {
+		// the last cluster of values was the longest
+		mode = fees[len(fees)-1]
+	}
+
 	count := uint64(len(fees))
 	// nearest-rank percentile
 	percentile := func(p uint64) uint64 {
