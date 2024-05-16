@@ -26,7 +26,7 @@ type FeeDistribution struct {
 	P90         uint64
 	P95         uint64
 	P99         uint64
-	FeeCount    uint64
+	FeeCount    uint32
 	LedgerCount uint32
 }
 
@@ -90,11 +90,11 @@ func computeFeeDistribution(fees []uint64, ledgerCount uint32) FeeDistribution {
 		mode = fees[len(fees)-1]
 	}
 
-	count := uint64(len(fees))
+	count := len(fees)
 	// nearest-rank percentile
 	percentile := func(p uint64) uint64 {
 		// ceiling(p*count/100)
-		kth := ((p * count) + 100 - 1) / 100
+		kth := ((p * uint64(count)) + 100 - 1) / 100
 		return fees[kth-1]
 	}
 	return FeeDistribution{
@@ -112,7 +112,7 @@ func computeFeeDistribution(fees []uint64, ledgerCount uint32) FeeDistribution {
 		P90:         percentile(90),
 		P95:         percentile(95),
 		P99:         percentile(99),
-		FeeCount:    count,
+		FeeCount:    uint32(count),
 		LedgerCount: ledgerCount,
 	}
 }

@@ -284,7 +284,7 @@ func alternativeComputeFeeDistribution(fees []uint64, ledgerCount uint32) (FeeDi
 		P90:         uint64(p90),
 		P95:         uint64(p95),
 		P99:         uint64(p99),
-		FeeCount:    uint64(len(fees)),
+		FeeCount:    uint32(len(fees)),
 		LedgerCount: ledgerCount,
 	}
 	return result, nil
