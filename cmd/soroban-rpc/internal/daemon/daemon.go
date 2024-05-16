@@ -109,6 +109,7 @@ func newCaptiveCore(cfg *config.Config, logger *supportlog.Entry) (*ledgerbacken
 		Strict:                         true,
 		UseDB:                          true,
 		EnforceSorobanDiagnosticEvents: true,
+		CoreBinaryPath:                 cfg.StellarCoreBinaryPath,
 	}
 	captiveCoreToml, err := ledgerbackend.NewCaptiveCoreTomlFromFile(cfg.CaptiveCoreConfigPath, captiveCoreTomlParams)
 	if err != nil {
@@ -215,13 +216,13 @@ func MustNew(cfg *config.Config) *Daemon {
 		}
 		return nil
 	})
+	if err != nil {
+		logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
+	}
 	if currentSeq != 0 {
 		logger.WithFields(supportlog.F{
 			"seq": currentSeq,
 		}).Info("finished initializing in-memory store")
-	}
-	if err != nil {
-		logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
 	}
 
 	onIngestionRetry := func(err error, dur time.Duration) {

@@ -84,13 +84,12 @@ jobs:
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             cargo-hack-feature-options: --feature-powerset
-          # TODO: uncomment once this is resolved https://github.com/actions/runner-images/issues/9734#issuecomment-2074746599
-          # - os: macos-latest
-          #   target: x86_64-apple-darwin
-          #  cargo-hack-feature-options: --feature-powerset
-          # - os: macos-latest
-          #  target: aarch64-apple-darwin
-          #  cargo-hack-feature-options: --feature-powerset
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            cargo-hack-feature-options: --feature-powerset
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            cargo-hack-feature-options: --feature-powerset
           # Windows builds notes:
           #
           # The different features that need testing are split over unique

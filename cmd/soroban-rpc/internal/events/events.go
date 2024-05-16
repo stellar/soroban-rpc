@@ -208,6 +208,7 @@ func (m *MemoryStore) IngestEvents(ledgerCloseMeta xdr.LedgerCloseMeta) error {
 	}
 	m.lock.Lock()
 	if _, err = m.eventsByLedger.Append(bucket); err != nil {
+		m.lock.Unlock()
 		return err
 	}
 	m.lock.Unlock()

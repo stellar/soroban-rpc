@@ -7,7 +7,7 @@ members = [
 default-members = ["cmd/crates/stellar-rpc-client"]
 
 [workspace.package]
-version = "21.0.1"
+version = "21.2.0"
 rust-version = "1.74.0"
 
 [workspace.dependencies.soroban-env-host]
