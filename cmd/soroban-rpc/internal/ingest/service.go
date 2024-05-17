@@ -18,6 +18,7 @@ import (
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/feewindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/util"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
@@ -33,6 +34,7 @@ type Config struct {
 	Logger            *log.Entry
 	DB                db.ReadWriter
 	EventStore        *events.MemoryStore
+	FeeWindows        *feewindow.FeeWindows
 	NetworkPassPhrase string
 	Archive           historyarchive.ArchiveInterface
 	LedgerBackend     backends.LedgerBackend
@@ -80,6 +82,7 @@ func newService(cfg Config) *Service {
 		logger:            cfg.Logger,
 		db:                cfg.DB,
 		eventStore:        cfg.EventStore,
+		feeWindows:        cfg.FeeWindows,
 		ledgerBackend:     cfg.LedgerBackend,
 		networkPassPhrase: cfg.NetworkPassPhrase,
 		timeout:           cfg.Timeout,
@@ -131,6 +134,7 @@ type Service struct {
 	logger            *log.Entry
 	db                db.ReadWriter
 	eventStore        *events.MemoryStore
+	feeWindows        *feewindow.FeeWindows
 	ledgerBackend     backends.LedgerBackend
 	timeout           time.Duration
 	networkPassPhrase string
@@ -334,6 +338,10 @@ func (s *Service) ingestLedgerCloseMeta(tx db.WriteTx, ledgerCloseMeta xdr.Ledge
 		Observe(time.Since(startTime).Seconds())
 
 	if err := s.eventStore.IngestEvents(ledgerCloseMeta); err != nil {
+		return err
+	}
+
+	if err := s.feeWindows.IngestFees(ledgerCloseMeta); err != nil {
 		return err
 	}
 

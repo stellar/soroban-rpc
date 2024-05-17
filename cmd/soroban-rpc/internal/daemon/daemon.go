@@ -27,8 +27,8 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/feewindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ingest"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/preflight"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/util"
 )
@@ -103,13 +103,14 @@ func (d *Daemon) Close() error {
 // newCaptiveCore creates a new captive core backend instance and returns it.
 func newCaptiveCore(cfg *config.Config, logger *supportlog.Entry) (*ledgerbackend.CaptiveStellarCore, error) {
 	captiveCoreTomlParams := ledgerbackend.CaptiveCoreTomlParams{
-		HTTPPort:                       &cfg.CaptiveCoreHTTPPort,
-		HistoryArchiveURLs:             cfg.HistoryArchiveURLs,
-		NetworkPassphrase:              cfg.NetworkPassphrase,
-		Strict:                         true,
-		UseDB:                          true,
-		EnforceSorobanDiagnosticEvents: true,
-		CoreBinaryPath:                 cfg.StellarCoreBinaryPath,
+		HTTPPort:                           &cfg.CaptiveCoreHTTPPort,
+		HistoryArchiveURLs:                 cfg.HistoryArchiveURLs,
+		NetworkPassphrase:                  cfg.NetworkPassphrase,
+		Strict:                             true,
+		UseDB:                              true,
+		EnforceSorobanDiagnosticEvents:     true,
+		EnforceSorobanTransactionMetaExtV1: true,
+		CoreBinaryPath:                     cfg.StellarCoreBinaryPath,
 	}
 	captiveCoreToml, err := ledgerbackend.NewCaptiveCoreTomlFromFile(cfg.CaptiveCoreConfigPath, captiveCoreTomlParams)
 	if err != nil {
@@ -190,12 +191,13 @@ func MustNew(cfg *config.Config) *Daemon {
 		cfg.NetworkPassphrase,
 		cfg.EventLedgerRetentionWindow,
 	)
+	feewindows := feewindow.NewFeeWindows(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow, cfg.NetworkPassphrase)
 
 	// initialize the stores using what was on the DB
 	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
 	defer cancelReadTxMeta()
 	// NOTE: We could optimize this to avoid unnecessary ingestion calls
-	//       (the range of txmetads can be larger than the store retention windows)
+	//       (the range of txmetas can be larger than the individual store retention windows)
 	//       but it's probably not worth the pain.
 	var initialSeq uint32
 	var currentSeq uint32
@@ -213,6 +215,9 @@ func MustNew(cfg *config.Config) *Daemon {
 		}
 		if err := eventStore.IngestEvents(txmeta); err != nil {
 			logger.WithError(err).Fatal("could not initialize event memory store")
+		}
+		if err := feewindows.IngestFees(txmeta); err != nil {
+			logger.WithError(err).Fatal("could not initialize fee stats")
 		}
 		return nil
 	})
@@ -255,6 +260,7 @@ func MustNew(cfg *config.Config) *Daemon {
 		Timeout:           cfg.IngestionTimeout,
 		OnIngestionRetry:  onIngestionRetry,
 		Daemon:            daemon,
+		FeeWindows:        feewindows,
 	})
 
 	ledgerEntryReader := db.NewLedgerEntryReader(dbConn)
@@ -271,6 +277,7 @@ func MustNew(cfg *config.Config) *Daemon {
 	jsonRPCHandler := internal.NewJSONRPCHandler(cfg, internal.HandlerParams{
 		Daemon:            daemon,
 		EventStore:        eventStore,
+		FeeStatWindows:    feewindows,
 		Logger:            logger,
 		LedgerReader:      db.NewLedgerReader(dbConn),
 		LedgerEntryReader: db.NewLedgerEntryReader(dbConn),

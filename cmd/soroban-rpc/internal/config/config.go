@@ -20,51 +20,53 @@ type Config struct {
 	CaptiveCoreConfigPath  string
 	CaptiveCoreHTTPPort    uint
 
-	Endpoint                                    string
-	AdminEndpoint                               string
-	CheckpointFrequency                         uint32
-	CoreRequestTimeout                          time.Duration
-	DefaultEventsLimit                          uint
+	Endpoint                                       string
+	AdminEndpoint                                  string
+	CheckpointFrequency                            uint32
+	CoreRequestTimeout                             time.Duration
+	DefaultEventsLimit                             uint
 	DefaultTransactionsLimit                    uint
-	EventLedgerRetentionWindow                  uint32
-	FriendbotURL                                string
-	HistoryArchiveURLs                          []string
-	HistoryArchiveUserAgent                     string
-	IngestionTimeout                            time.Duration
-	LogFormat                                   LogFormat
-	LogLevel                                    logrus.Level
-	MaxEventsLimit                              uint
+	EventLedgerRetentionWindow                     uint32
+	FriendbotURL                                   string
+	HistoryArchiveURLs                             []string
+	HistoryArchiveUserAgent                        string
+	IngestionTimeout                               time.Duration
+	LogFormat                                      LogFormat
+	LogLevel                                       logrus.Level
+	MaxEventsLimit                                 uint
 	MaxTransactionsLimit                        uint
-	MaxHealthyLedgerLatency                     time.Duration
-	NetworkPassphrase                           string
-	PreflightWorkerCount                        uint
-	PreflightWorkerQueueSize                    uint
-	PreflightEnableDebug                        bool
-	SQLiteDBPath                                string
-	TransactionLedgerRetentionWindow            uint32
-	RequestBacklogGlobalQueueLimit              uint
-	RequestBacklogGetHealthQueueLimit           uint
-	RequestBacklogGetEventsQueueLimit           uint
-	RequestBacklogGetNetworkQueueLimit          uint
-	RequestBacklogGetVersionInfoQueueLimit      uint
-	RequestBacklogGetLatestLedgerQueueLimit     uint
-	RequestBacklogGetLedgerEntriesQueueLimit    uint
-	RequestBacklogGetTransactionQueueLimit      uint
-	RequestBacklogGetTransactionsQueueLimit     uint
-	RequestBacklogSendTransactionQueueLimit     uint
-	RequestBacklogSimulateTransactionQueueLimit uint
-	RequestExecutionWarningThreshold            time.Duration
-	MaxRequestExecutionDuration                 time.Duration
-	MaxGetHealthExecutionDuration               time.Duration
-	MaxGetEventsExecutionDuration               time.Duration
-	MaxGetNetworkExecutionDuration              time.Duration
-	MaxGetVersionInfoExecutionDuration          time.Duration
-	MaxGetLatestLedgerExecutionDuration         time.Duration
-	MaxGetLedgerEntriesExecutionDuration        time.Duration
-	MaxGetTransactionExecutionDuration          time.Duration
-	MaxGetTransactionsExecutionDuration         time.Duration
-	MaxSendTransactionExecutionDuration         time.Duration
-	MaxSimulateTransactionExecutionDuration     time.Duration
+	MaxHealthyLedgerLatency                        time.Duration
+	NetworkPassphrase                              string
+	PreflightWorkerCount                           uint
+	PreflightWorkerQueueSize                       uint
+	PreflightEnableDebug                           bool
+	SQLiteDBPath                                   string
+	TransactionLedgerRetentionWindow               uint32
+	SorobanFeeStatsLedgerRetentionWindow           uint32
+	ClassicFeeStatsLedgerRetentionWindow           uint32
+	RequestBacklogGlobalQueueLimit                 uint
+	RequestBacklogGetHealthQueueLimit              uint
+	RequestBacklogGetEventsQueueLimit              uint
+	RequestBacklogGetNetworkQueueLimit             uint
+	RequestBacklogGetVersionInfoQueueLimit         uint
+	RequestBacklogGetLatestLedgerQueueLimit        uint
+	RequestBacklogGetLedgerEntriesQueueLimit       uint
+	RequestBacklogGetTransactionQueueLimit         uint
+	RequestBacklogSendTransactionQueueLimit        uint
+	RequestBacklogSimulateTransactionQueueLimit    uint
+	RequestBacklogGetFeeStatsTransactionQueueLimit uint
+	RequestExecutionWarningThreshold               time.Duration
+	MaxRequestExecutionDuration                    time.Duration
+	MaxGetHealthExecutionDuration                  time.Duration
+	MaxGetEventsExecutionDuration                  time.Duration
+	MaxGetNetworkExecutionDuration                 time.Duration
+	MaxGetVersionInfoExecutionDuration             time.Duration
+	MaxGetLatestLedgerExecutionDuration            time.Duration
+	MaxGetLedgerEntriesExecutionDuration           time.Duration
+	MaxGetTransactionExecutionDuration             time.Duration
+	MaxSendTransactionExecutionDuration            time.Duration
+	MaxSimulateTransactionExecutionDuration        time.Duration
+	MaxGetFeeStatsExecutionDuration                time.Duration
 
 	// We memoize these, so they bind to pflags correctly
 	optionsCache *ConfigOptions

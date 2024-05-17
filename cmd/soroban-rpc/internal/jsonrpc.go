@@ -20,6 +20,7 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/feewindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/network"
 )
@@ -46,6 +47,7 @@ func (h Handler) Close() {
 
 type HandlerParams struct {
 	EventStore        *events.MemoryStore
+	FeeStatWindows    *feewindow.FeeWindows
 	TransactionReader db.TransactionReader
 	LedgerEntryReader db.LedgerEntryReader
 	LedgerReader      db.LedgerReader
@@ -227,6 +229,13 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 			longName:             "simulate_transaction",
 			queueLimit:           cfg.RequestBacklogSimulateTransactionQueueLimit,
 			requestDurationLimit: cfg.MaxSimulateTransactionExecutionDuration,
+		},
+		{
+			methodName:           "getFeeStats",
+			underlyingHandler:    methods.NewGetFeeStatsHandler(params.FeeStatWindows, ledgerRangeGetter),
+			longName:             "get_fee_stats",
+			queueLimit:           cfg.RequestBacklogGetFeeStatsTransactionQueueLimit,
+			requestDurationLimit: cfg.MaxGetFeeStatsExecutionDuration,
 		},
 	}
 	handlersMap := handler.Map{}
