@@ -4,7 +4,9 @@ import (
 	"context"
 
 	"github.com/creachadair/jrpc2"
+	"github.com/stellar/go/support/log"
 
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/feewindow"
 )
 
@@ -56,12 +58,18 @@ type GetFeeStatsResult struct {
 }
 
 // NewGetFeeStatsHandler returns a handler obtaining fee statistics
-func NewGetFeeStatsHandler(windows *feewindow.FeeWindows, ledgerRangeGetter LedgerRangeGetter) jrpc2.Handler {
+func NewGetFeeStatsHandler(windows *feewindow.FeeWindows, reader db.TransactionReader, logger *log.Entry) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context) (GetFeeStatsResult, error) {
+		ledgerInfo, err := reader.GetLedgerRange(ctx)
+		if err != nil { // still not fatal
+			logger.WithError(err).
+				Error("could not fetch ledger range")
+		}
+
 		result := GetFeeStatsResult{
 			SorobanInclusionFee: convertFeeDistribution(windows.SorobanInclusionFeeWindow.GetFeeDistribution()),
 			InclusionFee:        convertFeeDistribution(windows.ClassicFeeWindow.GetFeeDistribution()),
-			LatestLedger:        ledgerRangeGetter.GetLedgerRange().LastLedger.Sequence,
+			LatestLedger:        ledgerInfo.LastLedger.Sequence,
 		}
 		return result, nil
 	})
