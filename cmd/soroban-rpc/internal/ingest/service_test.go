@@ -17,6 +17,7 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/feewindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 )
 
@@ -72,6 +73,7 @@ func TestIngestion(t *testing.T) {
 		DB:                mockDB,
 		EventStore:        events.NewMemoryStore(daemon, network.TestNetworkPassphrase, 1),
 		TransactionStore:  transactions.NewMemoryStore(daemon, network.TestNetworkPassphrase, 1),
+		FeeWindows:        feewindow.NewFeeWindows(1, 1, network.TestNetworkPassphrase),
 		LedgerBackend:     mockLedgerBackend,
 		Daemon:            daemon,
 		NetworkPassPhrase: network.TestNetworkPassphrase,
