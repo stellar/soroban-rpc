@@ -1,7 +1,6 @@
 package events
 
 import (
-	"context"
 	"errors"
 	"io"
 	"sort"
@@ -268,7 +267,7 @@ func readEvents(networkPassphrase string, ledgerCloseMeta xdr.LedgerCloseMeta) (
 }
 
 // GetLedgerRange returns the first and latest ledger available in the store.
-func (m *MemoryStore) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
+func (m *MemoryStore) GetLedgerRange() (ledgerbucketwindow.LedgerRange, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	return m.eventsByLedger.GetLedgerRange(), nil
