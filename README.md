@@ -9,7 +9,6 @@ This repo is home to the Soroban RPC, soon to be renamed Stellar RPC. The RPC pr
 To learn about the RPC methods, please see our [RPC Developer Docs](https://developers.stellar.org/network/soroban-rpc/methods).
 
 ## To Use an Ecosystem RPCs
-To enable autocomplete permanently, run:
 To use RPC from an ecosystem provider for futurenet, testnet, or mainnet, please see our list of [Ecosystem RPC Providers](https://developers.stellar.org/network/soroban-rpc/rpc-providers).
 
 ## Run Your Own RPC
