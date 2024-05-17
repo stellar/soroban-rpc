@@ -229,7 +229,7 @@ func (cfg *Config) options() ConfigOptions {
 			Name:         "classic-fee-stats-retention-window",
 			Usage:        "configures classic fee stats retention window expressed in number of ledgers",
 			ConfigKey:    &cfg.ClassicFeeStatsLedgerRetentionWindow,
-			DefaultValue: uint32(5),
+			DefaultValue: uint32(10),
 			Validate:     positive,
 		},
 		{
