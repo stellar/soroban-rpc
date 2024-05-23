@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"path"
 	"sync"
 	"testing"
 	"time"
@@ -12,7 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 )
 
 func getLedgerEntryAndLatestLedgerSequenceWithErr(db *DB, key xdr.LedgerKey) (bool, xdr.LedgerEntry, uint32, *uint32, error) {
@@ -44,13 +45,18 @@ func getLedgerEntryAndLatestLedgerSequence(t require.TestingT, db *DB, key xdr.L
 	return present, entry, latestSeq, expSeq
 }
 
+func makeReadWriter(db *DB, batchSize, retentionWindow int) ReadWriter {
+	return NewReadWriter(log.DefaultLogger, db, interfaces.MakeNoOpDeamon(),
+		batchSize, uint32(retentionWindow), passphrase)
+}
+
 func TestGoldenPath(t *testing.T) {
 	db := NewTestDB(t)
 	// Check that we get an empty DB error
 	_, err := NewLedgerEntryReader(db).GetLatestLedgerSequence(context.Background())
 	assert.Equal(t, ErrEmptyDB, err)
 
-	tx, err := NewReadWriter(db, 150, 15).NewTx(context.Background())
+	tx, err := makeReadWriter(db, 150, 15).NewTx(context.Background())
 	assert.NoError(t, err)
 	writer := tx.LedgerEntryWriter()
 
@@ -97,7 +103,7 @@ func TestGoldenPath(t *testing.T) {
 	assert.Equal(t, ledgerSequence, obtainedLedgerSequence)
 
 	// Do another round, overwriting the ledger entry
-	tx, err = NewReadWriter(db, 150, 15).NewTx(context.Background())
+	tx, err = makeReadWriter(db, 150, 15).NewTx(context.Background())
 	assert.NoError(t, err)
 	writer = tx.LedgerEntryWriter()
 	eight := xdr.Uint32(8)
@@ -115,7 +121,7 @@ func TestGoldenPath(t *testing.T) {
 	assert.Equal(t, eight, *obtainedEntry.Data.ContractData.Val.U32)
 
 	// Do another round, deleting the ledger entry
-	tx, err = NewReadWriter(db, 150, 15).NewTx(context.Background())
+	tx, err = makeReadWriter(db, 150, 15).NewTx(context.Background())
 	assert.NoError(t, err)
 	writer = tx.LedgerEntryWriter()
 	assert.NoError(t, err)
@@ -139,7 +145,7 @@ func TestDeleteNonExistentLedgerEmpty(t *testing.T) {
 
 	// Simulate a ledger which creates and deletes a ledger entry
 	// which would result in trying to delete a ledger entry which isn't there
-	tx, err := NewReadWriter(db, 150, 15).NewTx(context.Background())
+	tx, err := makeReadWriter(db, 150, 15).NewTx(context.Background())
 	assert.NoError(t, err)
 	writer := tx.LedgerEntryWriter()
 
@@ -212,7 +218,7 @@ func TestReadTxsDuringWriteTx(t *testing.T) {
 	assert.Equal(t, ErrEmptyDB, err)
 
 	// Start filling the DB with a single entry (enforce flushing right away)
-	tx, err := NewReadWriter(db, 0, 15).NewTx(context.Background())
+	tx, err := makeReadWriter(db, 0, 15).NewTx(context.Background())
 	assert.NoError(t, err)
 	writer := tx.LedgerEntryWriter()
 
@@ -293,7 +299,7 @@ func TestWriteTxsDuringReadTxs(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Start filling the DB with a single entry (enforce flushing right away)
-	tx, err := NewReadWriter(db, 0, 15).NewTx(context.Background())
+	tx, err := makeReadWriter(db, 0, 15).NewTx(context.Background())
 	assert.NoError(t, err)
 	writer := tx.LedgerEntryWriter()
 
@@ -396,7 +402,7 @@ func TestConcurrentReadersAndWriter(t *testing.T) {
 				},
 			}
 		}
-		rw := NewReadWriter(db, 10, 15)
+		rw := makeReadWriter(db, 10, 15)
 		for ledgerSequence := uint32(0); ledgerSequence < 1000; ledgerSequence++ {
 			tx, err := rw.NewTx(context.Background())
 			assert.NoError(t, err)
@@ -499,7 +505,7 @@ func benchmarkLedgerEntry(b *testing.B, cached bool) {
 		},
 	}
 	key, entry := getContractDataLedgerEntry(b, data)
-	tx, err := NewReadWriter(db, 150, 15).NewTx(context.Background())
+	tx, err := makeReadWriter(db, 150, 15).NewTx(context.Background())
 	assert.NoError(b, err)
 	assert.NoError(b, tx.LedgerEntryWriter().UpsertLedgerEntry(entry))
 	expLedgerKey, err := entryKeyToTTLEntryKey(key)
@@ -557,7 +563,7 @@ func BenchmarkLedgerUpdate(b *testing.B) {
 	const numEntriesPerOp = 3500
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tx, err := NewReadWriter(db, 150, 15).NewTx(context.Background())
+		tx, err := makeReadWriter(db, 150, 15).NewTx(context.Background())
 		assert.NoError(b, err)
 		writer := tx.LedgerEntryWriter()
 		for j := 0; j < numEntriesPerOp; j++ {
@@ -565,23 +571,5 @@ func BenchmarkLedgerUpdate(b *testing.B) {
 			assert.NoError(b, writer.UpsertLedgerEntry(entry))
 		}
 		assert.NoError(b, tx.Commit(uint32(i+1)))
-	}
-}
-
-func NewTestDB(tb testing.TB) *DB {
-	tmp := tb.TempDir()
-	dbPath := path.Join(tmp, "db.sqlite")
-	db, err := OpenSQLiteDB(dbPath)
-	if err != nil {
-		assert.NoError(tb, db.Close())
-	}
-	tb.Cleanup(func() {
-		assert.NoError(tb, db.Close())
-	})
-	return &DB{
-		SessionInterface: db,
-		cache: dbCache{
-			ledgerEntries: newTransactionalCache(),
-		},
 	}
 }

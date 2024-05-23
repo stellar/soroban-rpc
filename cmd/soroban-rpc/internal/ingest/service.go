@@ -22,7 +22,6 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/util"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 )
 
 const (
@@ -35,7 +34,6 @@ type Config struct {
 	Logger            *log.Entry
 	DB                db.ReadWriter
 	EventStore        *events.MemoryStore
-	TransactionStore  *transactions.MemoryStore
 	FeeWindows        *feewindow.FeeWindows
 	NetworkPassPhrase string
 	Archive           historyarchive.ArchiveInterface
@@ -84,7 +82,6 @@ func newService(cfg Config) *Service {
 		logger:            cfg.Logger,
 		db:                cfg.DB,
 		eventStore:        cfg.EventStore,
-		transactionStore:  cfg.TransactionStore,
 		feeWindows:        cfg.FeeWindows,
 		ledgerBackend:     cfg.LedgerBackend,
 		networkPassPhrase: cfg.NetworkPassPhrase,
@@ -137,7 +134,6 @@ type Service struct {
 	logger            *log.Entry
 	db                db.ReadWriter
 	eventStore        *events.MemoryStore
-	transactionStore  *transactions.MemoryStore
 	feeWindows        *feewindow.FeeWindows
 	ledgerBackend     backends.LedgerBackend
 	timeout           time.Duration
@@ -202,10 +198,9 @@ func (s *Service) maybeFillEntriesFromCheckpoint(ctx context.Context, archive hi
 		nextLedgerSeq := curLedgerSeq + 1
 		prepareRangeCtx, cancelPrepareRange := context.WithTimeout(ctx, s.timeout)
 		defer cancelPrepareRange()
-		if err = s.ledgerBackend.PrepareRange(prepareRangeCtx, backends.UnboundedRange(nextLedgerSeq)); err != nil {
-			return nextLedgerSeq, checkPointFillErr, err
-		}
-		return nextLedgerSeq, checkPointFillErr, nil
+		return nextLedgerSeq,
+			checkPointFillErr,
+			s.ledgerBackend.PrepareRange(prepareRangeCtx, backends.UnboundedRange(nextLedgerSeq))
 	}
 }
 
@@ -292,6 +287,7 @@ func (s *Service) ingest(ctx context.Context, sequence uint32) error {
 	if err := s.ingestLedgerEntryChanges(ctx, reader, tx, 0); err != nil {
 		return err
 	}
+
 	if err := reader.Close(); err != nil {
 		return err
 	}
@@ -313,10 +309,13 @@ func (s *Service) ingest(ctx context.Context, sequence uint32) error {
 	if err := tx.Commit(sequence); err != nil {
 		return err
 	}
-	s.logger.Debugf("Ingested ledger %d", sequence)
+	s.logger.
+		WithField("duration", time.Since(startTime).Seconds()).
+		Debugf("Ingested ledger %d", sequence)
 
 	s.metrics.ingestionDurationMetric.
-		With(prometheus.Labels{"type": "total"}).Observe(time.Since(startTime).Seconds())
+		With(prometheus.Labels{"type": "total"}).
+		Observe(time.Since(startTime).Seconds())
 	s.metrics.latestLedgerMetric.Set(float64(sequence))
 	return nil
 }
@@ -327,13 +326,18 @@ func (s *Service) ingestLedgerCloseMeta(tx db.WriteTx, ledgerCloseMeta xdr.Ledge
 		return err
 	}
 	s.metrics.ingestionDurationMetric.
-		With(prometheus.Labels{"type": "ledger_close_meta"}).Observe(time.Since(startTime).Seconds())
+		With(prometheus.Labels{"type": "ledger_close_meta"}).
+		Observe(time.Since(startTime).Seconds())
 
-	if err := s.eventStore.IngestEvents(ledgerCloseMeta); err != nil {
+	startTime = time.Now()
+	if err := tx.TransactionWriter().InsertTransactions(ledgerCloseMeta); err != nil {
 		return err
 	}
+	s.metrics.ingestionDurationMetric.
+		With(prometheus.Labels{"type": "transactions"}).
+		Observe(time.Since(startTime).Seconds())
 
-	if err := s.transactionStore.IngestTransactions(ledgerCloseMeta); err != nil {
+	if err := s.eventStore.IngestEvents(ledgerCloseMeta); err != nil {
 		return err
 	}
 

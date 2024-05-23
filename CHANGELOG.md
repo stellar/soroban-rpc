@@ -1,7 +1,44 @@
 # Changelog
 
 ## Unreleased
-n/a
+
+### Added
+* Transactions will now be stored in a database rather than in memory ([#174](https://github.com/stellar/soroban-rpc/pull/174)).
+
+You can opt-in to longer transaction retention by setting `--transaction-retention-window` / `TRANSACTION_RETENTION_WINDOW` to a higher number of ledgers. This will also retain corresponding number of ledgers in the database. Keep in mind, of course, that this will cause an increase in disk usage for the growing database.
+
+* There is a new `getTransactions` endpoint with the following API ([#136](https://github.com/stellar/soroban-rpc/pull/136)):
+
+```typescript
+interface Request {
+  startLedger: number; // uint32
+  pagination?: {
+    cursor?: string;
+    limit?:  number; // uint
+  }
+}
+
+interface Response {
+  transactions: Transaction[];        // see below
+  latestLedger: number;               // uint32
+  latestLedgerCloseTimestamp: number; // int64
+  oldestLedger: number;               // uint32
+  oldestLedgerCloseTimestamp: number; // int64
+  cursor: string;
+}
+
+interface Transaction {
+  status: boolean;          // whether or not the transaction succeeded
+  applicationOrder: number; // int32, index of the transaction in the ledger
+  feeBump: boolean;         // if it's a fee-bump transaction
+  envelopeXdr: string;      // TransactionEnvelope XDR
+  resultXdr: string;        // TransactionResult XDR
+  resultMetaXdr: string;    // TransactionMeta XDR
+  ledger: number;           // uint32, ledger sequence with this transaction
+  createdAt: int64;         // int64, UNIX timestamp the transaction's inclusion
+  diagnosticEventsXdr?: string[]; // if failed, DiagnosticEvent XDRs
+}
+```
 
 
 ## [v21.2.0](https://github.com/stellar/soroban-rpc/compare/v21.1.0...v21.2.0)

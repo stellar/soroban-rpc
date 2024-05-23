@@ -23,7 +23,6 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/feewindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/network"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/transactions"
 )
 
 // maxHTTPRequestSize defines the largest request size that the http handler
@@ -48,8 +47,8 @@ func (h Handler) Close() {
 
 type HandlerParams struct {
 	EventStore        *events.MemoryStore
-	TransactionStore  *transactions.MemoryStore
 	FeeStatWindows    *feewindow.FeeWindows
+	TransactionReader db.TransactionReader
 	LedgerEntryReader db.LedgerEntryReader
 	LedgerReader      db.LedgerReader
 	Logger            *log.Entry
@@ -137,13 +136,10 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 	}
 
-	// Get the largest history window
-	var ledgerRangeGetter methods.LedgerRangeGetter = params.EventStore
-	var retentionWindow = cfg.EventLedgerRetentionWindow
-	if cfg.TransactionLedgerRetentionWindow > cfg.EventLedgerRetentionWindow {
-		retentionWindow = cfg.TransactionLedgerRetentionWindow
-		ledgerRangeGetter = params.TransactionStore
-	}
+	// While we transition from in-memory to database-oriented history storage,
+	// the on-disk (transaction) retention window will always be larger than the
+	// in-memory (events) one.
+	var retentionWindow = cfg.TransactionLedgerRetentionWindow
 
 	handlers := []struct {
 		methodName           string
@@ -153,15 +149,17 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		requestDurationLimit time.Duration
 	}{
 		{
-			methodName:           "getHealth",
-			underlyingHandler:    methods.NewHealthCheck(retentionWindow, ledgerRangeGetter, cfg.MaxHealthyLedgerLatency),
+			methodName: "getHealth",
+			underlyingHandler: methods.NewHealthCheck(
+				retentionWindow, params.TransactionReader, cfg.MaxHealthyLedgerLatency),
 			longName:             "get_health",
 			queueLimit:           cfg.RequestBacklogGetHealthQueueLimit,
 			requestDurationLimit: cfg.MaxGetHealthExecutionDuration,
 		},
 		{
-			methodName:           "getEvents",
-			underlyingHandler:    methods.NewGetEventsHandler(params.EventStore, cfg.MaxEventsLimit, cfg.DefaultEventsLimit),
+			methodName: "getEvents",
+			underlyingHandler: methods.NewGetEventsHandler(
+				params.EventStore, cfg.MaxEventsLimit, cfg.DefaultEventsLimit),
 			longName:             "get_events",
 			queueLimit:           cfg.RequestBacklogGetEventsQueueLimit,
 			requestDurationLimit: cfg.MaxGetEventsExecutionDuration,
@@ -203,28 +201,38 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 		{
 			methodName:           "getTransaction",
-			underlyingHandler:    methods.NewGetTransactionHandler(params.TransactionStore),
+			underlyingHandler:    methods.NewGetTransactionHandler(params.Logger, params.TransactionReader),
 			longName:             "get_transaction",
 			queueLimit:           cfg.RequestBacklogGetTransactionQueueLimit,
 			requestDurationLimit: cfg.MaxGetTransactionExecutionDuration,
 		},
 		{
-			methodName:           "sendTransaction",
-			underlyingHandler:    methods.NewSendTransactionHandler(params.Daemon, params.Logger, params.TransactionStore, cfg.NetworkPassphrase),
+			methodName:           "getTransactions",
+			underlyingHandler:    methods.NewGetTransactionsHandler(params.Logger, params.LedgerReader, params.TransactionReader, cfg.MaxTransactionsLimit, cfg.DefaultTransactionsLimit, cfg.NetworkPassphrase),
+			longName:             "get_transactions",
+			queueLimit:           cfg.RequestBacklogGetTransactionsQueueLimit,
+			requestDurationLimit: cfg.MaxGetTransactionsExecutionDuration,
+		},
+		{
+			methodName: "sendTransaction",
+			underlyingHandler: methods.NewSendTransactionHandler(
+				params.Daemon, params.Logger, params.TransactionReader, cfg.NetworkPassphrase),
 			longName:             "send_transaction",
 			queueLimit:           cfg.RequestBacklogSendTransactionQueueLimit,
 			requestDurationLimit: cfg.MaxSendTransactionExecutionDuration,
 		},
 		{
-			methodName:           "simulateTransaction",
-			underlyingHandler:    methods.NewSimulateTransactionHandler(params.Logger, params.LedgerEntryReader, params.LedgerReader, params.Daemon, params.PreflightGetter),
+			methodName: "simulateTransaction",
+			underlyingHandler: methods.NewSimulateTransactionHandler(
+				params.Logger, params.LedgerEntryReader, params.LedgerReader,
+				params.Daemon, params.PreflightGetter),
 			longName:             "simulate_transaction",
 			queueLimit:           cfg.RequestBacklogSimulateTransactionQueueLimit,
 			requestDurationLimit: cfg.MaxSimulateTransactionExecutionDuration,
 		},
 		{
 			methodName:           "getFeeStats",
-			underlyingHandler:    methods.NewGetFeeStatsHandler(params.FeeStatWindows, ledgerRangeGetter),
+			underlyingHandler:    methods.NewGetFeeStatsHandler(params.FeeStatWindows, params.TransactionReader, params.Logger),
 			longName:             "get_fee_stats",
 			queueLimit:           cfg.RequestBacklogGetFeeStatsTransactionQueueLimit,
 			requestDurationLimit: cfg.MaxGetFeeStatsExecutionDuration,

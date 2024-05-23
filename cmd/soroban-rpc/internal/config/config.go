@@ -25,6 +25,7 @@ type Config struct {
 	CheckpointFrequency                            uint32
 	CoreRequestTimeout                             time.Duration
 	DefaultEventsLimit                             uint
+	DefaultTransactionsLimit                       uint
 	EventLedgerRetentionWindow                     uint32
 	FriendbotURL                                   string
 	HistoryArchiveURLs                             []string
@@ -33,6 +34,7 @@ type Config struct {
 	LogFormat                                      LogFormat
 	LogLevel                                       logrus.Level
 	MaxEventsLimit                                 uint
+	MaxTransactionsLimit                           uint
 	MaxHealthyLedgerLatency                        time.Duration
 	NetworkPassphrase                              string
 	PreflightWorkerCount                           uint
@@ -50,6 +52,7 @@ type Config struct {
 	RequestBacklogGetLatestLedgerQueueLimit        uint
 	RequestBacklogGetLedgerEntriesQueueLimit       uint
 	RequestBacklogGetTransactionQueueLimit         uint
+	RequestBacklogGetTransactionsQueueLimit        uint
 	RequestBacklogSendTransactionQueueLimit        uint
 	RequestBacklogSimulateTransactionQueueLimit    uint
 	RequestBacklogGetFeeStatsTransactionQueueLimit uint
@@ -62,6 +65,7 @@ type Config struct {
 	MaxGetLatestLedgerExecutionDuration            time.Duration
 	MaxGetLedgerEntriesExecutionDuration           time.Duration
 	MaxGetTransactionExecutionDuration             time.Duration
+	MaxGetTransactionsExecutionDuration            time.Duration
 	MaxSendTransactionExecutionDuration            time.Duration
 	MaxSimulateTransactionExecutionDuration        time.Duration
 	MaxGetFeeStatsExecutionDuration                time.Duration

@@ -79,8 +79,11 @@ func (l ledgerWriter) trimLedgers(latestLedgerSeq uint32, retentionWindow uint32
 		return nil
 	}
 	cutoff := latestLedgerSeq + 1 - retentionWindow
-	deleteSQL := sq.StatementBuilder.RunWith(l.stmtCache).Delete(ledgerCloseMetaTableName).Where(sq.Lt{"sequence": cutoff})
-	_, err := deleteSQL.Exec()
+	_, err := sq.StatementBuilder.
+		RunWith(l.stmtCache).
+		Delete(ledgerCloseMetaTableName).
+		Where(sq.Lt{"sequence": cutoff}).
+		Exec()
 	return err
 }
 
