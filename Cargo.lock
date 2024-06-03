@@ -1147,7 +1147,7 @@ checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
 name = "preflight"
-version = "21.2.0"
+version = "21.3.0"
 dependencies = [
  "anyhow",
  "base64 0.22.0",
@@ -1620,7 +1620,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "stellar-rpc-client"
-version = "21.2.0"
+version = "21.3.0"
 dependencies = [
  "clap",
  "hex",
