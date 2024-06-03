@@ -48,8 +48,8 @@ func (req GetTransactionsRequest) isValid(maxLimit uint, ledgerRange ledgerbucke
 }
 
 type TransactionInfo struct {
-	// Successful indicates whether the transaction was successful or not
-	Successful bool `json:"status"`
+	// Status is one of: TransactionSuccess, TransactionFailed.
+	Status string `json:"status"`
 	// ApplicationOrder is the index of the transaction among all the transactions
 	// for that ledger.
 	ApplicationOrder int32 `json:"applicationOrder"`
@@ -198,7 +198,6 @@ LedgerLoop:
 			}
 
 			txInfo := TransactionInfo{
-				Successful:          tx.Successful,
 				ApplicationOrder:    tx.ApplicationOrder,
 				FeeBump:             tx.FeeBump,
 				ResultXdr:           base64.StdEncoding.EncodeToString(tx.Result),
@@ -208,6 +207,11 @@ LedgerLoop:
 				Ledger:              tx.Ledger.Sequence,
 				LedgerCloseTime:     tx.Ledger.CloseTime,
 			}
+			txInfo.Status = TransactionStatusFailed
+			if tx.Successful {
+				txInfo.Status = TransactionStatusSuccess
+			}
+
 			txns = append(txns, txInfo)
 			if len(txns) >= int(limit) {
 				break LedgerLoop
