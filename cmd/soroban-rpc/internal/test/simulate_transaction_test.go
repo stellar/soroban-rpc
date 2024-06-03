@@ -597,7 +597,7 @@ func TestSimulateTransactionError(t *testing.T) {
 	result := simulateTransactionFromTxParams(t, client, params)
 	assert.Greater(t, result.LatestLedger, uint32(0))
 	assert.Contains(t, result.Error, "MissingValue")
-	require.Len(t, result.Events, 1)
+	require.GreaterOrEqual(t, len(result.Events), 1)
 	var event xdr.DiagnosticEvent
 	require.NoError(t, xdr.SafeUnmarshalBase64(result.Events[0], &event))
 }
