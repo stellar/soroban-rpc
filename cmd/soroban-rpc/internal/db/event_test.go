@@ -173,8 +173,8 @@ func TestInsertEvents(t *testing.T) {
 		EventType        int    `db:"event_type"`
 	}
 
-	query1 := sq.Select("*").From(fmt.Sprintf("%s", eventTableName))
-	err = db.Select(ctx, &rows, query1)
+	query := sq.Select("*").From(fmt.Sprintf("%s", eventTableName))
+	err = db.Select(ctx, &rows, query)
 	assert.NoError(t, err)
 	assert.Equal(t, 10, len(rows))
 }

@@ -5,6 +5,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/support/db"
+	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
@@ -29,12 +30,21 @@ type eventHandler struct {
 	ingestMetric, countMetric prometheus.Observer
 }
 
-func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) (err error) {
+func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
+	txCount := lcm.CountTransactions()
+
+	if eventHandler.stmtCache == nil {
+		return errors.New("EventWriter incorrectly initialized without stmtCache")
+	} else if txCount == 0 {
+		return nil
+	}
 
 	var txReader *ingest.LedgerTransactionReader
-	txReader, err = ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(eventHandler.passphrase, lcm)
+	txReader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(eventHandler.passphrase, lcm)
 	if err != nil {
-		return
+		return errors.Wrapf(err,
+			"failed to open transaction reader for ledger %d",
+			lcm.LedgerSequence())
 	}
 	defer func() {
 		closeErr := txReader.Close()
@@ -51,7 +61,7 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) (err err
 			break
 		}
 		if err != nil {
-			return
+			return err
 		}
 
 		if !tx.Result.Successful() {

@@ -36,6 +36,11 @@ type MockTx struct {
 	mock.Mock
 }
 
+func (m MockTx) EventWriter() db.EventWriter {
+	args := m.Called()
+	return args.Get(0).(db.EventWriter)
+}
+
 func (m MockTx) LedgerEntryWriter() db.LedgerEntryWriter {
 	args := m.Called()
 	return args.Get(0).(db.LedgerEntryWriter)
