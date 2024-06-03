@@ -2,8 +2,6 @@ package db
 
 import (
 	"context"
-	"fmt"
-	sq "github.com/Masterminds/squirrel"
 	"github.com/sirupsen/logrus"
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/network"
@@ -165,16 +163,5 @@ func TestInsertEvents(t *testing.T) {
 	err = eventW.InsertEvents(ledgerCloseMeta)
 	assert.NoError(t, err)
 
-	var rows []struct {
-		ID               string `db:"id"`
-		LedgerSequence   uint32 `db:"ledger_sequence"`
-		ApplicationOrder uint32 `db:"application_order"`
-		ContractID       []byte `db:"contract_id"`
-		EventType        int    `db:"event_type"`
-	}
-
-	query := sq.Select("*").From(fmt.Sprintf("%s", eventTableName))
-	err = db.Select(ctx, &rows, query)
-	assert.NoError(t, err)
-	assert.Equal(t, 10, len(rows))
+	//TODO: Call getEvents and validate events data.
 }

@@ -101,3 +101,12 @@ func (m MockTransactionWriter) InsertTransactions(ledger xdr.LedgerCloseMeta) er
 func (m MockTransactionWriter) RegisterMetrics(ingest, count prometheus.Observer) {
 	m.Called(ingest, count)
 }
+
+type MockEventWriter struct {
+	mock.Mock
+}
+
+func (m MockEventWriter) InsertEvents(ledger xdr.LedgerCloseMeta) error {
+	args := m.Called(ledger)
+	return args.Error(0)
+}
