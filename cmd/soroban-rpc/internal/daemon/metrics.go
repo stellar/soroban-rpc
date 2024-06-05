@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"github.com/stellar/go/ingest/ledgerbackend"
 	supportlog "github.com/stellar/go/support/log"
 	"runtime"
 	"time"
@@ -102,6 +103,10 @@ func (c *CoreClientWithMetrics) SubmitTransaction(ctx context.Context, envelopeB
 
 func (d *Daemon) CoreClient() interfaces.CoreClient {
 	return d.coreClient
+}
+
+func (d *Daemon) GetCore() *ledgerbackend.CaptiveStellarCore {
+	return d.core
 }
 
 func (d *Daemon) Logger() *supportlog.Entry {

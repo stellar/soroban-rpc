@@ -2,8 +2,8 @@ package interfaces
 
 import (
 	"context"
-
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stellar/go/ingest/ledgerbackend"
 	proto "github.com/stellar/go/protocols/stellarcore"
 )
 
@@ -13,6 +13,7 @@ type noOpDaemon struct {
 	metricsRegistry  *prometheus.Registry
 	metricsNamespace string
 	coreClient       noOpCoreClient
+	core             *ledgerbackend.CaptiveStellarCore
 }
 
 func MakeNoOpDeamon() *noOpDaemon {
@@ -33,6 +34,10 @@ func (d *noOpDaemon) MetricsNamespace() string {
 
 func (d *noOpDaemon) CoreClient() CoreClient {
 	return d.coreClient
+}
+
+func (d *noOpDaemon) GetCore() *ledgerbackend.CaptiveStellarCore {
+	return d.core
 }
 
 type noOpCoreClient struct{}
