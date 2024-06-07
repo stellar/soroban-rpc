@@ -95,6 +95,8 @@ pub enum Error {
     UnexpectedContractInstance(xdr::ScVal),
     #[error("unexpected contract code got token")]
     UnexpectedToken(ContractDataEntry),
+    #[error("validation error: {0}")]
+    ValidationError(String),
     #[error("Fee was too large {0}")]
     LargeFee(u64),
     #[error("Cannot authorize raw transactions")]
@@ -205,6 +207,91 @@ impl GetTransactionResponse {
             .into_iter()
             .filter(|e| matches!(e.event.type_, ContractEventType::Contract))
             .collect::<Vec<_>>())
+    }
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct GetTransactionsResponseRaw {
+    pub transactions: Vec<GetTransactionResponseRaw>,
+    #[serde(rename = "latestLedger")]
+    pub latest_ledger: u32,
+    #[serde(rename = "latestLedgerCloseTimestamp")]
+    pub latest_ledger_close_time: i64,
+    #[serde(rename = "oldestLedger")]
+    pub oldest_ledger: u32,
+    #[serde(rename = "oldestLedgerCloseTimestamp")]
+    pub oldest_ledger_close_time: i64,
+    pub cursor: String,
+}
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct GetTransactionsResponse {
+    pub transactions: Vec<GetTransactionResponse>,
+    pub latest_ledger: u32,
+    pub latest_ledger_close_time: i64,
+    pub oldest_ledger: u32,
+    pub oldest_ledger_close_time: i64,
+    pub cursor: String,
+}
+impl TryInto<GetTransactionsResponse> for GetTransactionsResponseRaw {
+    type Error = xdr::Error; // assuming xdr::Error or any other error type that you use
+
+    fn try_into(self) -> Result<GetTransactionsResponse, Self::Error> {
+        let mut transactions = Vec::new();
+
+        for tx_raw in self.transactions {
+            let tx: GetTransactionResponse = tx_raw.try_into()?;
+            transactions.push(tx);
+        }
+
+        Ok(GetTransactionsResponse {
+            transactions,
+            latest_ledger: self.latest_ledger,
+            latest_ledger_close_time: self.latest_ledger_close_time,
+            oldest_ledger: self.oldest_ledger,
+            oldest_ledger_close_time: self.oldest_ledger_close_time,
+            cursor: self.cursor,
+        })
+    }
+}
+
+#[derive(serde::Serialize, Debug, Clone)]
+pub struct TransactionsPaginationOptions {
+    pub cursor: Option<String>,
+    pub limit: Option<u32>,
+}
+
+#[derive(serde::Serialize, Debug, Clone)]
+pub struct GetTransactionsRequest {
+    pub start_ledger: Option<u32>,
+    pub pagination: Option<TransactionsPaginationOptions>,
+}
+
+impl GetTransactionsRequest {
+    pub fn is_valid(&self, max_limit: u32, ledger_range: (u32, u32)) -> Result<(), Error> {
+        let (oldest_ledger, latest_ledger) = ledger_range;
+
+        if let Some(ref pagination) = self.pagination {
+            if pagination.cursor.is_some() && self.start_ledger.is_some() {
+                return Err(Error::ValidationError("start_ledger and cursor cannot both be set".to_string()));
+            }
+        } else if let Some(start_ledger) = self.start_ledger {
+            if start_ledger < oldest_ledger || start_ledger > latest_ledger {
+                return Err(Error::ValidationError(format!(
+                    "start ledger must be between the oldest ledger: {} and the latest ledger: {}.",
+                    oldest_ledger, latest_ledger
+                )));
+            }
+        }
+
+        if let Some(ref pagination) = self.pagination {
+            if let Some(limit) = pagination.limit {
+                if limit > max_limit {
+                    return Err(Error::ValidationError(format!("limit must not exceed {}", max_limit)));
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -805,6 +892,32 @@ impl Client {
         Ok(self.client().request("getTransaction", oparams).await?)
     }
 
+    ///
+    /// # Errors
+    pub async fn get_transactions(&self, request: GetTransactionsRequest) -> Result<GetTransactionsResponse, Error> {
+        let mut oparams = ObjectParams::new();
+        
+        if let Some(start_ledger) = request.start_ledger {
+            oparams.insert("startLedger", start_ledger)?;
+        }
+        
+        let mut pagination = serde_json::Map::new();
+        if let Some(pagination_params) = request.pagination {
+            if let Some(cursor) = pagination_params.cursor {
+                pagination.insert("cursor".to_string(), serde_json::json!(cursor));
+            }
+            if let Some(limit) = pagination_params.limit {
+                pagination.insert("limit".to_string(),serde_json::json!(limit));
+            }
+        }
+        
+        if !pagination.is_empty() {
+            oparams.insert("pagination", pagination)?;
+        }
+
+        Ok(self.client().request("getTransactions", oparams).await?)
+    }
+    
     /// Poll the transaction status. Can provide a timeout in seconds, otherwise uses the default timeout.
     ///
     /// It uses exponential backoff with a base of 1 second and a maximum of 30 seconds.
