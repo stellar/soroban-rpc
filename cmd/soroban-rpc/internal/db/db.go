@@ -110,9 +110,9 @@ func GetMetaBool(ctx context.Context, q db.SessionInterface, key string) (bool, 
 }
 
 func SetMetaBool(ctx context.Context, q db.SessionInterface, key string) error {
-	_, err := sq.Replace(metaTableName).
-		Values(latestLedgerSequenceMetaKey, "true").
-		Exec()
+	query := sq.Replace(metaTableName).
+		Values(key, "true")
+	_, err := q.Exec(ctx, query)
 	return err
 }
 
