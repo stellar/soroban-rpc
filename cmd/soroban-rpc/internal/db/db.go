@@ -17,6 +17,7 @@ import (
 	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
+
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 )
 
@@ -100,21 +101,43 @@ func OpenSQLiteDB(dbFilePath string) (*DB, error) {
 	return &result, nil
 }
 
-func getLatestLedgerSequence(ctx context.Context, q db.SessionInterface, cache *dbCache) (uint32, error) {
-	sql := sq.Select("value").From(metaTableName).Where(sq.Eq{"key": latestLedgerSequenceMetaKey})
+func GetMetaBool(ctx context.Context, q db.SessionInterface, key string) (bool, error) {
+	valueStr, err := getMetaValue(ctx, q, key)
+	if err != nil {
+		return false, err
+	}
+	return strconv.ParseBool(valueStr)
+}
+
+func SetMetaBool(ctx context.Context, q db.SessionInterface, key string) error {
+	_, err := sq.Replace(metaTableName).
+		Values(latestLedgerSequenceMetaKey, "true").
+		Exec()
+	return err
+}
+
+func getMetaValue(ctx context.Context, q db.SessionInterface, key string) (string, error) {
+	sql := sq.Select("value").From(metaTableName).Where(sq.Eq{"key": key})
 	var results []string
 	if err := q.Select(ctx, &results, sql); err != nil {
-		return 0, err
+		return "", err
 	}
 	switch len(results) {
 	case 0:
-		return 0, ErrEmptyDB
+		return "", ErrEmptyDB
 	case 1:
 		// expected length on an initialized DB
 	default:
-		return 0, fmt.Errorf("multiple entries (%d) for key %q in table %q", len(results), latestLedgerSequenceMetaKey, metaTableName)
+		return "", fmt.Errorf("multiple entries (%d) for key %q in table %q", len(results), latestLedgerSequenceMetaKey, metaTableName)
 	}
-	latestLedgerStr := results[0]
+	return results[0], nil
+}
+
+func getLatestLedgerSequence(ctx context.Context, q db.SessionInterface, cache *dbCache) (uint32, error) {
+	latestLedgerStr, err := getMetaValue(ctx, q, latestLedgerSequenceMetaKey)
+	if err != nil {
+		return 0, err
+	}
 	latestLedger, err := strconv.ParseUint(latestLedgerStr, 10, 32)
 	if err != nil {
 		return 0, err
@@ -206,6 +229,7 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 	writer := writeTx{
 		globalCache: &db.cache,
 		postCommit: func() error {
+			// TODO: this is sqlite-only, it shouldn't be here
 			_, err := db.ExecRaw(ctx, "PRAGMA wal_checkpoint(TRUNCATE)")
 			return err
 		},

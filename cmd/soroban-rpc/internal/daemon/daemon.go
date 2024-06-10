@@ -40,6 +40,7 @@ const (
 	defaultReadTimeout                    = 5 * time.Second
 	defaultShutdownGracePeriod            = 10 * time.Second
 	inMemoryInitializationLedgerLogPeriod = 1_000_000
+	transactionsTableMigrationDoneMetaKey = "TransactionsTableMigrationDone"
 )
 
 type Daemon struct {
@@ -202,6 +203,36 @@ func MustNew(cfg *config.Config) *Daemon {
 	//       but it's probably not worth the pain.
 	var initialSeq uint32
 	var currentSeq uint32
+	// We should do the migration somewhere else
+	migrationSession := dbConn.Clone()
+	if err = migrationSession.Begin(readTxMetaCtx); err != nil {
+		logger.WithError(err).Fatal("could not start migration session")
+	}
+	migrationFunc := func(txmeta xdr.LedgerCloseMeta) error { return nil }
+	migrationDoneFunc := func() {}
+	val, err := db.GetMetaBool(readTxMetaCtx, migrationSession, transactionsTableMigrationDoneMetaKey)
+	if err == db.ErrEmptyDB || val == false {
+		logger.Info("migrating transaction to new backend")
+		writer := db.NewTransactionWriter(logger, migrationSession, cfg.NetworkPassphrase)
+		migrationFunc = func(txmeta xdr.LedgerCloseMeta) error {
+			return writer.InsertTransactions(txmeta)
+		}
+		migrationDoneFunc = func() {
+			err := db.SetMetaBool(readTxMetaCtx, migrationSession, transactionsTableMigrationDoneMetaKey)
+			if err != nil {
+				logger.WithError(err).WithField("key", transactionsTableMigrationDoneMetaKey).Fatal("could not set metadata")
+				migrationSession.Rollback()
+				return
+			}
+			// TODO: rollback wherever necessary
+			if err = migrationSession.Commit(); err != nil {
+				logger.WithError(err).Error("could not commit migration session")
+			}
+		}
+	} else if err != nil {
+		logger.WithError(err).WithField("key", transactionsTableMigrationDoneMetaKey).Fatal("could not get metadata")
+	}
+
 	err = db.NewLedgerReader(dbConn).StreamAllLedgers(readTxMetaCtx, func(txmeta xdr.LedgerCloseMeta) error {
 		currentSeq = txmeta.LedgerSequence()
 		if initialSeq == 0 {
@@ -220,11 +251,17 @@ func MustNew(cfg *config.Config) *Daemon {
 		if err := feewindows.IngestFees(txmeta); err != nil {
 			logger.WithError(err).Fatal("could not initialize fee stats")
 		}
+		if err := migrationFunc(txmeta); err != nil {
+			// TODO: we should only migrate the transaction range
+			logger.WithError(err).Fatal("could not run migration")
+		}
 		return nil
 	})
 	if err != nil {
 		logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
 	}
+	migrationDoneFunc()
+
 	if currentSeq != 0 {
 		logger.WithFields(supportlog.F{
 			"seq": currentSeq,

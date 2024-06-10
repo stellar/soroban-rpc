@@ -39,10 +39,19 @@ type TransactionWriter interface {
 	RegisterMetrics(ingest, count prometheus.Observer)
 }
 
-// TransactionReader provides all of the public ways to read from the DB.
+// TransactionReader provides all the public ways to read from the DB.
 type TransactionReader interface {
 	GetTransaction(ctx context.Context, hash xdr.Hash) (Transaction, ledgerbucketwindow.LedgerRange, error)
 	GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error)
+}
+
+func NewTransactionWriter(log *log.Entry, db db.SessionInterface, networkPassphrase string) TransactionWriter {
+	return &transactionHandler{
+		log:        log,
+		db:         db,
+		stmtCache:  sq.NewStmtCache(db.GetTx()),
+		passphrase: networkPassphrase,
+	}
 }
 
 type transactionHandler struct {
