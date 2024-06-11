@@ -77,8 +77,12 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 			Columns("id", "ledger_sequence", "application_order", "contract_id", "event_type")
 
 		for index, e := range txEvents {
+			var contractId []byte
+			if e.Event.ContractId != nil {
+				contractId = e.Event.ContractId[:]
+			}
 			id := events.Cursor{Ledger: lcm.LedgerSequence(), Tx: tx.Index, Op: 0, Event: uint32(index)}.String()
-			query = query.Values(id, lcm.LedgerSequence(), tx.Index, e.Event.ContractId[:], int(e.Event.Type))
+			query = query.Values(id, lcm.LedgerSequence(), tx.Index, contractId, int(e.Event.Type))
 		}
 
 		_, err = query.RunWith(eventHandler.stmtCache).Exec()
