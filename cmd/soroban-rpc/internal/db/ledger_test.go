@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/log"
@@ -107,16 +108,9 @@ func NewTestDB(tb testing.TB) *DB {
 	tmp := tb.TempDir()
 	dbPath := path.Join(tmp, "db.sqlite")
 	db, err := OpenSQLiteDB(dbPath)
-	if err != nil {
-		assert.NoError(tb, db.Close())
-	}
+	require.NoError(tb, err)
 	tb.Cleanup(func() {
 		assert.NoError(tb, db.Close())
 	})
-	return &DB{
-		SessionInterface: db.SessionInterface,
-		cache: &dbCache{
-			ledgerEntries: newTransactionalCache(),
-		},
-	}
+	return db
 }

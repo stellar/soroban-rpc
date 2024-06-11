@@ -22,7 +22,7 @@ func TestTransactionNotFound(t *testing.T) {
 	log := log.DefaultLogger
 	log.SetLevel(logrus.TraceLevel)
 
-	reader := NewTransactionReader(log, db.SessionInterface, passphrase)
+	reader := NewTransactionReader(log, db, passphrase)
 	_, _, err := reader.GetTransaction(context.TODO(), xdr.Hash{})
 	require.Error(t, err, ErrNoTransaction)
 }
@@ -52,7 +52,7 @@ func TestTransactionFound(t *testing.T) {
 	require.NoError(t, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
 
 	// check 404 case
-	reader := NewTransactionReader(log, db.SessionInterface, passphrase)
+	reader := NewTransactionReader(log, db, passphrase)
 	_, _, err = reader.GetTransaction(ctx, xdr.Hash{})
 	require.Error(t, err, ErrNoTransaction)
 
@@ -92,7 +92,7 @@ func BenchmarkTransactionFetch(b *testing.B) {
 		require.NoError(b, txW.InsertTransactions(lcm))
 	}
 	require.NoError(b, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
-	reader := NewTransactionReader(log, db.SessionInterface, passphrase)
+	reader := NewTransactionReader(log, db, passphrase)
 
 	randoms := make([]int, b.N)
 	for i := 0; i < b.N; i++ {

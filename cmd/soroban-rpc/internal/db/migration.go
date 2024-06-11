@@ -104,12 +104,15 @@ type guardedMigration struct {
 }
 
 func newGuardedDataMigration(ctx context.Context, uniqueMigrationName string, factory migrationApplierFactory, db *DB) (Migration, error) {
-	migrationDB := db.Clone()
+	migrationDB := &DB{
+		cache:            db.cache,
+		SessionInterface: db.SessionInterface.Clone(),
+	}
 	if err := migrationDB.Begin(ctx); err != nil {
 		return nil, err
 	}
 	metaKey := "Migration" + uniqueMigrationName + "Done"
-	previouslyMigrated, err := getMetaBool(ctx, migrationDB.SessionInterface, metaKey)
+	previouslyMigrated, err := getMetaBool(ctx, migrationDB, metaKey)
 	if err != nil && !errors.Is(err, ErrEmptyDB) {
 		migrationDB.Rollback()
 		return nil, err
@@ -151,7 +154,7 @@ func (g *guardedMigration) Commit(ctx context.Context) error {
 	if g.alreadyMigrated {
 		return nil
 	}
-	err := setMetaBool(ctx, g.db.SessionInterface, g.guardMetaKey, true)
+	err := setMetaBool(ctx, g.db, g.guardMetaKey, true)
 	if err != nil {
 		g.Rollback(ctx)
 		return errors.Join(err, g.Rollback(ctx))

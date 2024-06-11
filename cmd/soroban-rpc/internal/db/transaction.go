@@ -325,7 +325,7 @@ func newTransactionTableMigration(ctx context.Context, logger *log.Entry, retent
 		firstLedgerToMigrate := uint32(2)
 		writer := &transactionHandler{
 			log:        logger,
-			db:         db.SessionInterface,
+			db:         db,
 			stmtCache:  sq.NewStmtCache(db.GetTx()),
 			passphrase: passphrase,
 		}

@@ -56,13 +56,6 @@ type DB struct {
 	cache *dbCache
 }
 
-func (db *DB) Clone() *DB {
-	return &DB{
-		SessionInterface: db.SessionInterface.Clone(),
-		cache:            db.cache,
-	}
-}
-
 func openSQLiteDB(dbFilePath string) (*db.Session, error) {
 	// 1. Use Write-Ahead Logging (WAL).
 	// 2. Disable WAL auto-checkpointing (we will do the checkpointing ourselves with wal_checkpoint pragmas
@@ -222,11 +215,11 @@ func NewReadWriter(
 }
 
 func (rw *readWriter) GetLatestLedgerSequence(ctx context.Context) (uint32, error) {
-	return getLatestLedgerSequence(ctx, rw.db.SessionInterface, rw.db.cache)
+	return getLatestLedgerSequence(ctx, rw.db, rw.db.cache)
 }
 
 func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
-	txSession := rw.db.SessionInterface.Clone()
+	txSession := rw.db.Clone()
 	if err := txSession.Begin(ctx); err != nil {
 		return nil, err
 	}
