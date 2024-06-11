@@ -105,7 +105,10 @@ func GetTransaction(
 		log.WithError(err).
 			WithField("hash", txHash).
 			Errorf("failed to fetch transaction")
-		return response, err
+		return response, &jrpc2.Error{
+			Code:    jrpc2.InternalError,
+			Message: err.Error(),
+		}
 	}
 
 	response.ApplicationOrder = tx.ApplicationOrder
