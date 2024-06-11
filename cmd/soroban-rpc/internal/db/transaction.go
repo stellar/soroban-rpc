@@ -45,15 +45,6 @@ type TransactionReader interface {
 	GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error)
 }
 
-func NewTransactionWriter(log *log.Entry, db db.SessionInterface, networkPassphrase string) TransactionWriter {
-	return &transactionHandler{
-		log:        log,
-		db:         db,
-		stmtCache:  sq.NewStmtCache(db.GetTx()),
-		passphrase: networkPassphrase,
-	}
-}
-
 type transactionHandler struct {
 	log        *log.Entry
 	db         db.SessionInterface
@@ -310,4 +301,40 @@ func ParseTransaction(lcm xdr.LedgerCloseMeta, ingestTx ingest.LedgerTransaction
 	}
 
 	return tx, nil
+}
+
+type transactionTableMigration struct {
+	firstLedger uint32
+	writer      TransactionWriter
+}
+
+func (t *transactionTableMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error {
+	if meta.LedgerSequence() < t.firstLedger {
+		return nil
+	}
+	return t.writer.InsertTransactions(meta)
+}
+
+func newTransactionTableMigration(ctx context.Context, logger *log.Entry, retentionWindow uint32, passphrase string) migrationApplierFactory {
+	return migrationApplierFactoryF(func(db *DB) (MigrationApplier, error) {
+		latestLedger, err := NewLedgerEntryReader(db).GetLatestLedgerSequence(ctx)
+		if err != nil && err != ErrEmptyDB {
+			return nil, errors.Wrap(err, "couldn't get latest ledger sequence")
+		}
+		firstLedgerToMigrate := uint32(2)
+		writer := &transactionHandler{
+			log:        logger,
+			db:         db.SessionInterface,
+			stmtCache:  sq.NewStmtCache(db.GetTx()),
+			passphrase: passphrase,
+		}
+		if latestLedger > retentionWindow {
+			firstLedgerToMigrate = latestLedger - retentionWindow
+		}
+		migration := transactionTableMigration{
+			firstLedger: firstLedgerToMigrate,
+			writer:      writer,
+		}
+		return &migration, nil
+	})
 }

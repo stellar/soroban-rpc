@@ -10,6 +10,7 @@ import (
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
+
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 )
 
@@ -113,8 +114,8 @@ func NewTestDB(tb testing.TB) *DB {
 		assert.NoError(tb, db.Close())
 	})
 	return &DB{
-		SessionInterface: db,
-		cache: dbCache{
+		SessionInterface: db.SessionInterface,
+		cache: &dbCache{
 			ledgerEntries: newTransactionalCache(),
 		},
 	}

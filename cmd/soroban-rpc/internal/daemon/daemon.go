@@ -241,7 +241,7 @@ func MustNew(cfg *config.Config) *Daemon {
 		Logger:            logger,
 		LedgerReader:      db.NewLedgerReader(dbConn),
 		LedgerEntryReader: db.NewLedgerEntryReader(dbConn),
-		TransactionReader: db.NewTransactionReader(logger, dbConn, cfg.NetworkPassphrase),
+		TransactionReader: db.NewTransactionReader(logger, dbConn.SessionInterface, cfg.NetworkPassphrase),
 		PreflightGetter:   preflightWorkerPool,
 	})
 
@@ -290,11 +290,14 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 	defer cancelReadTxMeta()
 	var initialSeq uint32
 	var currentSeq uint32
-	migration, migrationDone := d.newTxMigration(readTxMetaCtx, cfg)
+	dataMigrations, err := db.BuildMigrations(readTxMetaCtx, d.logger, d.db, cfg)
+	if err != nil {
+		d.logger.WithError(err).Fatal("could not build migrations")
+	}
 	// NOTE: We could optimize this to avoid unnecessary ingestion calls
 	//       (the range of txmetas can be larger than the individual store retention windows)
 	//       but it's probably not worth the pain.
-	err := db.NewLedgerReader(d.db).StreamAllLedgers(readTxMetaCtx, func(txmeta xdr.LedgerCloseMeta) error {
+	err = db.NewLedgerReader(d.db).StreamAllLedgers(readTxMetaCtx, func(txmeta xdr.LedgerCloseMeta) error {
 		currentSeq = txmeta.LedgerSequence()
 		if initialSeq == 0 {
 			initialSeq = currentSeq
@@ -312,16 +315,17 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 		if err := feewindows.IngestFees(txmeta); err != nil {
 			d.logger.WithError(err).Fatal("could not initialize fee stats")
 		}
-		if err := migration(txmeta); err != nil {
-			// TODO: we should only migrate the transaction range
-			d.logger.WithError(err).Fatal("could not run migration")
+		if err := dataMigrations.Apply(readTxMetaCtx, txmeta); err != nil {
+			d.logger.WithError(err).Fatal("could not run migrations")
 		}
 		return nil
 	})
 	if err != nil {
 		d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
 	}
-	migrationDone()
+	if err := dataMigrations.Commit(readTxMetaCtx); err != nil {
+		d.logger.WithError(err).Fatal("could not commit data migrations")
+	}
 
 	if currentSeq != 0 {
 		d.logger.WithFields(supportlog.F{
@@ -330,57 +334,6 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 	}
 
 	return feewindows, eventStore
-}
-
-// TODO: We should probably implement the migrations somewhere else
-type migrationFunc func(txmeta xdr.LedgerCloseMeta) error
-type migrationDoneFunc func()
-
-func (d *Daemon) newTxMigration(ctx context.Context, cfg *config.Config) (migrationFunc, migrationDoneFunc) {
-	migrationSession := d.db.Clone()
-	if err := migrationSession.Begin(ctx); err != nil {
-		d.logger.WithError(err).Fatal("could not start migration session")
-	}
-	migration := func(txmeta xdr.LedgerCloseMeta) error { return nil }
-	migrationDone := func() {}
-	previouslyMigrated, err := db.GetMetaBool(ctx, migrationSession, transactionsTableMigrationDoneMetaKey)
-	if err != nil {
-		if !errors.Is(err, db.ErrEmptyDB) {
-			d.logger.WithError(err).WithField("key", transactionsTableMigrationDoneMetaKey).Fatal("could not get metadata")
-		}
-	} else if previouslyMigrated {
-		migrationSession.Rollback()
-		return migration, migrationDone
-	}
-
-	d.logger.Info("migrating transactions to new backend")
-	writer := db.NewTransactionWriter(d.logger, migrationSession, cfg.NetworkPassphrase)
-	latestLedger, err := db.NewLedgerEntryReader(d.db).GetLatestLedgerSequence(ctx)
-	if err != nil || err != db.ErrEmptyDB {
-		d.logger.WithError(err).Fatal("cannot read latest ledger")
-	}
-	firstLedgerToMigrate := uint32(2)
-	if latestLedger > cfg.TransactionLedgerRetentionWindow {
-		firstLedgerToMigrate = latestLedger - cfg.TransactionLedgerRetentionWindow
-	}
-	migration = func(txmeta xdr.LedgerCloseMeta) error {
-		if txmeta.LedgerSequence() < firstLedgerToMigrate {
-			return nil
-		}
-		return writer.InsertTransactions(txmeta)
-	}
-	migrationDone = func() {
-		err := db.SetMetaBool(ctx, migrationSession, transactionsTableMigrationDoneMetaKey)
-		if err != nil {
-			d.logger.WithError(err).WithField("key", transactionsTableMigrationDoneMetaKey).Fatal("could not set metadata")
-			migrationSession.Rollback()
-			return
-		}
-		if err = migrationSession.Commit(); err != nil {
-			d.logger.WithError(err).Error("could not commit migration session")
-		}
-	}
-	return migration, migrationDone
 }
 
 func (d *Daemon) Run() {

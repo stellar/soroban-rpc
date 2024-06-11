@@ -341,12 +341,12 @@ func NewLedgerEntryReader(db *DB) LedgerEntryReader {
 }
 
 func (r ledgerEntryReader) GetLatestLedgerSequence(ctx context.Context) (uint32, error) {
-	return getLatestLedgerSequence(ctx, r.db, &r.db.cache)
+	return getLatestLedgerSequence(ctx, r.db.SessionInterface, r.db.cache)
 }
 
 // NewCachedTx() caches all accessed ledger entries and select statements. If many ledger entries are accessed, it will grow without bounds.
 func (r ledgerEntryReader) NewCachedTx(ctx context.Context) (LedgerEntryReadTx, error) {
-	txSession := r.db.Clone()
+	txSession := r.db.SessionInterface.Clone()
 	// We need to copy the cached ledger entries locally when we start the transaction
 	// since otherwise we would break the consistency between the transaction and the cache.
 
@@ -360,7 +360,7 @@ func (r ledgerEntryReader) NewCachedTx(ctx context.Context) (LedgerEntryReadTx, 
 	}
 	cacheReadTx := r.db.cache.ledgerEntries.newReadTx()
 	return &ledgerEntryReadTx{
-		globalCache:            &r.db.cache,
+		globalCache:            r.db.cache,
 		stmtCache:              sq.NewStmtCache(txSession.GetTx()),
 		latestLedgerSeqCache:   r.db.cache.latestLedgerSeq,
 		ledgerEntryCacheReadTx: &cacheReadTx,
@@ -370,14 +370,14 @@ func (r ledgerEntryReader) NewCachedTx(ctx context.Context) (LedgerEntryReadTx, 
 }
 
 func (r ledgerEntryReader) NewTx(ctx context.Context) (LedgerEntryReadTx, error) {
-	txSession := r.db.Clone()
+	txSession := r.db.SessionInterface.Clone()
 	if err := txSession.BeginTx(ctx, &sql.TxOptions{ReadOnly: true}); err != nil {
 		return nil, err
 	}
 	r.db.cache.RLock()
 	defer r.db.cache.RUnlock()
 	return &ledgerEntryReadTx{
-		globalCache:          &r.db.cache,
+		globalCache:          r.db.cache,
 		latestLedgerSeqCache: r.db.cache.latestLedgerSeq,
 		tx:                   txSession,
 		buffer:               xdr.NewEncodingBuffer(),

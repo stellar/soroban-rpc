@@ -21,8 +21,8 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 )
 
-//go:embed migrations/*.sql
-var migrations embed.FS
+//go:embed sqlmigrations/*.sql
+var sqlMigrations embed.FS
 
 var ErrEmptyDB = errors.New("DB is empty")
 
@@ -53,7 +53,14 @@ type dbCache struct {
 
 type DB struct {
 	db.SessionInterface
-	cache dbCache
+	cache *dbCache
+}
+
+func (db *DB) Clone() *DB {
+	return &DB{
+		SessionInterface: db.SessionInterface.Clone(),
+		cache:            db.cache,
+	}
 }
 
 func openSQLiteDB(dbFilePath string) (*db.Session, error) {
@@ -66,9 +73,9 @@ func openSQLiteDB(dbFilePath string) (*db.Session, error) {
 		return nil, errors.Wrap(err, "open failed")
 	}
 
-	if err = runMigrations(session.DB.DB, "sqlite3"); err != nil {
+	if err = runSQLMigrations(session.DB.DB, "sqlite3"); err != nil {
 		_ = session.Close()
-		return nil, errors.Wrap(err, "could not run migrations")
+		return nil, errors.Wrap(err, "could not run SQL migrations")
 	}
 	return session, nil
 }
@@ -80,7 +87,7 @@ func OpenSQLiteDBWithPrometheusMetrics(dbFilePath string, namespace string, sub 
 	}
 	result := DB{
 		SessionInterface: db.RegisterMetrics(session, namespace, sub, registry),
-		cache: dbCache{
+		cache: &dbCache{
 			ledgerEntries: newTransactionalCache(),
 		},
 	}
@@ -94,14 +101,14 @@ func OpenSQLiteDB(dbFilePath string) (*DB, error) {
 	}
 	result := DB{
 		SessionInterface: session,
-		cache: dbCache{
+		cache: &dbCache{
 			ledgerEntries: newTransactionalCache(),
 		},
 	}
 	return &result, nil
 }
 
-func GetMetaBool(ctx context.Context, q db.SessionInterface, key string) (bool, error) {
+func getMetaBool(ctx context.Context, q db.SessionInterface, key string) (bool, error) {
 	valueStr, err := getMetaValue(ctx, q, key)
 	if err != nil {
 		return false, err
@@ -109,7 +116,7 @@ func GetMetaBool(ctx context.Context, q db.SessionInterface, key string) (bool, 
 	return strconv.ParseBool(valueStr)
 }
 
-func SetMetaBool(ctx context.Context, q db.SessionInterface, key string) error {
+func setMetaBool(ctx context.Context, q db.SessionInterface, key string) error {
 	query := sq.Replace(metaTableName).
 		Values(key, "true")
 	_, err := q.Exec(ctx, query)
@@ -148,7 +155,7 @@ func getLatestLedgerSequence(ctx context.Context, q db.SessionInterface, cache *
 	// Otherwise, the write-through cache won't get updated until the first ingestion commit
 	cache.Lock()
 	if cache.latestLedgerSeq == 0 {
-		// Only update the cache if value is missing (0), otherwise
+		// Only update the cache if the value is missing (0), otherwise
 		// we may end up overwriting the entry with an older version
 		cache.latestLedgerSeq = result
 	}
@@ -215,11 +222,11 @@ func NewReadWriter(
 }
 
 func (rw *readWriter) GetLatestLedgerSequence(ctx context.Context) (uint32, error) {
-	return getLatestLedgerSequence(ctx, rw.db, &rw.db.cache)
+	return getLatestLedgerSequence(ctx, rw.db.SessionInterface, rw.db.cache)
 }
 
 func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
-	txSession := rw.db.Clone()
+	txSession := rw.db.SessionInterface.Clone()
 	if err := txSession.Begin(ctx); err != nil {
 		return nil, err
 	}
@@ -227,7 +234,7 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 
 	db := rw.db
 	writer := writeTx{
-		globalCache: &db.cache,
+		globalCache: db.cache,
 		postCommit: func() error {
 			// TODO: this is sqlite-only, it shouldn't be here
 			_, err := db.ExecRaw(ctx, "PRAGMA wal_checkpoint(TRUNCATE)")
@@ -332,12 +339,12 @@ func (w writeTx) Rollback() error {
 	}
 }
 
-func runMigrations(db *sql.DB, dialect string) error {
+func runSQLMigrations(db *sql.DB, dialect string) error {
 	m := &migrate.AssetMigrationSource{
-		Asset: migrations.ReadFile,
+		Asset: sqlMigrations.ReadFile,
 		AssetDir: func() func(string) ([]string, error) {
 			return func(path string) ([]string, error) {
-				dirEntry, err := migrations.ReadDir(path)
+				dirEntry, err := sqlMigrations.ReadDir(path)
 				if err != nil {
 					return nil, err
 				}
@@ -349,7 +356,7 @@ func runMigrations(db *sql.DB, dialect string) error {
 				return entries, nil
 			}
 		}(),
-		Dir: "migrations",
+		Dir: "sqlmigrations",
 	}
 	_, err := migrate.ExecMax(db, dialect, m, migrate.Up, 0)
 	return err
