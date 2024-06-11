@@ -188,85 +188,7 @@ func MustNew(cfg *config.Config) *Daemon {
 		}, metricsRegistry),
 	}
 
-	eventStore := events.NewMemoryStore(
-		daemon,
-		cfg.NetworkPassphrase,
-		cfg.EventLedgerRetentionWindow,
-	)
-	feewindows := feewindow.NewFeeWindows(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow, cfg.NetworkPassphrase)
-
-	// initialize the stores using what was on the DB
-	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
-	defer cancelReadTxMeta()
-	// NOTE: We could optimize this to avoid unnecessary ingestion calls
-	//       (the range of txmetas can be larger than the individual store retention windows)
-	//       but it's probably not worth the pain.
-	var initialSeq uint32
-	var currentSeq uint32
-	// We should do the migration somewhere else
-	migrationSession := dbConn.Clone()
-	if err = migrationSession.Begin(readTxMetaCtx); err != nil {
-		logger.WithError(err).Fatal("could not start migration session")
-	}
-	migrationFunc := func(txmeta xdr.LedgerCloseMeta) error { return nil }
-	migrationDoneFunc := func() {}
-	val, err := db.GetMetaBool(readTxMetaCtx, migrationSession, transactionsTableMigrationDoneMetaKey)
-	if err == db.ErrEmptyDB || val == false {
-		logger.Info("migrating transaction to new backend")
-		writer := db.NewTransactionWriter(logger, migrationSession, cfg.NetworkPassphrase)
-		migrationFunc = func(txmeta xdr.LedgerCloseMeta) error {
-			return writer.InsertTransactions(txmeta)
-		}
-		migrationDoneFunc = func() {
-			err := db.SetMetaBool(readTxMetaCtx, migrationSession, transactionsTableMigrationDoneMetaKey)
-			if err != nil {
-				logger.WithError(err).WithField("key", transactionsTableMigrationDoneMetaKey).Fatal("could not set metadata")
-				migrationSession.Rollback()
-				return
-			}
-			// TODO: rollback wherever necessary
-			if err = migrationSession.Commit(); err != nil {
-				logger.WithError(err).Error("could not commit migration session")
-			}
-		}
-	} else if err != nil {
-		logger.WithError(err).WithField("key", transactionsTableMigrationDoneMetaKey).Fatal("could not get metadata")
-	}
-
-	err = db.NewLedgerReader(dbConn).StreamAllLedgers(readTxMetaCtx, func(txmeta xdr.LedgerCloseMeta) error {
-		currentSeq = txmeta.LedgerSequence()
-		if initialSeq == 0 {
-			initialSeq = currentSeq
-			logger.WithFields(supportlog.F{
-				"seq": currentSeq,
-			}).Info("initializing in-memory store")
-		} else if (currentSeq-initialSeq)%inMemoryInitializationLedgerLogPeriod == 0 {
-			logger.WithFields(supportlog.F{
-				"seq": currentSeq,
-			}).Debug("still initializing in-memory store")
-		}
-		if err := eventStore.IngestEvents(txmeta); err != nil {
-			logger.WithError(err).Fatal("could not initialize event memory store")
-		}
-		if err := feewindows.IngestFees(txmeta); err != nil {
-			logger.WithError(err).Fatal("could not initialize fee stats")
-		}
-		if err := migrationFunc(txmeta); err != nil {
-			// TODO: we should only migrate the transaction range
-			logger.WithError(err).Fatal("could not run migration")
-		}
-		return nil
-	})
-	if err != nil {
-		logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
-	}
-	migrationDoneFunc()
-
-	if currentSeq != 0 {
-		logger.WithFields(supportlog.F{
-			"seq": currentSeq,
-		}).Info("finished initializing in-memory store")
-	}
+	feewindows, eventStore := daemon.mustInitializeStorage(cfg)
 
 	onIngestionRetry := func(err error, dur time.Duration) {
 		logger.WithError(err).Error("could not run ingestion. Retrying")
@@ -352,6 +274,101 @@ func MustNew(cfg *config.Config) *Daemon {
 	}
 	daemon.registerMetrics()
 	return daemon
+}
+
+// mustInitializeStorage initializes the storage using what was on the DB
+// TODO: This function is horrendous, cleanup once we remove the in-memory storage
+func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindows, *events.MemoryStore) {
+	eventStore := events.NewMemoryStore(
+		d,
+		cfg.NetworkPassphrase,
+		cfg.EventLedgerRetentionWindow,
+	)
+	feewindows := feewindow.NewFeeWindows(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow, cfg.NetworkPassphrase)
+
+	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
+	defer cancelReadTxMeta()
+	var initialSeq uint32
+	var currentSeq uint32
+	// We should do the migration somewhere else
+	migrationSession := d.db.Clone()
+	if err := migrationSession.Begin(readTxMetaCtx); err != nil {
+		d.logger.WithError(err).Fatal("could not start migration session")
+	}
+	migrationFunc := func(txmeta xdr.LedgerCloseMeta) error { return nil }
+	migrationDoneFunc := func() {}
+	val, err := db.GetMetaBool(readTxMetaCtx, migrationSession, transactionsTableMigrationDoneMetaKey)
+	if err == db.ErrEmptyDB || val == false {
+		d.logger.Info("migrating transaction to new backend")
+		writer := db.NewTransactionWriter(d.logger, migrationSession, cfg.NetworkPassphrase)
+		latestLedger, err := db.NewLedgerEntryReader(d.db).GetLatestLedgerSequence(readTxMetaCtx)
+		if err != nil || err != db.ErrEmptyDB {
+			d.logger.WithError(err).Fatal("cannot read latest ledger")
+		}
+		firstLedgerToMigrate := uint32(2)
+		if latestLedger > cfg.TransactionLedgerRetentionWindow {
+			firstLedgerToMigrate = latestLedger - cfg.TransactionLedgerRetentionWindow
+		}
+		migrationFunc = func(txmeta xdr.LedgerCloseMeta) error {
+			if txmeta.LedgerSequence() < firstLedgerToMigrate {
+				return nil
+			}
+			return writer.InsertTransactions(txmeta)
+		}
+		migrationDoneFunc = func() {
+			err := db.SetMetaBool(readTxMetaCtx, migrationSession, transactionsTableMigrationDoneMetaKey)
+			if err != nil {
+				d.logger.WithError(err).WithField("key", transactionsTableMigrationDoneMetaKey).Fatal("could not set metadata")
+				migrationSession.Rollback()
+				return
+			}
+			// TODO: rollback wherever necessary
+			if err = migrationSession.Commit(); err != nil {
+				d.logger.WithError(err).Error("could not commit migration session")
+			}
+		}
+	} else if err != nil {
+		d.logger.WithError(err).WithField("key", transactionsTableMigrationDoneMetaKey).Fatal("could not get metadata")
+	}
+	// NOTE: We could optimize this to avoid unnecessary ingestion calls
+	//       (the range of txmetas can be larger than the individual store retention windows)
+	//       but it's probably not worth the pain.
+	err = db.NewLedgerReader(d.db).StreamAllLedgers(readTxMetaCtx, func(txmeta xdr.LedgerCloseMeta) error {
+		currentSeq = txmeta.LedgerSequence()
+		if initialSeq == 0 {
+			initialSeq = currentSeq
+			d.logger.WithFields(supportlog.F{
+				"seq": currentSeq,
+			}).Info("initializing in-memory store")
+		} else if (currentSeq-initialSeq)%inMemoryInitializationLedgerLogPeriod == 0 {
+			d.logger.WithFields(supportlog.F{
+				"seq": currentSeq,
+			}).Debug("still initializing in-memory store")
+		}
+		if err := eventStore.IngestEvents(txmeta); err != nil {
+			d.logger.WithError(err).Fatal("could not initialize event memory store")
+		}
+		if err := feewindows.IngestFees(txmeta); err != nil {
+			d.logger.WithError(err).Fatal("could not initialize fee stats")
+		}
+		if err := migrationFunc(txmeta); err != nil {
+			// TODO: we should only migrate the transaction range
+			d.logger.WithError(err).Fatal("could not run migration")
+		}
+		return nil
+	})
+	if err != nil {
+		d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
+	}
+	migrationDoneFunc()
+
+	if currentSeq != 0 {
+		d.logger.WithFields(supportlog.F{
+			"seq": currentSeq,
+		}).Info("finished initializing in-memory store")
+	}
+	
+	return feewindows, eventStore
 }
 
 func (d *Daemon) Run() {
