@@ -73,6 +73,10 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 			return err
 		}
 
+		if len(txEvents) == 0 {
+			continue
+		}
+
 		query := sq.Insert(eventTableName).
 			Columns("id", "ledger_sequence", "application_order", "contract_id", "event_type")
 
