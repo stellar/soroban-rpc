@@ -309,8 +309,8 @@ type transactionTableMigration struct {
 	writer      TransactionWriter
 }
 
-func (t *transactionTableMigration) ApplicableRange() *MigrationLedgerRange {
-	return &MigrationLedgerRange{
+func (t *transactionTableMigration) ApplicableRange() *LedgerSeqRange {
+	return &LedgerSeqRange{
 		firstLedgerSeq: t.firstLedger,
 		lastLedgerSeq:  t.lastLedger,
 	}

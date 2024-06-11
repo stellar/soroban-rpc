@@ -11,23 +11,36 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
 )
 
-type MigrationLedgerRange struct {
+type LedgerSeqRange struct {
 	firstLedgerSeq uint32
 	lastLedgerSeq  uint32
 }
 
-func (mlr *MigrationLedgerRange) IsLedgerIncluded(ledgerSeq uint32) bool {
+func (mlr *LedgerSeqRange) IsLedgerIncluded(ledgerSeq uint32) bool {
 	if mlr == nil {
 		return false
 	}
 	return ledgerSeq >= mlr.firstLedgerSeq && ledgerSeq <= mlr.lastLedgerSeq
 }
 
+func (mlr *LedgerSeqRange) Merge(other *LedgerSeqRange) *LedgerSeqRange {
+	if mlr == nil {
+		return other
+	}
+	if other == nil {
+		return mlr
+	}
+	return &LedgerSeqRange{
+		firstLedgerSeq: min(mlr.firstLedgerSeq, other.firstLedgerSeq),
+		lastLedgerSeq:  max(mlr.lastLedgerSeq, other.lastLedgerSeq),
+	}
+}
+
 type MigrationApplier interface {
 	Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error
 	// ApplicableRange returns the closed ledger sequence interval,
 	// a null result indicates the empty range
-	ApplicableRange() *MigrationLedgerRange
+	ApplicableRange() *LedgerSeqRange
 }
 
 type migrationApplierFactory interface {
@@ -48,18 +61,10 @@ type Migration interface {
 
 type multiMigration []Migration
 
-func (mm multiMigration) ApplicableRange() *MigrationLedgerRange {
-	var result *MigrationLedgerRange
+func (mm multiMigration) ApplicableRange() *LedgerSeqRange {
+	var result *LedgerSeqRange
 	for _, m := range mm {
-		r := m.ApplicableRange()
-		if r != nil {
-			if result == nil {
-				result = r
-			} else {
-				result.firstLedgerSeq = min(r.firstLedgerSeq, result.firstLedgerSeq)
-				result.lastLedgerSeq = max(r.lastLedgerSeq, result.lastLedgerSeq)
-			}
-		}
+		result = m.ApplicableRange().Merge(result)
 	}
 	return result
 }
@@ -143,7 +148,7 @@ func (g *guardedMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) 
 	return g.migration.Apply(ctx, meta)
 }
 
-func (g *guardedMigration) ApplicableRange() *MigrationLedgerRange {
+func (g *guardedMigration) ApplicableRange() *LedgerSeqRange {
 	if g.alreadyMigrated {
 		return nil
 	}
