@@ -151,8 +151,9 @@ func (g *guardedMigration) Commit(ctx context.Context) error {
 	if g.alreadyMigrated {
 		return nil
 	}
-	err := setMetaBool(ctx, g.db.SessionInterface, g.guardMetaKey)
+	err := setMetaBool(ctx, g.db.SessionInterface, g.guardMetaKey, true)
 	if err != nil {
+		g.Rollback(ctx)
 		return errors.Join(err, g.Rollback(ctx))
 	}
 	return g.db.Commit()

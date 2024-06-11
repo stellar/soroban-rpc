@@ -116,9 +116,9 @@ func getMetaBool(ctx context.Context, q db.SessionInterface, key string) (bool, 
 	return strconv.ParseBool(valueStr)
 }
 
-func setMetaBool(ctx context.Context, q db.SessionInterface, key string) error {
+func setMetaBool(ctx context.Context, q db.SessionInterface, key string, value bool) error {
 	query := sq.Replace(metaTableName).
-		Values(key, "true")
+		Values(key, strconv.FormatBool(value))
 	_, err := q.Exec(ctx, query)
 	return err
 }
