@@ -11,18 +11,33 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
 )
 
+type MigrationLedgerRange struct {
+	firstLedgerSeq uint32
+	lastLedgerSeq  uint32
+}
+
+func (mlr *MigrationLedgerRange) IsLedgerIncluded(ledgerSeq uint32) bool {
+	if mlr == nil {
+		return false
+	}
+	return ledgerSeq >= mlr.firstLedgerSeq && ledgerSeq <= mlr.lastLedgerSeq
+}
+
 type MigrationApplier interface {
 	Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error
+	// ApplicableRange returns the closed ledger sequence interval,
+	// a null result indicates the empty range
+	ApplicableRange() *MigrationLedgerRange
 }
 
 type migrationApplierFactory interface {
-	New(db *DB) (MigrationApplier, error)
+	New(db *DB, latestLedger uint32) (MigrationApplier, error)
 }
 
-type migrationApplierFactoryF func(db *DB) (MigrationApplier, error)
+type migrationApplierFactoryF func(db *DB, latestLedger uint32) (MigrationApplier, error)
 
-func (m migrationApplierFactoryF) New(db *DB) (MigrationApplier, error) {
-	return m(db)
+func (m migrationApplierFactoryF) New(db *DB, latestLedger uint32) (MigrationApplier, error) {
+	return m(db, latestLedger)
 }
 
 type Migration interface {
@@ -33,30 +48,46 @@ type Migration interface {
 
 type multiMigration []Migration
 
-func (m multiMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error {
+func (mm multiMigration) ApplicableRange() *MigrationLedgerRange {
+	var result *MigrationLedgerRange
+	for _, m := range mm {
+		r := m.ApplicableRange()
+		if r != nil {
+			if result == nil {
+				result = r
+			} else {
+				result.firstLedgerSeq = min(r.firstLedgerSeq, result.firstLedgerSeq)
+				result.lastLedgerSeq = max(r.lastLedgerSeq, result.lastLedgerSeq)
+			}
+		}
+	}
+	return result
+}
+
+func (mm multiMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error {
 	var err error
-	for _, data := range m {
-		if localErr := data.Apply(ctx, meta); localErr != nil {
+	for _, m := range mm {
+		if localErr := m.Apply(ctx, meta); localErr != nil {
 			err = errors.Join(err, localErr)
 		}
 	}
 	return err
 }
 
-func (m multiMigration) Commit(ctx context.Context) error {
+func (mm multiMigration) Commit(ctx context.Context) error {
 	var err error
-	for _, data := range m {
-		if localErr := data.Commit(ctx); localErr != nil {
+	for _, m := range mm {
+		if localErr := m.Commit(ctx); localErr != nil {
 			err = errors.Join(err, localErr)
 		}
 	}
 	return err
 }
 
-func (m multiMigration) Rollback(ctx context.Context) error {
+func (mm multiMigration) Rollback(ctx context.Context) error {
 	var err error
-	for _, data := range m {
-		if localErr := data.Rollback(ctx); localErr != nil {
+	for _, m := range mm {
+		if localErr := m.Rollback(ctx); localErr != nil {
 			err = errors.Join(err, localErr)
 		}
 	}
@@ -83,7 +114,12 @@ func newGuardedDataMigration(ctx context.Context, uniqueMigrationName string, fa
 		migrationDB.Rollback()
 		return nil, err
 	}
-	applier, err := factory.New(migrationDB)
+	latestLedger, err := NewLedgerEntryReader(db).GetLatestLedgerSequence(ctx)
+	if err != nil && err != ErrEmptyDB {
+		migrationDB.Rollback()
+		return nil, fmt.Errorf("failed to get latest ledger sequence: %w", err)
+	}
+	applier, err := factory.New(migrationDB, latestLedger)
 	if err != nil {
 		migrationDB.Rollback()
 		return nil, err
@@ -102,6 +138,13 @@ func (g *guardedMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) 
 		return nil
 	}
 	return g.migration.Apply(ctx, meta)
+}
+
+func (g *guardedMigration) ApplicableRange() *MigrationLedgerRange {
+	if g.alreadyMigrated {
+		return nil
+	}
+	return g.migration.ApplicableRange()
 }
 
 func (g *guardedMigration) Commit(ctx context.Context) error {

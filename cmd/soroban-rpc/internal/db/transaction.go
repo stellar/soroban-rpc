@@ -305,22 +305,23 @@ func ParseTransaction(lcm xdr.LedgerCloseMeta, ingestTx ingest.LedgerTransaction
 
 type transactionTableMigration struct {
 	firstLedger uint32
+	lastLedger  uint32
 	writer      TransactionWriter
 }
 
-func (t *transactionTableMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error {
-	if meta.LedgerSequence() < t.firstLedger {
-		return nil
+func (t *transactionTableMigration) ApplicableRange() *MigrationLedgerRange {
+	return &MigrationLedgerRange{
+		firstLedgerSeq: t.firstLedger,
+		lastLedgerSeq:  t.lastLedger,
 	}
+}
+
+func (t *transactionTableMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error {
 	return t.writer.InsertTransactions(meta)
 }
 
 func newTransactionTableMigration(ctx context.Context, logger *log.Entry, retentionWindow uint32, passphrase string) migrationApplierFactory {
-	return migrationApplierFactoryF(func(db *DB) (MigrationApplier, error) {
-		latestLedger, err := NewLedgerEntryReader(db).GetLatestLedgerSequence(ctx)
-		if err != nil && err != ErrEmptyDB {
-			return nil, errors.Wrap(err, "couldn't get latest ledger sequence")
-		}
+	return migrationApplierFactoryF(func(db *DB, latestLedger uint32) (MigrationApplier, error) {
 		firstLedgerToMigrate := uint32(2)
 		writer := &transactionHandler{
 			log:        logger,
@@ -336,12 +337,13 @@ func newTransactionTableMigration(ctx context.Context, logger *log.Entry, retent
 		// FIXME: this can be simply replaced by an upper limit in the ledgers to migrate
 		//        but ... it can't be done until https://github.com/stellar/soroban-rpc/issues/208
 		//        is addressed
-		_, err = db.Exec(ctx, sq.Delete(transactionTableName))
+		_, err := db.Exec(ctx, sq.Delete(transactionTableName))
 		if err != nil {
-			return nil, errors.Wrap(err, "couldn't truncate transactions table")
+			return nil, fmt.Errorf("couldn't delete table %q: %w", transactionTableName, err)
 		}
 		migration := transactionTableMigration{
 			firstLedger: firstLedgerToMigrate,
+			lastLedger:  latestLedger,
 			writer:      writer,
 		}
 		return &migration, nil

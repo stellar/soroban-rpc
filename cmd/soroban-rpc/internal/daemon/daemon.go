@@ -277,7 +277,6 @@ func MustNew(cfg *config.Config) *Daemon {
 }
 
 // mustInitializeStorage initializes the storage using what was on the DB
-// TODO: clean up once we remove the in-memory storage
 func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindows, *events.MemoryStore) {
 	eventStore := events.NewMemoryStore(
 		d,
@@ -315,8 +314,12 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 		if err := feewindows.IngestFees(txmeta); err != nil {
 			d.logger.WithError(err).Fatal("could not initialize fee stats")
 		}
-		if err := dataMigrations.Apply(readTxMetaCtx, txmeta); err != nil {
-			d.logger.WithError(err).Fatal("could not run migrations")
+		// TODO: clean up once we remove the in-memory storage.
+		//       (we should only stream over the required range)
+		if r := dataMigrations.ApplicableRange(); r.IsLedgerIncluded(currentSeq) {
+			if err := dataMigrations.Apply(readTxMetaCtx, txmeta); err != nil {
+				d.logger.WithError(err).Fatal("could not run migrations")
+			}
 		}
 		return nil
 	})
