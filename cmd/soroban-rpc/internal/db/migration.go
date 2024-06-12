@@ -30,6 +30,8 @@ func (mlr *LedgerSeqRange) Merge(other *LedgerSeqRange) *LedgerSeqRange {
 	if other == nil {
 		return mlr
 	}
+	// TODO: using min/max can result in a much larger range than needed,
+	//       as an optimization, we should probably use a sequence of ranges instead.
 	return &LedgerSeqRange{
 		firstLedgerSeq: min(mlr.firstLedgerSeq, other.firstLedgerSeq),
 		lastLedgerSeq:  max(mlr.lastLedgerSeq, other.lastLedgerSeq),
@@ -37,10 +39,12 @@ func (mlr *LedgerSeqRange) Merge(other *LedgerSeqRange) *LedgerSeqRange {
 }
 
 type MigrationApplier interface {
-	Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error
 	// ApplicableRange returns the closed ledger sequence interval,
-	// a null result indicates the empty range
+	// where Apply() should be called. A null result indicates the empty range
 	ApplicableRange() *LedgerSeqRange
+	// Apply applies the migration on a ledger. It should never be applied
+	// in ledgers outside the ApplicableRange()
+	Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error
 }
 
 type migrationApplierFactory interface {
@@ -72,6 +76,11 @@ func (mm multiMigration) ApplicableRange() *LedgerSeqRange {
 func (mm multiMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error {
 	var err error
 	for _, m := range mm {
+		ledgerSeq := meta.LedgerSequence()
+		if !m.ApplicableRange().IsLedgerIncluded(ledgerSeq) {
+			// The range of a sub-migration can be smaller than the global range.
+			continue
+		}
 		if localErr := m.Apply(ctx, meta); localErr != nil {
 			err = errors.Join(err, localErr)
 		}
@@ -143,6 +152,8 @@ func newGuardedDataMigration(ctx context.Context, uniqueMigrationName string, fa
 
 func (g *guardedMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error {
 	if g.alreadyMigrated {
+		// This shouldn't happen since we would be out of the applicable range
+		// but, just in case.
 		return nil
 	}
 	return g.migration.Apply(ctx, meta)
