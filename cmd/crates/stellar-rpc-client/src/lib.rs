@@ -799,10 +799,11 @@ impl Client {
 
     ///
     /// # Errors
-    pub async fn get_transaction(&self, tx_id: &Hash) -> Result<GetTransactionResponseRaw, Error> {
+    pub async fn get_transaction(&self, tx_id: &Hash) -> Result<GetTransactionResponse, Error> {
         let mut oparams = ObjectParams::new();
         oparams.insert("hash", tx_id)?;
-        Ok(self.client().request("getTransaction", oparams).await?)
+        let resp: GetTransactionResponseRaw = self.client().request("getTransaction", oparams).await?;
+        Ok(resp.try_into()?)
     }
 
     /// Poll the transaction status. Can provide a timeout in seconds, otherwise uses the default timeout.
@@ -827,7 +828,7 @@ impl Client {
         let exponential_backoff: f64 = 1.0 / (1.0 - E.powf(-1.0));
         let mut sleep_time = Duration::from_secs(1);
         loop {
-            let response: GetTransactionResponse = self.get_transaction(tx_id).await?.try_into()?;
+            let response = self.get_transaction(tx_id).await?;
             match response.status.as_str() {
                 "SUCCESS" => {
                     // TODO: the caller should probably be printing this
