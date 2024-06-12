@@ -799,7 +799,7 @@ impl Client {
 
     ///
     /// # Errors
-    pub async fn get_transaction(&self, tx_id: &Hash) -> Result<GetTransactionResponse, Error> {
+    pub async fn get_transaction(&self, tx_id: &Hash) -> Result<GetTransactionResponseRaw, Error> {
         let mut oparams = ObjectParams::new();
         oparams.insert("hash", tx_id)?;
         Ok(self.client().request("getTransaction", oparams).await?)
@@ -827,7 +827,7 @@ impl Client {
         let exponential_backoff: f64 = 1.0 / (1.0 - E.powf(-1.0));
         let mut sleep_time = Duration::from_secs(1);
         loop {
-            let response = self.get_transaction(tx_id).await?;
+            let response: GetTransactionResponse = self.get_transaction(tx_id).await?.try_into()?;
             match response.status.as_str() {
                 "SUCCESS" => {
                     // TODO: the caller should probably be printing this
