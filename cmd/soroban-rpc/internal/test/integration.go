@@ -18,16 +18,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/stellar/go/clients/stellarcore"
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/txnbuild"
+	"github.com/stretchr/testify/require"
+
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
 const (
@@ -48,6 +49,13 @@ const (
 type TestConfig struct {
 	historyArchiveProxyCallback func(*http.Request)
 	ProtocolVersion             uint32
+	UseRealRPCVersion           string
+	UseSQLitePath               string
+}
+
+type daemonOrCommand struct {
+	daemon  *daemon.Daemon
+	command *exec.Cmd
 }
 
 type Test struct {
@@ -57,7 +65,7 @@ type Test struct {
 
 	protocolVersion uint32
 
-	daemon *daemon.Daemon
+	rpcInstance daemonOrCommand
 
 	historyArchiveProxy         *httptest.Server
 	historyArchiveProxyCallback func(*http.Request)
@@ -87,9 +95,13 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 		AccountID: i.MasterKey().Address(),
 		Sequence:  0,
 	}
+	realRPCVersion := ""
+	sqlLitePath := ""
 	if cfg != nil {
 		i.historyArchiveProxyCallback = cfg.historyArchiveProxyCallback
 		i.protocolVersion = cfg.ProtocolVersion
+		realRPCVersion = cfg.UseRealRPCVersion
+		sqlLitePath = cfg.UseSQLitePath
 	}
 
 	if i.protocolVersion == 0 {
@@ -111,7 +123,7 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 	i.coreClient = &stellarcore.Client{URL: "http://localhost:" + strconv.Itoa(stellarCorePort)}
 	i.waitForCore()
 	i.waitForCheckpoint()
-	i.launchDaemon(coreBinaryPath)
+	i.launchRPC(coreBinaryPath, realRPCVersion, sqlLitePath)
 
 	return i
 }
@@ -153,7 +165,7 @@ func (i *Test) waitForCheckpoint() {
 	i.t.Fatal("Core could not reach checkpoint ledger after 30s")
 }
 
-func (i *Test) launchDaemon(coreBinaryPath string) {
+func (i *Test) launchRPC(coreBinaryPath string, realRPCVersion string, sqlitePath string) {
 	var config config.Config
 	cmd := &cobra.Command{}
 	if err := config.AddFlags(cmd); err != nil {
@@ -162,30 +174,37 @@ func (i *Test) launchDaemon(coreBinaryPath string) {
 	if err := config.SetValues(func(string) (string, bool) { return "", false }); err != nil {
 		i.t.FailNow()
 	}
+	if sqlitePath == "" {
+		sqlitePath = path.Join(i.t.TempDir(), "soroban_rpc.sqlite")
+	}
+	env := map[string]string{
+		"ENDPOINT":                       fmt.Sprintf("localhost:%d", sorobanRPCPort),
+		"ADMIN_ENDPOINT":                 fmt.Sprintf("localhost:%d", adminPort),
+		"STELLAR_CORE_URL":               "http://localhost:" + strconv.Itoa(stellarCorePort),
+		"CORE_REQUEST_TIMEOUT":           "2s",
+		"STELLAR_CORE_BINARY_PATH":       coreBinaryPath,
+		"CAPTIVE_CORE_CONFIG_PATH":       path.Join(i.composePath, "captive-core-integration-tests.cfg"),
+		"CAPTIVE_CORE_STORAGE_PATH":      i.t.TempDir(),
+		"STELLAR_CAPTIVE_CORE_HTTP_PORT": "0",
+		"FRIENDBOT_URL":                  friendbotURL,
+		"NETWORK_PASSPHRASE":             StandaloneNetworkPassphrase,
+		"HISTORY_ARCHIVE_URLS":           i.historyArchiveProxy.URL,
+		"LOG_LEVEL":                      "debug",
+		"DB_PATH":                        sqlitePath,
+		"INGESTION_TIMEOUT":              "10m",
+		"EVENT_LEDGER_RETENTION_WINDOW":  strconv.Itoa(ledgerbucketwindow.OneDayOfLedgers),
+		"TRANSACTION_RETENTION_WINDOW":   strconv.Itoa(ledgerbucketwindow.OneDayOfLedgers),
+		"CHECKPOINT_FREQUENCY":           strconv.Itoa(checkpointFrequency),
+		"MAX_HEALTHY_LEDGER_LATENCY":     "10s",
+		"PREFLIGHT_ENABLE_DEBUG":         "true",
+	}
 
-	config.Endpoint = fmt.Sprintf("localhost:%d", sorobanRPCPort)
-	config.AdminEndpoint = fmt.Sprintf("localhost:%d", adminPort)
-	config.StellarCoreURL = "http://localhost:" + strconv.Itoa(stellarCorePort)
-	config.CoreRequestTimeout = time.Second * 2
-	config.StellarCoreBinaryPath = coreBinaryPath
-	config.CaptiveCoreConfigPath = path.Join(i.composePath, "captive-core-integration-tests.cfg")
-	config.CaptiveCoreStoragePath = i.t.TempDir()
-	config.CaptiveCoreHTTPPort = 0
-	config.FriendbotURL = friendbotURL
-	config.NetworkPassphrase = StandaloneNetworkPassphrase
-	config.HistoryArchiveURLs = []string{i.historyArchiveProxy.URL}
-	config.LogLevel = logrus.DebugLevel
-	config.SQLiteDBPath = path.Join(i.t.TempDir(), "soroban_rpc.sqlite")
-	config.IngestionTimeout = 10 * time.Minute
-	config.EventLedgerRetentionWindow = ledgerbucketwindow.OneDayOfLedgers
-	config.TransactionLedgerRetentionWindow = ledgerbucketwindow.OneDayOfLedgers
-	config.CheckpointFrequency = checkpointFrequency
-	config.MaxHealthyLedgerLatency = time.Second * 10
-	config.PreflightEnableDebug = true
-	config.HistoryArchiveUserAgent = "testing"
-
-	i.daemon = daemon.MustNew(&config)
-	go i.daemon.Run()
+	if realRPCVersion != "" {
+		i.rpcInstance.command = i.compileAndStartRPC(env, realRPCVersion)
+	} else {
+		i.rpcInstance.daemon = i.createDaemon(env)
+		go i.rpcInstance.daemon.Run()
+	}
 
 	// wait for the storage to catch up for 1 minute
 	info, err := i.coreClient.Info(context.Background())
@@ -194,7 +213,9 @@ func (i *Test) launchDaemon(coreBinaryPath string) {
 	}
 	targetLedgerSequence := uint32(info.Info.Ledger.Num)
 
-	reader := db.NewLedgerEntryReader(i.daemon.GetDB())
+	dbConn, err := db.OpenSQLiteDB(sqlitePath)
+	require.NoError(i.t, err)
+	reader := db.NewLedgerEntryReader(dbConn)
 	success := false
 	for t := 30; t >= 0; t -= 1 {
 		sequence, err := reader.GetLatestLedgerSequence(context.Background())
@@ -213,6 +234,51 @@ func (i *Test) launchDaemon(coreBinaryPath string) {
 	if !success {
 		i.t.Fatal("LedgerEntryStorage failed to sync in 1 minute")
 	}
+}
+
+func (i *Test) compileAndStartRPC(env map[string]string, version string) *exec.Cmd {
+	newRPCDir := i.t.TempDir()
+
+	Command := func(name string, arg ...string) *exec.Cmd {
+		cmd := exec.Command(name, arg...)
+		cmd.Dir = newRPCDir
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+		return cmd
+	}
+
+	// Clone
+	rootDir := path.Join(i.composePath, "..", "..", "..", "..")
+	err := Command("git", "clone", "--depth", "1", "--branch", version, "file://"+rootDir, newRPCDir).Run()
+	require.NoError(i.t, err)
+
+	// Compile
+	cmd := Command("make", "build-libpreflight")
+	require.NoError(i.t, cmd.Run())
+	cmd = Command("go", "build", "./cmd/soroban-rpc")
+	require.NoError(i.t, cmd.Run())
+
+	// Run
+	cmd = Command(path.Join(newRPCDir, "soroban-rpc"))
+	for k, v := range env {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
+	}
+	require.NoError(i.t, cmd.Start())
+
+	return cmd
+}
+
+func (i *Test) createDaemon(env map[string]string) *daemon.Daemon {
+	var cfg config.Config
+	lookup := func(s string) (string, bool) {
+		ret, ok := env[s]
+		return ret, ok
+	}
+	require.NoError(i.t, cfg.SetValues(lookup))
+	require.NoError(i.t, cfg.Validate())
+	cfg.HistoryArchiveUserAgent = fmt.Sprintf("soroban-rpc/%s", config.Version)
+	return daemon.MustNew(&cfg)
 }
 
 // Runs a docker-compose command applied to the above configs
@@ -244,8 +310,12 @@ func (i *Test) runComposeCommand(args ...string) {
 func (i *Test) prepareShutdownHandlers() {
 	i.shutdownCalls = append(i.shutdownCalls,
 		func() {
-			if i.daemon != nil {
-				i.daemon.Close()
+			if i.rpcInstance.daemon != nil {
+				i.rpcInstance.daemon.Close()
+			}
+			if i.rpcInstance.command != nil {
+				require.NoError(i.t, i.rpcInstance.command.Process.Kill())
+				i.rpcInstance.command.Wait()
 			}
 			if i.historyArchiveProxy != nil {
 				i.historyArchiveProxy.Close()

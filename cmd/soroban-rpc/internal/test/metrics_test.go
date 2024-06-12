@@ -2,14 +2,15 @@ package test
 
 import (
 	"fmt"
-	io_prometheus_client "github.com/prometheus/client_model/go"
-	"github.com/stellar/go/support/errors"
-	"github.com/stretchr/testify/assert"
 	"io"
 	"net/http"
 	"net/url"
 	"runtime"
 	"testing"
+
+	io_prometheus_client "github.com/prometheus/client_model/go"
+	"github.com/stellar/go/support/errors"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/stretchr/testify/require"
 
@@ -29,12 +30,12 @@ func TestMetrics(t *testing.T) {
 	)
 	require.Contains(t, metrics, buildMetric)
 
-	logger := test.daemon.Logger()
+	logger := test.rpcInstance.daemon.Logger()
 	err := errors.Errorf("test-error")
 	logger.WithError(err).Error("test error 1")
 	logger.WithError(err).Error("test error 2")
 
-	metricFamilies, err := test.daemon.MetricsRegistry().Gather()
+	metricFamilies, err := test.rpcInstance.daemon.MetricsRegistry().Gather()
 	assert.NoError(t, err)
 	var metric *io_prometheus_client.MetricFamily
 	for _, mf := range metricFamilies {

@@ -17,9 +17,9 @@ func TestArchiveUserAgent(t *testing.T) {
 	}
 	NewTest(t, cfg)
 
-	_, ok := userAgents.Load("testing")
+	_, ok := userAgents.Load("soroban-rpc/0.0.0")
 	assert.True(t, ok, "rpc service should set user agent for history archives")
 
-	_, ok = userAgents.Load("testing/captivecore")
+	_, ok = userAgents.Load("soroban-rpc/0.0.0/captivecore")
 	assert.True(t, ok, "rpc captive core should set user agent for history archives")
 }

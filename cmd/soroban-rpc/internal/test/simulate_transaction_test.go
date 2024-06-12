@@ -563,7 +563,7 @@ func TestSimulateInvokeContractTransactionSucceeds(t *testing.T) {
 }
 
 func TestSimulateTransactionError(t *testing.T) {
-	test := NewTest(t, nil)
+	test := NewTest(t, &TestConfig{UseRealRPCVersion: "main"})
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
