@@ -244,7 +244,7 @@ func (i *Test) waitForRPC() {
 	i.t.Log("Waiting for RPC to be healthy...")
 
 	var result methods.HealthCheckResult
-	for t := 120; t >= 0; t-- {
+	for t := 30; t >= 0; t-- {
 		err := i.rpcClient.CallResult(context.Background(), "getHealth", nil, &result)
 		if err == nil {
 			if result.Status == "healthy" {
@@ -260,7 +260,7 @@ func (i *Test) waitForRPC() {
 	buf := make([]byte, 1<<16)
 	stackSize := runtime.Stack(buf, true)
 	log.Printf("%s\n", string(buf[0:stackSize]))
-	i.t.Fatal("RPC failed to get healthy in 120 seconds")
+	i.t.Fatal("RPC failed to get healthy in 30 seconds")
 }
 
 func (i *Test) createRPCContainerMountDir(rpcConfig map[string]string) string {
