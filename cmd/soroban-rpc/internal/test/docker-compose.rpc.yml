@@ -13,3 +13,5 @@ services:
       - ${RPC_CONFIG_MOUNT_DIR}/stellar-core-integration-tests.cfg:/stellar-core.cfg
       - ${RPC_CONFIG_MOUNT_DIR}/soroban-rpc.config:/soroban-rpc.config
       - ${RPC_SQLITE_MOUNT_DIR}:/db/
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
