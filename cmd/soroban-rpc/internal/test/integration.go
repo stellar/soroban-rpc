@@ -334,8 +334,12 @@ func (i *Test) runComposeCommand(args ...string) {
 
 	i.t.Log("Running", cmd.Env, cmd.Args)
 	out, innerErr := cmd.Output()
-	if exitErr, ok := innerErr.(*exec.ExitError); ok {
+	exitErr, ok := innerErr.(*exec.ExitError)
+	// TODO: make this cleaner
+	if ok || args[0] == "logs" {
 		fmt.Printf("stdout:\n%s\n", string(out))
+	}
+	if ok {
 		fmt.Printf("stderr:\n%s\n", string(exitErr.Stderr))
 	}
 
@@ -456,6 +460,7 @@ func (i *Test) StopRPC() {
 		i.daemon = nil
 	}
 	if i.rpcContainerVersion != "" {
+		i.runComposeCommand("logs", "rpc")
 		i.runComposeCommand("down", "rpc", "-v")
 	}
 }
