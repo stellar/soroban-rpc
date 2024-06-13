@@ -342,7 +342,7 @@ func (i *Test) getComposeCommand(args ...string) *exec.Cmd {
 // Runs a docker-compose command applied to the above configs
 func (i *Test) runComposeCommand(args ...string) {
 	cmd := i.getComposeCommand(args...)
-	i.t.Log("Running", cmd.Env, cmd.Args)
+	i.t.Log("Running", cmd.Args)
 	out, innerErr := cmd.Output()
 	if exitErr, ok := innerErr.(*exec.ExitError); ok {
 		fmt.Printf("stdout:\n%s\n", string(out))
