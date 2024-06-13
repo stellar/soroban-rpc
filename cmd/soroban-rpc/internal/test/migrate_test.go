@@ -22,7 +22,7 @@ import (
 )
 
 // Test that every Soroban RPC version (within the current protocol) can migrate cleanly to the current version
-// We cannot test prior protocol versions since the Transaction XDR used for the test would be incompatible
+// We cannot test prior protocol versions since the Transaction XDR used for the test could be incompatible
 func TestMigrate(t *testing.T) {
 	if GetCoreMaxSupportedProtocol() != MaxSupportedProtocolVersion {
 		t.Skip("Only test this for the latest protocol: ", MaxSupportedProtocolVersion)
