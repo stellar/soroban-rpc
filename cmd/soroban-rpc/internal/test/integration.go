@@ -211,6 +211,12 @@ func (i *Test) getRPConfig(sqlitePath string) map[string]string {
 		stellarCoreURL = fmt.Sprintf("http://core:%d", stellarCorePort)
 	}
 
+	// in the container
+	captiveCoreStoragePath := "/tmp/captive-core"
+	if !i.runRPCInContainer() {
+		captiveCoreStoragePath = i.t.TempDir()
+	}
+
 	return map[string]string{
 		"ENDPOINT":                       fmt.Sprintf("%s:%d", bindHost, sorobanRPCPort),
 		"ADMIN_ENDPOINT":                 fmt.Sprintf("%s:%d", bindHost, adminPort),
@@ -218,7 +224,7 @@ func (i *Test) getRPConfig(sqlitePath string) map[string]string {
 		"CORE_REQUEST_TIMEOUT":           "2s",
 		"STELLAR_CORE_BINARY_PATH":       coreBinaryPath,
 		"CAPTIVE_CORE_CONFIG_PATH":       captiveCoreConfigPath,
-		"CAPTIVE_CORE_STORAGE_PATH":      i.t.TempDir(),
+		"CAPTIVE_CORE_STORAGE_PATH":      captiveCoreStoragePath,
 		"STELLAR_CAPTIVE_CORE_HTTP_PORT": "0",
 		"FRIENDBOT_URL":                  friendbotURL,
 		"NETWORK_PASSPHRASE":             StandaloneNetworkPassphrase,
