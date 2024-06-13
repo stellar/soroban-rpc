@@ -75,7 +75,7 @@ func testMigrateFromVersion(t *testing.T, version string) {
 	assert.NoError(t, err)
 	submitTransactionResponse := sendSuccessfulTransaction(t, client, kp, tx)
 
-	// Run another test with the current RPC, but the previous network and sql database (causing a data migration)
+	// Check the transaction with current RPC, but the previous network and sql database (causing a data migration)
 	// TODO: create a dedicated method
 	it.runComposeCommand("down", "rpc", "-v")
 	it = NewTest(t, &TestConfig{UseSQLitePath: sqliteFile})
