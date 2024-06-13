@@ -81,6 +81,7 @@ type Test struct {
 	masterAccount txnbuild.Account
 	shutdownOnce  sync.Once
 	shutdownCalls []func()
+	rpcClient     *jrpc2.Client
 }
 
 func NewTest(t *testing.T, cfg *TestConfig) *Test {
@@ -119,6 +120,8 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 		proxy.ServeHTTP(w, r)
 	}))
 
+	ch := jhttp.NewChannel(i.sorobanRPCURL(), nil)
+	i.rpcClient = jrpc2.NewClient(ch, nil)
 	rpcCfg := i.getRPConfig(sqlLitePath)
 	if i.rpcContainerVersion != "" {
 		i.rpcContainerConfigMountDir = i.createRPCContainerMountDir(rpcCfg)
@@ -137,6 +140,9 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 	return i
 }
 
+func (i *Test) GetRPCLient() *jrpc2.Client {
+	return i.rpcClient
+}
 func (i *Test) MasterKey() *keypair.Full {
 	return keypair.Root(StandaloneNetworkPassphrase)
 }
@@ -237,13 +243,9 @@ func (i *Test) getRPConfig(sqlitePath string) map[string]string {
 func (i *Test) waitForRPC() {
 	i.t.Log("Waiting for RPC to be healthy...")
 
-	ch := jhttp.NewChannel(i.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
-	defer client.Close()
-
 	var result methods.HealthCheckResult
 	for t := 120; t >= 0; t-- {
-		err := client.CallResult(context.Background(), "getHealth", nil, &result)
+		err := i.rpcClient.CallResult(context.Background(), "getHealth", nil, &result)
 		if err == nil {
 			if result.Status == "healthy" {
 				i.t.Log("RPC is healthy")
@@ -348,6 +350,9 @@ func (i *Test) prepareShutdownHandlers() {
 			i.StopRPC()
 			if i.historyArchiveProxy != nil {
 				i.historyArchiveProxy.Close()
+			}
+			if i.rpcClient != nil {
+				i.rpcClient.Close()
 			}
 			i.runComposeCommand("down", "-v")
 		},

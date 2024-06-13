@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -191,9 +190,7 @@ func preflightTransactionParams(t *testing.T, client *jrpc2.Client, params txnbu
 func TestSimulateTransactionSucceeds(t *testing.T) {
 	test := NewTest(t, nil)
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
-
+	client := test.GetRPCLient()
 	sourceAccount := keypair.Root(StandaloneNetworkPassphrase).Address()
 	contractBinary := getHelloWorldContract(t)
 	params := txnbuild.TransactionParams{
@@ -323,8 +320,7 @@ func TestSimulateTransactionSucceeds(t *testing.T) {
 func TestSimulateTransactionWithAuth(t *testing.T) {
 	test := NewTest(t, nil)
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
+	client := test.GetRPCLient()
 
 	sourceAccount := keypair.Root(StandaloneNetworkPassphrase)
 	address := sourceAccount.Address()
@@ -381,8 +377,7 @@ func TestSimulateTransactionWithAuth(t *testing.T) {
 func TestSimulateInvokeContractTransactionSucceeds(t *testing.T) {
 	test := NewTest(t, nil)
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
+	client := test.GetRPCLient()
 
 	sourceAccount := keypair.Root(StandaloneNetworkPassphrase)
 	address := sourceAccount.Address()
@@ -565,8 +560,7 @@ func TestSimulateInvokeContractTransactionSucceeds(t *testing.T) {
 func TestSimulateTransactionError(t *testing.T) {
 	test := NewTest(t, nil)
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
+	client := test.GetRPCLient()
 
 	sourceAccount := keypair.Root(StandaloneNetworkPassphrase).Address()
 	invokeHostOp := createInvokeHostOperation(sourceAccount, xdr.Hash{}, "noMethod")
@@ -605,8 +599,7 @@ func TestSimulateTransactionError(t *testing.T) {
 func TestSimulateTransactionMultipleOperations(t *testing.T) {
 	test := NewTest(t, nil)
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
+	client := test.GetRPCLient()
 
 	sourceAccount := keypair.Root(StandaloneNetworkPassphrase).Address()
 	contractBinary := getHelloWorldContract(t)
@@ -640,8 +633,7 @@ func TestSimulateTransactionMultipleOperations(t *testing.T) {
 func TestSimulateTransactionWithoutInvokeHostFunction(t *testing.T) {
 	test := NewTest(t, nil)
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
+	client := test.GetRPCLient()
 
 	params := txnbuild.TransactionParams{
 		SourceAccount: &txnbuild.SimpleAccount{
@@ -671,8 +663,7 @@ func TestSimulateTransactionWithoutInvokeHostFunction(t *testing.T) {
 func TestSimulateTransactionUnmarshalError(t *testing.T) {
 	test := NewTest(t, nil)
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
+	client := test.GetRPCLient()
 
 	request := methods.SimulateTransactionRequest{Transaction: "invalid"}
 	var result methods.SimulateTransactionResponse
@@ -688,8 +679,7 @@ func TestSimulateTransactionUnmarshalError(t *testing.T) {
 func TestSimulateTransactionExtendAndRestoreFootprint(t *testing.T) {
 	test := NewTest(t, nil)
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
+	client := test.GetRPCLient()
 
 	sourceAccount := keypair.Root(StandaloneNetworkPassphrase)
 	address := sourceAccount.Address()
@@ -921,8 +911,7 @@ func waitUntilLedgerEntryTTL(t *testing.T, client *jrpc2.Client, ledgerKey xdr.L
 func TestSimulateInvokePrng_u64_in_range(t *testing.T) {
 	test := NewTest(t, nil)
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
+	client := test.GetRPCLient()
 
 	sourceAccount := keypair.Root(StandaloneNetworkPassphrase)
 	address := sourceAccount.Address()
@@ -1032,8 +1021,7 @@ func TestSimulateInvokePrng_u64_in_range(t *testing.T) {
 func TestSimulateSystemEvent(t *testing.T) {
 	test := NewTest(t, nil)
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
+	client := test.GetRPCLient()
 
 	sourceAccount := keypair.Root(StandaloneNetworkPassphrase)
 	address := sourceAccount.Address()

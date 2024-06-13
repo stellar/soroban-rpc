@@ -207,6 +207,7 @@ func TestJRPCRequestDurationLimiter_Limiting(t *testing.T) {
 
 	ch := jhttp.NewChannel("http://"+addr+"/", nil)
 	client := jrpc2.NewClient(ch, nil)
+	defer client.Close()
 
 	var res interface{}
 	req := struct {
@@ -251,6 +252,7 @@ func TestJRPCRequestDurationLimiter_NoLimiting(t *testing.T) {
 
 	ch := jhttp.NewChannel("http://"+addr+"/", nil)
 	client := jrpc2.NewClient(ch, nil)
+	defer client.Close()
 
 	var res interface{}
 	req := struct {
@@ -292,6 +294,7 @@ func TestJRPCRequestDurationLimiter_NoLimiting_Warn(t *testing.T) {
 
 	ch := jhttp.NewChannel("http://"+addr+"/", nil)
 	client := jrpc2.NewClient(ch, nil)
+	defer client.Close()
 
 	var res interface{}
 	req := struct {

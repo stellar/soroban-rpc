@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -20,8 +19,7 @@ import (
 func TestGetLedgerEntriesNotFound(t *testing.T) {
 	test := NewTest(t, nil)
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
+	client := test.GetRPCLient()
 
 	sourceAccount := keypair.Root(StandaloneNetworkPassphrase).Address()
 	contractID := getContractID(t, sourceAccount, testSalt, StandaloneNetworkPassphrase)
@@ -58,8 +56,7 @@ func TestGetLedgerEntriesNotFound(t *testing.T) {
 func TestGetLedgerEntriesInvalidParams(t *testing.T) {
 	test := NewTest(t, nil)
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
+	client := test.GetRPCLient()
 
 	var keys []string
 	keys = append(keys, "<>@@#$")
@@ -76,8 +73,7 @@ func TestGetLedgerEntriesInvalidParams(t *testing.T) {
 func TestGetLedgerEntriesSucceeds(t *testing.T) {
 	test := NewTest(t, nil)
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
+	client := test.GetRPCLient()
 
 	sourceAccount := keypair.Root(StandaloneNetworkPassphrase)
 	address := sourceAccount.Address()

@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/txnbuild"
 	"github.com/stretchr/testify/assert"
@@ -57,8 +56,7 @@ func sendTransactions(t *testing.T, client *jrpc2.Client) []uint32 {
 
 func TestGetTransactions(t *testing.T) {
 	test := NewTest(t, nil)
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
+	client := test.GetRPCLient()
 
 	ledgers := sendTransactions(t, client)
 
