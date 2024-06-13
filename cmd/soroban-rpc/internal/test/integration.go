@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -233,28 +235,30 @@ func (i *Test) getRPConfig(sqlitePath string) map[string]string {
 }
 
 func (i *Test) waitForRPC() {
-	i.t.Log("Waiting for RPC to be up...")
+	i.t.Log("Waiting for RPC to be healthy...")
 
 	ch := jhttp.NewChannel(i.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
 	defer client.Close()
 
 	var result methods.HealthCheckResult
-	success := false
 	for t := 30; t >= 0; t-- {
 		err := client.CallResult(context.Background(), "getHealth", nil, &result)
 		if err == nil {
 			if result.Status == "healthy" {
-				success = true
-				break
+				i.t.Log("RPC is healthy")
+				return
 			}
 		}
 		i.t.Log("RPC still unhealthy", err, result.Status)
 		time.Sleep(time.Second)
 	}
-	if !success {
-		i.t.Fatal("RPC failed to get healthy in 30 seconds")
-	}
+
+	// Print stack trace and fail
+	buf := make([]byte, 1<<16)
+	stackSize := runtime.Stack(buf, true)
+	log.Printf("%s\n", string(buf[0:stackSize]))
+	i.t.Fatal("RPC failed to get healthy in 30 seconds")
 }
 
 func (i *Test) createRPCContainerMountDir(rpcConfig map[string]string) string {
