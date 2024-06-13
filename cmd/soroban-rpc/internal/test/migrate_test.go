@@ -27,8 +27,16 @@ func TestMigrate(t *testing.T) {
 	if GetCoreMaxSupportedProtocol() != MaxSupportedProtocolVersion {
 		t.Skip("Only test this for the latest protocol: ", MaxSupportedProtocolVersion)
 	}
-
 	for _, originVersion := range getCurrentProtocolReleaseVersions(t) {
+		if originVersion == "21.1.0" {
+			// This version of the RPC container fails to even start with its captive core companion file
+			// (it fails Invalid configuration: DEPRECATED_SQL_LEDGER_STATE not set.)
+			continue
+		}
+		if originVersion == "21.3.0" {
+			// This version of RPC wasn't published as a docker container
+			continue
+		}
 		t.Run(originVersion, func(t *testing.T) {
 			testMigrateFromVersion(t, originVersion)
 		})
