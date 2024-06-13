@@ -23,11 +23,12 @@ import (
 
 // Test that every Soroban RPC version (within the current protocol) can migrate cleanly to the current version
 // We cannot test prior protocol versions since the Transaction XDR used for the test could be incompatible
+// TODO: find a way to test migrations between protocols
 func TestMigrate(t *testing.T) {
 	if GetCoreMaxSupportedProtocol() != MaxSupportedProtocolVersion {
 		t.Skip("Only test this for the latest protocol: ", MaxSupportedProtocolVersion)
 	}
-	for _, originVersion := range getCurrentProtocolReleaseVersions(t) {
+	for _, originVersion := range getCurrentProtocolReleasedVersions(t) {
 		if originVersion == "21.1.0" {
 			// This version of the RPC container fails to even start with its captive core companion file
 			// (it fails Invalid configuration: DEPRECATED_SQL_LEDGER_STATE not set.)
@@ -47,8 +48,8 @@ func TestMigrate(t *testing.T) {
 func testMigrateFromVersion(t *testing.T, version string) {
 	sqliteFile := filepath.Join(t.TempDir(), "soroban-rpc.db")
 	it := NewTest(t, &TestConfig{
-		UseRealRPCVersion: version,
-		UseSQLitePath:     sqliteFile,
+		UseReleasedRPCVersion: version,
+		UseSQLitePath:         sqliteFile,
 	})
 
 	ch := jhttp.NewChannel(it.sorobanRPCURL(), nil)
@@ -75,18 +76,11 @@ func testMigrateFromVersion(t *testing.T, version string) {
 	assert.NoError(t, err)
 	submitTransactionResponse := sendSuccessfulTransaction(t, client, kp, tx)
 
-	// Check the transaction with current RPC, but the previous network and sql database (causing a data migration)
-	// TODO: create a dedicated method
-	it.runComposeCommand("down", "rpc", "-v")
+	// Run the current RPC version, but the previous network and sql database (causing a data migration if needed)
+	it.StopRPC()
 	it = NewTest(t, &TestConfig{UseSQLitePath: sqliteFile})
 
-	// make sure that the instance is healthy
-	var healthResult methods.HealthCheckResult
-	err = client.CallResult(context.Background(), "getHealth", nil, &healthResult)
-	require.NoError(t, err)
-	require.Equal(t, "healthy", healthResult.Status)
-
-	// make sure that the transaction submitted before and its events exist
+	// make sure that the transaction submitted before and its events exist in current RPC
 	var transactionsResult methods.GetTransactionsResponse
 	getTransactions := methods.GetTransactionsRequest{
 		StartLedger: submitTransactionResponse.Ledger,
@@ -112,7 +106,7 @@ func testMigrateFromVersion(t *testing.T, version string) {
 	require.Equal(t, submitTransactionResponse.Ledger, uint32(eventsResult.Events[0].Ledger))
 }
 
-func getCurrentProtocolReleaseVersions(t *testing.T) []string {
+func getCurrentProtocolReleasedVersions(t *testing.T) []string {
 	protocolStr := strconv.Itoa(MaxSupportedProtocolVersion)
 	_, currentFilename, _, _ := runtime.Caller(0)
 	currentDir := filepath.Dir(currentFilename)

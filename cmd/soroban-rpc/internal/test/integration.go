@@ -53,8 +53,9 @@ const (
 type TestConfig struct {
 	historyArchiveProxyCallback func(*http.Request)
 	ProtocolVersion             uint32
-	UseRealRPCVersion           string
-	UseSQLitePath               string
+	// Run a previously released version of RPC (in a container) instead of the current version
+	UseReleasedRPCVersion string
+	UseSQLitePath         string
 }
 
 type Test struct {
@@ -64,9 +65,9 @@ type Test struct {
 
 	protocolVersion uint32
 
-	rpcContainerVersion string
-	rpcConfigMountDir   string
-	rpcSQLiteMountDir   string
+	rpcContainerVersion        string
+	rpcContainerConfigMountDir string
+	rpcContainerSQLiteMountDir string
 
 	daemon *daemon.Daemon
 
@@ -96,7 +97,7 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 
 	sqlLitePath := ""
 	if cfg != nil {
-		i.rpcContainerVersion = cfg.UseRealRPCVersion
+		i.rpcContainerVersion = cfg.UseReleasedRPCVersion
 		i.historyArchiveProxyCallback = cfg.historyArchiveProxyCallback
 		i.protocolVersion = cfg.ProtocolVersion
 		sqlLitePath = cfg.UseSQLitePath
@@ -118,7 +119,7 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 
 	rpcCfg := i.getRPConfig(sqlLitePath)
 	if i.rpcContainerVersion != "" {
-		i.rpcConfigMountDir = i.createRPCContainerMountDir(rpcCfg)
+		i.rpcContainerConfigMountDir = i.createRPCContainerMountDir(rpcCfg)
 	}
 	i.runComposeCommand("up", "--detach", "--quiet-pull", "--no-color")
 	i.prepareShutdownHandlers()
@@ -203,7 +204,7 @@ func (i *Test) getRPConfig(sqlitePath string) map[string]string {
 		// The container needs to listen on all interfaces, not just localhost
 		bindHost = "0.0.0.0"
 		// The container needs to use the sqlite mount point
-		i.rpcSQLiteMountDir = filepath.Dir(sqlitePath)
+		i.rpcContainerSQLiteMountDir = filepath.Dir(sqlitePath)
 		sqlitePath = "/db/" + filepath.Base(sqlitePath)
 		stellarCoreURL = fmt.Sprintf("http://core:%d", stellarCorePort)
 	}
@@ -315,8 +316,8 @@ func (i *Test) runComposeCommand(args ...string) {
 		cmd.Env = append(
 			cmd.Env,
 			"RPC_IMAGE_TAG="+i.rpcContainerVersion,
-			"RPC_CONFIG_MOUNT_DIR="+i.rpcConfigMountDir,
-			"RPC_SQLITE_MOUNT_DIR="+i.rpcSQLiteMountDir,
+			"RPC_CONFIG_MOUNT_DIR="+i.rpcContainerConfigMountDir,
+			"RPC_SQLITE_MOUNT_DIR="+i.rpcContainerSQLiteMountDir,
 		)
 	}
 	if len(cmd.Env) > 0 {
@@ -338,9 +339,7 @@ func (i *Test) runComposeCommand(args ...string) {
 func (i *Test) prepareShutdownHandlers() {
 	i.shutdownCalls = append(i.shutdownCalls,
 		func() {
-			if i.daemon != nil {
-				i.daemon.Close()
-			}
+			i.StopRPC()
 			if i.historyArchiveProxy != nil {
 				i.historyArchiveProxy.Close()
 			}
@@ -433,6 +432,16 @@ func (i *Test) UpgradeProtocol(version uint32) {
 	}
 
 	i.t.Fatalf("could not upgrade protocol in 10s")
+}
+
+func (i *Test) StopRPC() {
+	if i.daemon != nil {
+		i.daemon.Close()
+		i.daemon = nil
+	}
+	if i.rpcContainerVersion != "" {
+		i.runComposeCommand("down", "rpc", "-v")
+	}
 }
 
 // Cluttering code with if err != nil is absolute nonsense.
