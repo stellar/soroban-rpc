@@ -802,7 +802,8 @@ impl Client {
     pub async fn get_transaction(&self, tx_id: &Hash) -> Result<GetTransactionResponse, Error> {
         let mut oparams = ObjectParams::new();
         oparams.insert("hash", tx_id)?;
-        let resp: GetTransactionResponseRaw = self.client().request("getTransaction", oparams).await?;
+        let resp: GetTransactionResponseRaw =
+            self.client().request("getTransaction", oparams).await?;
         Ok(resp.try_into()?)
     }
 
