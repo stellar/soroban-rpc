@@ -65,11 +65,12 @@ type Test struct {
 	rpcContainerVersion        string
 	rpcContainerConfigMountDir string
 	rpcContainerSQLiteMountDir string
-	rpcClient                  *jrpc2.Client
+	rpcContainerLogsCommand    *exec.Cmd
+
+	rpcClient  *jrpc2.Client
+	coreClient *stellarcore.Client
 
 	daemon *daemon.Daemon
-
-	coreClient *stellarcore.Client
 
 	masterAccount txnbuild.Account
 	shutdownOnce  sync.Once
@@ -104,21 +105,31 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 	}
 
 	rpcCfg := i.getRPConfig(sqlLitePath)
-	if i.rpcContainerVersion != "" {
+	if i.runRPCInContainer() {
 		i.rpcContainerConfigMountDir = i.createRPCContainerMountDir(rpcCfg)
 	}
 	i.runComposeCommand("up", "--detach", "--quiet-pull", "--no-color")
+	if i.runRPCInContainer() {
+		cmd := i.getComposeCommand("logs", "-f", "rpc")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		require.NoError(t, cmd.Start())
+	}
 	i.prepareShutdownHandlers()
 	i.coreClient = &stellarcore.Client{URL: "http://localhost:" + strconv.Itoa(stellarCorePort)}
 	i.waitForCore()
 	i.waitForCheckpoint()
-	if i.rpcContainerVersion == "" {
+	if !i.runRPCInContainer() {
 		i.daemon = i.createDaemon(rpcCfg)
 		go i.daemon.Run()
 	}
 	i.waitForRPC()
 
 	return i
+}
+
+func (i *Test) runRPCInContainer() bool {
+	return i.rpcContainerVersion != ""
 }
 
 func (i *Test) GetRPCLient() *jrpc2.Client {
@@ -166,29 +177,30 @@ func (i *Test) getRPConfig(sqlitePath string) map[string]string {
 		sqlitePath = path.Join(i.t.TempDir(), "soroban_rpc.sqlite")
 	}
 
-	// Container default path
+	// Container's default path to captive core
 	coreBinaryPath := "/usr/bin/stellar-core"
-	if i.rpcContainerVersion == "" {
+	if !i.runRPCInContainer() {
 		coreBinaryPath = os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN")
 		if coreBinaryPath == "" {
 			i.t.Fatal("missing SOROBAN_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN")
 		}
 	}
 
-	// Out of the container default file
-	captiveCoreConfigPath := path.Join(i.composePath, "captive-core-integration-tests.cfg")
 	archiveURL := fmt.Sprintf("http://localhost:%d", StellarCoreArchivePort)
-	if i.historyArchiveURL != "" {
-		archiveURL = i.historyArchiveURL
-	} else if i.rpcContainerVersion != "" {
+	if i.runRPCInContainer() {
 		// the archive needs to be accessed from the container
 		// where core is Core's hostname
 		archiveURL = fmt.Sprintf("http://core:%d", StellarCoreArchivePort)
 	}
+	if i.historyArchiveURL != "" {
+		// an archive URL was supplied explicitly
+		archiveURL = i.historyArchiveURL
+	}
 
-	stellarCoreURL := fmt.Sprintf("http://localhost:%d", stellarCorePort)
+	captiveCoreConfigPath := path.Join(i.composePath, "captive-core-integration-tests.cfg")
 	bindHost := "localhost"
-	if i.rpcContainerVersion != "" {
+	stellarCoreURL := fmt.Sprintf("http://localhost:%d", stellarCorePort)
+	if i.runRPCInContainer() {
 		// The file will be inside the container
 		captiveCoreConfigPath = "/stellar-core.cfg"
 		// The container needs to listen on all interfaces, not just localhost
@@ -289,11 +301,10 @@ func (i *Test) createDaemon(env map[string]string) *daemon.Daemon {
 	return daemon.MustNew(&cfg)
 }
 
-// Runs a docker-compose command applied to the above configs
-func (i *Test) runComposeCommand(args ...string) {
+func (i *Test) getComposeCommand(args ...string) *exec.Cmd {
 	integrationYaml := filepath.Join(i.composePath, "docker-compose.yml")
 	configFiles := []string{"-f", integrationYaml}
-	if i.rpcContainerVersion != "" {
+	if i.runRPCInContainer() {
 		rpcYaml := filepath.Join(i.composePath, "docker-compose.rpc.yml")
 		configFiles = append(configFiles, "-f", rpcYaml)
 	}
@@ -306,26 +317,29 @@ func (i *Test) runComposeCommand(args ...string) {
 			"CORE_IMAGE="+img,
 		)
 	}
-	if i.rpcContainerVersion != "" {
+	if i.runRPCInContainer() {
 		cmd.Env = append(
 			cmd.Env,
 			"RPC_IMAGE_TAG="+i.rpcContainerVersion,
 			"RPC_CONFIG_MOUNT_DIR="+i.rpcContainerConfigMountDir,
 			"RPC_SQLITE_MOUNT_DIR="+i.rpcContainerSQLiteMountDir,
+			"RPC_UID="+strconv.Itoa(os.Getuid()),
+			"RPC_GID="+strconv.Itoa(os.Getgid()),
 		)
 	}
 	if len(cmd.Env) > 0 {
 		cmd.Env = append(cmd.Env, os.Environ()...)
 	}
+	return cmd
+}
 
+// Runs a docker-compose command applied to the above configs
+func (i *Test) runComposeCommand(args ...string) {
+	cmd := i.getComposeCommand(args...)
 	i.t.Log("Running", cmd.Env, cmd.Args)
 	out, innerErr := cmd.Output()
-	exitErr, ok := innerErr.(*exec.ExitError)
-	// TODO: make this cleaner
-	if ok || args[0] == "logs" {
+	if exitErr, ok := innerErr.(*exec.ExitError); ok {
 		fmt.Printf("stdout:\n%s\n", string(out))
-	}
-	if ok {
 		fmt.Printf("stderr:\n%s\n", string(exitErr.Stderr))
 	}
 
@@ -344,6 +358,9 @@ func (i *Test) prepareShutdownHandlers() {
 				i.rpcClient.Close()
 			}
 			i.runComposeCommand("down", "-v")
+			if i.rpcContainerLogsCommand != nil {
+				i.rpcContainerLogsCommand.Wait()
+			}
 		},
 	)
 
@@ -442,8 +459,7 @@ func (i *Test) StopRPC() {
 		i.daemon.Close()
 		i.daemon = nil
 	}
-	if i.rpcContainerVersion != "" {
-		i.runComposeCommand("logs", "rpc")
+	if i.runRPCInContainer() {
 		i.runComposeCommand("down", "rpc", "-v")
 	}
 }
