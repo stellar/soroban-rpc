@@ -1,8 +1,10 @@
 package test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -13,27 +15,29 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
 	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/creachadair/jrpc2"
+	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/stellar/go/clients/stellarcore"
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/txnbuild"
 	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
 const (
 	StandaloneNetworkPassphrase = "Standalone Network ; February 2017"
-	maxSupportedProtocolVersion = 21
+	MaxSupportedProtocolVersion = 21
 	stellarCorePort             = 11626
 	stellarCoreArchiveHost      = "localhost:1570"
 	goModFile                   = "go.mod"
@@ -53,11 +57,6 @@ type TestConfig struct {
 	UseSQLitePath               string
 }
 
-type daemonOrCommand struct {
-	daemon  *daemon.Daemon
-	command *exec.Cmd
-}
-
 type Test struct {
 	t *testing.T
 
@@ -65,7 +64,11 @@ type Test struct {
 
 	protocolVersion uint32
 
-	rpcInstance daemonOrCommand
+	rpcContainerVersion string
+	rpcConfigMountDir   string
+	rpcSQLiteMountDir   string
+
+	daemon *daemon.Daemon
 
 	historyArchiveProxy         *httptest.Server
 	historyArchiveProxyCallback func(*http.Request)
@@ -81,11 +84,6 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 	if os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_ENABLED") == "" {
 		t.Skip("skipping integration test: SOROBAN_RPC_INTEGRATION_TESTS_ENABLED not set")
 	}
-	coreBinaryPath := os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN")
-	if coreBinaryPath == "" {
-		t.Fatal("missing SOROBAN_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN")
-	}
-
 	i := &Test{
 		t:           t,
 		composePath: findDockerComposePath(),
@@ -95,12 +93,12 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 		AccountID: i.MasterKey().Address(),
 		Sequence:  0,
 	}
-	realRPCVersion := ""
+
 	sqlLitePath := ""
 	if cfg != nil {
+		i.rpcContainerVersion = cfg.UseRealRPCVersion
 		i.historyArchiveProxyCallback = cfg.historyArchiveProxyCallback
 		i.protocolVersion = cfg.ProtocolVersion
-		realRPCVersion = cfg.UseRealRPCVersion
 		sqlLitePath = cfg.UseSQLitePath
 	}
 
@@ -118,12 +116,20 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 		proxy.ServeHTTP(w, r)
 	}))
 
+	rpcCfg := i.getRPConfig(sqlLitePath)
+	if i.rpcContainerVersion != "" {
+		i.rpcConfigMountDir = i.createRPCContainerMountDir(rpcCfg)
+	}
 	i.runComposeCommand("up", "--detach", "--quiet-pull", "--no-color")
 	i.prepareShutdownHandlers()
 	i.coreClient = &stellarcore.Client{URL: "http://localhost:" + strconv.Itoa(stellarCorePort)}
 	i.waitForCore()
 	i.waitForCheckpoint()
-	i.launchRPC(coreBinaryPath, realRPCVersion, sqlLitePath)
+	if i.rpcContainerVersion == "" {
+		i.daemon = i.createDaemon(rpcCfg)
+		go i.daemon.Run()
+	}
+	i.waitForRPC()
 
 	return i
 }
@@ -165,30 +171,55 @@ func (i *Test) waitForCheckpoint() {
 	i.t.Fatal("Core could not reach checkpoint ledger after 30s")
 }
 
-func (i *Test) launchRPC(coreBinaryPath string, realRPCVersion string, sqlitePath string) {
-	var config config.Config
-	cmd := &cobra.Command{}
-	if err := config.AddFlags(cmd); err != nil {
-		i.t.FailNow()
-	}
-	if err := config.SetValues(func(string) (string, bool) { return "", false }); err != nil {
-		i.t.FailNow()
-	}
+func (i *Test) getRPConfig(sqlitePath string) map[string]string {
 	if sqlitePath == "" {
 		sqlitePath = path.Join(i.t.TempDir(), "soroban_rpc.sqlite")
 	}
-	env := map[string]string{
-		"ENDPOINT":                       fmt.Sprintf("localhost:%d", sorobanRPCPort),
-		"ADMIN_ENDPOINT":                 fmt.Sprintf("localhost:%d", adminPort),
-		"STELLAR_CORE_URL":               "http://localhost:" + strconv.Itoa(stellarCorePort),
+
+	// Container default path
+	coreBinaryPath := "/usr/bin/stellar-core"
+	if i.rpcContainerVersion == "" {
+		coreBinaryPath = os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN")
+		if coreBinaryPath == "" {
+			i.t.Fatal("missing SOROBAN_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN")
+		}
+	}
+
+	// Out of the container default file
+	captiveCoreConfigPath := path.Join(i.composePath, "captive-core-integration-tests.cfg")
+	archiveProxyURL := i.historyArchiveProxy.URL
+	stellarCoreURL := fmt.Sprintf("http://localhost:%d", stellarCorePort)
+	bindHost := "localhost"
+	if i.rpcContainerVersion != "" {
+		// The file will be inside the container
+		captiveCoreConfigPath = "/stellar-core.cfg"
+		// the archive needs to be accessed from the container
+		url, err := url.Parse(i.historyArchiveProxy.URL)
+		require.NoError(i.t, err)
+		_, port, err := net.SplitHostPort(url.Host)
+		require.NoError(i.t, err)
+		url.Host = net.JoinHostPort("host.docker.internal", port)
+		archiveProxyURL = url.String()
+		// The container needs to listen on all interfaces, not just localhost
+		bindHost = "0.0.0.0"
+		// The container needs to use the sqlite mount point
+		i.rpcSQLiteMountDir = filepath.Dir(sqlitePath)
+		sqlitePath = "/db/" + filepath.Base(sqlitePath)
+		stellarCoreURL = fmt.Sprintf("http://core:%d", stellarCorePort)
+	}
+
+	return map[string]string{
+		"ENDPOINT":                       fmt.Sprintf("%s:%d", bindHost, sorobanRPCPort),
+		"ADMIN_ENDPOINT":                 fmt.Sprintf("%s:%d", bindHost, adminPort),
+		"STELLAR_CORE_URL":               stellarCoreURL,
 		"CORE_REQUEST_TIMEOUT":           "2s",
 		"STELLAR_CORE_BINARY_PATH":       coreBinaryPath,
-		"CAPTIVE_CORE_CONFIG_PATH":       path.Join(i.composePath, "captive-core-integration-tests.cfg"),
+		"CAPTIVE_CORE_CONFIG_PATH":       captiveCoreConfigPath,
 		"CAPTIVE_CORE_STORAGE_PATH":      i.t.TempDir(),
 		"STELLAR_CAPTIVE_CORE_HTTP_PORT": "0",
 		"FRIENDBOT_URL":                  friendbotURL,
 		"NETWORK_PASSPHRASE":             StandaloneNetworkPassphrase,
-		"HISTORY_ARCHIVE_URLS":           i.historyArchiveProxy.URL,
+		"HISTORY_ARCHIVE_URLS":           archiveProxyURL,
 		"LOG_LEVEL":                      "debug",
 		"DB_PATH":                        sqlitePath,
 		"INGESTION_TIMEOUT":              "10m",
@@ -198,75 +229,57 @@ func (i *Test) launchRPC(coreBinaryPath string, realRPCVersion string, sqlitePat
 		"MAX_HEALTHY_LEDGER_LATENCY":     "10s",
 		"PREFLIGHT_ENABLE_DEBUG":         "true",
 	}
+}
 
-	if realRPCVersion != "" {
-		i.rpcInstance.command = i.compileAndStartRPC(env, realRPCVersion)
-	} else {
-		i.rpcInstance.daemon = i.createDaemon(env)
-		go i.rpcInstance.daemon.Run()
-	}
+func (i *Test) waitForRPC() {
+	i.t.Log("Waiting for RPC to be up...")
 
-	// wait for the storage to catch up for 1 minute
-	info, err := i.coreClient.Info(context.Background())
-	if err != nil {
-		i.t.Fatalf("cannot obtain latest ledger from core: %v", err)
-	}
-	targetLedgerSequence := uint32(info.Info.Ledger.Num)
+	ch := jhttp.NewChannel(i.sorobanRPCURL(), nil)
+	client := jrpc2.NewClient(ch, nil)
+	defer client.Close()
 
-	dbConn, err := db.OpenSQLiteDB(sqlitePath)
-	require.NoError(i.t, err)
-	reader := db.NewLedgerEntryReader(dbConn)
+	var result methods.HealthCheckResult
 	success := false
-	for t := 30; t >= 0; t -= 1 {
-		sequence, err := reader.GetLatestLedgerSequence(context.Background())
-		if err != nil {
-			if err != db.ErrEmptyDB {
-				i.t.Fatalf("cannot access ledger entry storage: %v", err)
-			}
-		} else {
-			if sequence >= targetLedgerSequence {
+	for t := 30; t >= 0; t-- {
+		err := client.CallResult(context.Background(), "getHealth", nil, &result)
+		if err == nil {
+			if result.Status == "healthy" {
 				success = true
 				break
 			}
 		}
+		i.t.Log("RPC still unhealthy")
 		time.Sleep(time.Second)
 	}
 	if !success {
-		i.t.Fatal("LedgerEntryStorage failed to sync in 1 minute")
+		i.t.Fatal("RPC failed to get healthy in 30 seconds")
 	}
 }
 
-func (i *Test) compileAndStartRPC(env map[string]string, version string) *exec.Cmd {
-	newRPCDir := i.t.TempDir()
+func (i *Test) createRPCContainerMountDir(rpcConfig map[string]string) string {
+	mountDir := i.t.TempDir()
+	// Get old version of captive-core-integration-tests.cfg
+	var out bytes.Buffer
+	cmd := exec.Command("git", "show", fmt.Sprintf("v%s:./captive-core-integration-tests.cfg", i.rpcContainerVersion))
+	cmd.Stdout = &out
+	cmd.Stderr = os.Stderr
+	cmd.Dir = i.composePath
+	require.NoError(i.t, cmd.Run())
 
-	Command := func(name string, arg ...string) *exec.Cmd {
-		cmd := exec.Command(name, arg...)
-		cmd.Dir = newRPCDir
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-		return cmd
-	}
-
-	// Clone
-	rootDir := path.Join(i.composePath, "..", "..", "..", "..")
-	err := Command("git", "clone", "--depth", "1", "--branch", version, "file://"+rootDir, newRPCDir).Run()
+	// replace ADDRESS="localhost" by ADDRESS="core", so that the container can find core
+	captiveCoreCfgContents := strings.Replace(out.String(), `ADDRESS="localhost"`, `ADDRESS="core"`, -1)
+	err := os.WriteFile(filepath.Join(mountDir, "stellar-core-integration-tests.cfg"), []byte(captiveCoreCfgContents), 0666)
 	require.NoError(i.t, err)
 
-	// Compile
-	cmd := Command("make", "build-libpreflight")
-	require.NoError(i.t, cmd.Run())
-	cmd = Command("go", "build", "./cmd/soroban-rpc")
-	require.NoError(i.t, cmd.Run())
-
-	// Run
-	cmd = Command(path.Join(newRPCDir, "soroban-rpc"))
-	for k, v := range env {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
+	// Generate config file
+	cfgFileContents := ""
+	for k, v := range rpcConfig {
+		cfgFileContents += fmt.Sprintf("%s=%q\n", k, v)
 	}
-	require.NoError(i.t, cmd.Start())
+	err = os.WriteFile(filepath.Join(mountDir, "soroban-rpc.config"), []byte(cfgFileContents), 0666)
+	require.NoError(i.t, err)
 
-	return cmd
+	return mountDir
 }
 
 func (i *Test) createDaemon(env map[string]string) *daemon.Daemon {
@@ -284,17 +297,32 @@ func (i *Test) createDaemon(env map[string]string) *daemon.Daemon {
 // Runs a docker-compose command applied to the above configs
 func (i *Test) runComposeCommand(args ...string) {
 	integrationYaml := filepath.Join(i.composePath, "docker-compose.yml")
-
-	cmdline := append([]string{"-f", integrationYaml}, args...)
+	configFiles := []string{"-f", integrationYaml}
+	if i.rpcContainerVersion != "" {
+		rpcYaml := filepath.Join(i.composePath, "docker-compose.rpc.yml")
+		configFiles = append(configFiles, "-f", rpcYaml)
+	}
+	cmdline := append(configFiles, args...)
 	cmd := exec.Command("docker-compose", cmdline...)
 
 	if img := os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_DOCKER_IMG"); img != "" {
-		cmd.Env = os.Environ()
 		cmd.Env = append(
-			cmd.Environ(),
-			fmt.Sprintf("CORE_IMAGE=%s", img),
+			cmd.Env,
+			"CORE_IMAGE=%s"+img,
 		)
 	}
+	if i.rpcContainerVersion != "" {
+		cmd.Env = append(
+			cmd.Env,
+			"RPC_IMAGE_TAG="+i.rpcContainerVersion,
+			"RPC_CONFIG_MOUNT_DIR="+i.rpcConfigMountDir,
+			"RPC_SQLITE_MOUNT_DIR="+i.rpcSQLiteMountDir,
+		)
+	}
+	if len(cmd.Env) > 0 {
+		cmd.Env = append(cmd.Env, os.Environ()...)
+	}
+
 	i.t.Log("Running", cmd.Env, cmd.Args)
 	out, innerErr := cmd.Output()
 	if exitErr, ok := innerErr.(*exec.ExitError); ok {
@@ -310,12 +338,8 @@ func (i *Test) runComposeCommand(args ...string) {
 func (i *Test) prepareShutdownHandlers() {
 	i.shutdownCalls = append(i.shutdownCalls,
 		func() {
-			if i.rpcInstance.daemon != nil {
-				i.rpcInstance.daemon.Close()
-			}
-			if i.rpcInstance.command != nil {
-				require.NoError(i.t, i.rpcInstance.command.Process.Kill())
-				i.rpcInstance.command.Wait()
+			if i.daemon != nil {
+				i.daemon.Close()
 			}
 			if i.historyArchiveProxy != nil {
 				i.historyArchiveProxy.Close()
@@ -475,11 +499,11 @@ func findDockerComposePath() string {
 func GetCoreMaxSupportedProtocol() uint32 {
 	str := os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_CORE_MAX_SUPPORTED_PROTOCOL")
 	if str == "" {
-		return maxSupportedProtocolVersion
+		return MaxSupportedProtocolVersion
 	}
 	version, err := strconv.ParseUint(str, 10, 32)
 	if err != nil {
-		return maxSupportedProtocolVersion
+		return MaxSupportedProtocolVersion
 	}
 
 	return uint32(version)

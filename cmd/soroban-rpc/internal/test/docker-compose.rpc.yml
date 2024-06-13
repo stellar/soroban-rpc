@@ -1,0 +1,15 @@
+version: '3'
+services:
+  rpc:
+    platform: linux/amd64
+    image: stellar/soroban-rpc:${RPC_IMAGE_TAG}
+    depends_on:
+      - core
+    ports:
+      - "8000:8000"
+      - "8080:8080"
+    command: --config-path /soroban-rpc.config
+    volumes:
+      - ${RPC_CONFIG_MOUNT_DIR}/stellar-core-integration-tests.cfg:/stellar-core.cfg
+      - ${RPC_CONFIG_MOUNT_DIR}/soroban-rpc.config:/soroban-rpc.config
+      - ${RPC_SQLITE_MOUNT_DIR}:/db/

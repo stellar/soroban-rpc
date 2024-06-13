@@ -30,12 +30,12 @@ func TestMetrics(t *testing.T) {
 	)
 	require.Contains(t, metrics, buildMetric)
 
-	logger := test.rpcInstance.daemon.Logger()
+	logger := test.daemon.Logger()
 	err := errors.Errorf("test-error")
 	logger.WithError(err).Error("test error 1")
 	logger.WithError(err).Error("test error 2")
 
-	metricFamilies, err := test.rpcInstance.daemon.MetricsRegistry().Gather()
+	metricFamilies, err := test.daemon.MetricsRegistry().Gather()
 	assert.NoError(t, err)
 	var metric *io_prometheus_client.MetricFamily
 	for _, mf := range metricFamilies {

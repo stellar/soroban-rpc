@@ -53,7 +53,7 @@ func TestUpgradeFrom20To21(t *testing.T) {
 	// estimations
 	test.UpgradeProtocol(21)
 	// Wait for the ledger to advance, so that the simulation library passes the right protocol number
-	rpcDB := test.rpcInstance.daemon.GetDB()
+	rpcDB := test.daemon.GetDB()
 	initialLedgerSequence, err := db.NewLedgerEntryReader(rpcDB).GetLatestLedgerSequence(context.Background())
 	require.Eventually(t,
 		func() bool {

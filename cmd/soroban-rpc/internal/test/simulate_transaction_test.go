@@ -124,14 +124,14 @@ func simulateTransactionFromTxParams(t *testing.T, client *jrpc2.Client, params 
 	savedAutoIncrement := params.IncrementSequenceNum
 	params.IncrementSequenceNum = false
 	tx, err := txnbuild.NewTransaction(params)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	params.IncrementSequenceNum = savedAutoIncrement
 	txB64, err := tx.Base64()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	request := methods.SimulateTransactionRequest{Transaction: txB64}
 	var response methods.SimulateTransactionResponse
 	err = client.CallResult(context.Background(), "simulateTransaction", request, &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	return response
 }
 
@@ -563,7 +563,7 @@ func TestSimulateInvokeContractTransactionSucceeds(t *testing.T) {
 }
 
 func TestSimulateTransactionError(t *testing.T) {
-	test := NewTest(t, &TestConfig{UseRealRPCVersion: "main"})
+	test := NewTest(t, nil)
 
 	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
 	client := jrpc2.NewClient(ch, nil)
