@@ -1,7 +1,6 @@
 package test
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -9,6 +8,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,11 +33,9 @@ import (
 const (
 	StandaloneNetworkPassphrase = "Standalone Network ; February 2017"
 	MaxSupportedProtocolVersion = 21
-	stellarCorePort             = 11626
 	StellarCoreArchivePort      = 1570
-	goModFile                   = "go.mod"
-
-	friendbotURL = "http://localhost:8000/friendbot"
+	stellarCorePort             = 11626
+	friendbotURL                = "http://localhost:8000/friendbot"
 	// Needed when Core is run with ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING=true
 	checkpointFrequency    = 8
 	sorobanRPCPort         = 8000
@@ -56,8 +54,6 @@ type TestConfig struct {
 type Test struct {
 	t *testing.T
 
-	composePath string // docker compose yml file
-
 	protocolVersion uint32
 
 	historyArchiveURL string
@@ -74,17 +70,14 @@ type Test struct {
 
 	masterAccount txnbuild.Account
 	shutdownOnce  sync.Once
-	shutdownCalls []func()
+	shutdown      func()
 }
 
 func NewTest(t *testing.T, cfg *TestConfig) *Test {
 	if os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_ENABLED") == "" {
 		t.Skip("skipping integration test: SOROBAN_RPC_INTEGRATION_TESTS_ENABLED not set")
 	}
-	i := &Test{
-		t:           t,
-		composePath: findDockerComposePath(),
-	}
+	i := &Test{t: t}
 
 	i.masterAccount = &txnbuild.SimpleAccount{
 		AccountID: i.MasterKey().Address(),
@@ -197,7 +190,7 @@ func (i *Test) getRPConfig(sqlitePath string) map[string]string {
 		archiveURL = i.historyArchiveURL
 	}
 
-	captiveCoreConfigPath := path.Join(i.composePath, "captive-core-integration-tests.cfg")
+	captiveCoreConfigPath := path.Join(GetCurrentDirectory(), "captive-core-integration-tests.cfg")
 	bindHost := "localhost"
 	stellarCoreURL := fmt.Sprintf("http://localhost:%d", stellarCorePort)
 	if i.runRPCInContainer() {
@@ -272,16 +265,14 @@ func (i *Test) waitForRPC() {
 func (i *Test) createRPCContainerMountDir(rpcConfig map[string]string) string {
 	mountDir := i.t.TempDir()
 	// Get old version of captive-core-integration-tests.cfg
-	var out bytes.Buffer
 	cmd := exec.Command("git", "show", fmt.Sprintf("v%s:./captive-core-integration-tests.cfg", i.rpcContainerVersion))
-	cmd.Stdout = &out
-	cmd.Stderr = os.Stderr
-	cmd.Dir = i.composePath
-	require.NoError(i.t, cmd.Run())
+	cmd.Dir = GetCurrentDirectory()
+	out, err := cmd.Output()
+	require.NoError(i.t, err)
 
 	// replace ADDRESS="localhost" by ADDRESS="core", so that the container can find core
-	captiveCoreCfgContents := strings.Replace(out.String(), `ADDRESS="localhost"`, `ADDRESS="core"`, -1)
-	err := os.WriteFile(filepath.Join(mountDir, "stellar-core-integration-tests.cfg"), []byte(captiveCoreCfgContents), 0666)
+	captiveCoreCfgContents := strings.Replace(string(out), `ADDRESS="localhost"`, `ADDRESS="core"`, -1)
+	err = os.WriteFile(filepath.Join(mountDir, "stellar-core-integration-tests.cfg"), []byte(captiveCoreCfgContents), 0666)
 	require.NoError(i.t, err)
 
 	// Generate config file
@@ -308,10 +299,10 @@ func (i *Test) createDaemon(env map[string]string) *daemon.Daemon {
 }
 
 func (i *Test) getComposeCommand(args ...string) *exec.Cmd {
-	integrationYaml := filepath.Join(i.composePath, "docker-compose.yml")
+	integrationYaml := filepath.Join(GetCurrentDirectory(), "docker-compose.yml")
 	configFiles := []string{"-f", integrationYaml}
 	if i.runRPCInContainer() {
-		rpcYaml := filepath.Join(i.composePath, "docker-compose.rpc.yml")
+		rpcYaml := filepath.Join(GetCurrentDirectory(), "docker-compose.rpc.yml")
 		configFiles = append(configFiles, "-f", rpcYaml)
 	}
 	cmdline := append(configFiles, args...)
@@ -356,21 +347,19 @@ func (i *Test) runComposeCommand(args ...string) {
 
 func (i *Test) prepareShutdownHandlers() {
 	done := make(chan struct{})
-	i.shutdownCalls = append(i.shutdownCalls,
-		func() {
-			close(done)
-			i.StopRPC()
-			if i.rpcClient != nil {
-				i.rpcClient.Close()
-			}
-			i.runComposeCommand("down", "-v")
-			if i.rpcContainerLogsCommand != nil {
-				i.rpcContainerLogsCommand.Wait()
-			}
-		},
-	)
+	i.shutdown = func() {
+		close(done)
+		i.StopRPC()
+		if i.rpcClient != nil {
+			i.rpcClient.Close()
+		}
+		i.runComposeCommand("down", "-v")
+		if i.rpcContainerLogsCommand != nil {
+			i.rpcContainerLogsCommand.Wait()
+		}
+	}
 
-	// Register cleanup handlers (on panic and ctrl+c) so the containers are
+	// Register shutdown handlers (on panic and ctrl+c) so the containers are
 	// stopped even if ingestion or testing fails.
 	i.t.Cleanup(i.Shutdown)
 
@@ -392,10 +381,7 @@ func (i *Test) prepareShutdownHandlers() {
 // called before.
 func (i *Test) Shutdown() {
 	i.shutdownOnce.Do(func() {
-		// run them in the opposite order in which they where added
-		for callI := len(i.shutdownCalls) - 1; callI >= 0; callI-- {
-			i.shutdownCalls[callI]()
-		}
+		i.shutdown()
 	})
 }
 
@@ -407,7 +393,7 @@ func (i *Test) waitForCore() {
 		_, err := i.coreClient.Info(ctx)
 		cancel()
 		if err != nil {
-			i.t.Logf("could not obtain info response: %v", err)
+			i.t.Logf("Core is not up: %v", err)
 			time.Sleep(time.Second)
 			continue
 		}
@@ -470,65 +456,10 @@ func (i *Test) StopRPC() {
 	}
 }
 
-// Cluttering code with if err != nil is absolute nonsense.
-func panicIf(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
-// findProjectRoot iterates upward on the directory until go.mod file is found.
-func findProjectRoot(current string) string {
-	// Lets you check if a particular directory contains a file.
-	directoryContainsFilename := func(dir string, filename string) bool {
-		files, innerErr := os.ReadDir(dir)
-		panicIf(innerErr)
-
-		for _, file := range files {
-			if file.Name() == filename {
-				return true
-			}
-		}
-		return false
-	}
-	var err error
-
-	// In either case, we try to walk up the tree until we find "go.mod",
-	// which we hope is the root directory of the project.
-	for !directoryContainsFilename(current, goModFile) {
-		current, err = filepath.Abs(filepath.Join(current, ".."))
-
-		// FIXME: This only works on *nix-like systems.
-		if err != nil || filepath.Base(current)[0] == filepath.Separator {
-			fmt.Println("Failed to establish project root directory.")
-			panic(err)
-		}
-	}
-	return current
-}
-
-// findDockerComposePath performs a best-effort attempt to find the project's
-// Docker Compose files.
-func findDockerComposePath() string {
-	current, err := os.Getwd()
-	panicIf(err)
-
-	//
-	// We have a primary and backup attempt for finding the necessary docker
-	// files: via $GOPATH and via local directory traversal.
-	//
-
-	if gopath := os.Getenv("GOPATH"); gopath != "" {
-		monorepo := filepath.Join(gopath, "src", "github.com", "stellar", "soroban-rpc")
-		if _, err = os.Stat(monorepo); !os.IsNotExist(err) {
-			current = monorepo
-		}
-	}
-
-	current = findProjectRoot(current)
-
-	// Directly jump down to the folder that should contain the configs
-	return filepath.Join(current, "cmd", "soroban-rpc", "internal", "test")
+//go:noinline
+func GetCurrentDirectory() string {
+	_, currentFilename, _, _ := runtime.Caller(1)
+	return filepath.Dir(currentFilename)
 }
 
 func GetCoreMaxSupportedProtocol() uint32 {

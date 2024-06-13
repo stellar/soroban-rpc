@@ -1,12 +1,9 @@
 package test
 
 import (
-	"bytes"
 	"context"
-	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -40,7 +37,6 @@ func TestMigrate(t *testing.T) {
 			testMigrateFromVersion(t, originVersion)
 		})
 	}
-
 }
 
 func testMigrateFromVersion(t *testing.T, version string) {
@@ -105,15 +101,11 @@ func testMigrateFromVersion(t *testing.T, version string) {
 
 func getCurrentProtocolReleasedVersions(t *testing.T) []string {
 	protocolStr := strconv.Itoa(MaxSupportedProtocolVersion)
-	_, currentFilename, _, _ := runtime.Caller(0)
-	currentDir := filepath.Dir(currentFilename)
-	var out bytes.Buffer
 	cmd := exec.Command("git", "tag")
-	cmd.Dir = currentDir
-	cmd.Stdout = &out
-	cmd.Stderr = os.Stderr
-	require.NoError(t, cmd.Run())
-	tags := strings.Split(out.String(), "\n")
+	cmd.Dir = GetCurrentDirectory()
+	out, err := cmd.Output()
+	require.NoError(t, err)
+	tags := strings.Split(string(out), "\n")
 	filteredTags := make([]string, 0, len(tags))
 	for _, tag := range tags {
 		if strings.HasPrefix(tag, "v"+protocolStr) {
