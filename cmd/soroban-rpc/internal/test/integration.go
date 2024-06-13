@@ -249,7 +249,7 @@ func (i *Test) waitForRPC() {
 				break
 			}
 		}
-		i.t.Log("RPC still unhealthy")
+		i.t.Log("RPC still unhealthy", err, result.Status)
 		time.Sleep(time.Second)
 	}
 	if !success {
