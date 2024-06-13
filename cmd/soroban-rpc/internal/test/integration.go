@@ -308,7 +308,7 @@ func (i *Test) runComposeCommand(args ...string) {
 	if img := os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_DOCKER_IMG"); img != "" {
 		cmd.Env = append(
 			cmd.Env,
-			"CORE_IMAGE=%s"+img,
+			"CORE_IMAGE="+img,
 		)
 	}
 	if i.rpcContainerVersion != "" {
