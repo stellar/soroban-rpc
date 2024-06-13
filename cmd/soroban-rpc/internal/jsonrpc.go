@@ -49,6 +49,7 @@ type HandlerParams struct {
 	EventStore        *events.MemoryStore
 	FeeStatWindows    *feewindow.FeeWindows
 	TransactionReader db.TransactionReader
+	EventReader       db.EventReader
 	LedgerEntryReader db.LedgerEntryReader
 	LedgerReader      db.LedgerReader
 	Logger            *log.Entry
@@ -158,8 +159,8 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 		{
 			methodName: "getEvents",
-			underlyingHandler: methods.NewGetEventsHandler(
-				params.EventStore, cfg.MaxEventsLimit, cfg.DefaultEventsLimit),
+			underlyingHandler: methods.NewGetEventsHandler(params.Logger, params.EventReader,
+				params.EventStore, cfg.MaxEventsLimit, cfg.DefaultEventsLimit, cfg.NetworkPassphrase),
 			longName:             "get_events",
 			queueLimit:           cfg.RequestBacklogGetEventsQueueLimit,
 			requestDurationLimit: cfg.MaxGetEventsExecutionDuration,

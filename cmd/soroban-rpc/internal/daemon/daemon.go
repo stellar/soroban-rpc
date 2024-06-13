@@ -283,6 +283,7 @@ func MustNew(cfg *config.Config) *Daemon {
 		LedgerReader:      db.NewLedgerReader(dbConn),
 		LedgerEntryReader: db.NewLedgerEntryReader(dbConn),
 		TransactionReader: db.NewTransactionReader(logger, dbConn, cfg.NetworkPassphrase),
+		EventReader:       db.NewEventReader(logger, dbConn, cfg.NetworkPassphrase),
 		PreflightGetter:   preflightWorkerPool,
 	})
 

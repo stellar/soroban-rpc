@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/stellar/go/support/log"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"strings"
 	"time"
 
@@ -303,12 +305,15 @@ type eventScanner interface {
 }
 
 type eventsRPCHandler struct {
-	scanner      eventScanner
-	maxLimit     uint
-	defaultLimit uint
+	dbReader          db.EventReader
+	scanner           eventScanner
+	maxLimit          uint
+	defaultLimit      uint
+	logger            *log.Entry
+	networkPassphrase string
 }
 
-func (h eventsRPCHandler) getEvents(request GetEventsRequest) (GetEventsResponse, error) {
+func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsRequest) (GetEventsResponse, error) {
 	if err := request.Valid(h.maxLimit); err != nil {
 		return GetEventsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidParams,
@@ -422,13 +427,16 @@ func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCl
 }
 
 // NewGetEventsHandler returns a json rpc handler to fetch and filter events
-func NewGetEventsHandler(eventsStore *events.MemoryStore, maxLimit, defaultLimit uint) jrpc2.Handler {
+func NewGetEventsHandler(logger *log.Entry, dbReader db.EventReader, eventsStore *events.MemoryStore, maxLimit, defaultLimit uint, networkPassphrase string) jrpc2.Handler {
 	eventsHandler := eventsRPCHandler{
-		scanner:      eventsStore,
-		maxLimit:     maxLimit,
-		defaultLimit: defaultLimit,
+		dbReader:          dbReader,
+		scanner:           eventsStore,
+		maxLimit:          maxLimit,
+		defaultLimit:      defaultLimit,
+		logger:            logger,
+		networkPassphrase: networkPassphrase,
 	}
 	return NewHandler(func(ctx context.Context, request GetEventsRequest) (GetEventsResponse, error) {
-		return eventsHandler.getEvents(request)
+		return eventsHandler.getEvents(ctx, request)
 	})
 }

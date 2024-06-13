@@ -1,6 +1,7 @@
 package methods
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -531,7 +532,7 @@ func TestGetEvents(t *testing.T) {
 			maxLimit:     10000,
 			defaultLimit: 100,
 		}
-		_, err = handler.getEvents(GetEventsRequest{
+		_, err = handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 		})
 		assert.EqualError(t, err, "[-32600] event store is empty")
@@ -561,12 +562,12 @@ func TestGetEvents(t *testing.T) {
 			maxLimit:     10000,
 			defaultLimit: 100,
 		}
-		_, err = handler.getEvents(GetEventsRequest{
+		_, err = handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 		})
 		assert.EqualError(t, err, "[-32600] start is before oldest ledger")
 
-		_, err = handler.getEvents(GetEventsRequest{
+		_, err = handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 3,
 		})
 		assert.EqualError(t, err, "[-32600] start is after newest ledger")
@@ -599,7 +600,7 @@ func TestGetEvents(t *testing.T) {
 			maxLimit:     10000,
 			defaultLimit: 100,
 		}
-		results, err := handler.getEvents(GetEventsRequest{
+		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 		})
 		assert.NoError(t, err)
@@ -662,7 +663,7 @@ func TestGetEvents(t *testing.T) {
 			maxLimit:     10000,
 			defaultLimit: 100,
 		}
-		results, err := handler.getEvents(GetEventsRequest{
+		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 			Filters: []EventFilter{
 				{ContractIDs: []string{strkey.MustEncode(strkey.VersionByteContract, contractIds[0][:])}},
@@ -710,7 +711,7 @@ func TestGetEvents(t *testing.T) {
 			maxLimit:     10000,
 			defaultLimit: 100,
 		}
-		results, err := handler.getEvents(GetEventsRequest{
+		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 			Filters: []EventFilter{
 				{Topics: []TopicFilter{
@@ -804,7 +805,7 @@ func TestGetEvents(t *testing.T) {
 			maxLimit:     10000,
 			defaultLimit: 100,
 		}
-		results, err := handler.getEvents(GetEventsRequest{
+		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 			Filters: []EventFilter{
 				{
@@ -879,7 +880,7 @@ func TestGetEvents(t *testing.T) {
 			maxLimit:     10000,
 			defaultLimit: 100,
 		}
-		results, err := handler.getEvents(GetEventsRequest{
+		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 			Filters: []EventFilter{
 				{EventType: map[string]interface{}{EventTypeSystem: nil}},
@@ -929,7 +930,7 @@ func TestGetEvents(t *testing.T) {
 			maxLimit:     10000,
 			defaultLimit: 100,
 		}
-		results, err := handler.getEvents(GetEventsRequest{
+		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 			Filters:     []EventFilter{},
 			Pagination:  &PaginationOptions{Limit: 10},
@@ -1015,7 +1016,7 @@ func TestGetEvents(t *testing.T) {
 			maxLimit:     10000,
 			defaultLimit: 100,
 		}
-		results, err := handler.getEvents(GetEventsRequest{
+		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			Pagination: &PaginationOptions{
 				Cursor: id,
 				Limit:  2,
@@ -1047,7 +1048,7 @@ func TestGetEvents(t *testing.T) {
 		}
 		assert.Equal(t, GetEventsResponse{expected, 5}, results)
 
-		results, err = handler.getEvents(GetEventsRequest{
+		results, err = handler.getEvents(context.TODO(), GetEventsRequest{
 			Pagination: &PaginationOptions{
 				Cursor: &events.Cursor{Ledger: 5, Tx: 2, Op: 0, Event: 1},
 				Limit:  2,
