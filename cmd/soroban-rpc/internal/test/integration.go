@@ -243,12 +243,22 @@ func (i *Test) getRPConfig(sqlitePath string) map[string]string {
 func (i *Test) waitForRPC() {
 	i.t.Log("Waiting for RPC to be healthy...")
 
+	// show if anybody is listening on RPC's port
+	outputListeningProc := func() {
+		fmt.Println("Who is listening on RPC port?")
+		cmd := exec.Command("lsof", "-i", fmt.Sprintf(":%d", sorobanRPCPort))
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		require.NoError(i.t, cmd.Run())
+	}
+
 	var result methods.HealthCheckResult
 	for t := 30; t >= 0; t-- {
 		err := i.rpcClient.CallResult(context.Background(), "getHealth", nil, &result)
 		if err == nil {
 			if result.Status == "healthy" {
 				i.t.Log("RPC is healthy")
+				outputListeningProc()
 				return
 			}
 		}
@@ -256,6 +266,7 @@ func (i *Test) waitForRPC() {
 		time.Sleep(time.Second)
 	}
 
+	outputListeningProc()
 	// Print stack trace and fail
 	buf := make([]byte, 1<<20)
 	stackSize := runtime.Stack(buf, true)
