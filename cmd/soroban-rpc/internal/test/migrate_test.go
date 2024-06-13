@@ -23,7 +23,6 @@ import (
 // We cannot test prior protocol versions since the Transaction XDR used for the test could be incompatible
 // TODO: find a way to test migrations between protocols
 func TestMigrate(t *testing.T) {
-	t.Skip("see if it works when we skip this test")
 	if GetCoreMaxSupportedProtocol() != MaxSupportedProtocolVersion {
 		t.Skip("Only test this for the latest protocol: ", MaxSupportedProtocolVersion)
 	}

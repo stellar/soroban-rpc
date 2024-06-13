@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -15,7 +14,6 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -120,8 +118,6 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 		proxy.ServeHTTP(w, r)
 	}))
 
-	ch := jhttp.NewChannel(i.sorobanRPCURL(), nil)
-	i.rpcClient = jrpc2.NewClient(ch, nil)
 	rpcCfg := i.getRPConfig(sqlLitePath)
 	if i.rpcContainerVersion != "" {
 		i.rpcContainerConfigMountDir = i.createRPCContainerMountDir(rpcCfg)
@@ -243,22 +239,22 @@ func (i *Test) getRPConfig(sqlitePath string) map[string]string {
 func (i *Test) waitForRPC() {
 	i.t.Log("Waiting for RPC to be healthy...")
 
-	// show if anybody is listening on RPC's port
-	outputListeningProc := func() {
-		fmt.Println("Who is listening on RPC port?")
-		cmd := exec.Command("lsof", "-i", fmt.Sprintf(":%d", sorobanRPCPort))
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		require.NoError(i.t, cmd.Run())
+	// This is needed because if https://github.com/creachadair/jrpc2/issues/118
+	refreshClient := func() {
+		if i.rpcClient != nil {
+			i.rpcClient.Close()
+		}
+		ch := jhttp.NewChannel(i.sorobanRPCURL(), nil)
+		i.rpcClient = jrpc2.NewClient(ch, nil)
 	}
 
 	var result methods.HealthCheckResult
 	for t := 30; t >= 0; t-- {
+		refreshClient()
 		err := i.rpcClient.CallResult(context.Background(), "getHealth", nil, &result)
 		if err == nil {
 			if result.Status == "healthy" {
 				i.t.Log("RPC is healthy")
-				outputListeningProc()
 				return
 			}
 		}
@@ -266,11 +262,6 @@ func (i *Test) waitForRPC() {
 		time.Sleep(time.Second)
 	}
 
-	outputListeningProc()
-	// Print stack trace and fail
-	buf := make([]byte, 1<<20)
-	stackSize := runtime.Stack(buf, true)
-	log.Printf("%s\n", string(buf[0:stackSize]))
 	i.t.Fatal("RPC failed to get healthy in 30 seconds")
 }
 
