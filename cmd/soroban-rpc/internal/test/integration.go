@@ -341,8 +341,10 @@ func (i *Test) runComposeCommand(args ...string) {
 }
 
 func (i *Test) prepareShutdownHandlers() {
+	done := make(chan struct{})
 	i.shutdownCalls = append(i.shutdownCalls,
 		func() {
+			close(done)
 			i.StopRPC()
 			if i.historyArchiveProxy != nil {
 				i.historyArchiveProxy.Close()
@@ -358,9 +360,12 @@ func (i *Test) prepareShutdownHandlers() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
-		<-c
-		i.Shutdown()
-		os.Exit(int(syscall.SIGTERM))
+		select {
+		case <-c:
+			i.Shutdown()
+			os.Exit(int(syscall.SIGTERM))
+		case <-done:
+		}
 	}()
 }
 
