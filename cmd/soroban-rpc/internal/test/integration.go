@@ -257,7 +257,7 @@ func (i *Test) waitForRPC() {
 	}
 
 	// Print stack trace and fail
-	buf := make([]byte, 1<<16)
+	buf := make([]byte, 1<<20)
 	stackSize := runtime.Stack(buf, true)
 	log.Printf("%s\n", string(buf[0:stackSize]))
 	i.t.Fatal("RPC failed to get healthy in 30 seconds")
