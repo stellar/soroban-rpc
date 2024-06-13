@@ -4,11 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"net"
-	"net/http"
-	"net/http/httptest"
-	"net/http/httputil"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -39,7 +34,7 @@ const (
 	StandaloneNetworkPassphrase = "Standalone Network ; February 2017"
 	MaxSupportedProtocolVersion = 21
 	stellarCorePort             = 11626
-	stellarCoreArchiveHost      = "localhost:1570"
+	StellarCoreArchivePort      = 1570
 	goModFile                   = "go.mod"
 
 	friendbotURL = "http://localhost:8000/friendbot"
@@ -51,11 +46,11 @@ const (
 )
 
 type TestConfig struct {
-	historyArchiveProxyCallback func(*http.Request)
-	ProtocolVersion             uint32
+	ProtocolVersion uint32
 	// Run a previously released version of RPC (in a container) instead of the current version
 	UseReleasedRPCVersion string
 	UseSQLitePath         string
+	HistoryArchiveURL     string
 }
 
 type Test struct {
@@ -65,21 +60,20 @@ type Test struct {
 
 	protocolVersion uint32
 
+	historyArchiveURL string
+
 	rpcContainerVersion        string
 	rpcContainerConfigMountDir string
 	rpcContainerSQLiteMountDir string
+	rpcClient                  *jrpc2.Client
 
 	daemon *daemon.Daemon
-
-	historyArchiveProxy         *httptest.Server
-	historyArchiveProxyCallback func(*http.Request)
 
 	coreClient *stellarcore.Client
 
 	masterAccount txnbuild.Account
 	shutdownOnce  sync.Once
 	shutdownCalls []func()
-	rpcClient     *jrpc2.Client
 }
 
 func NewTest(t *testing.T, cfg *TestConfig) *Test {
@@ -98,8 +92,8 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 
 	sqlLitePath := ""
 	if cfg != nil {
+		i.historyArchiveURL = cfg.HistoryArchiveURL
 		i.rpcContainerVersion = cfg.UseReleasedRPCVersion
-		i.historyArchiveProxyCallback = cfg.historyArchiveProxyCallback
 		i.protocolVersion = cfg.ProtocolVersion
 		sqlLitePath = cfg.UseSQLitePath
 	}
@@ -108,15 +102,6 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 		// Default to the maximum supported protocol version
 		i.protocolVersion = GetCoreMaxSupportedProtocol()
 	}
-
-	proxy := httputil.NewSingleHostReverseProxy(&url.URL{Scheme: "http", Host: stellarCoreArchiveHost})
-
-	i.historyArchiveProxy = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if i.historyArchiveProxyCallback != nil {
-			i.historyArchiveProxyCallback(r)
-		}
-		proxy.ServeHTTP(w, r)
-	}))
 
 	rpcCfg := i.getRPConfig(sqlLitePath)
 	if i.rpcContainerVersion != "" {
@@ -192,19 +177,20 @@ func (i *Test) getRPConfig(sqlitePath string) map[string]string {
 
 	// Out of the container default file
 	captiveCoreConfigPath := path.Join(i.composePath, "captive-core-integration-tests.cfg")
-	archiveProxyURL := i.historyArchiveProxy.URL
+	archiveURL := fmt.Sprintf("http://localhost:%d", StellarCoreArchivePort)
+	if i.historyArchiveURL != "" {
+		archiveURL = i.historyArchiveURL
+	} else if i.rpcContainerVersion != "" {
+		// the archive needs to be accessed from the container
+		// where core is Core's hostname
+		archiveURL = fmt.Sprintf("http://core:%d", StellarCoreArchivePort)
+	}
+
 	stellarCoreURL := fmt.Sprintf("http://localhost:%d", stellarCorePort)
 	bindHost := "localhost"
 	if i.rpcContainerVersion != "" {
 		// The file will be inside the container
 		captiveCoreConfigPath = "/stellar-core.cfg"
-		// the archive needs to be accessed from the container
-		url, err := url.Parse(i.historyArchiveProxy.URL)
-		require.NoError(i.t, err)
-		_, port, err := net.SplitHostPort(url.Host)
-		require.NoError(i.t, err)
-		url.Host = net.JoinHostPort("host.docker.internal", port)
-		archiveProxyURL = url.String()
 		// The container needs to listen on all interfaces, not just localhost
 		bindHost = "0.0.0.0"
 		// The container needs to use the sqlite mount point
@@ -224,7 +210,7 @@ func (i *Test) getRPConfig(sqlitePath string) map[string]string {
 		"STELLAR_CAPTIVE_CORE_HTTP_PORT": "0",
 		"FRIENDBOT_URL":                  friendbotURL,
 		"NETWORK_PASSPHRASE":             StandaloneNetworkPassphrase,
-		"HISTORY_ARCHIVE_URLS":           archiveProxyURL,
+		"HISTORY_ARCHIVE_URLS":           archiveURL,
 		"LOG_LEVEL":                      "debug",
 		"DB_PATH":                        sqlitePath,
 		"INGESTION_TIMEOUT":              "10m",
@@ -354,9 +340,6 @@ func (i *Test) prepareShutdownHandlers() {
 		func() {
 			close(done)
 			i.StopRPC()
-			if i.historyArchiveProxy != nil {
-				i.historyArchiveProxy.Close()
-			}
 			if i.rpcClient != nil {
 				i.rpcClient.Close()
 			}
