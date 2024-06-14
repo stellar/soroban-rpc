@@ -21,6 +21,7 @@ type StreamLedgerFn func(xdr.LedgerCloseMeta) error
 type LedgerReader interface {
 	GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error)
 	StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error
+	LedgerRangeReader
 }
 
 type LedgerWriter interface {
@@ -72,7 +73,7 @@ func (r ledgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.Ledge
 	}
 }
 
-// GetLedgerRange pulls the min/max ledger sequence numbers from the database.
+// GetLedgerRange pulls the min/max ledger sequence numbers from the ledgers table.
 func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
 	var ledgerRange ledgerbucketwindow.LedgerRange
 	//

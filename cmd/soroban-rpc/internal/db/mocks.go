@@ -105,6 +105,10 @@ func (m *mockLedgerReader) StreamAllLedgers(ctx context.Context, f StreamLedgerF
 	return nil
 }
 
+func (m *mockLedgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
+	return ledgerbucketwindow.LedgerRange{}, nil
+}
+
 var _ TransactionReader = &mockTransactionHandler{}
 var _ TransactionWriter = &mockTransactionHandler{}
 var _ LedgerReader = &mockLedgerReader{}

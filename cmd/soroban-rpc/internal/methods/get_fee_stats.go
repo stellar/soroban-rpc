@@ -58,7 +58,7 @@ type GetFeeStatsResult struct {
 }
 
 // NewGetFeeStatsHandler returns a handler obtaining fee statistics
-func NewGetFeeStatsHandler(windows *feewindow.FeeWindows, reader db.TransactionReader, logger *log.Entry) jrpc2.Handler {
+func NewGetFeeStatsHandler(windows *feewindow.FeeWindows, reader db.LedgerReader, logger *log.Entry) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context) (GetFeeStatsResult, error) {
 		ledgerInfo, err := reader.GetLedgerRange(ctx)
 		if err != nil { // still not fatal

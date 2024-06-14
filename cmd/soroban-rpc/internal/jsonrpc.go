@@ -151,7 +151,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		{
 			methodName: "getHealth",
 			underlyingHandler: methods.NewHealthCheck(
-				retentionWindow, params.TransactionReader, cfg.MaxHealthyLedgerLatency),
+				retentionWindow, params.LedgerReader, cfg.MaxHealthyLedgerLatency),
 			longName:             "get_health",
 			queueLimit:           cfg.RequestBacklogGetHealthQueueLimit,
 			requestDurationLimit: cfg.MaxGetHealthExecutionDuration,
@@ -232,7 +232,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 		{
 			methodName:           "getFeeStats",
-			underlyingHandler:    methods.NewGetFeeStatsHandler(params.FeeStatWindows, params.TransactionReader, params.Logger),
+			underlyingHandler:    methods.NewGetFeeStatsHandler(params.FeeStatWindows, params.LedgerReader, params.Logger),
 			longName:             "get_fee_stats",
 			queueLimit:           cfg.RequestBacklogGetFeeStatsTransactionQueueLimit,
 			requestDurationLimit: cfg.MaxGetFeeStatsExecutionDuration,
