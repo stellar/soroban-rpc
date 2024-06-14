@@ -147,6 +147,7 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 
 	parallel := true
 	sqlLitePath := ""
+	testPortsInitialized := false
 	if cfg != nil {
 		i.historyArchiveURL = cfg.HistoryArchiveURL
 		i.rpcContainerVersion = cfg.UseReleasedRPCVersion
@@ -156,11 +157,11 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 		parallel = !cfg.NoParallel
 		if cfg.TestPorts != nil {
 			i.testPorts = *cfg.TestPorts
-		} else {
-			// TODO: this is ugly
-			i.testPorts = NewTestPorts(t)
+			testPortsInitialized = true
 		}
-	} else {
+	}
+
+	if !testPortsInitialized {
 		i.testPorts = NewTestPorts(t)
 	}
 	if parallel {
@@ -177,22 +178,21 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 	if i.runRPCInContainer() {
 		i.rpcContainerConfigMountDir = i.createRPCContainerMountDir(rpcCfg)
 	}
-	// TODO: this is really really ugly
+
 	if i.runRPCInContainer() || !i.onlyRPC {
+		// There are containerized workloads
 		upCmd := []string{"up"}
 		if i.runRPCInContainer() && i.onlyRPC {
-			if cfg.OnlyRPC {
-				upCmd = append(upCmd, "rpc")
-			}
+			upCmd = append(upCmd, "rpc")
 		}
 		upCmd = append(upCmd, "--detach", "--quiet-pull", "--no-color")
 		i.runComposeCommand(upCmd...)
-	}
-	if i.runRPCInContainer() {
-		cmd := i.getComposeCommand("logs", "--no-log-prefix", "-f", "rpc")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		require.NoError(t, cmd.Start())
+		if i.runRPCInContainer() {
+			i.rpcContainerLogsCommand = i.getComposeCommand("logs", "--no-log-prefix", "-f", "rpc")
+			i.rpcContainerLogsCommand.Stdout = os.Stdout
+			i.rpcContainerLogsCommand.Stderr = os.Stderr
+			require.NoError(t, i.rpcContainerLogsCommand.Start())
+		}
 	}
 	i.prepareShutdownHandlers()
 	if !i.onlyRPC {
@@ -464,7 +464,6 @@ func (i *Test) getComposeCommand(args ...string) *exec.Cmd {
 	return cmd
 }
 
-// Runs a docker-compose command applied to the above configs
 func (i *Test) runComposeCommand(args ...string) {
 	cmd := i.getComposeCommand(args...)
 	i.t.Log("Running", cmd.Args)
@@ -490,13 +489,11 @@ func (i *Test) prepareShutdownHandlers() {
 		if i.rpcClient != nil {
 			i.rpcClient.Close()
 		}
-		// TODO: this is ugly
 		if i.runRPCInContainer() || !i.onlyRPC {
+			// There were containerized workloads we should bring down
 			downCmd := []string{"down"}
 			if i.runRPCInContainer() && i.onlyRPC {
-				if i.onlyRPC {
-					downCmd = append(downCmd, "rpc")
-				}
+				downCmd = append(downCmd, "rpc")
 			}
 			downCmd = append(downCmd, "-v")
 			i.runComposeCommand(downCmd...)
