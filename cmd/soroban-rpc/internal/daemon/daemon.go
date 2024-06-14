@@ -187,49 +187,7 @@ func MustNew(cfg *config.Config) *Daemon {
 		}, metricsRegistry),
 	}
 
-	eventStore := events.NewMemoryStore(
-		daemon,
-		cfg.NetworkPassphrase,
-		cfg.EventLedgerRetentionWindow,
-	)
-	feewindows := feewindow.NewFeeWindows(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow, cfg.NetworkPassphrase)
-
-	// initialize the stores using what was on the DB
-	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
-	defer cancelReadTxMeta()
-	// NOTE: We could optimize this to avoid unnecessary ingestion calls
-	//       (the range of txmetas can be larger than the individual store retention windows)
-	//       but it's probably not worth the pain.
-	var initialSeq uint32
-	var currentSeq uint32
-	err = db.NewLedgerReader(dbConn).StreamAllLedgers(readTxMetaCtx, func(txmeta xdr.LedgerCloseMeta) error {
-		currentSeq = txmeta.LedgerSequence()
-		if initialSeq == 0 {
-			initialSeq = currentSeq
-			logger.WithFields(supportlog.F{
-				"seq": currentSeq,
-			}).Info("initializing in-memory store")
-		} else if (currentSeq-initialSeq)%inMemoryInitializationLedgerLogPeriod == 0 {
-			logger.WithFields(supportlog.F{
-				"seq": currentSeq,
-			}).Debug("still initializing in-memory store")
-		}
-		if err := eventStore.IngestEvents(txmeta); err != nil {
-			logger.WithError(err).Fatal("could not initialize event memory store")
-		}
-		if err := feewindows.IngestFees(txmeta); err != nil {
-			logger.WithError(err).Fatal("could not initialize fee stats")
-		}
-		return nil
-	})
-	if err != nil {
-		logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
-	}
-	if currentSeq != 0 {
-		logger.WithFields(supportlog.F{
-			"seq": currentSeq,
-		}).Info("finished initializing in-memory store")
-	}
+	feewindows, eventStore := daemon.mustInitializeStorage(cfg)
 
 	onIngestionRetry := func(err error, dur time.Duration) {
 		logger.WithError(err).Error("could not run ingestion. Retrying")
@@ -315,6 +273,69 @@ func MustNew(cfg *config.Config) *Daemon {
 	}
 	daemon.registerMetrics()
 	return daemon
+}
+
+// mustInitializeStorage initializes the storage using what was on the DB
+func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindows, *events.MemoryStore) {
+	eventStore := events.NewMemoryStore(
+		d,
+		cfg.NetworkPassphrase,
+		cfg.EventLedgerRetentionWindow,
+	)
+	feewindows := feewindow.NewFeeWindows(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow, cfg.NetworkPassphrase)
+
+	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
+	defer cancelReadTxMeta()
+	var initialSeq uint32
+	var currentSeq uint32
+	dataMigrations, err := db.BuildMigrations(readTxMetaCtx, d.logger, d.db, cfg)
+	if err != nil {
+		d.logger.WithError(err).Fatal("could not build migrations")
+	}
+	// NOTE: We could optimize this to avoid unnecessary ingestion calls
+	//       (the range of txmetas can be larger than the individual store retention windows)
+	//       but it's probably not worth the pain.
+	err = db.NewLedgerReader(d.db).StreamAllLedgers(readTxMetaCtx, func(txmeta xdr.LedgerCloseMeta) error {
+		currentSeq = txmeta.LedgerSequence()
+		if initialSeq == 0 {
+			initialSeq = currentSeq
+			d.logger.WithFields(supportlog.F{
+				"seq": currentSeq,
+			}).Info("initializing in-memory store")
+		} else if (currentSeq-initialSeq)%inMemoryInitializationLedgerLogPeriod == 0 {
+			d.logger.WithFields(supportlog.F{
+				"seq": currentSeq,
+			}).Debug("still initializing in-memory store")
+		}
+		if err := eventStore.IngestEvents(txmeta); err != nil {
+			d.logger.WithError(err).Fatal("could not initialize event memory store")
+		}
+		if err := feewindows.IngestFees(txmeta); err != nil {
+			d.logger.WithError(err).Fatal("could not initialize fee stats")
+		}
+		// TODO: clean up once we remove the in-memory storage.
+		//       (we should only stream over the required range)
+		if r := dataMigrations.ApplicableRange(); r.IsLedgerIncluded(currentSeq) {
+			if err := dataMigrations.Apply(readTxMetaCtx, txmeta); err != nil {
+				d.logger.WithError(err).Fatal("could not run migrations")
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
+	}
+	if err := dataMigrations.Commit(readTxMetaCtx); err != nil {
+		d.logger.WithError(err).Fatal("could not commit data migrations")
+	}
+
+	if currentSeq != 0 {
+		d.logger.WithFields(supportlog.F{
+			"seq": currentSeq,
+		}).Info("finished initializing in-memory store")
+	}
+
+	return feewindows, eventStore
 }
 
 func (d *Daemon) Run() {
