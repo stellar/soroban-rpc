@@ -1,9 +1,11 @@
 package infrastructure
 
 import (
+	"fmt"
 	"net"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/stellar/go/txnbuild"
 	"github.com/stretchr/testify/require"
@@ -36,4 +38,15 @@ func CreateTransactionParams(account txnbuild.Account, op txnbuild.Operation) tx
 			TimeBounds: txnbuild.NewInfiniteTimeout(),
 		},
 	}
+}
+
+func isLocalTCPPortOpen(port uint16) bool {
+	host := fmt.Sprintf("localhost:%d", port)
+	timeout := time.Second
+	conn, err := net.DialTimeout("tcp", host, timeout)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
 }

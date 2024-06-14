@@ -1,7 +1,6 @@
 services:
   core-postgres:
     image: postgres:9.6.17-alpine
-    restart: on-failure
     environment:
       - POSTGRES_PASSWORD=mysecretpassword
       - POSTGRES_DB=stellar
@@ -17,18 +16,19 @@ services:
     image: ${CORE_IMAGE:-stellar/unsafe-stellar-core:21.0.1-1897.dfd3dbff1.focal}
     depends_on:
       - core-postgres
-    restart: on-failure
     environment:
       - TRACY_NO_INVARIANT_CHECK=1
-    ports:
-      - ${CORE_PORT}:${CORE_PORT}
-      - ${CORE_HTTP_PORT}:${CORE_HTTP_PORT}
-      # add extra port for history archive server
-      - ${CORE_ARCHIVE_PORT}:${CORE_ARCHIVE_PORT}
+    ports: # we omit the host-side ports to allocate them dynamically
+      # peer
+      - "127.0.0.1:0:11625"
+      # http
+      - "127.0.0.1:0:11626"
+      # history archive
+      - "127.0.0.1:0:1570"
     entrypoint: /usr/bin/env
     command: /start standalone
     volumes:
-      - ${CORE_MOUNT_DIR}/stellar-core-integration-tests.cfg:/stellar-core.cfg
-      - ${CORE_MOUNT_DIR}/core-start.sh:/start
+      - ./stellar-core-integration-tests.cfg:/stellar-core.cfg
+      - ./core-start.sh:/start
     extra_hosts:
       - "host.docker.internal:host-gateway"

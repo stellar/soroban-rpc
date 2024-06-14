@@ -1,4 +1,8 @@
-PEER_PORT=${CORE_CAPTIVE_PORT}
+# To fill in and use by RPC
+
+# This simply needs to be an unconflicting, unused port
+# since captive core doesn't expect external connections
+PEER_PORT=${CAPTIVE_CORE_PORT}
 ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING=true
 
 UNSAFE_QUORUM=true
@@ -14,5 +18,7 @@ NAME="local_core"
 HOME_DOMAIN="core.local"
 # From "SACJC372QBSSKJYTV5A7LWT4NXWHTQO6GHG4QDAVC2XDPX6CNNXFZ4JK"
 PUBLIC_KEY="GD5KD2KEZJIGTC63IGW6UMUSMVUVG5IHG64HUTFWCHVZH2N2IBOQN7PS"
-ADDRESS="localhost:${CORE_PORT}"
+
+# should be "core" when running RPC in a container or "localhost:port" when running RPC in the host
+ADDRESS="${CORE_HOST_PORT}"
 QUALITY="MEDIUM"

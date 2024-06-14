@@ -38,26 +38,25 @@ func TestMigrate(t *testing.T) {
 }
 
 func testMigrateFromVersion(t *testing.T, version string) {
-	originalPorts := infrastructure.NewTestPorts(t)
 	sqliteFile := filepath.Join(t.TempDir(), "soroban-rpc.db")
 	test := infrastructure.NewTest(t, &infrastructure.TestConfig{
 		UseReleasedRPCVersion: version,
 		UseSQLitePath:         sqliteFile,
-		TestPorts:             &originalPorts,
 	})
 
 	// Submit an event-logging transaction in the version to migrate from
 	submitTransactionResponse, _ := test.UploadHelloWorldContract()
 
-	// Replace RPC with the current version, but keeping the previous network and sql database (causing a data migration if needed)
+	// Replace RPC with the current version, but keeping the previous network and sql database (causing any data migrations)
 	// We need to do some wiring to plug RPC into the prior network
 	test.StopRPC()
-	freshPorts := infrastructure.NewTestPorts(t)
-	ports := originalPorts
-	ports.RPCPort = freshPorts.RPCPort
+	corePorts := test.GetPorts().TestCorePorts
 	test = infrastructure.NewTest(t, &infrastructure.TestConfig{
-		TestPorts:     &ports,
-		OnlyRPC:       true,
+		// We don't want to run Core again
+		OnlyRPC: &infrastructure.TestOnlyRPCConfig{
+			CorePorts: corePorts,
+			DontWait:  false,
+		},
 		UseSQLitePath: sqliteFile,
 		// We don't want to mark the test as parallel twice since it causes a panic
 		NoParallel: true,

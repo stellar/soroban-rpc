@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/creachadair/jrpc2"
+	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/protocols/stellarcore"
 	"github.com/stellar/go/txnbuild"
@@ -17,7 +18,41 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 )
 
-func getTransaction(t *testing.T, client *jrpc2.Client, hash string) methods.GetTransactionResponse {
+// Client is a jrpc2 client which tolerates errors
+type Client struct {
+	url  string
+	cli  *jrpc2.Client
+	opts *jrpc2.ClientOptions
+}
+
+func NewClient(url string, opts *jrpc2.ClientOptions) *Client {
+	c := &Client{url: url, opts: opts}
+	c.refreshClient()
+	return c
+}
+
+func (c *Client) refreshClient() {
+	if c.cli != nil {
+		c.cli.Close()
+	}
+	ch := jhttp.NewChannel(c.url, nil)
+	c.cli = jrpc2.NewClient(ch, c.opts)
+}
+
+func (c *Client) CallResult(ctx context.Context, method string, params, result any) error {
+	err := c.cli.CallResult(ctx, method, params, result)
+	if err != nil {
+		// This is needed because of https://github.com/creachadair/jrpc2/issues/118
+		c.refreshClient()
+	}
+	return err
+}
+
+func (c *Client) Close() error {
+	return c.cli.Close()
+}
+
+func getTransaction(t *testing.T, client *Client, hash string) methods.GetTransactionResponse {
 	var result methods.GetTransactionResponse
 	for i := 0; i < 60; i++ {
 		request := methods.GetTransactionRequest{Hash: hash}
@@ -35,7 +70,7 @@ func getTransaction(t *testing.T, client *jrpc2.Client, hash string) methods.Get
 	return result
 }
 
-func SendSuccessfulTransaction(t *testing.T, client *jrpc2.Client, kp *keypair.Full, transaction *txnbuild.Transaction) methods.GetTransactionResponse {
+func SendSuccessfulTransaction(t *testing.T, client *Client, kp *keypair.Full, transaction *txnbuild.Transaction) methods.GetTransactionResponse {
 	tx, err := transaction.Sign(StandaloneNetworkPassphrase, kp)
 	assert.NoError(t, err)
 	b64, err := tx.Base64()
@@ -92,7 +127,7 @@ func SendSuccessfulTransaction(t *testing.T, client *jrpc2.Client, kp *keypair.F
 	return response
 }
 
-func SimulateTransactionFromTxParams(t *testing.T, client *jrpc2.Client, params txnbuild.TransactionParams) methods.SimulateTransactionResponse {
+func SimulateTransactionFromTxParams(t *testing.T, client *Client, params txnbuild.TransactionParams) methods.SimulateTransactionResponse {
 	savedAutoIncrement := params.IncrementSequenceNum
 	params.IncrementSequenceNum = false
 	tx, err := txnbuild.NewTransaction(params)
@@ -153,7 +188,7 @@ func PreflightTransactionParamsLocally(t *testing.T, params txnbuild.Transaction
 	return params
 }
 
-func PreflightTransactionParams(t *testing.T, client *jrpc2.Client, params txnbuild.TransactionParams) txnbuild.TransactionParams {
+func PreflightTransactionParams(t *testing.T, client *Client, params txnbuild.TransactionParams) txnbuild.TransactionParams {
 	response := SimulateTransactionFromTxParams(t, client, params)
 	// The preamble should be zero except for the special restore case
 	assert.Nil(t, response.RestorePreamble)

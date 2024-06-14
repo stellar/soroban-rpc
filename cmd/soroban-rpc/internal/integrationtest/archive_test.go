@@ -4,38 +4,55 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/http/httputil"
-	"net/url"
-	"strconv"
 	"sync"
 	"testing"
+	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/integrationtest/infrastructure"
 )
 
 func TestArchiveUserAgent(t *testing.T) {
-	ports := infrastructure.NewTestPorts(t)
-	archiveHost := net.JoinHostPort("localhost", strconv.Itoa(int(ports.CoreArchivePort)))
-	proxy := httputil.NewSingleHostReverseProxy(&url.URL{Scheme: "http", Host: archiveHost})
 	userAgents := sync.Map{}
-	historyArchiveProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userAgents.Store(r.Header["User-Agent"][0], "")
-		proxy.ServeHTTP(w, r)
+	historyArchive := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		agent := r.Header["User-Agent"][0]
+		t.Log("agent", agent)
+		userAgents.Store(agent, "")
+		if r.URL.Path == "/.well-known/stellar-history.json" || r.URL.Path == "/history/00/00/00/history-0000001f.json" {
+			w.Write([]byte(`{
+    "version": 1,
+    "server": "stellar-core 21.0.1 (dfd3dbff1d9cad4dc31e022de6ac2db731b4b326)",
+    "currentLedger": 31,
+    "networkPassphrase": "Standalone Network ; February 2017",
+    "currentBuckets": []
+}`))
+			return
+		}
+		// emulate a problem with the archive
+		w.WriteHeader(http.StatusInternalServerError)
 	}))
-	defer historyArchiveProxy.Close()
+	defer historyArchive.Close()
+	historyPort := historyArchive.Listener.Addr().(*net.TCPAddr).Port
 
 	cfg := &infrastructure.TestConfig{
-		TestPorts:         &ports,
-		HistoryArchiveURL: historyArchiveProxy.URL,
+		OnlyRPC: &infrastructure.TestOnlyRPCConfig{
+			CorePorts: infrastructure.TestCorePorts{
+				CoreArchivePort: uint16(historyPort),
+			},
+			DontWait: true,
+		},
 	}
 
 	infrastructure.NewTest(t, cfg)
 
-	_, ok := userAgents.Load("soroban-rpc/0.0.0")
-	assert.True(t, ok, "rpc service should set user agent for history archives")
-
-	_, ok = userAgents.Load("soroban-rpc/0.0.0/captivecore")
-	assert.True(t, ok, "rpc captive core should set user agent for history archives")
+	require.Eventually(t,
+		func() bool {
+			_, ok1 := userAgents.Load("soroban-rpc/0.0.0")
+			_, ok2 := userAgents.Load("soroban-rpc/0.0.0/captivecore")
+			return ok1 && ok2
+		},
+		5*time.Second,
+		time.Second,
+	)
 }

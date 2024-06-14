@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/creachadair/jrpc2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -490,7 +489,7 @@ func getCounterLedgerKey(contractID [32]byte) xdr.LedgerKey {
 	return key
 }
 
-func waitUntilLedgerEntryTTL(t *testing.T, client *jrpc2.Client, ledgerKey xdr.LedgerKey) {
+func waitUntilLedgerEntryTTL(t *testing.T, client *infrastructure.Client, ledgerKey xdr.LedgerKey) {
 	keyB64, err := xdr.MarshalBase64(ledgerKey)
 	require.NoError(t, err)
 	request := methods.GetLedgerEntriesRequest{

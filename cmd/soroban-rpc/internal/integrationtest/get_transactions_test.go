@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/creachadair/jrpc2"
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/txnbuild"
 	"github.com/stretchr/testify/assert"
@@ -33,7 +32,7 @@ func buildSetOptionsTxParams(account txnbuild.SimpleAccount) txnbuild.Transactio
 // client - the JSON-RPC client used to send the transactions.
 //
 // Returns a slice of ledger numbers corresponding to where each transaction was recorded.
-func sendTransactions(t *testing.T, client *jrpc2.Client) []uint32 {
+func sendTransactions(t *testing.T, client *infrastructure.Client) []uint32 {
 	kp := keypair.Root(infrastructure.StandaloneNetworkPassphrase)
 	address := kp.Address()
 

@@ -15,8 +15,7 @@ import (
 var testSalt = sha256.Sum256([]byte("a1"))
 
 func GetHelloWorldContract() []byte {
-	testDirName := GetCurrentDirectory()
-	contractFile := path.Join(testDirName, helloWorldContractPath)
+	contractFile := path.Join(GetCurrentDirectory(), "../../../../../wasms/test_hello_world.wasm")
 	ret, err := os.ReadFile(contractFile)
 	if err != nil {
 		str := fmt.Sprintf(

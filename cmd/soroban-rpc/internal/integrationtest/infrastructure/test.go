@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -17,8 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/creachadair/jrpc2"
-	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/stellar/go/clients/stellarcore"
 	"github.com/stellar/go/keypair"
 	proto "github.com/stellar/go/protocols/stellarcore"
@@ -39,72 +38,51 @@ const (
 	MaxSupportedProtocolVersion = 21
 	FriendbotURL                = "http://localhost:8000/friendbot"
 	// Needed when Core is run with ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING=true
-	checkpointFrequency    = 8
-	helloWorldContractPath = "../../../../../wasms/test_hello_world.wasm"
+	checkpointFrequency               = 8
+	captiveCoreConfigFilename         = "captive-core-integration-tests.cfg"
+	captiveCoreConfigTemplateFilename = captiveCoreConfigFilename + ".tmpl"
+
+	inContainerCoreHostname    = "core"
+	inContainerCorePort        = 11625
+	inContainerCoreHTTPPort    = 11626
+	inContainerCoreArchivePort = 1570
+	// any unused port would do
+	inContainerCaptiveCorePort = 11725
+
+	inContainerRPCPort      = 8000
+	inContainerRPCAdminPort = 8080
 )
+
+// Only run RPC, telling how to connect to Core
+// and whether we should wait for it
+type TestOnlyRPCConfig struct {
+	CorePorts TestCorePorts
+	DontWait  bool
+}
 
 type TestConfig struct {
 	ProtocolVersion uint32
 	// Run a previously released version of RPC (in a container) instead of the current version
 	UseReleasedRPCVersion string
-	UseSQLitePath         string
-	HistoryArchiveURL     string
-	TestPorts             *TestPorts
-	OnlyRPC               bool
-	NoParallel            bool
+	// Use/Reuse a SQLite file instead of creating it from scratch
+	UseSQLitePath string
+	OnlyRPC       *TestOnlyRPCConfig
+	// Do not mark the test as running in parallel
+	NoParallel bool
+}
+
+type TestCorePorts struct {
+	CorePort        uint16
+	CoreHTTPPort    uint16
+	CoreArchivePort uint16
+	// This only needs to be an unconflicting port
+	captiveCorePort uint16
 }
 
 type TestPorts struct {
-	RPCPort             uint16
-	RPCAdminPort        uint16
-	CorePort            uint16
-	CoreHTTPPort        uint16
-	CoreArchivePort     uint16
-	CoreCaptivePeerPort uint16
-}
-
-func NewTestPorts(t *testing.T) TestPorts {
-	return TestPorts{
-		RPCPort:             getFreeTCPPort(t),
-		RPCAdminPort:        getFreeTCPPort(t),
-		CorePort:            getFreeTCPPort(t),
-		CoreHTTPPort:        getFreeTCPPort(t),
-		CoreArchivePort:     getFreeTCPPort(t),
-		CoreCaptivePeerPort: getFreeTCPPort(t),
-	}
-
-}
-
-func (tp TestPorts) getMapping() map[string]uint16 {
-	return map[string]uint16{
-		"RPC_PORT":          tp.RPCPort,
-		"RPC_ADMIN_PORT":    tp.RPCAdminPort,
-		"CORE_PORT":         tp.CorePort,
-		"CORE_HTTP_PORT":    tp.CoreHTTPPort,
-		"CORE_ARCHIVE_PORT": tp.CoreArchivePort,
-		"CORE_CAPTIVE_PORT": tp.CoreCaptivePeerPort,
-	}
-}
-
-func (tp TestPorts) getEnvs() []string {
-	mapping := tp.getMapping()
-	result := make([]string, 0, len(mapping))
-	for k, v := range mapping {
-		result = append(result, fmt.Sprintf("%s=%d", k, v))
-	}
-	return result
-}
-
-func (tp TestPorts) getFuncMapping() func(string) string {
-	mapping := tp.getMapping()
-	return func(name string) string {
-		port, ok := mapping[name]
-		if !ok {
-			// try to leave it as it was
-			return "$" + name
-		}
-		return strconv.Itoa(int(port))
-	}
+	RPCPort      uint16
+	RPCAdminPort uint16
+	TestCorePorts
 }
 
 type Test struct {
@@ -114,16 +92,13 @@ type Test struct {
 
 	protocolVersion uint32
 
-	historyArchiveURL string
-
-	expandedTemplatesDir string
+	rpcConfigFilesDir string
 
 	rpcContainerVersion        string
-	rpcContainerConfigMountDir string
 	rpcContainerSQLiteMountDir string
 	rpcContainerLogsCommand    *exec.Cmd
 
-	rpcClient  *jrpc2.Client
+	rpcClient  *Client
 	coreClient *stellarcore.Client
 
 	daemon *daemon.Daemon
@@ -146,39 +121,45 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 	}
 
 	parallel := true
-	sqlLitePath := ""
-	testPortsInitialized := false
+	sqlitePath := ""
+	shouldWaitForRPC := true
 	if cfg != nil {
-		i.historyArchiveURL = cfg.HistoryArchiveURL
 		i.rpcContainerVersion = cfg.UseReleasedRPCVersion
 		i.protocolVersion = cfg.ProtocolVersion
-		sqlLitePath = cfg.UseSQLitePath
-		i.onlyRPC = cfg.OnlyRPC
-		parallel = !cfg.NoParallel
-		if cfg.TestPorts != nil {
-			i.testPorts = *cfg.TestPorts
-			testPortsInitialized = true
+		sqlitePath = cfg.UseSQLitePath
+		if cfg.OnlyRPC != nil {
+			i.onlyRPC = true
+			i.testPorts.TestCorePorts = cfg.OnlyRPC.CorePorts
+			shouldWaitForRPC = !cfg.OnlyRPC.DontWait
 		}
+		parallel = !cfg.NoParallel
+	}
+	if sqlitePath == "" {
+		sqlitePath = path.Join(i.t.TempDir(), "soroban_rpc.sqlite")
 	}
 
-	if !testPortsInitialized {
-		i.testPorts = NewTestPorts(t)
-	}
 	if parallel {
 		t.Parallel()
 	}
+
+	// TODO: this function is pretty unreadable
 
 	if i.protocolVersion == 0 {
 		// Default to the maximum supported protocol version
 		i.protocolVersion = GetCoreMaxSupportedProtocol()
 	}
 
-	i.expandedTemplatesDir = i.createExpandedTemplatesDir()
-	rpcCfg := i.getRPConfig(sqlLitePath)
+	i.rpcConfigFilesDir = i.t.TempDir()
+
 	if i.runRPCInContainer() {
-		i.rpcContainerConfigMountDir = i.createRPCContainerMountDir(rpcCfg)
+		// The container needs to use the sqlite mount point
+		i.rpcContainerSQLiteMountDir = filepath.Dir(sqlitePath)
+		i.generateCaptiveCoreCfgForContainer()
+		rpcCfg := i.getRPConfigForContainer(sqlitePath)
+		i.generateRPCConfigFile(rpcCfg)
 	}
 
+	i.prepareShutdownHandlers()
 	if i.runRPCInContainer() || !i.onlyRPC {
 		// There are containerized workloads
 		upCmd := []string{"up"}
@@ -186,34 +167,48 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 			upCmd = append(upCmd, "rpc")
 		}
 		upCmd = append(upCmd, "--detach", "--quiet-pull", "--no-color")
-		i.runComposeCommand(upCmd...)
+		i.runSuccessfulComposeCommand(upCmd...)
 		if i.runRPCInContainer() {
 			i.rpcContainerLogsCommand = i.getComposeCommand("logs", "--no-log-prefix", "-f", "rpc")
 			i.rpcContainerLogsCommand.Stdout = os.Stdout
 			i.rpcContainerLogsCommand.Stderr = os.Stderr
 			require.NoError(t, i.rpcContainerLogsCommand.Start())
 		}
+		i.fillContainerPorts()
 	}
-	i.prepareShutdownHandlers()
 	if !i.onlyRPC {
 		i.coreClient = &stellarcore.Client{URL: "http://localhost:" + strconv.Itoa(int(i.testPorts.CoreHTTPPort))}
 		i.waitForCore()
 		i.waitForCheckpoint()
 	}
 	if !i.runRPCInContainer() {
+		// We need to get a free port. Unfortunately this isn't completely clash-Free
+		// but there is no way to tell core to allocate the port dynamically
+		i.testPorts.captiveCorePort = getFreeTCPPort(i.t)
+		i.generateCaptiveCoreCfgForDaemon()
+		rpcCfg := i.getRPConfigForDaemon(sqlitePath)
 		i.daemon = i.createDaemon(rpcCfg)
+		i.fillDaemonPorts()
 		go i.daemon.Run()
 	}
-	i.waitForRPC()
+
+	i.rpcClient = NewClient(i.GetSorobanRPCURL(), nil)
+	if shouldWaitForRPC {
+		i.waitForRPC()
+	}
 
 	return i
+}
+
+func (i *Test) GetPorts() TestPorts {
+	return i.testPorts
 }
 
 func (i *Test) runRPCInContainer() bool {
 	return i.rpcContainerVersion != ""
 }
 
-func (i *Test) GetRPCLient() *jrpc2.Client {
+func (i *Test) GetRPCLient() *Client {
 	return i.rpcClient
 }
 func (i *Test) MasterKey() *keypair.Full {
@@ -250,65 +245,67 @@ func (i *Test) waitForCheckpoint() {
 	)
 }
 
-func (i *Test) getRPConfig(sqlitePath string) map[string]string {
-	if sqlitePath == "" {
-		sqlitePath = path.Join(i.t.TempDir(), "soroban_rpc.sqlite")
-	}
-
-	// Container's default path to captive core
-	coreBinaryPath := "/usr/bin/stellar-core"
-	if !i.runRPCInContainer() {
-		coreBinaryPath = os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN")
-		if coreBinaryPath == "" {
-			i.t.Fatal("missing SOROBAN_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN")
-		}
-	}
-
-	archiveURL := fmt.Sprintf("http://localhost:%d", i.testPorts.CoreArchivePort)
-	if i.runRPCInContainer() {
-		// the archive needs to be accessed from the container
-		// where core is Core's hostname
-		archiveURL = fmt.Sprintf("http://core:%d", i.testPorts.CoreArchivePort)
-	}
-	if i.historyArchiveURL != "" {
-		// an archive URL was supplied explicitly
-		archiveURL = i.historyArchiveURL
-	}
-
-	captiveCoreConfigPath := path.Join(i.expandedTemplatesDir, "captive-core-integration-tests.cfg")
-	bindHost := "localhost"
-	stellarCoreURL := fmt.Sprintf("http://localhost:%d", i.testPorts.CoreHTTPPort)
-	if i.runRPCInContainer() {
+func (i *Test) getRPConfigForContainer(sqlitePath string) rpcConfig {
+	return rpcConfig{
+		// Container's default path to captive core
+		coreBinaryPath: "/usr/bin/stellar-core",
+		archiveURL:     fmt.Sprintf("http://%s:%d", inContainerCoreHostname, inContainerCoreArchivePort),
 		// The file will be inside the container
-		captiveCoreConfigPath = "/stellar-core.cfg"
+		captiveCoreConfigPath: "/stellar-core.cfg",
 		// The container needs to listen on all interfaces, not just localhost
-		bindHost = "0.0.0.0"
-		// The container needs to use the sqlite mount point
-		i.rpcContainerSQLiteMountDir = filepath.Dir(sqlitePath)
-		sqlitePath = "/db/" + filepath.Base(sqlitePath)
-		stellarCoreURL = fmt.Sprintf("http://core:%d", i.testPorts.CoreHTTPPort)
+		// (otherwise it can't be accessible from the outside)
+		endPoint:               fmt.Sprintf("0.0.0.0:%d", inContainerRPCPort),
+		adminEndpoint:          fmt.Sprintf("0.0.0.0:%d", inContainerRPCAdminPort),
+		sqlitePath:             "/db/" + filepath.Base(sqlitePath),
+		stellarCoreURL:         fmt.Sprintf("http://%s:%d", inContainerCoreHostname, inContainerCoreHTTPPort),
+		captiveCoreStoragePath: "/tmp/captive-core",
 	}
+}
 
-	// in the container
-	captiveCoreStoragePath := "/tmp/captive-core"
-	if !i.runRPCInContainer() {
-		captiveCoreStoragePath = i.t.TempDir()
+func (i *Test) getRPConfigForDaemon(sqlitePath string) rpcConfig {
+	coreBinaryPath := os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN")
+	if coreBinaryPath == "" {
+		i.t.Fatal("missing SOROBAN_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN")
 	}
+	return rpcConfig{
+		coreBinaryPath:        coreBinaryPath,
+		archiveURL:            fmt.Sprintf("http://localhost:%d", i.testPorts.CoreArchivePort),
+		captiveCoreConfigPath: path.Join(i.rpcConfigFilesDir, captiveCoreConfigFilename),
+		stellarCoreURL:        fmt.Sprintf("http://localhost:%d", i.testPorts.CoreHTTPPort),
+		// Allocate port dynamically and then figure out what the port is
+		endPoint:               "localhost:0",
+		adminEndpoint:          "localhost:0",
+		captiveCoreStoragePath: i.t.TempDir(),
+		sqlitePath:             sqlitePath,
+	}
+}
 
+type rpcConfig struct {
+	endPoint               string
+	adminEndpoint          string
+	stellarCoreURL         string
+	coreBinaryPath         string
+	captiveCoreConfigPath  string
+	captiveCoreStoragePath string
+	archiveURL             string
+	sqlitePath             string
+}
+
+func (vars rpcConfig) toMap() map[string]string {
 	return map[string]string{
-		"ENDPOINT":                       fmt.Sprintf("%s:%d", bindHost, i.testPorts.RPCPort),
-		"ADMIN_ENDPOINT":                 fmt.Sprintf("%s:%d", bindHost, i.testPorts.RPCAdminPort),
-		"STELLAR_CORE_URL":               stellarCoreURL,
+		"ENDPOINT":                       vars.endPoint,
+		"ADMIN_ENDPOINT":                 vars.adminEndpoint,
+		"STELLAR_CORE_URL":               vars.stellarCoreURL,
 		"CORE_REQUEST_TIMEOUT":           "2s",
-		"STELLAR_CORE_BINARY_PATH":       coreBinaryPath,
-		"CAPTIVE_CORE_CONFIG_PATH":       captiveCoreConfigPath,
-		"CAPTIVE_CORE_STORAGE_PATH":      captiveCoreStoragePath,
+		"STELLAR_CORE_BINARY_PATH":       vars.coreBinaryPath,
+		"CAPTIVE_CORE_CONFIG_PATH":       vars.captiveCoreConfigPath,
+		"CAPTIVE_CORE_STORAGE_PATH":      vars.captiveCoreStoragePath,
 		"STELLAR_CAPTIVE_CORE_HTTP_PORT": "0",
 		"FRIENDBOT_URL":                  FriendbotURL,
 		"NETWORK_PASSPHRASE":             StandaloneNetworkPassphrase,
-		"HISTORY_ARCHIVE_URLS":           archiveURL,
+		"HISTORY_ARCHIVE_URLS":           vars.archiveURL,
 		"LOG_LEVEL":                      "debug",
-		"DB_PATH":                        sqlitePath,
+		"DB_PATH":                        vars.sqlitePath,
 		"INGESTION_TIMEOUT":              "10m",
 		"EVENT_LEDGER_RETENTION_WINDOW":  strconv.Itoa(ledgerbucketwindow.OneDayOfLedgers),
 		"TRANSACTION_RETENTION_WINDOW":   strconv.Itoa(ledgerbucketwindow.OneDayOfLedgers),
@@ -320,17 +317,9 @@ func (i *Test) getRPConfig(sqlitePath string) map[string]string {
 
 func (i *Test) waitForRPC() {
 	i.t.Log("Waiting for RPC to be healthy...")
-	// This is needed because of https://github.com/creachadair/jrpc2/issues/118
-	refreshClient := func() {
-		if i.rpcClient != nil {
-			i.rpcClient.Close()
-		}
-		ch := jhttp.NewChannel(i.GetSorobanRPCURL(), nil)
-		i.rpcClient = jrpc2.NewClient(ch, nil)
-	}
+
 	require.Eventually(i.t,
 		func() bool {
-			refreshClient()
 			result, err := i.GetRPCHealth()
 			return err == nil && result.Status == "healthy"
 		},
@@ -339,35 +328,7 @@ func (i *Test) waitForRPC() {
 	)
 }
 
-func (i *Test) createExpandedTemplatesDir() string {
-	mountDir := i.t.TempDir()
-	configDir := filepath.Join(GetCurrentDirectory(), "docker")
-	entries, err := os.ReadDir(configDir)
-	require.NoError(i.t, err)
-	fmapping := i.testPorts.getFuncMapping()
-	for _, entry := range entries {
-		if !entry.Type().IsRegular() {
-			continue
-		}
-		if !strings.HasSuffix(entry.Name(), ".tmpl") {
-			continue
-		}
-		originalPath := filepath.Join(configDir, entry.Name())
-		in, err := os.ReadFile(originalPath)
-		require.NoError(i.t, err)
-		out := os.Expand(string(in), fmapping)
-		targetPath := filepath.Join(mountDir, strings.TrimSuffix(entry.Name(), ".tmpl"))
-		info, err := entry.Info()
-		require.NoError(i.t, err)
-		err = os.WriteFile(targetPath, []byte(out), info.Mode())
-		require.NoError(i.t, err)
-	}
-	return mountDir
-}
-
-func (i *Test) createRPCContainerMountDir(rpcConfig map[string]string) string {
-	mountDir := i.t.TempDir()
-
+func (i *Test) generateCaptiveCoreCfgForContainer() {
 	getOldVersionCaptiveCoreConfigVersion := func(dir string, filename string) ([]byte, error) {
 		cmd := exec.Command("git", "show", fmt.Sprintf("v%s:./%s/%s", i.rpcContainerVersion, dir, filename))
 		cmd.Dir = GetCurrentDirectory()
@@ -375,40 +336,58 @@ func (i *Test) createRPCContainerMountDir(rpcConfig map[string]string) string {
 	}
 
 	// Get old version of captive-core-integration-tests.cfg.tmpl
-	out, err := getOldVersionCaptiveCoreConfigVersion("docker", "captive-core-integration-tests.cfg.tmpl")
+	out, err := getOldVersionCaptiveCoreConfigVersion("docker", captiveCoreConfigTemplateFilename)
 	if err != nil {
 		// Try the directory before the integration test refactoring
 		// TODO: remove this hack after protocol 22 is released
-		out, err = getOldVersionCaptiveCoreConfigVersion("../../test", "captive-core-integration-tests.cfg")
-		outStr := strings.Replace(string(out), `ADDRESS="localhost"`, fmt.Sprintf(`ADDRESS="localhost:%d"`, i.testPorts.CorePort), -1)
+		out, err = getOldVersionCaptiveCoreConfigVersion("../../test", captiveCoreConfigFilename)
+		outStr := strings.Replace(string(out), `ADDRESS="localhost"`, `ADDRESS="${CORE_HOST_PORT}"`, -1)
 		out = []byte(outStr)
 	}
 	require.NoError(i.t, err)
-
-	// Apply expansion
-	captiveCoreCfgContents := os.Expand(string(out), i.testPorts.getFuncMapping())
-
-	// TODO: maybe it would be better to not place localhost in the file (and use a host replacement)
-	// replace ADDRESS="localhost by ADDRESS="core, so that the container can find core
-	captiveCoreCfgContents = strings.Replace(captiveCoreCfgContents, `ADDRESS="localhost`, `ADDRESS="core`, -1)
-	err = os.WriteFile(filepath.Join(mountDir, "stellar-core-integration-tests.cfg"), []byte(captiveCoreCfgContents), 0666)
-	require.NoError(i.t, err)
-
-	// Generate config file
-	cfgFileContents := ""
-	for k, v := range rpcConfig {
-		cfgFileContents += fmt.Sprintf("%s=%q\n", k, v)
-	}
-	err = os.WriteFile(filepath.Join(mountDir, "soroban-rpc.config"), []byte(cfgFileContents), 0666)
-	require.NoError(i.t, err)
-
-	return mountDir
+	i.generateCaptiveCoreCfg(out, inContainerCaptiveCorePort, inContainerCoreHostname)
 }
 
-func (i *Test) createDaemon(env map[string]string) *daemon.Daemon {
+func (i *Test) generateCaptiveCoreCfg(tmplContents []byte, captiveCorePort uint16, coreHostPort string) {
+	// Apply expansion
+	mapping := func(in string) string {
+		switch in {
+		case "CAPTIVE_CORE_PORT":
+			// any non-conflicting port would do
+			return strconv.Itoa(int(captiveCorePort))
+		case "CORE_HOST_PORT":
+			return coreHostPort
+		default:
+			// Try to leave it as it was
+			return "$" + in
+		}
+	}
+
+	captiveCoreCfgContents := os.Expand(string(tmplContents), mapping)
+	err := os.WriteFile(filepath.Join(i.rpcConfigFilesDir, captiveCoreConfigFilename), []byte(captiveCoreCfgContents), 0666)
+	require.NoError(i.t, err)
+}
+
+func (i *Test) generateCaptiveCoreCfgForDaemon() {
+	out, err := os.ReadFile(filepath.Join(GetCurrentDirectory(), "docker", captiveCoreConfigTemplateFilename))
+	require.NoError(i.t, err)
+	i.generateCaptiveCoreCfg(out, i.testPorts.captiveCorePort, "localhost:"+strconv.Itoa(int(i.testPorts.CorePort)))
+}
+
+func (i *Test) generateRPCConfigFile(rpcConfig rpcConfig) {
+	cfgFileContents := ""
+	for k, v := range rpcConfig.toMap() {
+		cfgFileContents += fmt.Sprintf("%s=%q\n", k, v)
+	}
+	err := os.WriteFile(filepath.Join(i.rpcConfigFilesDir, "soroban-rpc.config"), []byte(cfgFileContents), 0666)
+	require.NoError(i.t, err)
+}
+
+func (i *Test) createDaemon(c rpcConfig) *daemon.Daemon {
 	var cfg config.Config
+	m := c.toMap()
 	lookup := func(s string) (string, bool) {
-		ret, ok := env[s]
+		ret, ok := m[s]
 		return ret, ok
 	}
 	require.NoError(i.t, cfg.SetValues(lookup))
@@ -425,23 +404,17 @@ func (i *Test) getComposeProjectName() string {
 }
 
 func (i *Test) getComposeCommand(args ...string) *exec.Cmd {
-	integrationYaml := filepath.Join(GetCurrentDirectory(), "docker", "docker-compose.yml")
-	configFiles := []string{"-f", integrationYaml}
+	composeFile := "docker-compose.yml"
 	if i.runRPCInContainer() {
-		rpcYaml := filepath.Join(GetCurrentDirectory(), "docker", "docker-compose.rpc.yml")
-		configFiles = append(configFiles, "-f", rpcYaml)
+		composeFile = "docker-compose.rpc.yml"
 	}
+	fullComposeFilePath := filepath.Join(GetCurrentDirectory(), "docker", composeFile)
+	cmdline := []string{"-f", fullComposeFilePath}
 	// Use separate projects to run them in parallel
 	projectName := i.getComposeProjectName()
-	cmdline := append([]string{"-p", projectName}, configFiles...)
+	cmdline = append([]string{"-p", projectName}, cmdline...)
 	cmdline = append(cmdline, args...)
 	cmd := exec.Command("docker-compose", cmdline...)
-
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env,
-		"CORE_MOUNT_DIR="+i.expandedTemplatesDir,
-	)
-	cmd.Env = append(cmd.Env, i.testPorts.getEnvs()...)
 
 	if img := os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_DOCKER_IMG"); img != "" {
 		cmd.Env = append(
@@ -454,28 +427,35 @@ func (i *Test) getComposeCommand(args ...string) *exec.Cmd {
 		cmd.Env = append(
 			cmd.Env,
 			"RPC_IMAGE_TAG="+i.rpcContainerVersion,
-			"RPC_CONFIG_MOUNT_DIR="+i.rpcContainerConfigMountDir,
+			"RPC_CONFIG_MOUNT_DIR="+i.rpcConfigFilesDir,
 			"RPC_SQLITE_MOUNT_DIR="+i.rpcContainerSQLiteMountDir,
 			"RPC_UID="+strconv.Itoa(os.Getuid()),
 			"RPC_GID="+strconv.Itoa(os.Getgid()),
 		)
 	}
+	if cmd.Env != nil {
+		cmd.Env = append(os.Environ(), cmd.Env...)
+	}
 
 	return cmd
 }
 
-func (i *Test) runComposeCommand(args ...string) {
+func (i *Test) runComposeCommand(args ...string) ([]byte, error) {
 	cmd := i.getComposeCommand(args...)
-	i.t.Log("Running", cmd.Args)
-	out, innerErr := cmd.Output()
-	if exitErr, ok := innerErr.(*exec.ExitError); ok {
-		i.t.Log("stdout\n:", string(out))
+	return cmd.Output()
+}
+
+func (i *Test) runSuccessfulComposeCommand(args ...string) []byte {
+	out, err := i.runComposeCommand(args...)
+	if err != nil {
+		i.t.Log("Compose command failed, args:", args)
+	}
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		i.t.Log("stdout:\n", string(out))
 		i.t.Log("stderr:\n", string(exitErr.Stderr))
 	}
-
-	if innerErr != nil {
-		i.t.Fatalf("Compose command failed: %v", innerErr)
-	}
+	require.NoError(i.t, err)
+	return out
 }
 
 func (i *Test) prepareShutdownHandlers() {
@@ -496,7 +476,7 @@ func (i *Test) prepareShutdownHandlers() {
 				downCmd = append(downCmd, "rpc")
 			}
 			downCmd = append(downCmd, "-v")
-			i.runComposeCommand(downCmd...)
+			i.runSuccessfulComposeCommand(downCmd...)
 		}
 		if i.rpcContainerLogsCommand != nil {
 			i.rpcContainerLogsCommand.Wait()
@@ -576,7 +556,7 @@ func (i *Test) StopRPC() {
 		i.daemon = nil
 	}
 	if i.runRPCInContainer() {
-		i.runComposeCommand("down", "rpc", "-v")
+		i.runSuccessfulComposeCommand("down", "rpc", "-v")
 	}
 }
 
@@ -645,6 +625,46 @@ func (i *Test) GetRPCHealth() (methods.HealthCheckResult, error) {
 	var result methods.HealthCheckResult
 	err := i.rpcClient.CallResult(context.Background(), "getHealth", nil, &result)
 	return result, err
+}
+
+func (i *Test) fillContainerPorts() {
+	getPublicPort := func(service string, privatePort int) uint16 {
+		var port uint16
+		// We need to try several times because we detached from `docker-compose up`
+		// and the container may not be ready
+		require.Eventually(i.t,
+			func() bool {
+				out, err := i.runComposeCommand("port", service, strconv.Itoa(privatePort))
+				if err != nil {
+					return false
+				}
+				_, strPort, err := net.SplitHostPort(strings.TrimSpace(string(out)))
+				require.NoError(i.t, err)
+				intPort, err := strconv.Atoi(strPort)
+				require.NoError(i.t, err)
+				port = uint16(intPort)
+				return true
+			},
+			2*time.Second,
+			100*time.Millisecond,
+		)
+		return port
+	}
+	i.testPorts.CorePort = getPublicPort("core", inContainerCorePort)
+	i.testPorts.CoreHTTPPort = getPublicPort("core", inContainerCoreHTTPPort)
+	i.testPorts.CoreArchivePort = getPublicPort("core", inContainerCoreArchivePort)
+	if i.runRPCInContainer() {
+		i.testPorts.RPCPort = getPublicPort("rpc", inContainerRPCPort)
+		i.testPorts.RPCAdminPort = getPublicPort("rpc", inContainerRPCAdminPort)
+	}
+}
+
+func (i *Test) fillDaemonPorts() {
+	endpointAddr, adminEndpointAddr := i.daemon.GetEndpointAddrs()
+	i.testPorts.RPCPort = uint16(endpointAddr.Port)
+	if adminEndpointAddr != nil {
+		i.testPorts.RPCAdminPort = uint16(adminEndpointAddr.Port)
+	}
 }
 
 func GetCoreMaxSupportedProtocol() uint32 {
