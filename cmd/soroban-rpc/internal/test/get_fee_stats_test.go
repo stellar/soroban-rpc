@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/creachadair/jrpc2"
-	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/txnbuild"
 	"github.com/stellar/go/xdr"
@@ -18,9 +16,7 @@ import (
 func TestGetFeeStats(t *testing.T) {
 	test := NewTest(t, nil)
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
-
+	client := test.GetRPCLient()
 	sourceAccount := keypair.Root(StandaloneNetworkPassphrase)
 	address := sourceAccount.Address()
 	account := txnbuild.NewSimpleAccount(address, 0)

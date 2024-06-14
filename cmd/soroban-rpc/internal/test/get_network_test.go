@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/creachadair/jrpc2"
-	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
@@ -14,8 +12,7 @@ import (
 func TestGetNetworkSucceeds(t *testing.T) {
 	test := NewTest(t, nil)
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
+	client := test.GetRPCLient()
 
 	request := methods.GetNetworkRequest{}
 

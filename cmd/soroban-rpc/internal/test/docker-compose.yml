@@ -1,4 +1,3 @@
-version: '3'
 services:
   core-postgres:
     image: postgres:9.6.17-alpine

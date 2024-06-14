@@ -39,7 +39,7 @@ type TransactionWriter interface {
 	RegisterMetrics(ingest, count prometheus.Observer)
 }
 
-// TransactionReader provides all of the public ways to read from the DB.
+// TransactionReader provides all the public ways to read from the DB.
 type TransactionReader interface {
 	GetTransaction(ctx context.Context, hash xdr.Hash) (Transaction, ledgerbucketwindow.LedgerRange, error)
 	LedgerRangeReader
@@ -107,8 +107,7 @@ func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 	}
 	_, err = query.RunWith(txn.stmtCache).Exec()
 
-	L.WithError(err).
-		WithField("duration", time.Since(start)).
+	L.WithField("duration", time.Since(start)).
 		Infof("Ingested %d transaction lookups", len(transactions))
 
 	return err
@@ -314,4 +313,51 @@ func ParseTransaction(lcm xdr.LedgerCloseMeta, ingestTx ingest.LedgerTransaction
 	}
 
 	return tx, nil
+}
+
+type transactionTableMigration struct {
+	firstLedger uint32
+	lastLedger  uint32
+	writer      TransactionWriter
+}
+
+func (t *transactionTableMigration) ApplicableRange() *LedgerSeqRange {
+	return &LedgerSeqRange{
+		firstLedgerSeq: t.firstLedger,
+		lastLedgerSeq:  t.lastLedger,
+	}
+}
+
+func (t *transactionTableMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error {
+	return t.writer.InsertTransactions(meta)
+}
+
+func newTransactionTableMigration(ctx context.Context, logger *log.Entry, retentionWindow uint32, passphrase string) migrationApplierFactory {
+	return migrationApplierFactoryF(func(db *DB, latestLedger uint32) (MigrationApplier, error) {
+		firstLedgerToMigrate := uint32(2)
+		writer := &transactionHandler{
+			log:        logger,
+			db:         db,
+			stmtCache:  sq.NewStmtCache(db.GetTx()),
+			passphrase: passphrase,
+		}
+		if latestLedger > retentionWindow {
+			firstLedgerToMigrate = latestLedger - retentionWindow
+		}
+		// Truncate the table, since it may contain data, causing insert conflicts later on.
+		// (the migration was shipped after the actual transactions table change)
+		// FIXME: this can be simply replaced by an upper limit in the ledgers to migrate
+		//        but ... it can't be done until https://github.com/stellar/soroban-rpc/issues/208
+		//        is addressed
+		_, err := db.Exec(ctx, sq.Delete(transactionTableName))
+		if err != nil {
+			return nil, fmt.Errorf("couldn't delete table %q: %w", transactionTableName, err)
+		}
+		migration := transactionTableMigration{
+			firstLedger: firstLedgerToMigrate,
+			lastLedger:  latestLedger,
+			writer:      writer,
+		}
+		return &migration, nil
+	})
 }

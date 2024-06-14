@@ -3,12 +3,11 @@ package test
 import (
 	"context"
 	"fmt"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
 	"os/exec"
 	"testing"
 
-	"github.com/creachadair/jrpc2"
-	"github.com/creachadair/jrpc2/jhttp"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
@@ -28,8 +27,7 @@ func TestGetVersionInfoSucceeds(t *testing.T) {
 		config.BuildTimestamp = buildTimeStamp
 	})
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
+	client := test.GetRPCLient()
 
 	var result methods.GetVersionInfoResponse
 	err := client.CallResult(context.Background(), "getVersionInfo", nil, &result)

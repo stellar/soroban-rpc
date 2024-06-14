@@ -2,14 +2,15 @@ package test
 
 import (
 	"fmt"
-	io_prometheus_client "github.com/prometheus/client_model/go"
-	"github.com/stellar/go/support/errors"
-	"github.com/stretchr/testify/assert"
 	"io"
 	"net/http"
 	"net/url"
 	"runtime"
 	"testing"
+
+	io_prometheus_client "github.com/prometheus/client_model/go"
+	"github.com/stellar/go/support/errors"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/stretchr/testify/require"
 

@@ -5,8 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/creachadair/jrpc2"
-	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/txnbuild"
 	"github.com/stellar/go/xdr"
@@ -24,8 +22,7 @@ func TestUpgradeFrom20To21(t *testing.T) {
 		ProtocolVersion: 20,
 	})
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
+	client := test.GetRPCLient()
 
 	sourceAccount := keypair.Root(StandaloneNetworkPassphrase)
 	address := sourceAccount.Address()
