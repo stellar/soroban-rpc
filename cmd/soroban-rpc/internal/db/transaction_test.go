@@ -19,11 +19,21 @@ import (
 
 func TestTransactionNotFound(t *testing.T) {
 	db := NewTestDB(t)
+	ctx := context.TODO()
 	log := log.DefaultLogger
 	log.SetLevel(logrus.TraceLevel)
 
 	reader := NewTransactionReader(log, db, passphrase)
-	_, _, err := reader.GetTransaction(context.TODO(), xdr.Hash{})
+
+	// Assert the ledger range
+	ledgerRange, err := reader.GetLedgerRange(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, uint32(0), ledgerRange.FirstLedger.Sequence)
+	assert.Equal(t, int64(0), ledgerRange.FirstLedger.CloseTime)
+	assert.Equal(t, uint32(0), ledgerRange.LastLedger.Sequence)
+	assert.Equal(t, int64(0), ledgerRange.LastLedger.CloseTime)
+
+	_, _, err = reader.GetTransaction(context.TODO(), xdr.Hash{})
 	require.Error(t, err, ErrNoTransaction)
 }
 
@@ -51,8 +61,16 @@ func TestTransactionFound(t *testing.T) {
 	}
 	require.NoError(t, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
 
-	// check 404 case
+	// Assert the ledger range
 	reader := NewTransactionReader(log, db, passphrase)
+	ledgerRange, err := reader.GetLedgerRange(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, uint32(1334), ledgerRange.FirstLedger.Sequence)
+	assert.Equal(t, ledgerCloseTime(1334), ledgerRange.FirstLedger.CloseTime)
+	assert.Equal(t, uint32(1337), ledgerRange.LastLedger.Sequence)
+	assert.Equal(t, ledgerCloseTime(1337), ledgerRange.LastLedger.CloseTime)
+
+	// check 404 case
 	_, _, err = reader.GetTransaction(ctx, xdr.Hash{})
 	require.Error(t, err, ErrNoTransaction)
 
