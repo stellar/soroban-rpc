@@ -1,14 +1,14 @@
-package test
+package infrastructure
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,7 +20,10 @@ import (
 	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/stellar/go/clients/stellarcore"
 	"github.com/stellar/go/keypair"
+	proto "github.com/stellar/go/protocols/stellarcore"
 	"github.com/stellar/go/txnbuild"
+	"github.com/stellar/go/xdr"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
@@ -35,12 +38,12 @@ const (
 	MaxSupportedProtocolVersion = 21
 	StellarCoreArchivePort      = 1570
 	stellarCorePort             = 11626
-	friendbotURL                = "http://localhost:8000/friendbot"
+	FriendbotURL                = "http://localhost:8000/friendbot"
 	// Needed when Core is run with ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING=true
 	checkpointFrequency    = 8
 	sorobanRPCPort         = 8000
 	adminPort              = 8080
-	helloWorldContractPath = "../../../../wasms/test_hello_world.wasm"
+	helloWorldContractPath = "../../../../../wasms/test_hello_world.wasm"
 )
 
 type TestConfig struct {
@@ -103,7 +106,7 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 	}
 	i.runComposeCommand("up", "--detach", "--quiet-pull", "--no-color")
 	if i.runRPCInContainer() {
-		cmd := i.getComposeCommand("logs", "-f", "rpc")
+		cmd := i.getComposeCommand("logs", "--no-log-prefix", "-f", "rpc")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		require.NoError(t, cmd.Start())
@@ -136,33 +139,30 @@ func (i *Test) MasterAccount() txnbuild.Account {
 	return i.masterAccount
 }
 
-func (i *Test) sorobanRPCURL() string {
+func (i *Test) GetSorobanRPCURL() string {
 	return fmt.Sprintf("http://localhost:%d", sorobanRPCPort)
 }
 
-func (i *Test) adminURL() string {
+func (i *Test) GetAdminURL() string {
 	return fmt.Sprintf("http://localhost:%d", adminPort)
 }
 
+func (i *Test) getCoreInfo() (*proto.InfoResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	return i.coreClient.Info(ctx)
+}
+
 func (i *Test) waitForCheckpoint() {
-	i.t.Log("Waiting for core to be up...")
-	for t := 30 * time.Second; t >= 0; t -= time.Second {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		info, err := i.coreClient.Info(ctx)
-		cancel()
-		if err != nil {
-			i.t.Logf("could not obtain info response: %v", err)
-			time.Sleep(time.Second)
-			continue
-		}
-		if info.Info.Ledger.Num <= checkpointFrequency {
-			i.t.Logf("checkpoint not reached yet: %v", info)
-			time.Sleep(time.Second)
-			continue
-		}
-		return
-	}
-	i.t.Fatal("Core could not reach checkpoint ledger after 30s")
+	i.t.Log("Waiting for checkpoint...")
+	require.Eventually(i.t,
+		func() bool {
+			info, err := i.getCoreInfo()
+			return err == nil && info.Info.Ledger.Num > checkpointFrequency
+		},
+		30*time.Second,
+		time.Second,
+	)
 }
 
 func (i *Test) getRPConfig(sqlitePath string) map[string]string {
@@ -190,7 +190,7 @@ func (i *Test) getRPConfig(sqlitePath string) map[string]string {
 		archiveURL = i.historyArchiveURL
 	}
 
-	captiveCoreConfigPath := path.Join(GetCurrentDirectory(), "captive-core-integration-tests.cfg")
+	captiveCoreConfigPath := path.Join(GetCurrentDirectory(), "docker", "captive-core-integration-tests.cfg")
 	bindHost := "localhost"
 	stellarCoreURL := fmt.Sprintf("http://localhost:%d", stellarCorePort)
 	if i.runRPCInContainer() {
@@ -219,7 +219,7 @@ func (i *Test) getRPConfig(sqlitePath string) map[string]string {
 		"CAPTIVE_CORE_CONFIG_PATH":       captiveCoreConfigPath,
 		"CAPTIVE_CORE_STORAGE_PATH":      captiveCoreStoragePath,
 		"STELLAR_CAPTIVE_CORE_HTTP_PORT": "0",
-		"FRIENDBOT_URL":                  friendbotURL,
+		"FRIENDBOT_URL":                  FriendbotURL,
 		"NETWORK_PASSPHRASE":             StandaloneNetworkPassphrase,
 		"HISTORY_ARCHIVE_URLS":           archiveURL,
 		"LOG_LEVEL":                      "debug",
@@ -235,39 +235,39 @@ func (i *Test) getRPConfig(sqlitePath string) map[string]string {
 
 func (i *Test) waitForRPC() {
 	i.t.Log("Waiting for RPC to be healthy...")
-
-	// This is needed because if https://github.com/creachadair/jrpc2/issues/118
+	// This is needed because of https://github.com/creachadair/jrpc2/issues/118
 	refreshClient := func() {
 		if i.rpcClient != nil {
 			i.rpcClient.Close()
 		}
-		ch := jhttp.NewChannel(i.sorobanRPCURL(), nil)
+		ch := jhttp.NewChannel(i.GetSorobanRPCURL(), nil)
 		i.rpcClient = jrpc2.NewClient(ch, nil)
 	}
-
-	var result methods.HealthCheckResult
-	for t := 30; t >= 0; t-- {
-		refreshClient()
-		err := i.rpcClient.CallResult(context.Background(), "getHealth", nil, &result)
-		if err == nil {
-			if result.Status == "healthy" {
-				i.t.Log("RPC is healthy")
-				return
-			}
-		}
-		i.t.Log("RPC still unhealthy", err, result.Status)
-		time.Sleep(time.Second)
-	}
-
-	i.t.Fatal("RPC failed to get healthy in 30 seconds")
+	require.Eventually(i.t,
+		func() bool {
+			refreshClient()
+			result, err := i.GetRPCHealth()
+			return err == nil && result.Status == "healthy"
+		},
+		30*time.Second,
+		time.Second,
+	)
 }
 
 func (i *Test) createRPCContainerMountDir(rpcConfig map[string]string) string {
 	mountDir := i.t.TempDir()
+
+	getOldVersionCaptiveCoreConfigVersion := func(dir string) ([]byte, error) {
+		cmd := exec.Command("git", "show", fmt.Sprintf("v%s:./%s/captive-core-integration-tests.cfg", i.rpcContainerVersion, dir))
+		cmd.Dir = GetCurrentDirectory()
+		return cmd.Output()
+	}
+
 	// Get old version of captive-core-integration-tests.cfg
-	cmd := exec.Command("git", "show", fmt.Sprintf("v%s:./captive-core-integration-tests.cfg", i.rpcContainerVersion))
-	cmd.Dir = GetCurrentDirectory()
-	out, err := cmd.Output()
+	out, err := getOldVersionCaptiveCoreConfigVersion("docker")
+	if err != nil {
+		out, err = getOldVersionCaptiveCoreConfigVersion("../../test")
+	}
 	require.NoError(i.t, err)
 
 	// replace ADDRESS="localhost" by ADDRESS="core", so that the container can find core
@@ -299,10 +299,10 @@ func (i *Test) createDaemon(env map[string]string) *daemon.Daemon {
 }
 
 func (i *Test) getComposeCommand(args ...string) *exec.Cmd {
-	integrationYaml := filepath.Join(GetCurrentDirectory(), "docker-compose.yml")
+	integrationYaml := filepath.Join(GetCurrentDirectory(), "docker", "docker-compose.yml")
 	configFiles := []string{"-f", integrationYaml}
 	if i.runRPCInContainer() {
-		rpcYaml := filepath.Join(GetCurrentDirectory(), "docker-compose.rpc.yml")
+		rpcYaml := filepath.Join(GetCurrentDirectory(), "docker", "docker-compose.rpc.yml")
 		configFiles = append(configFiles, "-f", rpcYaml)
 	}
 	cmdline := append(configFiles, args...)
@@ -336,8 +336,8 @@ func (i *Test) runComposeCommand(args ...string) {
 	i.t.Log("Running", cmd.Args)
 	out, innerErr := cmd.Output()
 	if exitErr, ok := innerErr.(*exec.ExitError); ok {
-		fmt.Printf("stdout:\n%s\n", string(out))
-		fmt.Printf("stderr:\n%s\n", string(exitErr.Stderr))
+		i.t.Log("stdout\n:", string(out))
+		i.t.Log("stderr:\n", string(exitErr.Stderr))
 	}
 
 	if innerErr != nil {
@@ -388,33 +388,25 @@ func (i *Test) Shutdown() {
 // Wait for core to be up and manually close the first ledger
 func (i *Test) waitForCore() {
 	i.t.Log("Waiting for core to be up...")
-	for t := 30 * time.Second; t >= 0; t -= time.Second {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		_, err := i.coreClient.Info(ctx)
-		cancel()
-		if err != nil {
-			i.t.Logf("Core is not up: %v", err)
-			time.Sleep(time.Second)
-			continue
-		}
-		break
-	}
+	require.Eventually(i.t,
+		func() bool {
+			_, err := i.getCoreInfo()
+			return err == nil
+		},
+		30*time.Second,
+		time.Second,
+	)
 
 	i.UpgradeProtocol(i.protocolVersion)
 
-	for t := 0; t < 5; t++ {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		info, err := i.coreClient.Info(ctx)
-		cancel()
-		if err != nil || !info.IsSynced() {
-			i.t.Logf("Core is still not synced: %v %v", err, info)
-			time.Sleep(time.Second)
-			continue
-		}
-		i.t.Log("Core is up.")
-		return
-	}
-	i.t.Fatal("Core could not sync after 30s")
+	require.Eventually(i.t,
+		func() bool {
+			info, err := i.getCoreInfo()
+			return err == nil && info.IsSynced()
+		},
+		30*time.Second,
+		time.Second,
+	)
 }
 
 // UpgradeProtocol arms Core with upgrade and blocks until protocol is upgraded.
@@ -422,28 +414,16 @@ func (i *Test) UpgradeProtocol(version uint32) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	err := i.coreClient.Upgrade(ctx, int(version))
 	cancel()
-	if err != nil {
-		i.t.Fatalf("could not upgrade protocol: %v", err)
-	}
+	require.NoError(i.t, err)
 
-	for t := 0; t < 10; t++ {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		info, err := i.coreClient.Info(ctx)
-		cancel()
-		if err != nil {
-			i.t.Logf("could not obtain info response: %v", err)
-			time.Sleep(time.Second)
-			continue
-		}
-
-		if info.Info.Ledger.Version == int(version) {
-			i.t.Logf("Protocol upgraded to: %d", info.Info.Ledger.Version)
-			return
-		}
-		time.Sleep(time.Second)
-	}
-
-	i.t.Fatalf("could not upgrade protocol in 10s")
+	require.Eventually(i.t,
+		func() bool {
+			info, err := i.getCoreInfo()
+			return err == nil && info.Info.Ledger.Version == int(version)
+		},
+		10*time.Second,
+		time.Second,
+	)
 }
 
 func (i *Test) StopRPC() {
@@ -456,10 +436,71 @@ func (i *Test) StopRPC() {
 	}
 }
 
-//go:noinline
-func GetCurrentDirectory() string {
-	_, currentFilename, _, _ := runtime.Caller(1)
-	return filepath.Dir(currentFilename)
+func (i *Test) GetProtocolVersion() uint32 {
+	return i.protocolVersion
+}
+
+func (i *Test) GetDaemon() *daemon.Daemon {
+	return i.daemon
+}
+
+func (i *Test) SendMasterOperation(op txnbuild.Operation) methods.GetTransactionResponse {
+	params := CreateTransactionParams(i.MasterAccount(), op)
+	tx, err := txnbuild.NewTransaction(params)
+	assert.NoError(i.t, err)
+	return i.SendMasterTransaction(tx)
+}
+
+func (i *Test) SendMasterTransaction(tx *txnbuild.Transaction) methods.GetTransactionResponse {
+	kp := keypair.Root(StandaloneNetworkPassphrase)
+	return SendSuccessfulTransaction(i.t, i.rpcClient, kp, tx)
+}
+
+func (i *Test) GetTransaction(hash string) methods.GetTransactionResponse {
+	return getTransaction(i.t, i.rpcClient, hash)
+}
+
+func (i *Test) PreflightAndSendMasterOperation(op txnbuild.Operation) methods.GetTransactionResponse {
+	params := CreateTransactionParams(
+		i.MasterAccount(),
+		op,
+	)
+	params = PreflightTransactionParams(i.t, i.rpcClient, params)
+	tx, err := txnbuild.NewTransaction(params)
+	assert.NoError(i.t, err)
+	return i.SendMasterTransaction(tx)
+}
+
+func (i *Test) UploadHelloWorldContract() (methods.GetTransactionResponse, xdr.Hash) {
+	contractBinary := GetHelloWorldContract()
+	return i.uploadContract(contractBinary)
+}
+
+func (i *Test) uploadContract(contractBinary []byte) (methods.GetTransactionResponse, xdr.Hash) {
+	contractHash := xdr.Hash(sha256.Sum256(contractBinary))
+	op := CreateUploadWasmOperation(i.MasterAccount().GetAccountID(), contractBinary)
+	return i.PreflightAndSendMasterOperation(op), contractHash
+}
+
+func (i *Test) CreateHelloWorldContract() (methods.GetTransactionResponse, [32]byte, xdr.Hash) {
+	contractBinary := GetHelloWorldContract()
+	_, contractHash := i.uploadContract(contractBinary)
+	salt := xdr.Uint256(testSalt)
+	account := i.MasterAccount().GetAccountID()
+	op := createCreateContractOperation(account, salt, contractHash)
+	contractID := getContractID(i.t, account, salt, StandaloneNetworkPassphrase)
+	return i.PreflightAndSendMasterOperation(op), contractID, contractHash
+}
+
+func (i *Test) InvokeHostFunc(contractID xdr.Hash, method string, args ...xdr.ScVal) methods.GetTransactionResponse {
+	op := CreateInvokeHostOperation(i.MasterAccount().GetAccountID(), contractID, method, args...)
+	return i.PreflightAndSendMasterOperation(op)
+}
+
+func (i *Test) GetRPCHealth() (methods.HealthCheckResult, error) {
+	var result methods.HealthCheckResult
+	err := i.rpcClient.CallResult(context.Background(), "getHealth", nil, &result)
+	return result, err
 }
 
 func GetCoreMaxSupportedProtocol() uint32 {

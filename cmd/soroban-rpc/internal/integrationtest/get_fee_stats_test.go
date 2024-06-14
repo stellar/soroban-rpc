@@ -1,42 +1,22 @@
-package test
+package integrationtest
 
 import (
 	"context"
 	"testing"
 
-	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/txnbuild"
 	"github.com/stellar/go/xdr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/integrationtest/infrastructure"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 )
 
 func TestGetFeeStats(t *testing.T) {
-	test := NewTest(t, nil)
+	test := infrastructure.NewTest(t, nil)
 
-	client := test.GetRPCLient()
-	sourceAccount := keypair.Root(StandaloneNetworkPassphrase)
-	address := sourceAccount.Address()
-	account := txnbuild.NewSimpleAccount(address, 0)
-
-	// Submit soroban transaction
-	contractBinary := getHelloWorldContract(t)
-	params := preflightTransactionParams(t, client, txnbuild.TransactionParams{
-		SourceAccount:        &account,
-		IncrementSequenceNum: true,
-		Operations: []txnbuild.Operation{
-			createInstallContractCodeOperation(account.AccountID, contractBinary),
-		},
-		BaseFee: txnbuild.MinBaseFee,
-		Preconditions: txnbuild.Preconditions{
-			TimeBounds: txnbuild.NewInfiniteTimeout(),
-		},
-	})
-	tx, err := txnbuild.NewTransaction(params)
-	assert.NoError(t, err)
-	sorobanTxResponse := sendSuccessfulTransaction(t, client, sourceAccount, tx)
+	sorobanTxResponse, _ := test.UploadHelloWorldContract()
 	var sorobanTxResult xdr.TransactionResult
 	require.NoError(t, xdr.SafeUnmarshalBase64(sorobanTxResponse.ResultXdr, &sorobanTxResult))
 	sorobanTotalFee := sorobanTxResult.FeeCharged
@@ -46,28 +26,18 @@ func TestGetFeeStats(t *testing.T) {
 	sorobanResourceFeeCharged := sorobanFees.TotalRefundableResourceFeeCharged + sorobanFees.TotalNonRefundableResourceFeeCharged
 	sorobanInclusionFee := uint64(sorobanTotalFee - sorobanResourceFeeCharged)
 
+	seq, err := test.MasterAccount().GetSequenceNumber()
+	require.NoError(t, err)
 	// Submit classic transaction
-	params = txnbuild.TransactionParams{
-		SourceAccount:        &account,
-		IncrementSequenceNum: true,
-		Operations: []txnbuild.Operation{
-			&txnbuild.BumpSequence{BumpTo: account.Sequence + 100},
-		},
-		BaseFee: txnbuild.MinBaseFee,
-		Memo:    nil,
-		Preconditions: txnbuild.Preconditions{
-			TimeBounds: txnbuild.NewInfiniteTimeout(),
-		},
-	}
-	tx, err = txnbuild.NewTransaction(params)
-	assert.NoError(t, err)
-	classicTxResponse := sendSuccessfulTransaction(t, client, sourceAccount, tx)
+	classicTxResponse := test.SendMasterOperation(
+		&txnbuild.BumpSequence{BumpTo: seq + 100},
+	)
 	var classicTxResult xdr.TransactionResult
 	require.NoError(t, xdr.SafeUnmarshalBase64(classicTxResponse.ResultXdr, &classicTxResult))
 	classicFee := uint64(classicTxResult.FeeCharged)
 
 	var result methods.GetFeeStatsResult
-	if err := client.CallResult(context.Background(), "getFeeStats", nil, &result); err != nil {
+	if err := test.GetRPCLient().CallResult(context.Background(), "getFeeStats", nil, &result); err != nil {
 		t.Fatalf("rpc call failed: %v", err)
 	}
 	expectedResult := methods.GetFeeStatsResult{

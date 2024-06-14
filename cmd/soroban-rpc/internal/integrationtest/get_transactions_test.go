@@ -1,4 +1,4 @@
-package test
+package integrationtest
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"github.com/stellar/go/txnbuild"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/integrationtest/infrastructure"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 )
 
@@ -18,16 +19,10 @@ import (
 //
 // Returns a fully populated TransactionParams structure.
 func buildSetOptionsTxParams(account txnbuild.SimpleAccount) txnbuild.TransactionParams {
-	params := txnbuild.TransactionParams{
-		SourceAccount:        &account,
-		IncrementSequenceNum: true,
-		Operations: []txnbuild.Operation{
-			&txnbuild.SetOptions{HomeDomain: txnbuild.NewHomeDomain("soroban.com")},
-		},
-		BaseFee:       txnbuild.MinBaseFee,
-		Preconditions: txnbuild.Preconditions{TimeBounds: txnbuild.NewInfiniteTimeout()},
-	}
-	return params
+	return infrastructure.CreateTransactionParams(
+		&account,
+		&txnbuild.SetOptions{HomeDomain: txnbuild.NewHomeDomain("soroban.com")},
+	)
 }
 
 // sendTransactions sends multiple transactions for testing purposes.
@@ -39,7 +34,7 @@ func buildSetOptionsTxParams(account txnbuild.SimpleAccount) txnbuild.Transactio
 //
 // Returns a slice of ledger numbers corresponding to where each transaction was recorded.
 func sendTransactions(t *testing.T, client *jrpc2.Client) []uint32 {
-	kp := keypair.Root(StandaloneNetworkPassphrase)
+	kp := keypair.Root(infrastructure.StandaloneNetworkPassphrase)
 	address := kp.Address()
 
 	var ledgers []uint32
@@ -48,18 +43,19 @@ func sendTransactions(t *testing.T, client *jrpc2.Client) []uint32 {
 		tx, err := txnbuild.NewTransaction(buildSetOptionsTxParams(account))
 		assert.NoError(t, err)
 
-		txResponse := sendSuccessfulTransaction(t, client, kp, tx)
+		txResponse := infrastructure.SendSuccessfulTransaction(t, client, kp, tx)
 		ledgers = append(ledgers, txResponse.Ledger)
 	}
 	return ledgers
 }
 
 func TestGetTransactions(t *testing.T) {
-	test := NewTest(t, nil)
+	test := infrastructure.NewTest(t, nil)
 	client := test.GetRPCLient()
 
 	ledgers := sendTransactions(t, client)
 
+	test.MasterAccount()
 	// Get transactions across multiple ledgers
 	var result methods.GetTransactionsResponse
 	request := methods.GetTransactionsRequest{

@@ -1,4 +1,4 @@
-package test
+package integrationtest
 
 import (
 	"net"
@@ -11,10 +11,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/integrationtest/infrastructure"
 )
 
 func TestArchiveUserAgent(t *testing.T) {
-	archiveHost := net.JoinHostPort("localhost", strconv.Itoa(StellarCoreArchivePort))
+	archiveHost := net.JoinHostPort("localhost", strconv.Itoa(infrastructure.StellarCoreArchivePort))
 	proxy := httputil.NewSingleHostReverseProxy(&url.URL{Scheme: "http", Host: archiveHost})
 	userAgents := sync.Map{}
 	historyArchiveProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -23,11 +25,11 @@ func TestArchiveUserAgent(t *testing.T) {
 	}))
 	defer historyArchiveProxy.Close()
 
-	cfg := &TestConfig{
+	cfg := &infrastructure.TestConfig{
 		HistoryArchiveURL: historyArchiveProxy.URL,
 	}
 
-	NewTest(t, cfg)
+	infrastructure.NewTest(t, cfg)
 
 	_, ok := userAgents.Load("soroban-rpc/0.0.0")
 	assert.True(t, ok, "rpc service should set user agent for history archives")
