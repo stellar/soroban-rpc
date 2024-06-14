@@ -134,7 +134,7 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 	// Iterate through each ledger and its transactions until limit or end range is reached.
 	// The latest ledger acts as the end ledger range for the request.
 	var txns []TransactionInfo
-	var cursor *toid.ID
+	cursor := toid.New(0, 0, 0)
 LedgerLoop:
 	for ledgerSeq := start.LedgerSequence; ledgerSeq <= int32(ledgerRange.LastLedger.Sequence); ledgerSeq++ {
 		// Get ledger close meta from db
@@ -167,7 +167,7 @@ LedgerLoop:
 			if ierr := reader.Seek(startTxIdx - 1); ierr != nil && ierr != io.EOF {
 				return GetTransactionsResponse{}, &jrpc2.Error{
 					Code:    jrpc2.InternalError,
-					Message: err.Error(),
+					Message: ierr.Error(),
 				}
 			}
 		}
