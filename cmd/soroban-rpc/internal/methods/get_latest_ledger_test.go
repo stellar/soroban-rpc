@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
 const (
@@ -58,6 +59,10 @@ func (ledgerReader *ConstantLedgerReader) StreamAllLedgers(ctx context.Context, 
 	return nil
 }
 
+func (ledgerReader *ConstantLedgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
+	return ledgerbucketwindow.LedgerRange{}, nil
+}
+
 func createLedger(ledgerSequence uint32, protocolVersion uint32, hash byte) xdr.LedgerCloseMeta {
 	return xdr.LedgerCloseMeta{
 		V: 1,
@@ -85,3 +90,5 @@ func TestGetLatestLedger(t *testing.T) {
 	assert.Equal(t, expectedLatestLedgerProtocolVersion, latestLedgerResp.ProtocolVersion)
 	assert.Equal(t, expectedLatestLedgerSequence, latestLedgerResp.Sequence)
 }
+
+var _ db.LedgerReader = &ConstantLedgerReader{}
