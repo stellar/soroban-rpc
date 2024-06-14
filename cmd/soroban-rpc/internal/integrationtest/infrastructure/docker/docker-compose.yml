@@ -21,14 +21,14 @@ services:
     environment:
       - TRACY_NO_INVARIANT_CHECK=1
     ports:
-      - "11625:11625"
-      - "11626:11626"
+      - ${CORE_PORT}:${CORE_PORT}
+      - ${CORE_HTTP_PORT}:${CORE_HTTP_PORT}
       # add extra port for history archive server
-      - "1570:1570"
+      - ${CORE_ARCHIVE_PORT}:${CORE_ARCHIVE_PORT}
     entrypoint: /usr/bin/env
     command: /start standalone
     volumes:
-      - ./stellar-core-integration-tests.cfg:/stellar-core.cfg
-      - ./core-start.sh:/start
+      - ${CORE_MOUNT_DIR}/stellar-core-integration-tests.cfg:/stellar-core.cfg
+      - ${CORE_MOUNT_DIR}/core-start.sh:/start
     extra_hosts:
       - "host.docker.internal:host-gateway"

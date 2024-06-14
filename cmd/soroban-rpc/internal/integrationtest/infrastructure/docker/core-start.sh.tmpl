@@ -20,9 +20,9 @@ if [ "$1" = "standalone" ]; then
   rm -rf ./history
   stellar-core new-hist vs
 
-  # serve history archives to horizon on port 1570
+  # serve history archives to horizon on port CORE_ARCHIVE_PORT
   pushd ./history/vs/
-  python3 -m http.server 1570 &
+  python3 -m http.server ${CORE_ARCHIVE_PORT} &
   popd
 fi
 

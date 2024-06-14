@@ -5,8 +5,8 @@ services:
     depends_on:
       - core
     ports:
-      - "8000:8000"
-      - "8080:8080"
+      - ${RPC_PORT}:${RPC_PORT}
+      - ${RPC_ADMIN_PORT}:${RPC_ADMIN_PORT}
     command: --config-path /soroban-rpc.config
     volumes:
       - ${RPC_CONFIG_MOUNT_DIR}/stellar-core-integration-tests.cfg:/stellar-core.cfg

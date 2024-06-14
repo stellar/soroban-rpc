@@ -16,7 +16,8 @@ import (
 )
 
 func TestArchiveUserAgent(t *testing.T) {
-	archiveHost := net.JoinHostPort("localhost", strconv.Itoa(infrastructure.StellarCoreArchivePort))
+	ports := infrastructure.NewTestPorts(t)
+	archiveHost := net.JoinHostPort("localhost", strconv.Itoa(int(ports.CoreArchivePort)))
 	proxy := httputil.NewSingleHostReverseProxy(&url.URL{Scheme: "http", Host: archiveHost})
 	userAgents := sync.Map{}
 	historyArchiveProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -26,6 +27,7 @@ func TestArchiveUserAgent(t *testing.T) {
 	defer historyArchiveProxy.Close()
 
 	cfg := &infrastructure.TestConfig{
+		TestPorts:         &ports,
 		HistoryArchiveURL: historyArchiveProxy.URL,
 	}
 

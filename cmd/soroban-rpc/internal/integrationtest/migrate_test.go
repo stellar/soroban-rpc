@@ -38,20 +38,28 @@ func TestMigrate(t *testing.T) {
 }
 
 func testMigrateFromVersion(t *testing.T, version string) {
+	originalPorts := infrastructure.NewTestPorts(t)
 	sqliteFile := filepath.Join(t.TempDir(), "soroban-rpc.db")
 	test := infrastructure.NewTest(t, &infrastructure.TestConfig{
 		UseReleasedRPCVersion: version,
 		UseSQLitePath:         sqliteFile,
+		TestPorts:             &originalPorts,
 	})
-
-	client := test.GetRPCLient()
 
 	// Submit an event-logging transaction in the version to migrate from
 	submitTransactionResponse, _ := test.UploadHelloWorldContract()
 
-	// Run the current RPC version, but the previous network and sql database (causing a data migration if needed)
+	// Replace RPC with the current version, but keeping the previous network and sql database (causing a data migration if needed)
+	// We need to do some wiring to plug RPC into the prior network
 	test.StopRPC()
-	test = infrastructure.NewTest(t, &infrastructure.TestConfig{UseSQLitePath: sqliteFile})
+	freshPorts := infrastructure.NewTestPorts(t)
+	ports := originalPorts
+	ports.RPCPort = freshPorts.RPCPort
+	test = infrastructure.NewTest(t, &infrastructure.TestConfig{
+		TestPorts:     &ports,
+		OnlyRPC:       true,
+		UseSQLitePath: sqliteFile,
+	})
 
 	// make sure that the transaction submitted before and its events exist in current RPC
 	var transactionsResult methods.GetTransactionsResponse
@@ -61,7 +69,7 @@ func testMigrateFromVersion(t *testing.T, version string) {
 			Limit: 1,
 		},
 	}
-	err := client.CallResult(context.Background(), "getTransactions", getTransactions, &transactionsResult)
+	err := test.GetRPCLient().CallResult(context.Background(), "getTransactions", getTransactions, &transactionsResult)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(transactionsResult.Transactions))
 	require.Equal(t, submitTransactionResponse.Ledger, transactionsResult.Transactions[0].Ledger)
@@ -73,7 +81,7 @@ func testMigrateFromVersion(t *testing.T, version string) {
 			Limit: 1,
 		},
 	}
-	err = client.CallResult(context.Background(), "getEvents", getEventsRequest, &eventsResult)
+	err = test.GetRPCLient().CallResult(context.Background(), "getEvents", getEventsRequest, &eventsResult)
 	require.NoError(t, err)
 	require.Equal(t, len(eventsResult.Events), 1)
 	require.Equal(t, submitTransactionResponse.Ledger, uint32(eventsResult.Events[0].Ledger))
