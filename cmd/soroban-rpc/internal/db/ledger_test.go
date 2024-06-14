@@ -10,6 +10,7 @@ import (
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
+
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 )
 
@@ -24,6 +25,9 @@ func createLedger(ledgerSequence uint32) xdr.LedgerCloseMeta {
 				Hash: xdr.Hash{},
 				Header: xdr.LedgerHeader{
 					LedgerSeq: xdr.Uint32(ledgerSequence),
+					ScpValue: xdr.StellarValue{
+						CloseTime: xdr.TimePoint(ledgerSequence + 10),
+					},
 				},
 			},
 			TxSet: xdr.GeneralizedTransactionSet{
@@ -62,6 +66,12 @@ func assertLedgerRange(t *testing.T, reader LedgerReader, start, end uint32) {
 		allLedgers = allLedgers[1:]
 	}
 	assert.Empty(t, allLedgers)
+
+	ledgerRange, err := reader.GetLedgerRange(context.Background())
+	assert.Equal(t, start, ledgerRange.FirstLedger.Sequence)
+	assert.Equal(t, int64(start+10), ledgerRange.FirstLedger.CloseTime)
+	assert.Equal(t, end, ledgerRange.LastLedger.Sequence)
+	assert.Equal(t, int64(end+10), ledgerRange.LastLedger.CloseTime)
 }
 
 func TestLedgers(t *testing.T) {
