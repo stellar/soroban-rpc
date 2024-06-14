@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/stellar/go/txnbuild"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,8 +19,7 @@ import (
 func TestGetLedgerEntryNotFound(t *testing.T) {
 	test := NewTest(t, nil)
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
+	client := test.GetRPCLient()
 
 	sourceAccount := keypair.Root(StandaloneNetworkPassphrase).Address()
 	contractID := getContractID(t, sourceAccount, testSalt, StandaloneNetworkPassphrase)
@@ -53,8 +51,7 @@ func TestGetLedgerEntryNotFound(t *testing.T) {
 func TestGetLedgerEntryInvalidParams(t *testing.T) {
 	test := NewTest(t, nil)
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
+	client := test.GetRPCLient()
 
 	request := methods.GetLedgerEntryRequest{
 		Key: "<>@@#$",
@@ -69,8 +66,7 @@ func TestGetLedgerEntryInvalidParams(t *testing.T) {
 func TestGetLedgerEntrySucceeds(t *testing.T) {
 	test := NewTest(t, nil)
 
-	ch := jhttp.NewChannel(test.sorobanRPCURL(), nil)
-	client := jrpc2.NewClient(ch, nil)
+	client := test.GetRPCLient()
 
 	kp := keypair.Root(StandaloneNetworkPassphrase)
 	account := txnbuild.NewSimpleAccount(kp.Address(), 0)

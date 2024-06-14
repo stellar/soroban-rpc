@@ -341,7 +341,7 @@ func NewLedgerEntryReader(db *DB) LedgerEntryReader {
 }
 
 func (r ledgerEntryReader) GetLatestLedgerSequence(ctx context.Context) (uint32, error) {
-	return getLatestLedgerSequence(ctx, r.db, &r.db.cache)
+	return getLatestLedgerSequence(ctx, r.db, r.db.cache)
 }
 
 // NewCachedTx() caches all accessed ledger entries and select statements. If many ledger entries are accessed, it will grow without bounds.
@@ -360,7 +360,7 @@ func (r ledgerEntryReader) NewCachedTx(ctx context.Context) (LedgerEntryReadTx, 
 	}
 	cacheReadTx := r.db.cache.ledgerEntries.newReadTx()
 	return &ledgerEntryReadTx{
-		globalCache:            &r.db.cache,
+		globalCache:            r.db.cache,
 		stmtCache:              sq.NewStmtCache(txSession.GetTx()),
 		latestLedgerSeqCache:   r.db.cache.latestLedgerSeq,
 		ledgerEntryCacheReadTx: &cacheReadTx,
@@ -377,7 +377,7 @@ func (r ledgerEntryReader) NewTx(ctx context.Context) (LedgerEntryReadTx, error)
 	r.db.cache.RLock()
 	defer r.db.cache.RUnlock()
 	return &ledgerEntryReadTx{
-		globalCache:          &r.db.cache,
+		globalCache:          r.db.cache,
 		latestLedgerSeqCache: r.db.cache.latestLedgerSeq,
 		tx:                   txSession,
 		buffer:               xdr.NewEncodingBuffer(),
