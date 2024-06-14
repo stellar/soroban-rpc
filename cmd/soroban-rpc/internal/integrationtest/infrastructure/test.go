@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -50,6 +51,7 @@ type TestConfig struct {
 	HistoryArchiveURL     string
 	TestPorts             *TestPorts
 	OnlyRPC               bool
+	NoParallel            bool
 }
 
 type TestPorts struct {
@@ -143,6 +145,7 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 		Sequence:  0,
 	}
 
+	parallel := true
 	sqlLitePath := ""
 	if cfg != nil {
 		i.historyArchiveURL = cfg.HistoryArchiveURL
@@ -150,6 +153,7 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 		i.protocolVersion = cfg.ProtocolVersion
 		sqlLitePath = cfg.UseSQLitePath
 		i.onlyRPC = cfg.OnlyRPC
+		parallel = !cfg.NoParallel
 		if cfg.TestPorts != nil {
 			i.testPorts = *cfg.TestPorts
 		} else {
@@ -158,6 +162,9 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 		}
 	} else {
 		i.testPorts = NewTestPorts(t)
+	}
+	if parallel {
+		t.Parallel()
 	}
 
 	if i.protocolVersion == 0 {
@@ -410,6 +417,13 @@ func (i *Test) createDaemon(env map[string]string) *daemon.Daemon {
 	return daemon.MustNew(&cfg)
 }
 
+var nonAlphanumericRegex = regexp.MustCompile("[^a-zA-Z0-9]+")
+
+func (i *Test) getComposeProjectName() string {
+	alphanumeric := nonAlphanumericRegex.ReplaceAllString(i.t.Name(), "")
+	return strings.ToLower(alphanumeric)
+}
+
 func (i *Test) getComposeCommand(args ...string) *exec.Cmd {
 	integrationYaml := filepath.Join(GetCurrentDirectory(), "docker", "docker-compose.yml")
 	configFiles := []string{"-f", integrationYaml}
@@ -417,7 +431,10 @@ func (i *Test) getComposeCommand(args ...string) *exec.Cmd {
 		rpcYaml := filepath.Join(GetCurrentDirectory(), "docker", "docker-compose.rpc.yml")
 		configFiles = append(configFiles, "-f", rpcYaml)
 	}
-	cmdline := append(configFiles, args...)
+	// Use separate projects to run them in parallel
+	projectName := i.getComposeProjectName()
+	cmdline := append([]string{"-p", projectName}, configFiles...)
+	cmdline = append(cmdline, args...)
 	cmd := exec.Command("docker-compose", cmdline...)
 
 	cmd.Env = os.Environ()

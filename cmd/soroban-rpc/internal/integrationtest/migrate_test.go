@@ -59,6 +59,8 @@ func testMigrateFromVersion(t *testing.T, version string) {
 		TestPorts:     &ports,
 		OnlyRPC:       true,
 		UseSQLitePath: sqliteFile,
+		// We don't want to mark the test as parallel twice since it causes a panic
+		NoParallel: true,
 	})
 
 	// make sure that the transaction submitted before and its events exist in current RPC
