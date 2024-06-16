@@ -2,7 +2,6 @@ package integrationtest
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/creachadair/jrpc2"
@@ -175,7 +174,7 @@ func TestSendTransactionFailedInLedger(t *testing.T) {
 		var txResult xdr.TransactionResult
 		err := xdr.SafeUnmarshalBase64(result.ErrorResultXDR, &txResult)
 		assert.NoError(t, err)
-		fmt.Printf("error: %#v\n", txResult)
+		t.Logf("error: %#v\n", txResult)
 	}
 	assert.NotZero(t, result.LatestLedger)
 	assert.NotZero(t, result.LatestLedgerCloseTime)

@@ -21,6 +21,7 @@ import (
 	"github.com/stellar/go/clients/stellarcore"
 	"github.com/stellar/go/keypair"
 	proto "github.com/stellar/go/protocols/stellarcore"
+	supportlog "github.com/stellar/go/support/log"
 	"github.com/stellar/go/txnbuild"
 	"github.com/stellar/go/xdr"
 	"github.com/stretchr/testify/assert"
@@ -170,8 +171,9 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 		i.runSuccessfulComposeCommand(upCmd...)
 		if i.runRPCInContainer() {
 			i.rpcContainerLogsCommand = i.getComposeCommand("logs", "--no-log-prefix", "-f", "rpc")
-			i.rpcContainerLogsCommand.Stdout = os.Stdout
-			i.rpcContainerLogsCommand.Stderr = os.Stderr
+			writer := testLogWriter{t: t, prefix: fmt.Sprintf(`rpc="container" version="%s" `, i.rpcContainerVersion)}
+			i.rpcContainerLogsCommand.Stdout = writer
+			i.rpcContainerLogsCommand.Stderr = writer
 			require.NoError(t, i.rpcContainerLogsCommand.Start())
 		}
 		i.fillContainerPorts()
@@ -383,6 +385,20 @@ func (i *Test) generateRPCConfigFile(rpcConfig rpcConfig) {
 	require.NoError(i.t, err)
 }
 
+type testLogWriter struct {
+	t      *testing.T
+	prefix string
+}
+
+func (tw testLogWriter) Write(p []byte) (n int, err error) {
+	all := strings.TrimSpace(string(p))
+	lines := strings.Split(all, "\n")
+	for _, l := range lines {
+		tw.t.Log(tw.prefix + l)
+	}
+	return len(p), nil
+}
+
 func (i *Test) createDaemon(c rpcConfig) *daemon.Daemon {
 	var cfg config.Config
 	m := c.toMap()
@@ -393,7 +409,10 @@ func (i *Test) createDaemon(c rpcConfig) *daemon.Daemon {
 	require.NoError(i.t, cfg.SetValues(lookup))
 	require.NoError(i.t, cfg.Validate())
 	cfg.HistoryArchiveUserAgent = fmt.Sprintf("soroban-rpc/%s", config.Version)
-	return daemon.MustNew(&cfg)
+
+	logger := supportlog.New()
+	logger.SetOutput(testLogWriter{t: i.t, prefix: `rpc="daemon" `})
+	return daemon.MustNew(&cfg, logger)
 }
 
 var nonAlphanumericRegex = regexp.MustCompile("[^a-zA-Z0-9]+")

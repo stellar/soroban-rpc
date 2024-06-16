@@ -145,8 +145,7 @@ func newCaptiveCore(cfg *config.Config, logger *supportlog.Entry) (*ledgerbacken
 
 }
 
-func MustNew(cfg *config.Config) *Daemon {
-	logger := supportlog.New()
+func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 	logger.SetLevel(cfg.LogLevel)
 	if cfg.LogFormat == config.LogFormatJSON {
 		logger.UseJSONFormatter()

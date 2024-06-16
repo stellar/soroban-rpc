@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	supportlog "github.com/stellar/go/support/log"
 	goxdr "github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
@@ -27,7 +28,7 @@ func main() {
 				os.Exit(1)
 			}
 			cfg.HistoryArchiveUserAgent = fmt.Sprintf("soroban-rpc/%s", config.Version)
-			daemon.MustNew(&cfg).Run()
+			daemon.MustNew(&cfg, supportlog.New()).Run()
 		},
 	}
 
