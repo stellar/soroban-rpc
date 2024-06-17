@@ -50,14 +50,26 @@ build: build-libpreflight
 build-libpreflight: Cargo.lock
 	cd cmd/soroban-rpc/lib/preflight && cargo build --target $(CARGO_BUILD_TARGET) --profile release-with-panic-unwind
 
-check: Cargo.lock
-	cargo clippy --all-targets
+check: rust-check go-check
+
+rust-check: Cargo.lock
+	cargo fmt --all --check
+	cargo clippy
 
 watch:
 	cargo watch --clear --watch-when-idle --shell '$(MAKE)'
 
 fmt:
+	go fmt ./...
 	cargo fmt --all
+
+rust-test:
+	cargo test
+
+go-test: build-libpreflight
+	go test ./...
+
+test: go-test rust-test
 
 clean:
 	cargo clean
@@ -69,12 +81,12 @@ clean:
 build-soroban-rpc: build-libpreflight
 	go build -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} -o soroban-rpc -trimpath -v ./cmd/soroban-rpc
 
-lint-changes:
+go-check-changes:
 	golangci-lint run ./... --new-from-rev $$(git rev-parse HEAD)
 
-lint:
+go-check:
 	golangci-lint run ./...
 
 
 # PHONY lists all the targets that aren't file names, so that make would skip the timestamp based check.
-.PHONY: clean fmt watch check install build build-soroban-rpc build-libpreflight lint lint-changes
+.PHONY: clean fmt watch test rust-test go-test check rust-check go-check install build build-soroban-rpc build-libpreflight lint lint-changes
