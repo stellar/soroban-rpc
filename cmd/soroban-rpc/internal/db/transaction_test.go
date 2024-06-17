@@ -94,6 +94,9 @@ func TestTransactionFound(t *testing.T) {
 	_, _, err = reader.GetTransaction(ctx, xdr.Hash{})
 	require.Error(t, err, ErrNoTransaction)
 
+	eventReader := NewEventReader(log, db, passphrase)
+	err = eventReader.GetEvents(ctx, 1, nil, nil, nil)
+
 	// check all 200 cases
 	for _, lcm := range lcms {
 		h := lcm.TransactionHash(0)

@@ -5,13 +5,12 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
-	"strconv"
-	"sync"
-
 	sq "github.com/Masterminds/squirrel"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/prometheus/client_golang/prometheus"
 	migrate "github.com/rubenv/sql-migrate"
+	"strconv"
+	"sync"
 
 	"github.com/stellar/go/support/db"
 	"github.com/stellar/go/support/errors"

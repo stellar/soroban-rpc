@@ -105,6 +105,16 @@ func (m *mockLedgerReader) StreamAllLedgers(ctx context.Context, f StreamLedgerF
 	return nil
 }
 
+type mockEventReader struct {
+}
+
+func NewMockEventReader() {
+}
+
+func (m *mockEventReader) GetEvents(ctx context.Context, startLedgerSequence int, eventTypes []int, contractIds []string, f ScanFunction) error {
+	return nil
+}
+
 var _ TransactionReader = &mockTransactionHandler{}
 var _ TransactionWriter = &mockTransactionHandler{}
 var _ LedgerReader = &mockLedgerReader{}

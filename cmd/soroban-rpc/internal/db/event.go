@@ -27,7 +27,7 @@ type EventWriter interface {
 
 // EventReader has all the public methods to fetch events from DB
 type EventReader interface {
-	GetEvents(ctx context.Context, startLedgerSequence int, eventType int, contractIds []string, f ScanFunction) ([]xdr.DiagnosticEvent, error)
+	GetEvents(ctx context.Context, startLedgerSequence int, eventTypes []int, contractIds []string, f ScanFunction) error
 }
 
 type eventHandler struct {
@@ -201,7 +201,7 @@ func (eventHandler *eventHandler) trimEvents(latestLedgerSeq uint32, retentionWi
 	return err
 }
 
-func (eventHandler *eventHandler) GetEvents(ctx context.Context, startLedgerSequence int, eventType int, contractIds []string, f ScanFunction) ([]xdr.DiagnosticEvent, error) {
+func (eventHandler *eventHandler) GetEvents(ctx context.Context, startLedgerSequence int, eventTypes []int, contractIds []string, f ScanFunction) error {
 
 	var rows []struct {
 		TxIndex int                 `db:"application_order"`
@@ -218,32 +218,41 @@ func (eventHandler *eventHandler) GetEvents(ctx context.Context, startLedgerSequ
 		rowQ = rowQ.Where(sq.Eq{"e.contract_id": contractIds})
 	}
 
-	if eventType != -1 {
-		rowQ = rowQ.Where(sq.Eq{"e.event_type": eventType})
+	if len(eventTypes) > 0 {
+		rowQ = rowQ.Where(sq.Eq{"e.event_type": eventTypes})
 	}
 
 	if err := eventHandler.db.Select(ctx, &rows, rowQ); err != nil {
-		return []xdr.DiagnosticEvent{},
-			errors.Wrapf(err, "db read failed for startLedgerSequence= %d contractIds= %v eventType= %d ", startLedgerSequence, contractIds, eventType)
+		return errors.Wrapf(err, "db read failed for startLedgerSequence= %d contractIds= %v eventType= %d ", startLedgerSequence, contractIds, eventTypes)
 	} else if len(rows) < 1 {
-		return []xdr.DiagnosticEvent{}, errors.New("No LCM found with requested event filters")
+		return errors.New("No LCM found with requested event filters")
 	}
 
-	txIndex, lcm := rows[0].TxIndex, rows[0].Lcm
-	reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(eventHandler.passphrase, lcm)
-	reader.Seek(txIndex - 1)
+	for _, row := range rows {
+		txIndex, lcm := row.TxIndex, row.Lcm
+		reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(eventHandler.passphrase, lcm)
+		reader.Seek(txIndex - 1)
 
-	if err != nil {
-		return []xdr.DiagnosticEvent{},
-			errors.Wrapf(err, "failed to index to tx %d in ledger %d",
-				txIndex, lcm.LedgerSequence())
+		if err != nil {
+			return errors.Wrapf(err, "failed to index to tx %d in ledger %d", txIndex, lcm.LedgerSequence())
+		}
+		ledgerCloseTime := lcm.LedgerCloseTime()
+		ledgerTx, err := reader.Read()
+		transactionHash := ledgerTx.Result.TransactionHash
+		events, diagErr := ledgerTx.GetDiagnosticEvents()
+
+		if diagErr != nil {
+			return errors.Wrapf(err, "db read failed for startLedgerSequence %d", startLedgerSequence)
+		}
+
+		// Find events based on filter passed in function f
+		for eventIndex, event := range events {
+			cur := Cursor{lcm.LedgerSequence(), uint32(txIndex), 0, uint32(eventIndex)}
+			if !f(event, cur, ledgerCloseTime, &transactionHash) {
+				return nil
+			}
+		}
 	}
 
-	ledgerTx, err := reader.Read()
-	events, diagErr := ledgerTx.GetDiagnosticEvents()
-	if diagErr != nil {
-		return []xdr.DiagnosticEvent{}, errors.Wrapf(err, "db read failed for startLedgerSequence %d", startLedgerSequence)
-	}
-
-	return events, nil
+	return nil
 }

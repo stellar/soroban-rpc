@@ -135,6 +135,12 @@ var eventTypeFromXDR = map[xdr.ContractEventType]string{
 	xdr.ContractEventTypeDiagnostic: EventTypeDiagnostic,
 }
 
+var eventTypeToInteger = map[string]int{
+	EventTypeSystem:     1,
+	EventTypeContract:   2,
+	EventTypeDiagnostic: 3,
+}
+
 type EventFilter struct {
 	EventType   eventTypeSet  `json:"type,omitempty"`
 	ContractIDs []string      `json:"contractIds,omitempty"`
@@ -336,34 +342,67 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 	}
 
 	type entry struct {
-		cursor               events.Cursor
+		cursor               db.Cursor
 		ledgerCloseTimestamp int64
 		event                xdr.DiagnosticEvent
 		txHash               *xdr.Hash
 	}
 	var found []entry
-	latestLedger, err := h.scanner.Scan(
-		events.Range{
-			Start:      start,
-			ClampStart: false,
-			End:        events.MaxCursor,
-			ClampEnd:   true,
-		},
-		func(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCloseTimestamp int64, txHash *xdr.Hash) bool {
-			if request.Matches(event) {
+
+	if len(request.Filters) == 0 {
+		err := h.dbReader.GetEvents(
+			ctx,
+			int(request.StartLedger),
+			nil,
+			nil,
+
+			func(event xdr.DiagnosticEvent, cursor db.Cursor, ledgerCloseTimestamp int64, txHash *xdr.Hash) bool {
+				found = append(found, entry{cursor, ledgerCloseTimestamp, event, txHash})
+				return uint(len(found)) < limit
+			},
+		)
+
+		if err != nil {
+			return GetEventsResponse{}, &jrpc2.Error{
+				Code:    jrpc2.InvalidRequest,
+				Message: err.Error(),
+			}
+		}
+
+	}
+
+	for _, filter := range request.Filters {
+
+		var eventTypes []int
+		for key := range filter.EventType {
+			eventTypes = append(eventTypes, eventTypeToInteger[key])
+		}
+
+		// Scan function to apply filter and to remove duplicates if any
+		f := func(event xdr.DiagnosticEvent, cursor db.Cursor, ledgerCloseTimestamp int64, txHash *xdr.Hash) bool {
+			if filter.Matches(event) {
 				found = append(found, entry{cursor, ledgerCloseTimestamp, event, txHash})
 			}
 			return uint(len(found)) < limit
-		},
-	)
-	if err != nil {
-		return GetEventsResponse{}, &jrpc2.Error{
-			Code:    jrpc2.InvalidRequest,
-			Message: err.Error(),
+		}
+
+		err := h.dbReader.GetEvents(
+			ctx,
+			int(request.StartLedger),
+			eventTypes,
+			filter.ContractIDs,
+			f,
+		)
+
+		if err != nil {
+			return GetEventsResponse{}, &jrpc2.Error{
+				Code:    jrpc2.InvalidRequest,
+				Message: err.Error(),
+			}
 		}
 	}
 
-	results := []EventInfo{}
+	var results []EventInfo
 	for _, entry := range found {
 		info, err := eventInfoForEvent(
 			entry.event,
@@ -376,13 +415,14 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		}
 		results = append(results, info)
 	}
+	//TODO (prit): Refactor latest ledger code !!
 	return GetEventsResponse{
-		LatestLedger: uint32(latestLedger),
+		LatestLedger: 0,
 		Events:       results,
 	}, nil
 }
 
-func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerClosedAt string, txHash string) (EventInfo, error) {
+func eventInfoForEvent(event xdr.DiagnosticEvent, cursor db.Cursor, ledgerClosedAt string, txHash string) (EventInfo, error) {
 	v0, ok := event.Event.Body.GetV0()
 	if !ok {
 		return EventInfo{}, errors.New("unknown event version")
