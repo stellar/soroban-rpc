@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
 const (
@@ -57,10 +56,6 @@ func (ledgerReader *ConstantLedgerReader) GetLedger(ctx context.Context, sequenc
 
 func (ledgerReader *ConstantLedgerReader) StreamAllLedgers(ctx context.Context, f db.StreamLedgerFn) error {
 	return nil
-}
-
-func (ledgerReader *ConstantLedgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
-	return ledgerbucketwindow.LedgerRange{}, nil
 }
 
 func createLedger(ledgerSequence uint32, protocolVersion uint32, hash byte) xdr.LedgerCloseMeta {

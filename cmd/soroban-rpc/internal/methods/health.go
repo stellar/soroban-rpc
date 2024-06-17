@@ -20,7 +20,7 @@ type HealthCheckResult struct {
 // NewHealthCheck returns a health check json rpc handler
 func NewHealthCheck(
 	retentionWindow uint32,
-	reader db.LedgerReader,
+	reader db.LedgerRangeReader,
 	maxHealthyLedgerLatency time.Duration,
 ) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context) (HealthCheckResult, error) {

@@ -5,11 +5,7 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/stellar/go/support/errors"
-
 	"github.com/stellar/go/xdr"
-
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
 const (
@@ -21,7 +17,6 @@ type StreamLedgerFn func(xdr.LedgerCloseMeta) error
 type LedgerReader interface {
 	GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error)
 	StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error
-	LedgerRangeReader
 }
 
 type LedgerWriter interface {
@@ -71,57 +66,6 @@ func (r ledgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.Ledge
 	default:
 		return xdr.LedgerCloseMeta{}, false, fmt.Errorf("multiple lcm entries (%d) for sequence %d in table %q", len(results), sequence, ledgerCloseMetaTableName)
 	}
-}
-
-// GetLedgerRange pulls the min/max ledger sequence numbers from the ledgers table.
-func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
-	var ledgerRange ledgerbucketwindow.LedgerRange
-	//
-	// We use subqueries alongside a UNION ALL stitch in order to select the min
-	// and max from the ledger table in a single query and get around sqlite's
-	// limitations with parentheses (see https://stackoverflow.com/a/22609948).
-	//
-	newestQ := sq.
-		Select("m1.meta").
-		FromSelect(
-			sq.
-				Select("meta").
-				From(ledgerCloseMetaTableName).
-				OrderBy("sequence ASC").
-				Limit(1),
-			"m1",
-		)
-	sql, args, err := sq.
-		Select("m2.meta").
-		FromSelect(
-			sq.
-				Select("meta").
-				From(ledgerCloseMetaTableName).
-				OrderBy("sequence DESC").
-				Limit(1),
-			"m2",
-		).ToSql()
-	if err != nil {
-		return ledgerRange, errors.Wrap(err, "couldn't build ledger range query")
-	}
-
-	var lcms []xdr.LedgerCloseMeta
-	if err = r.db.Select(ctx, &lcms, newestQ.Suffix("UNION ALL "+sql, args...)); err != nil {
-		return ledgerRange, errors.Wrap(err, "couldn't query ledger range")
-	} else if len(lcms) < 2 {
-		// There is almost certainly a row, but we want to avoid a race condition
-		// with ingestion as well as support test cases from an empty DB, so we need
-		// to sanity check that there is in fact a result. Note that no ledgers in
-		// the database isn't an error, it's just an empty range.
-		return ledgerRange, nil
-	}
-
-	lcm1, lcm2 := lcms[0], lcms[1]
-	ledgerRange.FirstLedger.Sequence = lcm1.LedgerSequence()
-	ledgerRange.FirstLedger.CloseTime = lcm1.LedgerCloseTime()
-	ledgerRange.LastLedger.Sequence = lcm2.LedgerSequence()
-	ledgerRange.LastLedger.CloseTime = lcm2.LedgerCloseTime()
-	return ledgerRange, nil
 }
 
 type ledgerWriter struct {

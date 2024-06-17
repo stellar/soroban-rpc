@@ -67,12 +67,6 @@ func assertLedgerRange(t *testing.T, reader LedgerReader, start, end uint32) {
 		allLedgers = allLedgers[1:]
 	}
 	assert.Empty(t, allLedgers)
-
-	ledgerRange, err := reader.GetLedgerRange(context.Background())
-	assert.Equal(t, start, ledgerRange.FirstLedger.Sequence)
-	assert.Equal(t, int64(start+10), ledgerRange.FirstLedger.CloseTime)
-	assert.Equal(t, end, ledgerRange.LastLedger.Sequence)
-	assert.Equal(t, int64(end+10), ledgerRange.LastLedger.CloseTime)
 }
 
 func TestLedgers(t *testing.T) {

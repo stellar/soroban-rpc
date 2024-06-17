@@ -136,10 +136,13 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 	}
 
-	// While we transition from in-memory to database-oriented history storage,
-	// the on-disk (transaction) retention window will always be larger than the
-	// in-memory (events) one.
-	var retentionWindow = cfg.TransactionLedgerRetentionWindow
+	// Get the largest history window
+	var ledgerRangeGetter db.LedgerRangeReader = params.EventStore
+	var retentionWindow = cfg.EventLedgerRetentionWindow
+	if cfg.TransactionLedgerRetentionWindow > cfg.EventLedgerRetentionWindow {
+		retentionWindow = cfg.TransactionLedgerRetentionWindow
+		ledgerRangeGetter = params.TransactionReader
+	}
 
 	handlers := []struct {
 		methodName           string
@@ -151,7 +154,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		{
 			methodName: "getHealth",
 			underlyingHandler: methods.NewHealthCheck(
-				retentionWindow, params.LedgerReader, cfg.MaxHealthyLedgerLatency),
+				retentionWindow, ledgerRangeGetter, cfg.MaxHealthyLedgerLatency),
 			longName:             "get_health",
 			queueLimit:           cfg.RequestBacklogGetHealthQueueLimit,
 			requestDurationLimit: cfg.MaxGetHealthExecutionDuration,
@@ -232,7 +235,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 		{
 			methodName:           "getFeeStats",
-			underlyingHandler:    methods.NewGetFeeStatsHandler(params.FeeStatWindows, params.LedgerReader, params.Logger),
+			underlyingHandler:    methods.NewGetFeeStatsHandler(params.FeeStatWindows, ledgerRangeGetter, params.Logger),
 			longName:             "get_fee_stats",
 			queueLimit:           cfg.RequestBacklogGetFeeStatsTransactionQueueLimit,
 			requestDurationLimit: cfg.MaxGetFeeStatsExecutionDuration,
