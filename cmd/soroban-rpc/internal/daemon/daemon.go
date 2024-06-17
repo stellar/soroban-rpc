@@ -168,6 +168,7 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 	historyArchive, err := historyarchive.NewArchivePool(
 		cfg.HistoryArchiveURLs,
 		historyarchive.ArchiveOptions{
+			Logger:              logger,
 			NetworkPassphrase:   cfg.NetworkPassphrase,
 			CheckpointFrequency: cfg.CheckpointFrequency,
 			ConnectOptions: storage.ConnectOptions{
