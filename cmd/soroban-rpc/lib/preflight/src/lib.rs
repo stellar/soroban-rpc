@@ -21,12 +21,12 @@ use soroban_simulation::simulation::{
 };
 use soroban_simulation::{AutoRestoringSnapshotSource, NetworkConfig, SnapshotSourceWithArchive};
 use std::cell::RefCell;
+use std::convert::TryFrom;
 use std::ffi::{CStr, CString};
 use std::panic;
 use std::ptr::null_mut;
 use std::rc::Rc;
 use std::{mem, slice};
-use std::convert::TryFrom;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -168,10 +168,7 @@ impl CPreflightResult {
         let mut result = Self {
             error: string_to_c(error),
             auth: xdr_vec_to_c(invoke_hf_result.auth),
-            result: option_xdr_to_c(
-                invoke_hf_result
-                    .invoke_result.ok(),
-            ),
+            result: option_xdr_to_c(invoke_hf_result.invoke_result.ok()),
             min_fee: invoke_hf_result
                 .transaction_data
                 .as_ref()
@@ -321,15 +318,15 @@ fn preflight_footprint_ttl_op_or_maybe_panic(
     let network_config =
         NetworkConfig::load_from_snapshot(go_storage.as_ref(), c_ledger_info.bucket_list_size)?;
     let ledger_info = fill_ledger_info(c_ledger_info, &network_config);
-    // TODO: It would make for a better UX if the user passed only the neccesary fields for every operation.
+    // TODO: It would make for a better UX if the user passed only the necessary fields for every operation.
     // That would remove a possibility of providing bad operation body, or a possibility of filling wrong footprint
     // field.
     match op_body {
         OperationBody::ExtendFootprintTtl(extend_op) => {
-            preflight_extend_ttl_op(extend_op, footprint.read_only.as_slice(), go_storage, &network_config, &ledger_info)
+            preflight_extend_ttl_op(&extend_op, footprint.read_only.as_slice(), &go_storage, &network_config, &ledger_info)
         }
         OperationBody::RestoreFootprint(_) => {
-            Ok(preflight_restore_op(footprint.read_write.as_slice(), go_storage, &network_config, &ledger_info))
+            Ok(preflight_restore_op(footprint.read_write.as_slice(), &go_storage, &network_config, &ledger_info))
         }
         _ => Err(anyhow!("encountered unsupported operation type: '{:?}', instead of 'ExtendFootprintTtl' or 'RestoreFootprint' operations.",
             op_body.discriminant()))
@@ -337,9 +334,9 @@ fn preflight_footprint_ttl_op_or_maybe_panic(
 }
 
 fn preflight_extend_ttl_op(
-    extend_op: ExtendFootprintTtlOp,
+    extend_op: &ExtendFootprintTtlOp,
     keys_to_extend: &[LedgerKey],
-    go_storage: Rc<GoLedgerStorage>,
+    go_storage: &Rc<GoLedgerStorage>,
     network_config: &NetworkConfig,
     ledger_info: &LedgerInfo,
 ) -> Result<CPreflightResult> {
@@ -374,7 +371,7 @@ fn preflight_extend_ttl_op(
 
 fn preflight_restore_op(
     keys_to_restore: &[LedgerKey],
-    go_storage: Rc<GoLedgerStorage>,
+    go_storage: &Rc<GoLedgerStorage>,
     network_config: &NetworkConfig,
     ledger_info: &LedgerInfo,
 ) -> CPreflightResult {
@@ -424,7 +421,7 @@ fn catch_preflight_panic(op: Box<dyn Fn() -> Result<CPreflightResult>>) -> *mut 
 // TODO: We could use something like https://github.com/sonos/ffi-convert-rs
 //       to replace all the free_* , *_to_c and from_c_* functions by implementations of CDrop,
 //       CReprOf and AsRust
-
+#[allow(clippy::needless_pass_by_value)]
 fn xdr_to_c(v: impl WriteXdr) -> CXDR {
     let (xdr, len) = vec_to_c_array(v.to_xdr(DEFAULT_XDR_RW_LIMITS).unwrap());
     CXDR { xdr, len }
@@ -660,11 +657,14 @@ fn extract_error_string<T>(simulation_result: &Result<T>, go_storage: &GoLedgerS
     match simulation_result {
         Ok(_) => String::new(),
         Err(e) =>
-            // Override any simulation result with a storage error (if any). Simulation does not propagate the storage
-            // errors, but these provide more exact information on the root cause.
-            if let Some(e) = go_storage.internal_error.borrow().as_ref()
-            { format!("{e:?}") }
-            else
-            { format!("{e:?}") }
+        // Override any simulation result with a storage error (if any). Simulation does not propagate the storage
+        // errors, but these provide more exact information on the root cause.
+        {
+            if let Some(e) = go_storage.internal_error.borrow().as_ref() {
+                format!("{e:?}")
+            } else {
+                format!("{e:?}")
+            }
+        }
     }
 }
