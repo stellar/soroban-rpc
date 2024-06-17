@@ -21,6 +21,7 @@ import (
 
 func TestSendTransactionSucceedsWithoutResults(t *testing.T) {
 	test := NewTest(t, nil)
+
 	client := test.GetRPCLient()
 
 	kp := keypair.Root(StandaloneNetworkPassphrase)
