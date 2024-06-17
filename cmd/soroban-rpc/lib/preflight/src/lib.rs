@@ -167,42 +167,42 @@ impl CPreflightResult {
     ) -> Self {
         let mut result = Self {
             error: string_to_c(error),
-            auth: xdr_vec_to_c(invoke_hf_result.auth),
-            result: option_xdr_to_c(invoke_hf_result.invoke_result.ok()),
+            auth: xdr_vec_to_c(&invoke_hf_result.auth),
+            result: option_xdr_to_c(invoke_hf_result.invoke_result.ok().as_ref()),
             min_fee: invoke_hf_result
                 .transaction_data
                 .as_ref()
                 .map_or_else(|| 0, |r| r.resource_fee),
-            transaction_data: option_xdr_to_c(invoke_hf_result.transaction_data),
+            transaction_data: option_xdr_to_c(invoke_hf_result.transaction_data.as_ref()),
             // TODO: Diagnostic and contract events should be separated in the response
-            events: xdr_vec_to_c(invoke_hf_result.diagnostic_events),
+            events: xdr_vec_to_c(&invoke_hf_result.diagnostic_events),
             cpu_instructions: u64::from(invoke_hf_result.simulated_instructions),
             memory_bytes: u64::from(invoke_hf_result.simulated_memory),
-            ledger_entry_diff: ledger_entry_diff_vec_to_c(invoke_hf_result.modified_entries),
+            ledger_entry_diff: ledger_entry_diff_vec_to_c(&invoke_hf_result.modified_entries),
             ..Default::default()
         };
         if let Some(p) = restore_preamble {
             result.pre_restore_min_fee = p.transaction_data.resource_fee;
-            result.pre_restore_transaction_data = xdr_to_c(p.transaction_data);
+            result.pre_restore_transaction_data = xdr_to_c(&p.transaction_data);
         };
         result
     }
 
     fn new_from_transaction_data(
-        transaction_data: Option<SorobanTransactionData>,
-        restore_preamble: Option<RestoreOpSimulationResult>,
+        transaction_data: &Option<SorobanTransactionData>,
+        restore_preamble: &Option<RestoreOpSimulationResult>,
         error: String,
     ) -> Self {
         let min_fee = transaction_data.as_ref().map_or(0, |d| d.resource_fee);
         let mut result = Self {
             error: string_to_c(error),
-            transaction_data: option_xdr_to_c(transaction_data),
+            transaction_data: option_xdr_to_c(transaction_data.as_ref()),
             min_fee,
             ..Default::default()
         };
         if let Some(p) = restore_preamble {
             result.pre_restore_min_fee = p.transaction_data.resource_fee;
-            result.pre_restore_transaction_data = xdr_to_c(p.transaction_data);
+            result.pre_restore_transaction_data = xdr_to_c(&p.transaction_data);
         };
         result
     }
@@ -363,8 +363,8 @@ fn preflight_extend_ttl_op(
 
     let error_str = extract_error_string(&maybe_restore_result, go_storage.as_ref());
     Ok(CPreflightResult::new_from_transaction_data(
-        maybe_transaction_data,
-        maybe_restore_result.unwrap_or(None),
+        &maybe_transaction_data,
+        &maybe_restore_result.unwrap_or(None),
         error_str,
     ))
 }
@@ -384,10 +384,10 @@ fn preflight_restore_op(
     );
     let error_str = extract_error_string(&simulation_result, go_storage.as_ref());
     CPreflightResult::new_from_transaction_data(
-        simulation_result
+        &simulation_result
             .map(|r| Some(r.transaction_data))
             .unwrap_or(None),
-        None,
+        &None,
         error_str,
     )
 }
@@ -421,13 +421,12 @@ fn catch_preflight_panic(op: Box<dyn Fn() -> Result<CPreflightResult>>) -> *mut 
 // TODO: We could use something like https://github.com/sonos/ffi-convert-rs
 //       to replace all the free_* , *_to_c and from_c_* functions by implementations of CDrop,
 //       CReprOf and AsRust
-#[allow(clippy::needless_pass_by_value)]
-fn xdr_to_c(v: impl WriteXdr) -> CXDR {
+fn xdr_to_c(v: &impl WriteXdr) -> CXDR {
     let (xdr, len) = vec_to_c_array(v.to_xdr(DEFAULT_XDR_RW_LIMITS).unwrap());
     CXDR { xdr, len }
 }
 
-fn option_xdr_to_c(v: Option<impl WriteXdr>) -> CXDR {
+fn option_xdr_to_c(v: Option<&impl WriteXdr>) -> CXDR {
     v.map_or(
         CXDR {
             xdr: null_mut(),
@@ -437,15 +436,15 @@ fn option_xdr_to_c(v: Option<impl WriteXdr>) -> CXDR {
     )
 }
 
-fn ledger_entry_diff_to_c(v: LedgerEntryDiff) -> CXDRDiff {
+fn ledger_entry_diff_to_c(v: &LedgerEntryDiff) -> CXDRDiff {
     CXDRDiff {
-        before: option_xdr_to_c(v.state_before),
-        after: option_xdr_to_c(v.state_after),
+        before: option_xdr_to_c(v.state_before.as_ref()),
+        after: option_xdr_to_c(v.state_after.as_ref()),
     }
 }
 
-fn xdr_vec_to_c(v: Vec<impl WriteXdr>) -> CXDRVector {
-    let c_v = v.into_iter().map(xdr_to_c).collect();
+fn xdr_vec_to_c(v: &[impl WriteXdr]) -> CXDRVector {
+    let c_v = v.iter().map(xdr_to_c).collect();
     let (array, len) = vec_to_c_array(c_v);
     CXDRVector { array, len }
 }
@@ -469,9 +468,9 @@ fn vec_to_c_array<T>(mut v: Vec<T>) -> (*mut T, libc::size_t) {
     (ptr, len)
 }
 
-fn ledger_entry_diff_vec_to_c(modified_entries: Vec<LedgerEntryDiff>) -> CXDRDiffVector {
+fn ledger_entry_diff_vec_to_c(modified_entries: &[LedgerEntryDiff]) -> CXDRDiffVector {
     let c_diffs = modified_entries
-        .into_iter()
+        .iter()
         .map(ledger_entry_diff_to_c)
         .collect();
     let (array, len) = vec_to_c_array(c_diffs);
