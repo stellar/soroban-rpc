@@ -85,5 +85,3 @@ func TestGetLatestLedger(t *testing.T) {
 	assert.Equal(t, expectedLatestLedgerProtocolVersion, latestLedgerResp.ProtocolVersion)
 	assert.Equal(t, expectedLatestLedgerSequence, latestLedgerResp.Sequence)
 }
-
-var _ db.LedgerReader = &ConstantLedgerReader{}
