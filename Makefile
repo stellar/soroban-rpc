@@ -35,19 +35,25 @@ endif
 # it would need to distinguish when we are crosscompiling and when we are not
 # (libpreflight.a is put at target/release-with-panic-unwind/ when not cross compiling)
 CARGO_BUILD_TARGET ?= $(shell rustc -vV | sed -n 's|host: ||p')
+LIBPREFLIGHT = target/$(CARGO_BUILD_TARGET)/release-with-panic-unwind/libpreflight.a
 
 # update the Cargo.lock every time the Cargo.toml changes.
-Cargo.lock: Cargo.toml
+Cargo.lock: Cargo.toml ./cmd/soroban-rpc/lib/preflight/Cargo.toml
 	cargo update --workspace
 
-install: build-libpreflight
+install: $(LIBPREFLIGHT)
 	go install -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} ./...
 
 
-build: build-libpreflight
+build: $(LIBPREFLIGHT)
 	go build -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} ./...
 
-build-libpreflight: Cargo.lock
+
+build-libpreflight: $(LIBPREFLIGHT)
+
+$(LIBPREFLIGHT): Cargo.lock cmd/soroban-rpc/lib/preflight/src/lib.rs
+	# invalidate golang's wrapper package to enforce a rebuild whenever libpreflight changes
+	go clean -cache -i ./cmd/soroban-rpc/internal/preflight
 	cd cmd/soroban-rpc/lib/preflight && cargo build --target $(CARGO_BUILD_TARGET) --profile release-with-panic-unwind
 
 check: rust-check go-check
@@ -66,19 +72,19 @@ fmt:
 rust-test:
 	cargo test
 
-go-test: build-libpreflight
+go-test: $(LIBPREFLIGHT)
 	go test ./...
 
 test: go-test rust-test
 
 clean:
 	cargo clean
-	go clean ./...
+	go clean -cache -testcache
 
 # the build-soroban-rpc build target is an optimized build target used by 
 # https://github.com/stellar/pipelines/stellar-horizon/Jenkinsfile-soroban-rpc-package-builder
 # as part of the package building.
-build-soroban-rpc: build-libpreflight
+build-soroban-rpc: $(LIBPREFLIGHT)
 	go build -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} -o soroban-rpc -trimpath -v ./cmd/soroban-rpc
 
 go-check-changes:
