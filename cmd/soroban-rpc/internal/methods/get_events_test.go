@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"strings"
 	"testing"
@@ -15,8 +16,6 @@ import (
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/strkey"
 	"github.com/stellar/go/xdr"
-
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 )
 
 func TestEventTypeSetMatches(t *testing.T) {
@@ -526,9 +525,9 @@ func TestGetEvents(t *testing.T) {
 	assert.NoError(t, err)
 
 	t.Run("empty", func(t *testing.T) {
-		store := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "unit-tests", 100)
+		store := db.NewMockEventStore("passphrase")
 		handler := eventsRPCHandler{
-			scanner:      store,
+			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
 		}
@@ -540,7 +539,7 @@ func TestGetEvents(t *testing.T) {
 
 	t.Run("startLedger validation", func(t *testing.T) {
 		contractID := xdr.Hash([32]byte{})
-		store := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "unit-tests", 100)
+		store := db.NewMockEventStore("passphrase")
 		var txMeta []xdr.TransactionMeta
 		txMeta = append(txMeta, transactionMetaWithEvents(
 			contractEvent(
@@ -558,7 +557,7 @@ func TestGetEvents(t *testing.T) {
 		assert.NoError(t, store.IngestEvents(ledgerCloseMetaWithEvents(2, now.Unix(), txMeta...)))
 
 		handler := eventsRPCHandler{
-			scanner:      store,
+			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
 		}
@@ -575,7 +574,8 @@ func TestGetEvents(t *testing.T) {
 
 	t.Run("no filtering returns all", func(t *testing.T) {
 		contractID := xdr.Hash([32]byte{})
-		store := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "unit-tests", 100)
+		store := db.NewMockEventStore("passphrase")
+
 		var txMeta []xdr.TransactionMeta
 		for i := 0; i < 10; i++ {
 			txMeta = append(txMeta, transactionMetaWithEvents(
@@ -596,7 +596,7 @@ func TestGetEvents(t *testing.T) {
 		assert.NoError(t, store.IngestEvents(ledgerCloseMeta))
 
 		handler := eventsRPCHandler{
-			scanner:      store,
+			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
 		}
@@ -635,7 +635,8 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("filtering by contract id", func(t *testing.T) {
-		store := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "unit-tests", 100)
+		store := db.NewMockEventStore("passphrase")
+
 		var txMeta []xdr.TransactionMeta
 		contractIds := []xdr.Hash{
 			xdr.Hash([32]byte{}),
@@ -659,7 +660,7 @@ func TestGetEvents(t *testing.T) {
 		assert.NoError(t, store.IngestEvents(ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)))
 
 		handler := eventsRPCHandler{
-			scanner:      store,
+			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
 		}
@@ -685,7 +686,8 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("filtering by topic", func(t *testing.T) {
-		store := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "unit-tests", 100)
+		store := db.NewMockEventStore("passphrase")
+
 		var txMeta []xdr.TransactionMeta
 		contractID := xdr.Hash([32]byte{})
 		for i := 0; i < 10; i++ {
@@ -707,7 +709,7 @@ func TestGetEvents(t *testing.T) {
 
 		number := xdr.Uint64(4)
 		handler := eventsRPCHandler{
-			scanner:      store,
+			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
 		}
@@ -749,7 +751,8 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("filtering by both contract id and topic", func(t *testing.T) {
-		store := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "unit-tests", 100)
+		store := db.NewMockEventStore("passphrase")
+
 		contractID := xdr.Hash([32]byte{})
 		otherContractID := xdr.Hash([32]byte{1})
 		number := xdr.Uint64(1)
@@ -801,7 +804,7 @@ func TestGetEvents(t *testing.T) {
 		assert.NoError(t, store.IngestEvents(ledgerCloseMeta))
 
 		handler := eventsRPCHandler{
-			scanner:      store,
+			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
 		}
@@ -845,7 +848,8 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("filtering by event type", func(t *testing.T) {
-		store := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "unit-tests", 100)
+		store := db.NewMockEventStore("passphrase")
+
 		contractID := xdr.Hash([32]byte{})
 		txMeta := []xdr.TransactionMeta{
 			transactionMetaWithEvents(
@@ -876,7 +880,7 @@ func TestGetEvents(t *testing.T) {
 		assert.NoError(t, store.IngestEvents(ledgerCloseMeta))
 
 		handler := eventsRPCHandler{
-			scanner:      store,
+			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
 		}
@@ -907,7 +911,8 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("with limit", func(t *testing.T) {
-		store := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "unit-tests", 100)
+		store := db.NewMockEventStore("passphrase")
+
 		contractID := xdr.Hash([32]byte{})
 		var txMeta []xdr.TransactionMeta
 		for i := 0; i < 180; i++ {
@@ -926,7 +931,7 @@ func TestGetEvents(t *testing.T) {
 		assert.NoError(t, store.IngestEvents(ledgerCloseMeta))
 
 		handler := eventsRPCHandler{
-			scanner:      store,
+			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
 		}
@@ -964,7 +969,8 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("with cursor", func(t *testing.T) {
-		store := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "unit-tests", 100)
+		store := db.NewMockEventStore("passphrase")
+
 		contractID := xdr.Hash([32]byte{})
 		datas := []xdr.ScSymbol{
 			// ledger/transaction/operation/event
@@ -1012,7 +1018,7 @@ func TestGetEvents(t *testing.T) {
 
 		id := &events.Cursor{Ledger: 5, Tx: 1, Op: 0, Event: 0}
 		handler := eventsRPCHandler{
-			scanner:      store,
+			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
 		}

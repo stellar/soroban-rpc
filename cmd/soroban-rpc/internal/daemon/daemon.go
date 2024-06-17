@@ -26,7 +26,6 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/feewindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ingest"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
@@ -187,11 +186,6 @@ func MustNew(cfg *config.Config) *Daemon {
 		}, metricsRegistry),
 	}
 
-	eventStore := events.NewMemoryStore(
-		daemon,
-		cfg.NetworkPassphrase,
-		cfg.EventLedgerRetentionWindow,
-	)
 	feewindows := feewindow.NewFeeWindows(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow, cfg.NetworkPassphrase)
 
 	// initialize the stores using what was on the DB
@@ -214,9 +208,7 @@ func MustNew(cfg *config.Config) *Daemon {
 				"seq": currentSeq,
 			}).Debug("still initializing in-memory store")
 		}
-		if err := eventStore.IngestEvents(txmeta); err != nil {
-			logger.WithError(err).Fatal("could not initialize event memory store")
-		}
+
 		if err := feewindows.IngestFees(txmeta); err != nil {
 			logger.WithError(err).Fatal("could not initialize fee stats")
 		}
@@ -254,7 +246,6 @@ func MustNew(cfg *config.Config) *Daemon {
 			maxRetentionWindow,
 			cfg.NetworkPassphrase,
 		),
-		EventStore:        eventStore,
 		NetworkPassPhrase: cfg.NetworkPassphrase,
 		Archive:           historyArchive,
 		LedgerBackend:     core,
@@ -277,7 +268,6 @@ func MustNew(cfg *config.Config) *Daemon {
 
 	jsonRPCHandler := internal.NewJSONRPCHandler(cfg, internal.HandlerParams{
 		Daemon:            daemon,
-		EventStore:        eventStore,
 		FeeStatWindows:    feewindows,
 		Logger:            logger,
 		LedgerReader:      db.NewLedgerReader(dbConn),

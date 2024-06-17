@@ -306,13 +306,8 @@ type GetEventsResponse struct {
 	LatestLedger uint32      `json:"latestLedger"`
 }
 
-type eventScanner interface {
-	Scan(eventRange events.Range, f events.ScanFunction) (uint32, error)
-}
-
 type eventsRPCHandler struct {
 	dbReader          db.EventReader
-	scanner           eventScanner
 	maxLimit          uint
 	defaultLimit      uint
 	logger            *log.Entry
@@ -467,10 +462,9 @@ func eventInfoForEvent(event xdr.DiagnosticEvent, cursor db.Cursor, ledgerClosed
 }
 
 // NewGetEventsHandler returns a json rpc handler to fetch and filter events
-func NewGetEventsHandler(logger *log.Entry, dbReader db.EventReader, eventsStore *events.MemoryStore, maxLimit, defaultLimit uint, networkPassphrase string) jrpc2.Handler {
+func NewGetEventsHandler(logger *log.Entry, dbReader db.EventReader, maxLimit, defaultLimit uint, networkPassphrase string) jrpc2.Handler {
 	eventsHandler := eventsRPCHandler{
 		dbReader:          dbReader,
-		scanner:           eventsStore,
 		maxLimit:          maxLimit,
 		defaultLimit:      defaultLimit,
 		logger:            logger,

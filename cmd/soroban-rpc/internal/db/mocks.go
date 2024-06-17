@@ -30,6 +30,32 @@ func NewMockTransactionStore(passphrase string) *mockTransactionHandler {
 	}
 }
 
+type mockEventHandler struct {
+	passphrase string
+
+	ledgerRange     ledgerbucketwindow.LedgerRange
+	txs             map[string]ingest.LedgerTransaction
+	txHashToMeta    map[string]*xdr.LedgerCloseMeta
+	ledgerSeqToMeta map[uint32]*xdr.LedgerCloseMeta
+}
+
+func NewMockEventStore(passphrase string) *mockEventHandler {
+	return &mockEventHandler{
+		passphrase:      passphrase,
+		txs:             make(map[string]ingest.LedgerTransaction),
+		txHashToMeta:    make(map[string]*xdr.LedgerCloseMeta),
+		ledgerSeqToMeta: make(map[uint32]*xdr.LedgerCloseMeta),
+	}
+}
+
+func (txn *mockEventHandler) GetEvents(ctx context.Context, startLedgerSequence int, eventTypes []int, contractIds []string, f ScanFunction) error {
+	return nil
+}
+
+func (txn *mockEventHandler) IngestEvents(lcm xdr.LedgerCloseMeta) error {
+	return nil
+}
+
 func (txn *mockTransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error {
 	txn.ledgerSeqToMeta[lcm.LedgerSequence()] = &lcm
 

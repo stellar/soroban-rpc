@@ -19,7 +19,6 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/feewindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/network"
@@ -46,7 +45,6 @@ func (h Handler) Close() {
 }
 
 type HandlerParams struct {
-	EventStore        *events.MemoryStore
 	FeeStatWindows    *feewindow.FeeWindows
 	TransactionReader db.TransactionReader
 	EventReader       db.EventReader
@@ -158,9 +156,8 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 			requestDurationLimit: cfg.MaxGetHealthExecutionDuration,
 		},
 		{
-			methodName: "getEvents",
-			underlyingHandler: methods.NewGetEventsHandler(params.Logger, params.EventReader,
-				params.EventStore, cfg.MaxEventsLimit, cfg.DefaultEventsLimit, cfg.NetworkPassphrase),
+			methodName:           "getEvents",
+			underlyingHandler:    methods.NewGetEventsHandler(params.Logger, params.EventReader, cfg.MaxEventsLimit, cfg.DefaultEventsLimit, cfg.NetworkPassphrase),
 			longName:             "get_events",
 			queueLimit:           cfg.RequestBacklogGetEventsQueueLimit,
 			requestDurationLimit: cfg.MaxGetEventsExecutionDuration,
