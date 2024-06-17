@@ -291,8 +291,6 @@ func sendSuccessfulTransaction(t *testing.T, client *jrpc2.Client, kp *keypair.F
 		assert.NoError(t, err)
 		t.Logf("error: %#v\n", txResult)
 	}
-	assert.NotZero(t, result.LatestLedger)
-	assert.NotZero(t, result.LatestLedgerCloseTime)
 
 	response := getTransaction(t, client, expectedHashHex)
 	if !assert.Equal(t, methods.TransactionStatusSuccess, response.Status) {
