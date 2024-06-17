@@ -1,0 +1,21 @@
+name: Rust
+
+on:
+  push:
+    branches: [ main, release/** ]
+  pull_request:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: stellar/actions/rust-cache@main
+      - run: rustup update
+      - run: cargo fmt --all --check
+      - run: cargo clippy -- -Dwarnings -Dclippy::all -Dclippy::pedantic
+      - run: cargo test
