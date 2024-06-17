@@ -26,9 +26,6 @@ func createLedger(ledgerSequence uint32) xdr.LedgerCloseMeta {
 				Hash: xdr.Hash{},
 				Header: xdr.LedgerHeader{
 					LedgerSeq: xdr.Uint32(ledgerSequence),
-					ScpValue: xdr.StellarValue{
-						CloseTime: xdr.TimePoint(ledgerSequence + 10),
-					},
 				},
 			},
 			TxSet: xdr.GeneralizedTransactionSet{
