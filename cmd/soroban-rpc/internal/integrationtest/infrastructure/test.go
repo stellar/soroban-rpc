@@ -65,9 +65,9 @@ type TestConfig struct {
 	ProtocolVersion uint32
 	// Run a previously released version of RPC (in a container) instead of the current version
 	UseReleasedRPCVersion string
-	// Use/Reuse a SQLite file instead of creating it from scratch
-	UseSQLitePath string
-	OnlyRPC       *TestOnlyRPCConfig
+	// Use/Reuse a SQLite file path
+	SQLitePath string
+	OnlyRPC    *TestOnlyRPCConfig
 	// Do not mark the test as running in parallel
 	NoParallel bool
 }
@@ -94,6 +94,8 @@ type Test struct {
 	protocolVersion uint32
 
 	rpcConfigFilesDir string
+
+	sqlitePath string
 
 	rpcContainerVersion        string
 	rpcContainerSQLiteMountDir string
@@ -122,12 +124,11 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 	}
 
 	parallel := true
-	sqlitePath := ""
 	shouldWaitForRPC := true
 	if cfg != nil {
 		i.rpcContainerVersion = cfg.UseReleasedRPCVersion
 		i.protocolVersion = cfg.ProtocolVersion
-		sqlitePath = cfg.UseSQLitePath
+		i.sqlitePath = cfg.SQLitePath
 		if cfg.OnlyRPC != nil {
 			i.onlyRPC = true
 			i.testPorts.TestCorePorts = cfg.OnlyRPC.CorePorts
@@ -135,15 +136,14 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 		}
 		parallel = !cfg.NoParallel
 	}
-	if sqlitePath == "" {
-		sqlitePath = path.Join(i.t.TempDir(), "soroban_rpc.sqlite")
+
+	if i.sqlitePath == "" {
+		i.sqlitePath = path.Join(i.t.TempDir(), "soroban_rpc.sqlite")
 	}
 
 	if parallel {
 		t.Parallel()
 	}
-
-	// TODO: this function is pretty unreadable
 
 	if i.protocolVersion == 0 {
 		// Default to the maximum supported protocol version
@@ -152,31 +152,9 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 
 	i.rpcConfigFilesDir = i.t.TempDir()
 
-	if i.runRPCInContainer() {
-		// The container needs to use the sqlite mount point
-		i.rpcContainerSQLiteMountDir = filepath.Dir(sqlitePath)
-		i.generateCaptiveCoreCfgForContainer()
-		rpcCfg := i.getRPConfigForContainer(sqlitePath)
-		i.generateRPCConfigFile(rpcCfg)
-	}
-
 	i.prepareShutdownHandlers()
-	if i.runRPCInContainer() || !i.onlyRPC {
-		// There are containerized workloads
-		upCmd := []string{"up"}
-		if i.runRPCInContainer() && i.onlyRPC {
-			upCmd = append(upCmd, "rpc")
-		}
-		upCmd = append(upCmd, "--detach", "--quiet-pull", "--no-color")
-		i.runSuccessfulComposeCommand(upCmd...)
-		if i.runRPCInContainer() {
-			i.rpcContainerLogsCommand = i.getComposeCommand("logs", "--no-log-prefix", "-f", "rpc")
-			writer := testLogWriter{t: t, prefix: fmt.Sprintf(`rpc="container" version="%s" `, i.rpcContainerVersion)}
-			i.rpcContainerLogsCommand.Stdout = writer
-			i.rpcContainerLogsCommand.Stderr = writer
-			require.NoError(t, i.rpcContainerLogsCommand.Start())
-		}
-		i.fillContainerPorts()
+	if i.areThereContainers() {
+		i.spawnContainers()
 	}
 	if !i.onlyRPC {
 		i.coreClient = &stellarcore.Client{URL: "http://localhost:" + strconv.Itoa(int(i.testPorts.CoreHTTPPort))}
@@ -184,14 +162,7 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 		i.waitForCheckpoint()
 	}
 	if !i.runRPCInContainer() {
-		// We need to get a free port. Unfortunately this isn't completely clash-Free
-		// but there is no way to tell core to allocate the port dynamically
-		i.testPorts.captiveCorePort = getFreeTCPPort(i.t)
-		i.generateCaptiveCoreCfgForDaemon()
-		rpcCfg := i.getRPConfigForDaemon(sqlitePath)
-		i.daemon = i.createDaemon(rpcCfg)
-		i.fillDaemonPorts()
-		go i.daemon.Run()
+		i.spawnRPCDaemon()
 	}
 
 	i.rpcClient = NewClient(i.GetSorobanRPCURL(), nil)
@@ -200,6 +171,46 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 	}
 
 	return i
+}
+
+func (i *Test) areThereContainers() bool {
+	return i.runRPCInContainer() || !i.onlyRPC
+}
+
+func (i *Test) spawnContainers() {
+	if i.runRPCInContainer() {
+		// The container needs to use the sqlite mount point
+		i.rpcContainerSQLiteMountDir = filepath.Dir(i.sqlitePath)
+		i.generateCaptiveCoreCfgForContainer()
+		rpcCfg := i.getRPConfigForContainer()
+		i.generateRPCConfigFile(rpcCfg)
+	}
+	// There are containerized workloads
+	upCmd := []string{"up"}
+	if i.runRPCInContainer() && i.onlyRPC {
+		upCmd = append(upCmd, "rpc")
+	}
+	upCmd = append(upCmd, "--detach", "--quiet-pull", "--no-color")
+	i.runSuccessfulComposeCommand(upCmd...)
+	if i.runRPCInContainer() {
+		i.rpcContainerLogsCommand = i.getComposeCommand("logs", "--no-log-prefix", "-f", "rpc")
+		writer := testLogWriter{t: i.t, prefix: fmt.Sprintf(`rpc="container" version="%s" `, i.rpcContainerVersion)}
+		i.rpcContainerLogsCommand.Stdout = writer
+		i.rpcContainerLogsCommand.Stderr = writer
+		require.NoError(i.t, i.rpcContainerLogsCommand.Start())
+	}
+	i.fillContainerPorts()
+}
+
+func (i *Test) stopContainers() {
+	// There were containerized workloads we should bring down
+	downCmd := []string{"down"}
+	if i.runRPCInContainer() && i.onlyRPC {
+		downCmd = append(downCmd, "rpc")
+	}
+	downCmd = append(downCmd, "-v")
+	i.runSuccessfulComposeCommand(downCmd...)
+
 }
 
 func (i *Test) GetPorts() TestPorts {
@@ -247,38 +258,39 @@ func (i *Test) waitForCheckpoint() {
 	)
 }
 
-func (i *Test) getRPConfigForContainer(sqlitePath string) rpcConfig {
+func (i *Test) getRPConfigForContainer() rpcConfig {
 	return rpcConfig{
-		// Container's default path to captive core
-		coreBinaryPath: "/usr/bin/stellar-core",
-		archiveURL:     fmt.Sprintf("http://%s:%d", inContainerCoreHostname, inContainerCoreArchivePort),
-		// The file will be inside the container
-		captiveCoreConfigPath: "/stellar-core.cfg",
 		// The container needs to listen on all interfaces, not just localhost
 		// (otherwise it can't be accessible from the outside)
-		endPoint:               fmt.Sprintf("0.0.0.0:%d", inContainerRPCPort),
-		adminEndpoint:          fmt.Sprintf("0.0.0.0:%d", inContainerRPCAdminPort),
-		sqlitePath:             "/db/" + filepath.Base(sqlitePath),
-		stellarCoreURL:         fmt.Sprintf("http://%s:%d", inContainerCoreHostname, inContainerCoreHTTPPort),
+		endPoint:       fmt.Sprintf("0.0.0.0:%d", inContainerRPCPort),
+		adminEndpoint:  fmt.Sprintf("0.0.0.0:%d", inContainerRPCAdminPort),
+		stellarCoreURL: fmt.Sprintf("http://%s:%d", inContainerCoreHostname, inContainerCoreHTTPPort),
+		// Container's default path to captive core
+		coreBinaryPath: "/usr/bin/stellar-core",
+		// The file will be inside the container
+		captiveCoreConfigPath: "/stellar-core.cfg",
+		// Any writable directory would do
 		captiveCoreStoragePath: "/tmp/captive-core",
+		archiveURL:             fmt.Sprintf("http://%s:%d", inContainerCoreHostname, inContainerCoreArchivePort),
+		sqlitePath:             "/db/" + filepath.Base(i.sqlitePath),
 	}
 }
 
-func (i *Test) getRPConfigForDaemon(sqlitePath string) rpcConfig {
+func (i *Test) getRPConfigForDaemon() rpcConfig {
 	coreBinaryPath := os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN")
 	if coreBinaryPath == "" {
 		i.t.Fatal("missing SOROBAN_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN")
 	}
 	return rpcConfig{
-		coreBinaryPath:        coreBinaryPath,
-		archiveURL:            fmt.Sprintf("http://localhost:%d", i.testPorts.CoreArchivePort),
-		captiveCoreConfigPath: path.Join(i.rpcConfigFilesDir, captiveCoreConfigFilename),
-		stellarCoreURL:        fmt.Sprintf("http://localhost:%d", i.testPorts.CoreHTTPPort),
 		// Allocate port dynamically and then figure out what the port is
 		endPoint:               "localhost:0",
 		adminEndpoint:          "localhost:0",
+		stellarCoreURL:         fmt.Sprintf("http://localhost:%d", i.testPorts.CoreHTTPPort),
+		coreBinaryPath:         coreBinaryPath,
+		captiveCoreConfigPath:  path.Join(i.rpcConfigFilesDir, captiveCoreConfigFilename),
 		captiveCoreStoragePath: i.t.TempDir(),
-		sqlitePath:             sqlitePath,
+		archiveURL:             fmt.Sprintf("http://localhost:%d", i.testPorts.CoreArchivePort),
+		sqlitePath:             i.sqlitePath,
 	}
 }
 
@@ -399,7 +411,7 @@ func (tw testLogWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (i *Test) createDaemon(c rpcConfig) *daemon.Daemon {
+func (i *Test) createRPCDaemon(c rpcConfig) *daemon.Daemon {
 	var cfg config.Config
 	m := c.toMap()
 	lookup := func(s string) (string, bool) {
@@ -413,6 +425,25 @@ func (i *Test) createDaemon(c rpcConfig) *daemon.Daemon {
 	logger := supportlog.New()
 	logger.SetOutput(testLogWriter{t: i.t, prefix: `rpc="daemon" `})
 	return daemon.MustNew(&cfg, logger)
+}
+
+func (i *Test) fillRPCDaemonPorts() {
+	endpointAddr, adminEndpointAddr := i.daemon.GetEndpointAddrs()
+	i.testPorts.RPCPort = uint16(endpointAddr.Port)
+	if adminEndpointAddr != nil {
+		i.testPorts.RPCAdminPort = uint16(adminEndpointAddr.Port)
+	}
+}
+
+func (i *Test) spawnRPCDaemon() {
+	// We need to get a free port. Unfortunately this isn't completely clash-Free
+	// but there is no way to tell core to allocate the port dynamically
+	i.testPorts.captiveCorePort = getFreeTCPPort(i.t)
+	i.generateCaptiveCoreCfgForDaemon()
+	rpcCfg := i.getRPConfigForDaemon()
+	i.daemon = i.createRPCDaemon(rpcCfg)
+	i.fillRPCDaemonPorts()
+	go i.daemon.Run()
 }
 
 var nonAlphanumericRegex = regexp.MustCompile("[^a-zA-Z0-9]+")
@@ -488,14 +519,8 @@ func (i *Test) prepareShutdownHandlers() {
 		if i.rpcClient != nil {
 			i.rpcClient.Close()
 		}
-		if i.runRPCInContainer() || !i.onlyRPC {
-			// There were containerized workloads we should bring down
-			downCmd := []string{"down"}
-			if i.runRPCInContainer() && i.onlyRPC {
-				downCmd = append(downCmd, "rpc")
-			}
-			downCmd = append(downCmd, "-v")
-			i.runSuccessfulComposeCommand(downCmd...)
+		if i.areThereContainers() {
+			i.stopContainers()
 		}
 		if i.rpcContainerLogsCommand != nil {
 			i.rpcContainerLogsCommand.Wait()
@@ -675,14 +700,6 @@ func (i *Test) fillContainerPorts() {
 	if i.runRPCInContainer() {
 		i.testPorts.RPCPort = getPublicPort("rpc", inContainerRPCPort)
 		i.testPorts.RPCAdminPort = getPublicPort("rpc", inContainerRPCAdminPort)
-	}
-}
-
-func (i *Test) fillDaemonPorts() {
-	endpointAddr, adminEndpointAddr := i.daemon.GetEndpointAddrs()
-	i.testPorts.RPCPort = uint16(endpointAddr.Port)
-	if adminEndpointAddr != nil {
-		i.testPorts.RPCAdminPort = uint16(adminEndpointAddr.Port)
 	}
 }
 

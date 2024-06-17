@@ -41,7 +41,7 @@ func testMigrateFromVersion(t *testing.T, version string) {
 	sqliteFile := filepath.Join(t.TempDir(), "soroban-rpc.db")
 	test := infrastructure.NewTest(t, &infrastructure.TestConfig{
 		UseReleasedRPCVersion: version,
-		UseSQLitePath:         sqliteFile,
+		SQLitePath:            sqliteFile,
 	})
 
 	// Submit an event-logging transaction in the version to migrate from
@@ -57,7 +57,7 @@ func testMigrateFromVersion(t *testing.T, version string) {
 			CorePorts: corePorts,
 			DontWait:  false,
 		},
-		UseSQLitePath: sqliteFile,
+		SQLitePath: sqliteFile,
 		// We don't want to mark the test as parallel twice since it causes a panic
 		NoParallel: true,
 	})
