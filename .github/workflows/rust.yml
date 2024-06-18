@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: stellar/actions/rust-cache@main
       - run: rustup update
+      - uses: stellar/actions/rust-cache@main
       - run: make rust-check
       - run: make rust-test
