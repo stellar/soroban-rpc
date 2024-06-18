@@ -42,7 +42,7 @@ type TransactionWriter interface {
 // TransactionReader provides all the public ways to read from the DB.
 type TransactionReader interface {
 	GetTransaction(ctx context.Context, hash xdr.Hash) (Transaction, ledgerbucketwindow.LedgerRange, error)
-	LedgerRangeReader
+	LedgerRangeGetter
 }
 
 type transactionHandler struct {

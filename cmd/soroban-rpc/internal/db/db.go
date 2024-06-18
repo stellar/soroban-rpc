@@ -32,7 +32,7 @@ const (
 	latestLedgerSequenceMetaKey = "LatestLedgerSequence"
 )
 
-type LedgerRangeReader interface {
+type LedgerRangeGetter interface {
 	GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error)
 }
 
