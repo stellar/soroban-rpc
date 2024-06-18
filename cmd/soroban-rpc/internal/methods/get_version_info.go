@@ -18,34 +18,20 @@ type GetVersionInfoResponse struct {
 	ProtocolVersion    uint32 `json:"protocol_version"`
 }
 
-func NewGetVersionInfoHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntryReader, ledgerReader db.LedgerReader, daemon interfaces.Daemon) jrpc2.Handler {
-	coreClient := daemon.CoreClient()
+func NewGetVersionInfoHandler(
+	logger *log.Entry,
+	ledgerEntryReader db.LedgerEntryReader,
+	ledgerReader db.LedgerReader,
+	daemon interfaces.Daemon,
+) jrpc2.Handler {
+
+	core := daemon.GetCore()
+
 	return handler.New(func(ctx context.Context) (GetVersionInfoResponse, error) {
 
-		var captiveCoreVersion string
-		info, err := coreClient.Info(ctx)
-		if err != nil {
-			logger.WithError(err).Info("error occurred while calling Info endpoint of core")
-		} else {
-			captiveCoreVersion = info.Info.Build
-		}
+		captiveCoreVersion := core.GetCaptiveCoreVersion()
+		protocolVersion, err := getProtocolVersion(ctx, ledgerEntryReader, ledgerReader)
 
-		// Fetch Protocol version
-		var protocolVersion uint32
-		readTx, err := ledgerEntryReader.NewCachedTx(ctx)
-		if err != nil {
-			logger.WithError(err).Info("Cannot create read transaction")
-		}
-		defer func() {
-			_ = readTx.Done()
-		}()
-
-		latestLedger, err := readTx.GetLatestLedgerSequence()
-		if err != nil {
-			logger.WithError(err).Info("error occurred while getting latest ledger")
-		}
-
-		_, protocolVersion, err = getBucketListSizeAndProtocolVersion(ctx, ledgerReader, latestLedger)
 		if err != nil {
 			logger.WithError(err).Info("error occurred while fetching protocol version")
 		}

@@ -285,18 +285,3 @@ func base64EncodeSlice(in [][]byte) []string {
 	}
 	return result
 }
-
-func getBucketListSizeAndProtocolVersion(ctx context.Context, ledgerReader db.LedgerReader, latestLedger uint32) (uint64, uint32, error) {
-	// obtain bucket size
-	var closeMeta, ok, err = ledgerReader.GetLedger(ctx, latestLedger)
-	if err != nil {
-		return 0, 0, err
-	}
-	if !ok {
-		return 0, 0, fmt.Errorf("missing meta for latest ledger (%d)", latestLedger)
-	}
-	if closeMeta.V != 1 {
-		return 0, 0, fmt.Errorf("latest ledger (%d) meta has unexpected verion (%d)", latestLedger, closeMeta.V)
-	}
-	return uint64(closeMeta.V1.TotalByteSizeOfBucketList), uint32(closeMeta.V1.LedgerHeader.Header.LedgerVersion), nil
-}
