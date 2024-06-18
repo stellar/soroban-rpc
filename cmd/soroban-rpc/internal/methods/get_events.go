@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 	"strings"
 	"time"
 
@@ -345,6 +346,8 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 			limit = request.Pagination.Limit
 		}
 	}
+	end := events.Cursor{Ledger: uint32(request.StartLedger + ledgerbucketwindow.OneDayOfLedgers)}
+	cursorRange := events.CursorRange{Start: start, End: end}
 
 	type entry struct {
 		cursor               events.Cursor
@@ -364,7 +367,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		return uint(len(found)) < limit
 	}
 
-	err := h.dbReader.GetEvents(ctx, start, contractIds, f)
+	err := h.dbReader.GetEvents(ctx, cursorRange, contractIds, f)
 
 	if err != nil {
 		return GetEventsResponse{}, &jrpc2.Error{

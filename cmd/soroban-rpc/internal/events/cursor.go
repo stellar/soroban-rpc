@@ -27,6 +27,13 @@ type Cursor struct {
 	Event uint32
 }
 
+type CursorRange struct {
+	// Start defines the (inclusive) start of the range.
+	Start Cursor
+	// End defines the (exclusive) end of the range.
+	End Cursor
+}
+
 // String returns a string representation of this cursor
 func (c Cursor) String() string {
 	return fmt.Sprintf(

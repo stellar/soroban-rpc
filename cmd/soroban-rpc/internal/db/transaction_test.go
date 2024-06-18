@@ -96,7 +96,11 @@ func TestTransactionFound(t *testing.T) {
 	require.Error(t, err, ErrNoTransaction)
 
 	eventReader := NewEventReader(log, db, passphrase)
-	err = eventReader.GetEvents(ctx, events.Cursor{1, 0, 0, 0}, nil, nil)
+	start := events.Cursor{Ledger: 1}
+	end := events.Cursor{Ledger: 1000}
+	cursorRange := events.CursorRange{Start: start, End: end}
+
+	err = eventReader.GetEvents(ctx, cursorRange, nil, nil)
 
 	// check all 200 cases
 	for _, lcm := range lcms {

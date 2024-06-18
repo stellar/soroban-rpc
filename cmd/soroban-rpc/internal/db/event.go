@@ -12,6 +12,7 @@ import (
 	"github.com/stellar/go/xdr"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"io"
+	"time"
 )
 
 const eventTableName = "events"
@@ -23,7 +24,7 @@ type EventWriter interface {
 
 // EventReader has all the public methods to fetch events from DB
 type EventReader interface {
-	GetEvents(ctx context.Context, startCursor events.Cursor, contractIds []string, f ScanFunction) error
+	GetEvents(ctx context.Context, cursorRange events.CursorRange, contractIds []string, f ScanFunction) error
 }
 
 type eventHandler struct {
@@ -123,7 +124,9 @@ func (eventHandler *eventHandler) trimEvents(latestLedgerSeq uint32, retentionWi
 	return err
 }
 
-func (eventHandler *eventHandler) GetEvents(ctx context.Context, startCursor events.Cursor, contractIds []string, f ScanFunction) error {
+func (eventHandler *eventHandler) GetEvents(ctx context.Context, cursorRange events.CursorRange, contractIds []string, f ScanFunction) error {
+
+	start := time.Now()
 
 	var rows []struct {
 		EventCursorId string              `db:"id"`
@@ -135,14 +138,15 @@ func (eventHandler *eventHandler) GetEvents(ctx context.Context, startCursor eve
 		Select("e.id", "e.application_order", "lcm.meta").
 		From(fmt.Sprintf("%s e", eventTableName)).
 		Join(fmt.Sprintf("%s lcm ON (e.ledger_sequence = lcm.sequence)", ledgerCloseMetaTableName)).
-		Where(sq.GtOrEq{"e.id": startCursor.String()})
+		Where(sq.GtOrEq{"e.id": cursorRange.Start.String()}).
+		Where(sq.Lt{"e.id": cursorRange.End.String()})
 
 	if len(contractIds) > 0 {
 		rowQ = rowQ.Where(sq.Eq{"e.contract_id": contractIds})
 	}
 
 	if err := eventHandler.db.Select(ctx, &rows, rowQ); err != nil {
-		return errors.Wrapf(err, "db read failed for startLedgerSequence= %d contractIds= %v", startCursor.Ledger, contractIds)
+		return errors.Wrapf(err, "db read failed for start ledger cursor= %v contractIds= %v", cursorRange.Start.String(), contractIds)
 	} else if len(rows) < 1 {
 		return errors.New("No LCM found with requested event filters")
 	}
@@ -173,6 +177,12 @@ func (eventHandler *eventHandler) GetEvents(ctx context.Context, startCursor eve
 			}
 		}
 	}
+
+	eventHandler.log.
+		WithField("startLedgerSequence", cursorRange.Start.Ledger).
+		WithField("endLedgerSequence", cursorRange.End.Ledger).
+		WithField("duration", time.Since(start)).
+		Debugf("Fetched and decoded all the events with filters - contractIds: %v ", contractIds)
 
 	return nil
 }
