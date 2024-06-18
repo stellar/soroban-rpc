@@ -50,7 +50,7 @@ func NewMockEventStore(passphrase string) *mockEventHandler {
 	}
 }
 
-func (eventHandler *mockEventHandler) GetEvents(ctx context.Context, start events.Cursor, eventTypes []int, contractIds []string, f ScanFunction) error {
+func (eventHandler *mockEventHandler) GetEvents(ctx context.Context, startCursor events.Cursor, contractIds []string, f ScanFunction) error {
 	if contractIds != nil {
 		for _, contractId := range contractIds {
 			ledgerTx, ok := eventHandler.contractIdToMeta[contractId]

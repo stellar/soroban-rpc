@@ -135,12 +135,6 @@ var eventTypeFromXDR = map[xdr.ContractEventType]string{
 	xdr.ContractEventTypeDiagnostic: EventTypeDiagnostic,
 }
 
-var eventTypeToInteger = map[string]int{
-	EventTypeSystem:     1,
-	EventTypeContract:   2,
-	EventTypeDiagnostic: 3,
-}
-
 type EventFilter struct {
 	EventType   eventTypeSet  `json:"type,omitempty"`
 	ContractIDs []string      `json:"contractIds,omitempty"`
@@ -314,14 +308,10 @@ type eventsRPCHandler struct {
 	networkPassphrase string
 }
 
-func combineFilters(filters []EventFilter) ([]int, []string) {
-	eventTypeIdSet := make(map[int]struct{})
+func combineContractIds(filters []EventFilter) []string {
 	contractIDSet := make(map[string]struct{})
 
 	for _, filter := range filters {
-		for eventType := range filter.EventType {
-			eventTypeIdSet[eventTypeToInteger[eventType]] = struct{}{}
-		}
 		for _, contractID := range filter.ContractIDs {
 			contractIDSet[contractID] = struct{}{}
 		}
@@ -331,13 +321,7 @@ func combineFilters(filters []EventFilter) ([]int, []string) {
 	for contractID := range contractIDSet {
 		contractIDs = append(contractIDs, contractID)
 	}
-
-	eventTypes := make([]int, 0, len(eventTypeIdSet))
-	for eventType := range eventTypeIdSet {
-		eventTypes = append(eventTypes, eventType)
-	}
-
-	return eventTypes, contractIDs
+	return contractIDs
 }
 
 func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsRequest) (GetEventsResponse, error) {
@@ -370,7 +354,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 	}
 	var found []entry
 
-	eventTypeIds, contractIds := combineFilters(request.Filters)
+	contractIds := combineContractIds(request.Filters)
 
 	// Scan function to apply filters
 	f := func(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCloseTimestamp int64, txHash *xdr.Hash) bool {
@@ -380,13 +364,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		return uint(len(found)) < limit
 	}
 
-	err := h.dbReader.GetEvents(
-		ctx,
-		start,
-		eventTypeIds,
-		contractIds,
-		f,
-	)
+	err := h.dbReader.GetEvents(ctx, start, contractIds, f)
 
 	if err != nil {
 		return GetEventsResponse{}, &jrpc2.Error{

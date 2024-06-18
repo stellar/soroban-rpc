@@ -23,7 +23,7 @@ type EventWriter interface {
 
 // EventReader has all the public methods to fetch events from DB
 type EventReader interface {
-	GetEvents(ctx context.Context, startCursor events.Cursor, eventTypes []int, contractIds []string, f ScanFunction) error
+	GetEvents(ctx context.Context, startCursor events.Cursor, contractIds []string, f ScanFunction) error
 }
 
 type eventHandler struct {
@@ -123,7 +123,7 @@ func (eventHandler *eventHandler) trimEvents(latestLedgerSeq uint32, retentionWi
 	return err
 }
 
-func (eventHandler *eventHandler) GetEvents(ctx context.Context, startCursor events.Cursor, eventTypes []int, contractIds []string, f ScanFunction) error {
+func (eventHandler *eventHandler) GetEvents(ctx context.Context, startCursor events.Cursor, contractIds []string, f ScanFunction) error {
 
 	var rows []struct {
 		EventCursorId string              `db:"id"`
@@ -141,12 +141,8 @@ func (eventHandler *eventHandler) GetEvents(ctx context.Context, startCursor eve
 		rowQ = rowQ.Where(sq.Eq{"e.contract_id": contractIds})
 	}
 
-	if len(eventTypes) > 0 {
-		rowQ = rowQ.Where(sq.Eq{"e.event_type": eventTypes})
-	}
-
 	if err := eventHandler.db.Select(ctx, &rows, rowQ); err != nil {
-		return errors.Wrapf(err, "db read failed for startLedgerSequence= %d contractIds= %v eventType= %d ", startCursor.Ledger, contractIds, eventTypes)
+		return errors.Wrapf(err, "db read failed for startLedgerSequence= %d contractIds= %v", startCursor.Ledger, contractIds)
 	} else if len(rows) < 1 {
 		return errors.New("No LCM found with requested event filters")
 	}
