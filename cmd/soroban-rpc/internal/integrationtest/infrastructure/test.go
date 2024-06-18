@@ -194,7 +194,7 @@ func (i *Test) spawnContainers() {
 	i.runSuccessfulComposeCommand(upCmd...)
 	if i.runRPCInContainer() {
 		i.rpcContainerLogsCommand = i.getComposeCommand("logs", "--no-log-prefix", "-f", "rpc")
-		writer := testLogWriter{t: i.t, prefix: fmt.Sprintf(`rpc="container" version="%s" `, i.rpcContainerVersion)}
+		writer := newTestLogWriter(i.t, fmt.Sprintf(`rpc="container" version="%s" `, i.rpcContainerVersion))
 		i.rpcContainerLogsCommand.Stdout = writer
 		i.rpcContainerLogsCommand.Stderr = writer
 		require.NoError(i.t, i.rpcContainerLogsCommand.Start())
@@ -397,12 +397,34 @@ func (i *Test) generateRPCConfigFile(rpcConfig rpcConfig) {
 	require.NoError(i.t, err)
 }
 
-type testLogWriter struct {
-	t      *testing.T
-	prefix string
+func newTestLogWriter(t *testing.T, prefix string) *testLogWriter {
+	tw := &testLogWriter{t: t, prefix: prefix}
+	t.Cleanup(func() {
+		tw.testDoneMx.Lock()
+		tw.testDone = true
+		tw.testDoneMx.Unlock()
+	})
+	return tw
 }
 
-func (tw testLogWriter) Write(p []byte) (n int, err error) {
+type testLogWriter struct {
+	t          *testing.T
+	prefix     string
+	testDoneMx sync.RWMutex
+	testDone   bool
+}
+
+func (tw *testLogWriter) Write(p []byte) (n int, err error) {
+	tw.testDoneMx.RLock()
+	if tw.testDone {
+		// Workaround for https://github.com/stellar/go/issues/5342
+		// and https://github.com/stellar/go/issues/5350, which causes a race condition
+		// in test logging
+		// TODO: remove once the tickets are fixed
+		tw.testDoneMx.RUnlock()
+		return len(p), nil
+	}
+	tw.testDoneMx.RUnlock()
 	all := strings.TrimSpace(string(p))
 	lines := strings.Split(all, "\n")
 	for _, l := range lines {
@@ -423,7 +445,7 @@ func (i *Test) createRPCDaemon(c rpcConfig) *daemon.Daemon {
 	cfg.HistoryArchiveUserAgent = fmt.Sprintf("soroban-rpc/%s", config.Version)
 
 	logger := supportlog.New()
-	logger.SetOutput(testLogWriter{t: i.t, prefix: `rpc="daemon" `})
+	logger.SetOutput(newTestLogWriter(i.t, `rpc="daemon" `))
 	return daemon.MustNew(&cfg, logger)
 }
 
