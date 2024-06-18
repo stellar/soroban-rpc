@@ -1,29 +1,23 @@
-package test
+package integrationtest
 
 import (
 	"context"
-	"crypto/sha256"
 	"testing"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/stellar/go/txnbuild"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/xdr"
 
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/integrationtest/infrastructure"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 )
 
 func TestGetLedgerEntryNotFound(t *testing.T) {
-	test := NewTest(t, nil)
+	test := infrastructure.NewTest(t, nil)
 
-	client := test.GetRPCLient()
-
-	sourceAccount := keypair.Root(StandaloneNetworkPassphrase).Address()
-	contractID := getContractID(t, sourceAccount, testSalt, StandaloneNetworkPassphrase)
-	contractIDHash := xdr.Hash(contractID)
+	contractIDHash := xdr.Hash{0x1, 0x2}
 	keyB64, err := xdr.MarshalBase64(xdr.LedgerKey{
 		Type: xdr.LedgerEntryTypeContractData,
 		ContractData: &xdr.LedgerKeyContractData{
@@ -43,13 +37,14 @@ func TestGetLedgerEntryNotFound(t *testing.T) {
 	}
 
 	var result methods.GetLedgerEntryResponse
+	client := test.GetRPCLient()
 	jsonRPCErr := client.CallResult(context.Background(), "getLedgerEntry", request, &result).(*jrpc2.Error)
 	assert.Contains(t, jsonRPCErr.Message, "not found")
 	assert.Equal(t, jrpc2.InvalidRequest, jsonRPCErr.Code)
 }
 
 func TestGetLedgerEntryInvalidParams(t *testing.T) {
-	test := NewTest(t, nil)
+	test := infrastructure.NewTest(t, nil)
 
 	client := test.GetRPCLient()
 
@@ -64,31 +59,10 @@ func TestGetLedgerEntryInvalidParams(t *testing.T) {
 }
 
 func TestGetLedgerEntrySucceeds(t *testing.T) {
-	test := NewTest(t, nil)
+	test := infrastructure.NewTest(t, nil)
 
-	client := test.GetRPCLient()
+	_, contractHash := test.UploadHelloWorldContract()
 
-	kp := keypair.Root(StandaloneNetworkPassphrase)
-	account := txnbuild.NewSimpleAccount(kp.Address(), 0)
-
-	contractBinary := getHelloWorldContract(t)
-	params := preflightTransactionParams(t, client, txnbuild.TransactionParams{
-		SourceAccount:        &account,
-		IncrementSequenceNum: true,
-		Operations: []txnbuild.Operation{
-			createInstallContractCodeOperation(account.AccountID, contractBinary),
-		},
-		BaseFee: txnbuild.MinBaseFee,
-		Preconditions: txnbuild.Preconditions{
-			TimeBounds: txnbuild.NewInfiniteTimeout(),
-		},
-	})
-	tx, err := txnbuild.NewTransaction(params)
-	assert.NoError(t, err)
-
-	sendSuccessfulTransaction(t, client, kp, tx)
-
-	contractHash := sha256.Sum256(contractBinary)
 	keyB64, err := xdr.MarshalBase64(xdr.LedgerKey{
 		Type: xdr.LedgerEntryTypeContractCode,
 		ContractCode: &xdr.LedgerKeyContractCode{
@@ -101,11 +75,11 @@ func TestGetLedgerEntrySucceeds(t *testing.T) {
 	}
 
 	var result methods.GetLedgerEntryResponse
-	err = client.CallResult(context.Background(), "getLedgerEntry", request, &result)
+	err = test.GetRPCLient().CallResult(context.Background(), "getLedgerEntry", request, &result)
 	assert.NoError(t, err)
 	assert.Greater(t, result.LatestLedger, uint32(0))
 	assert.GreaterOrEqual(t, result.LatestLedger, result.LastModifiedLedger)
 	var entry xdr.LedgerEntryData
 	assert.NoError(t, xdr.SafeUnmarshalBase64(result.XDR, &entry))
-	assert.Equal(t, contractBinary, entry.MustContractCode().Code)
+	assert.Equal(t, infrastructure.GetHelloWorldContract(), entry.MustContractCode().Code)
 }

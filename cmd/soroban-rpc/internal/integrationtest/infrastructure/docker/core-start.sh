@@ -12,8 +12,11 @@ fi
 echo "using config:"
 cat stellar-core.cfg
 
-# initialize new db
-stellar-core new-db
+# initialize new db (retry a few times to wait for the database to be available)
+until stellar-core new-db; do
+  sleep 0.2
+  echo "couldn't create new db, retrying"
+done
 
 if [ "$1" = "standalone" ]; then
   # initialize for new history archive path, remove any pre-existing on same path from base image
