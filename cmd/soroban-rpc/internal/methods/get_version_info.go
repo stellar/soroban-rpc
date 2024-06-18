@@ -12,10 +12,10 @@ import (
 
 type GetVersionInfoResponse struct {
 	Version            string `json:"version"`
-	CommitHash         string `json:"commit_hash"`
-	BuildTimestamp     string `json:"build_time_stamp"`
-	CaptiveCoreVersion string `json:"captive_core_version"`
-	ProtocolVersion    uint32 `json:"protocol_version"`
+	CommitHash         string `json:"commitHash"`
+	BuildTimestamp     string `json:"buildTimestamp"`
+	CaptiveCoreVersion string `json:"captiveCoreVersion"`
+	ProtocolVersion    uint32 `json:"protocolVersion"`
 }
 
 func NewGetVersionInfoHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntryReader, ledgerReader db.LedgerReader, daemon interfaces.Daemon) jrpc2.Handler {

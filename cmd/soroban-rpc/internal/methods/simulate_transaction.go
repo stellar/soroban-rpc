@@ -131,8 +131,8 @@ func (l *LedgerEntryChange) FromXDRDiff(diff preflight.XDRDiff) error {
 	return nil
 }
 
-// LedgerEntryChange designates a change in a ledger entry. Before and After cannot be be omitted at the same time.
-// If Before is omitted, it constitutes a creation, if After is omitted, it constitutes a delation.
+// LedgerEntryChange designates a change in a ledger entry. Before and After cannot be omitted at the same time.
+// If Before is omitted, it constitutes a creation, if After is omitted, it constitutes a deletion.
 type LedgerEntryChange struct {
 	Type   LedgerEntryChangeType `json:"type"`
 	Key    string                `json:"key"`    // LedgerEntryKey in base64
