@@ -314,6 +314,32 @@ type eventsRPCHandler struct {
 	networkPassphrase string
 }
 
+func combineFilters(filters []EventFilter) ([]int, []string) {
+	eventTypeIdSet := make(map[int]struct{})
+	contractIDSet := make(map[string]struct{})
+
+	for _, filter := range filters {
+		for eventType := range filter.EventType {
+			eventTypeIdSet[eventTypeToInteger[eventType]] = struct{}{}
+		}
+		for _, contractID := range filter.ContractIDs {
+			contractIDSet[contractID] = struct{}{}
+		}
+	}
+
+	contractIDs := make([]string, 0, len(contractIDSet))
+	for contractID := range contractIDSet {
+		contractIDs = append(contractIDs, contractID)
+	}
+
+	eventTypes := make([]int, 0, len(eventTypeIdSet))
+	for eventType := range eventTypeIdSet {
+		eventTypes = append(eventTypes, eventType)
+	}
+
+	return eventTypes, contractIDs
+}
+
 func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsRequest) (GetEventsResponse, error) {
 	if err := request.Valid(h.maxLimit); err != nil {
 		return GetEventsResponse{}, &jrpc2.Error{
@@ -337,63 +363,35 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 	}
 
 	type entry struct {
-		cursor               db.Cursor
+		cursor               events.Cursor
 		ledgerCloseTimestamp int64
 		event                xdr.DiagnosticEvent
 		txHash               *xdr.Hash
 	}
 	var found []entry
 
-	if len(request.Filters) == 0 {
-		err := h.dbReader.GetEvents(
-			ctx,
-			int(request.StartLedger),
-			nil,
-			nil,
+	eventTypeIds, contractIds := combineFilters(request.Filters)
 
-			func(event xdr.DiagnosticEvent, cursor db.Cursor, ledgerCloseTimestamp int64, txHash *xdr.Hash) bool {
-				found = append(found, entry{cursor, ledgerCloseTimestamp, event, txHash})
-				return uint(len(found)) < limit
-			},
-		)
-
-		if err != nil {
-			return GetEventsResponse{}, &jrpc2.Error{
-				Code:    jrpc2.InvalidRequest,
-				Message: err.Error(),
-			}
+	// Scan function to apply filters
+	f := func(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCloseTimestamp int64, txHash *xdr.Hash) bool {
+		if request.Matches(event) && cursor.Cmp(start) >= 0 {
+			found = append(found, entry{cursor, ledgerCloseTimestamp, event, txHash})
 		}
-
+		return uint(len(found)) < limit
 	}
 
-	for _, filter := range request.Filters {
+	err := h.dbReader.GetEvents(
+		ctx,
+		start,
+		eventTypeIds,
+		contractIds,
+		f,
+	)
 
-		var eventTypes []int
-		for key := range filter.EventType {
-			eventTypes = append(eventTypes, eventTypeToInteger[key])
-		}
-
-		// Scan function to apply filter and to remove duplicates if any
-		f := func(event xdr.DiagnosticEvent, cursor db.Cursor, ledgerCloseTimestamp int64, txHash *xdr.Hash) bool {
-			if filter.Matches(event) {
-				found = append(found, entry{cursor, ledgerCloseTimestamp, event, txHash})
-			}
-			return uint(len(found)) < limit
-		}
-
-		err := h.dbReader.GetEvents(
-			ctx,
-			int(request.StartLedger),
-			eventTypes,
-			filter.ContractIDs,
-			f,
-		)
-
-		if err != nil {
-			return GetEventsResponse{}, &jrpc2.Error{
-				Code:    jrpc2.InvalidRequest,
-				Message: err.Error(),
-			}
+	if err != nil {
+		return GetEventsResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InvalidRequest,
+			Message: err.Error(),
 		}
 	}
 
@@ -417,7 +415,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 	}, nil
 }
 
-func eventInfoForEvent(event xdr.DiagnosticEvent, cursor db.Cursor, ledgerClosedAt string, txHash string) (EventInfo, error) {
+func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerClosedAt string, txHash string) (EventInfo, error) {
 	v0, ok := event.Event.Body.GetV0()
 	if !ok {
 		return EventInfo{}, errors.New("unknown event version")

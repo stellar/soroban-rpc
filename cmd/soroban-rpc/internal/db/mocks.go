@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"io"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -48,7 +49,7 @@ func NewMockEventStore(passphrase string) *mockEventHandler {
 	}
 }
 
-func (txn *mockEventHandler) GetEvents(ctx context.Context, startLedgerSequence int, eventTypes []int, contractIds []string, f ScanFunction) error {
+func (txn *mockEventHandler) GetEvents(ctx context.Context, start events.Cursor, eventTypes []int, contractIds []string, f ScanFunction) error {
 	return nil
 }
 
