@@ -48,7 +48,7 @@ func MakeHTTPRequestDurationLimiter(
 	warningCounter increasingCounter,
 	limitCounter increasingCounter,
 	logger *log.Entry,
-) *httpRequestDurationLimiter {
+) http.Handler {
 	// make sure the warning threshold is less then the limit threshold; otherwise, just set it to the limit threshold.
 	if warningThreshold > limitThreshold {
 		warningThreshold = limitThreshold
@@ -196,7 +196,7 @@ func (q *httpRequestDurationLimiter) ServeHTTP(res http.ResponseWriter, req *htt
 	}
 }
 
-type rpcRequestDurationLimiter struct {
+type RPCRequestDurationLimiter struct {
 	jrpcDownstreamHandler jrpc2.Handler
 	requestDurationLimiter
 }
@@ -208,13 +208,13 @@ func MakeJrpcRequestDurationLimiter(
 	warningCounter increasingCounter,
 	limitCounter increasingCounter,
 	logger *log.Entry,
-) *rpcRequestDurationLimiter {
+) *RPCRequestDurationLimiter {
 	// make sure the warning threshold is less then the limit threshold; otherwise, just set it to the limit threshold.
 	if warningThreshold > limitThreshold {
 		warningThreshold = limitThreshold
 	}
 
-	return &rpcRequestDurationLimiter{
+	return &RPCRequestDurationLimiter{
 		jrpcDownstreamHandler: downstream,
 		requestDurationLimiter: requestDurationLimiter{
 			warningThreshold: warningThreshold,
@@ -226,7 +226,10 @@ func MakeJrpcRequestDurationLimiter(
 	}
 }
 
-func (q *rpcRequestDurationLimiter) Handle(ctx context.Context, req *jrpc2.Request) (interface{}, error) {
+// TODO: this function is too complicated we should fix this and remove the nolint:gocognit
+//
+//nolint:gocognit,cyclop
+func (q *RPCRequestDurationLimiter) Handle(ctx context.Context, req *jrpc2.Request) (interface{}, error) {
 	if q.limitThreshold == RequestDurationLimiterNoLimit {
 		// if specified max duration, pass-through
 		return q.jrpcDownstreamHandler(ctx, req)

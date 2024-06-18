@@ -81,8 +81,8 @@ clean:
 build-soroban-rpc: build-libpreflight
 	go build -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} -o soroban-rpc -trimpath -v ./cmd/soroban-rpc
 
-go-check-changes:
-	golangci-lint run ./... --new-from-rev $$(git rev-parse HEAD)
+go-check-branch:
+	golangci-lint run ./... --new-from-rev $$(git rev-parse origin/main)
 
 go-check:
 	golangci-lint run ./...

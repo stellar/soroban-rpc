@@ -38,7 +38,7 @@ func main() {
 		Short: "Print version information and exit",
 		Run: func(_ *cobra.Command, _ []string) {
 			if config.CommitHash == "" {
-				//nolint:forbidgo
+				//nolint:forbidigo
 				fmt.Printf("soroban-rpc dev\n")
 			} else {
 				// avoid printing the branch for the main branch

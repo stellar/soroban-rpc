@@ -67,9 +67,11 @@ func (d *Daemon) GetDB() *db.DB {
 }
 
 func (d *Daemon) GetEndpointAddrs() (net.TCPAddr, *net.TCPAddr) {
+	//nolint:forcetypeassert
 	addr := d.listener.Addr().(*net.TCPAddr)
 	var adminAddr *net.TCPAddr
 	if d.adminListener != nil {
+		//nolint:forcetypeassert
 		adminAddr = d.adminListener.Addr().(*net.TCPAddr)
 	}
 	return *addr, adminAddr

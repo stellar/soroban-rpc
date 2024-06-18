@@ -76,10 +76,7 @@ linters-settings:
     # Forbid the following identifiers (list of regexp).
     # Default: ["^(fmt\\.Print(|f|ln)|print|println)$"]
     forbid:
-      # Builtin function:
-      - ^print.*$
-      # Optional message that gets included in error reports.
-      - p: ^fmt\.Print.*$
+      - p: "^(fmt\\.Print(|f|ln)|print|println)$"
         msg: Do not commit debug print statements.
       - p: .*
         pkg: ^stellar/go/support/errors$

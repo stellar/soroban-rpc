@@ -16,6 +16,7 @@ func parseBool(option *ConfigOption, i interface{}) error {
 	case nil:
 		return nil
 	case bool:
+		//nolint:forcetypeassert
 		*option.ConfigKey.(*bool) = v
 	case string:
 		lower := strings.ToLower(v)
@@ -23,6 +24,7 @@ func parseBool(option *ConfigOption, i interface{}) error {
 		if err != nil {
 			return fmt.Errorf("invalid boolean value %s: %s", option.Name, v)
 		}
+		//nolint:forcetypeassert
 		*option.ConfigKey.(*bool) = b
 	default:
 		return fmt.Errorf("could not parse boolean %s: %v", option.Name, i)
