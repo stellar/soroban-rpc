@@ -23,11 +23,12 @@ jobs:
 
       # core git ref should be latest commit for stable soroban functionality
       # the core bin can either be compiled in-line here as part of ci,
-      SYSTEM_TEST_CORE_GIT_REF: https://github.com/stellar/stellar-core.git#v20.1.0
+      SYSTEM_TEST_CORE_GIT_REF:
       SYSTEM_TEST_CORE_COMPILE_CONFIGURE_FLAGS: "--disable-tests"
       # or set SYSTEM_TEST_CORE_GIT_REF to empty, and set SYSTEM_TEST_CORE_IMAGE
       # to pull a pre-compiled image from dockerhub instead
-      SYSTEM_TEST_CORE_IMAGE:
+      SYSTEM_TEST_CORE_IMAGE: stellar/stellar-core:20
+      SYSTEM_TEST_CORE_IMAGE_BIN_PATH: /usr/bin/stellar-core 
 
       # sets the version of rust toolchain that will be pre-installed in the
       # test runtime environment, tests invoke rustc/cargo
@@ -98,6 +99,7 @@ jobs:
             CORE_GIT_REF=$SYSTEM_TEST_CORE_GIT_REF \
             CORE_COMPILE_CONFIGURE_FLAGS="$SYSTEM_TEST_CORE_COMPILE_CONFIGURE_FLAGS" \
             CORE_IMAGE=$SYSTEM_TEST_CORE_IMAGE \
+            CORE_IMAGE_BIN_PATH=$SYSTEM_TEST_CORE_IMAGE_BIN_PATH \
             SOROBAN_RPC_GIT_REF=$SYSTEM_TEST_SOROBAN_RPC_REF \
             SOROBAN_CLI_GIT_REF=$SYSTEM_TEST_SOROBAN_CLI_REF \
             RUST_TOOLCHAIN_VERSION=$SYSTEM_TEST_RUST_TOOLCHAIN_VERSION \
