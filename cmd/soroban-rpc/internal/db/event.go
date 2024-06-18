@@ -166,13 +166,13 @@ func (eventHandler *eventHandler) GetEvents(ctx context.Context, startCursor eve
 		diagEvents, diagErr := ledgerTx.GetDiagnosticEvents()
 
 		if diagErr != nil {
-			return errors.Wrapf(err, "db read failed for Event Id %d", eventCursorId)
+			return errors.Wrapf(err, "db read failed for Event Id %s", eventCursorId)
 		}
 
 		// Find events based on filter passed in function f
 		for eventIndex, event := range diagEvents {
 			cur := events.Cursor{lcm.LedgerSequence(), uint32(txIndex), 0, uint32(eventIndex)}
-			if !f(event, cur, ledgerCloseTime, &transactionHash) {
+			if f != nil && !f(event, cur, ledgerCloseTime, &transactionHash) {
 				return nil
 			}
 		}
