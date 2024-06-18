@@ -144,7 +144,7 @@ func SimulateTransactionFromTxParams(t *testing.T, client *Client, params txnbui
 
 func PreflightTransactionParamsLocally(t *testing.T, params txnbuild.TransactionParams, response methods.SimulateTransactionResponse) txnbuild.TransactionParams {
 	if !assert.Empty(t, response.Error) {
-		fmt.Println(response.Error)
+		t.Log(response.Error)
 	}
 	var transactionData xdr.SorobanTransactionData
 	err := xdr.SafeUnmarshalBase64(response.TransactionData, &transactionData)
