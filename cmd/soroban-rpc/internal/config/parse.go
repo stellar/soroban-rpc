@@ -21,7 +21,7 @@ func parseBool(option *ConfigOption, i interface{}) error {
 		lower := strings.ToLower(v)
 		b, err := strconv.ParseBool(lower)
 		if err != nil {
-			return err
+			return fmt.Errorf("invalid boolean value %s: %s", option.Name, v)
 		}
 		*option.ConfigKey.(*bool) = b
 	default:
