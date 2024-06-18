@@ -8,7 +8,7 @@ permissions:
   pull-requests: read
 
 jobs:
-  golangci:
+  golangci-lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
