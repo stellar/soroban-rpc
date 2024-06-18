@@ -1,3 +1,4 @@
+//nolint:mnd // lots of magic constants due to default values
 package config
 
 import (

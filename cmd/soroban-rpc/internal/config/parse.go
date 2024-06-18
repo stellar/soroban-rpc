@@ -19,13 +19,11 @@ func parseBool(option *ConfigOption, i interface{}) error {
 		*option.ConfigKey.(*bool) = v
 	case string:
 		lower := strings.ToLower(v)
-		if lower == "true" {
-			*option.ConfigKey.(*bool) = true
-		} else if lower == "false" {
-			*option.ConfigKey.(*bool) = false
-		} else {
-			return fmt.Errorf("invalid boolean value %s: %s", option.Name, v)
+		b, err := strconv.ParseBool(lower)
+		if err != nil {
+			return err
 		}
+		*option.ConfigKey.(*bool) = b
 	default:
 		return fmt.Errorf("could not parse boolean %s: %v", option.Name, i)
 	}

@@ -294,7 +294,7 @@ func (w writeTx) Commit(ledgerSeq uint32) error {
 	}
 
 	_, err := sq.Replace(metaTableName).
-		Values(latestLedgerSequenceMetaKey, fmt.Sprintf("%d", ledgerSeq)).
+		Values(latestLedgerSequenceMetaKey, strconv.FormatUint(uint64(ledgerSeq), 10)).
 		RunWith(w.stmtCache).
 		Exec()
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/stellar/go/support/log"
 )
 
@@ -62,7 +63,7 @@ func (pg *panicGroup) recoverRoutine(fn func()) {
 		return
 	}
 	cs := getPanicCallStack(recoverRes, fn)
-	if len(cs) <= 0 {
+	if len(cs) == 0 {
 		return
 	}
 	if pg.log != nil {
@@ -90,7 +91,7 @@ func getPanicCallStack(recoverRes any, fn func()) (outCallStack []string) {
 }
 
 // CallStack returns an array of strings representing the current call stack. The method is
-// tuned for the purpose of panic handler, and used as a helper in contructing the list of entries we want
+// tuned for the purpose of panic handler, and used as a helper in constructing the list of entries we want
 // to write to the log / stderr / telemetry.
 func CallStack(recoverRes any, topLevelFunctionName string, lastCallstackMethod string, unwindStackLines int) (callStack []string) {
 	if topLevelFunctionName != "" {

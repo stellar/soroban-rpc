@@ -85,7 +85,7 @@ func (l ledgerEntryWriter) maybeFlush() error {
 func (l ledgerEntryWriter) flush() error {
 	upsertCount := 0
 	upsertSQL := sq.StatementBuilder.RunWith(l.stmtCache).Replace(ledgerEntriesTableName)
-	var deleteKeys = make([]string, 0, len(l.keyToEntryBatch))
+	deleteKeys := make([]string, 0, len(l.keyToEntryBatch))
 
 	upsertCacheUpdates := make(map[string]*string, len(l.keyToEntryBatch))
 	for key, entry := range l.keyToEntryBatch {

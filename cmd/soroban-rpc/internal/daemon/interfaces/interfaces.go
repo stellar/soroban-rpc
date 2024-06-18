@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/prometheus/client_golang/prometheus"
+
 	proto "github.com/stellar/go/protocols/stellarcore"
 )
 
@@ -18,5 +19,5 @@ type Daemon interface {
 
 type CoreClient interface {
 	Info(ctx context.Context) (*proto.InfoResponse, error)
-	SubmitTransaction(context.Context, string) (*proto.TXResponse, error)
+	SubmitTransaction(ctx context.Context, txBase64 string) (*proto.TXResponse, error)
 }

@@ -237,9 +237,9 @@ func (txn *transactionHandler) getTransactionByHash(ctx context.Context, hash xd
 	}
 	rowQ := sq.
 		Select("t.application_order", "lcm.meta").
-		From(fmt.Sprintf("%s t", transactionTableName)).
-		Join(fmt.Sprintf("%s lcm ON (t.ledger_sequence = lcm.sequence)", ledgerCloseMetaTableName)).
-		Where(sq.Eq{"t.hash": []byte(hash[:])}).
+		From(transactionTableName + " t").
+		Join(ledgerCloseMetaTableName + " lcm ON (t.ledger_sequence = lcm.sequence)").
+		Where(sq.Eq{"t.hash": hash[:]}).
 		Limit(1)
 
 	if err := txn.db.Select(ctx, &rows, rowQ); err != nil {

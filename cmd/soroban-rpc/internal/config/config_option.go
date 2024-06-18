@@ -1,12 +1,12 @@
 package config
 
 import (
-	"fmt"
 	"reflect"
 	"strconv"
 	"time"
 
 	"github.com/spf13/pflag"
+
 	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/strutils"
 )
@@ -28,7 +28,7 @@ func (options ConfigOptions) Validate() error {
 				missingOptions = append(missingOptions, missingOption)
 				continue
 			}
-			return errors.Wrap(err, fmt.Sprintf("Invalid config value for %s", option.Name))
+			return errors.New("Invalid config value for " + option.Name)
 		}
 	}
 	if len(missingOptions) > 0 {

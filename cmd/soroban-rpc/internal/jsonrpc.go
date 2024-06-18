@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/cors"
+
 	"github.com/stellar/go/support/log"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
@@ -139,7 +140,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 	// While we transition from in-memory to database-oriented history storage,
 	// the on-disk (transaction) retention window will always be larger than the
 	// in-memory (events) one.
-	var retentionWindow = cfg.TransactionLedgerRetentionWindow
+	retentionWindow := cfg.TransactionLedgerRetentionWindow
 
 	handlers := []struct {
 		methodName           string

@@ -9,6 +9,7 @@ import (
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
+
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/log"
@@ -151,7 +152,7 @@ LedgerLoop:
 			}
 		}
 
-		// Initialise tx reader.
+		// Initialize tx reader.
 		reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(h.networkPassphrase, ledger)
 		if err != nil {
 			return GetTransactionsResponse{}, &jrpc2.Error{
