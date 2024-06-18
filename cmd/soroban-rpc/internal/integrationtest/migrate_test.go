@@ -1,4 +1,4 @@
-package test
+package integrationtest
 
 import (
 	"context"
@@ -8,11 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stellar/go/keypair"
-	"github.com/stellar/go/txnbuild"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/integrationtest/infrastructure"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 )
 
@@ -20,8 +18,8 @@ import (
 // We cannot test prior protocol versions since the Transaction XDR used for the test could be incompatible
 // TODO: find a way to test migrations between protocols
 func TestMigrate(t *testing.T) {
-	if GetCoreMaxSupportedProtocol() != MaxSupportedProtocolVersion {
-		t.Skip("Only test this for the latest protocol: ", MaxSupportedProtocolVersion)
+	if infrastructure.GetCoreMaxSupportedProtocol() != infrastructure.MaxSupportedProtocolVersion {
+		t.Skip("Only test this for the latest protocol: ", infrastructure.MaxSupportedProtocolVersion)
 	}
 	for _, originVersion := range getCurrentProtocolReleasedVersions(t) {
 		if originVersion == "21.1.0" {
@@ -41,37 +39,28 @@ func TestMigrate(t *testing.T) {
 
 func testMigrateFromVersion(t *testing.T, version string) {
 	sqliteFile := filepath.Join(t.TempDir(), "soroban-rpc.db")
-	it := NewTest(t, &TestConfig{
+	test := infrastructure.NewTest(t, &infrastructure.TestConfig{
 		UseReleasedRPCVersion: version,
-		UseSQLitePath:         sqliteFile,
+		SQLitePath:            sqliteFile,
 	})
-
-	client := it.GetRPCLient()
 
 	// Submit an event-logging transaction in the version to migrate from
-	kp := keypair.Root(StandaloneNetworkPassphrase)
-	address := kp.Address()
-	account := txnbuild.NewSimpleAccount(address, 0)
+	submitTransactionResponse, _ := test.UploadHelloWorldContract()
 
-	contractBinary := getHelloWorldContract(t)
-	params := preflightTransactionParams(t, client, txnbuild.TransactionParams{
-		SourceAccount:        &account,
-		IncrementSequenceNum: true,
-		Operations: []txnbuild.Operation{
-			createInstallContractCodeOperation(account.AccountID, contractBinary),
+	// Replace RPC with the current version, but keeping the previous network and sql database (causing any data migrations)
+	// We need to do some wiring to plug RPC into the prior network
+	test.StopRPC()
+	corePorts := test.GetPorts().TestCorePorts
+	test = infrastructure.NewTest(t, &infrastructure.TestConfig{
+		// We don't want to run Core again
+		OnlyRPC: &infrastructure.TestOnlyRPCConfig{
+			CorePorts: corePorts,
+			DontWait:  false,
 		},
-		BaseFee: txnbuild.MinBaseFee,
-		Preconditions: txnbuild.Preconditions{
-			TimeBounds: txnbuild.NewInfiniteTimeout(),
-		},
+		SQLitePath: sqliteFile,
+		// We don't want to mark the test as parallel twice since it causes a panic
+		NoParallel: true,
 	})
-	tx, err := txnbuild.NewTransaction(params)
-	assert.NoError(t, err)
-	submitTransactionResponse := sendSuccessfulTransaction(t, client, kp, tx)
-
-	// Run the current RPC version, but the previous network and sql database (causing a data migration if needed)
-	it.StopRPC()
-	it = NewTest(t, &TestConfig{UseSQLitePath: sqliteFile})
 
 	// make sure that the transaction submitted before and its events exist in current RPC
 	var transactionsResult methods.GetTransactionsResponse
@@ -81,7 +70,7 @@ func testMigrateFromVersion(t *testing.T, version string) {
 			Limit: 1,
 		},
 	}
-	err = client.CallResult(context.Background(), "getTransactions", getTransactions, &transactionsResult)
+	err := test.GetRPCLient().CallResult(context.Background(), "getTransactions", getTransactions, &transactionsResult)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(transactionsResult.Transactions))
 	require.Equal(t, submitTransactionResponse.Ledger, transactionsResult.Transactions[0].Ledger)
@@ -93,16 +82,16 @@ func testMigrateFromVersion(t *testing.T, version string) {
 			Limit: 1,
 		},
 	}
-	err = client.CallResult(context.Background(), "getEvents", getEventsRequest, &eventsResult)
+	err = test.GetRPCLient().CallResult(context.Background(), "getEvents", getEventsRequest, &eventsResult)
 	require.NoError(t, err)
 	require.Equal(t, len(eventsResult.Events), 1)
 	require.Equal(t, submitTransactionResponse.Ledger, uint32(eventsResult.Events[0].Ledger))
 }
 
 func getCurrentProtocolReleasedVersions(t *testing.T) []string {
-	protocolStr := strconv.Itoa(MaxSupportedProtocolVersion)
+	protocolStr := strconv.Itoa(infrastructure.MaxSupportedProtocolVersion)
 	cmd := exec.Command("git", "tag")
-	cmd.Dir = GetCurrentDirectory()
+	cmd.Dir = infrastructure.GetCurrentDirectory()
 	out, err := cmd.Output()
 	require.NoError(t, err)
 	tags := strings.Split(string(out), "\n")
