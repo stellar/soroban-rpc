@@ -77,11 +77,12 @@ linters-settings:
     # Default: ["^(fmt\\.Print(|f|ln)|print|println)$"]
     forbid:
       - p: "^(fmt\\.Print(|f|ln)|print|println)$"
-        msg: Do not commit debug print statements.
-      - p: .*
-        pkg: ^stellar/go/support/errors$
-        message: use standard errors package and fmt.Errorf().
+        msg: Do not commit debug print statements (in tests use t.Log()).
+      - p: "^.*$"
+        pkg: "^github.com/stellar/go/support/errors$"
+        msg: Do not use stellar/go/support/errors, use the standard 'errors' package and fmt.Errorf().
     exclude-godoc-examples: false
+    analyze-types: true
 
 linters:
   enable-all: true
@@ -94,7 +95,7 @@ linters:
     # exhaustruct: enforcing exhaustive fields is useful in some cases, but there are
     #              too many legitimate default field values in Go
     - exhaustruct
-    # err113: Enforcing errors.Is() is useful but cannot be enabled in isoation
+    # err113: Enforcing errors.Is() is useful but cannot be enabled in isolation
     - err113
     - thelper
     - wsl
