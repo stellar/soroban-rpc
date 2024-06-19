@@ -8,7 +8,7 @@ permissions:
   contents: read
   # Optional: allow read access to pull request. Use with `only-new-issues` option.
   pull-requests: read
-  # Optional: allow write access to checks to allow the action to annotate code in the PR.
+  # Optional: allow the action to annotate code in the PR.
   checks: write
 
 jobs:
@@ -16,14 +16,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # version v3.0.2
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0 # required for new-from-rev option in .golangci.yml
 
-      - name: Setup GO
-        uses: actions/setup-go@268d8c0ca0432bb2cf416faae41297df9d262d7f # version v3.3.0
-        with:
-          go-version: '>=1.22.1'
+      - uses: ./.github/actions/setup-go
 
       - uses: stellar/actions/rust-cache@main
       - name: Build libpreflight
