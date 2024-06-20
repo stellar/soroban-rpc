@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/stellar/go/network"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/go/clients/stellarcore"
@@ -211,12 +210,12 @@ func (i *Test) spawnContainers() {
 
 func (i *Test) insertTransactions() {
 	i.t.Logf("inserting transactions")
-	testDb, err := db.OpenSQLiteDB(i.sqlitePath)
-	assert.NoError(i.t, err)
+	testDB, err := db.OpenSQLiteDB(i.sqlitePath)
+	require.NoError(i.t, err)
 
-	writer := db.NewReadWriter(supportlog.New(), testDb, interfaces.MakeNoOpDeamon(), 100, 1_000_000, network.FutureNetworkPassphrase)
+	writer := db.NewReadWriter(supportlog.New(), testDB, interfaces.MakeNoOpDeamon(), 100, 1_000_000, network.FutureNetworkPassphrase)
 	write, err := writer.NewTx(context.Background())
-	assert.NoError(i.t, err)
+	require.NoError(i.t, err)
 
 	lcms := make([]xdr.LedgerCloseMeta, 0, 3)
 	for i := uint32(0); i < uint32(cap(lcms)); i++ {
@@ -225,9 +224,9 @@ func (i *Test) insertTransactions() {
 
 	_, txW := write.LedgerWriter(), write.TransactionWriter()
 	for _, lcm := range lcms {
-		assert.NoError(i.t, txW.InsertTransactions(lcm))
+		require.NoError(i.t, txW.InsertTransactions(lcm))
 	}
-	assert.NoError(i.t, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
+	require.NoError(i.t, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
 }
 
 func (i *Test) stopContainers() {
@@ -443,7 +442,7 @@ type testLogWriter struct {
 	testDone   bool
 }
 
-func (tw *testLogWriter) Write(p []byte) (n int, err error) {
+func (tw *testLogWriter) Write(p []byte) (int, error) {
 	tw.testDoneMx.RLock()
 	if tw.testDone {
 		// Workaround for https://github.com/stellar/go/issues/5342
@@ -564,17 +563,28 @@ func (i *Test) prepareShutdownHandlers() {
 	i.shutdown = func() {
 		close(done)
 		if i.daemon != nil {
-			i.daemon.Close()
+			err := i.daemon.Close()
+			if err != nil {
+				fmt.Errorf("could not close RPC daemon: %v", err)
+				return
+			}
 			i.daemon = nil
 		}
 		if i.rpcClient != nil {
-			i.rpcClient.Close()
+			err := i.rpcClient.Close()
+			if err != nil {
+				fmt.Errorf("could not close RPC client: %v", err)
+				return
+			}
 		}
 		if i.areThereContainers() {
 			i.stopContainers()
 		}
 		if i.rpcContainerLogsCommand != nil {
-			i.rpcContainerLogsCommand.Wait()
+			err := i.rpcContainerLogsCommand.Wait()
+			if err != nil {
+				return
+			}
 		}
 	}
 
@@ -647,7 +657,11 @@ func (i *Test) UpgradeProtocol(version uint32) {
 
 func (i *Test) StopRPC() {
 	if i.daemon != nil {
-		i.daemon.Close()
+		err := i.daemon.Close()
+		if err != nil {
+			fmt.Errorf("could not close RPC daemon: %v", err)
+			return
+		}
 		i.daemon = nil
 	}
 	if i.runRPCInContainer() {
@@ -666,7 +680,7 @@ func (i *Test) GetDaemon() *daemon.Daemon {
 func (i *Test) SendMasterOperation(op txnbuild.Operation) methods.GetTransactionResponse {
 	params := CreateTransactionParams(i.MasterAccount(), op)
 	tx, err := txnbuild.NewTransaction(params)
-	assert.NoError(i.t, err)
+	require.NoError(i.t, err)
 	return i.SendMasterTransaction(tx)
 }
 
@@ -686,7 +700,7 @@ func (i *Test) PreflightAndSendMasterOperation(op txnbuild.Operation) methods.Ge
 	)
 	params = PreflightTransactionParams(i.t, i.rpcClient, params)
 	tx, err := txnbuild.NewTransaction(params)
-	assert.NoError(i.t, err)
+	require.NoError(i.t, err)
 	return i.SendMasterTransaction(tx)
 }
 
