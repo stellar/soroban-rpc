@@ -1,3 +1,4 @@
+//nolint:mnd
 package events
 
 import (
@@ -237,7 +238,7 @@ func readEvents(networkPassphrase string, ledgerCloseMeta xdr.LedgerCloseMeta) (
 	for {
 		var tx ingest.LedgerTransaction
 		tx, err = txReader.Read()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			err = nil
 			break
 		}
@@ -271,7 +272,7 @@ func readEvents(networkPassphrase string, ledgerCloseMeta xdr.LedgerCloseMeta) (
 }
 
 // GetLedgerRange returns the first and latest ledger available in the store.
-func (m *MemoryStore) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
+func (m *MemoryStore) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	return m.eventsByLedger.GetLedgerRange(), nil

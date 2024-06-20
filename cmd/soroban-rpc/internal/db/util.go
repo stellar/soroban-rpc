@@ -7,12 +7,18 @@ import (
 
 // Methods for creating test txMeta
 
+const (
+	TxMetaV                 = 3
+	LedgerCloseTimeConstant = 100
+	FeeCharged              = 100
+)
+
 func CreateTxMeta(acctSeq uint32, successful bool) xdr.LedgerCloseMeta {
 	envelope := txEnvelope(acctSeq)
 	txProcessing := []xdr.TransactionResultMeta{
 		{
 			TxApplyProcessing: xdr.TransactionMeta{
-				V:          3,
+				V:          TxMetaV,
 				Operations: &[]xdr.OperationMeta{},
 				V3:         &xdr.TransactionMetaV3{},
 			},
@@ -38,7 +44,7 @@ func CreateTxMeta(acctSeq uint32, successful bool) xdr.LedgerCloseMeta {
 			LedgerHeader: xdr.LedgerHeaderHistoryEntry{
 				Header: xdr.LedgerHeader{
 					ScpValue: xdr.StellarValue{
-						CloseTime: xdr.TimePoint(LedgerCloseTime(acctSeq + 100)),
+						CloseTime: xdr.TimePoint(LedgerCloseTime(acctSeq)),
 					},
 					LedgerSeq: xdr.Uint32(acctSeq),
 				},
@@ -88,7 +94,7 @@ func transactionResult(successful bool) xdr.TransactionResult {
 	}
 	opResults := []xdr.OperationResult{}
 	return xdr.TransactionResult{
-		FeeCharged: 100,
+		FeeCharged: FeeCharged,
 		Result: xdr.TransactionResultResult{
 			Code:    code,
 			Results: &opResults,
@@ -97,5 +103,5 @@ func transactionResult(successful bool) xdr.TransactionResult {
 }
 
 func LedgerCloseTime(ledgerSequence uint32) int64 {
-	return int64(ledgerSequence)*25 + 100
+	return int64(ledgerSequence)*25 + LedgerCloseTimeConstant
 }

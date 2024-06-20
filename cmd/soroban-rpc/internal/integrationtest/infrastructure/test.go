@@ -1,8 +1,10 @@
+//nolint:intrange
 package infrastructure
 
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -550,7 +552,8 @@ func (i *Test) runSuccessfulComposeCommand(args ...string) []byte {
 	if err != nil {
 		i.t.Log("Compose command failed, args:", args)
 	}
-	if exitErr, ok := err.(*exec.ExitError); ok {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
 		i.t.Log("stdout:\n", string(out))
 		i.t.Log("stderr:\n", string(exitErr.Stderr))
 	}
@@ -565,7 +568,7 @@ func (i *Test) prepareShutdownHandlers() {
 		if i.daemon != nil {
 			err := i.daemon.Close()
 			if err != nil {
-				fmt.Errorf("could not close RPC daemon: %v", err)
+				i.t.Logf("could not close RPC daemon: %v", err)
 				return
 			}
 			i.daemon = nil
@@ -573,7 +576,7 @@ func (i *Test) prepareShutdownHandlers() {
 		if i.rpcClient != nil {
 			err := i.rpcClient.Close()
 			if err != nil {
-				fmt.Errorf("could not close RPC client: %v", err)
+				i.t.Logf("could not close RPC client: %v", err)
 				return
 			}
 		}
@@ -659,7 +662,7 @@ func (i *Test) StopRPC() {
 	if i.daemon != nil {
 		err := i.daemon.Close()
 		if err != nil {
-			fmt.Errorf("could not close RPC daemon: %v", err)
+			i.t.Logf("could not close RPC daemon: %v", err)
 			return
 		}
 		i.daemon = nil

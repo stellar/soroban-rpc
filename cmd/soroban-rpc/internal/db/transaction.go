@@ -1,3 +1,4 @@
+//nolint:intrange
 package db
 
 import (
@@ -18,7 +19,10 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
-const transactionTableName = "transactions"
+const (
+	transactionTableName = "transactions"
+	FirstLedgerToMigrate = 2
+)
 
 var ErrNoTransaction = errors.New("no transaction with this hash exists")
 
@@ -176,13 +180,13 @@ func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucket
 	}
 
 	// Final query to join ledger_close_meta table and the sequence numbers we got from txnMinMaxLedgersQ
-	finalSql := sq.
+	finalSQL := sq.
 		Select("lcm.meta").
-		From(fmt.Sprintf("%s as lcm", ledgerCloseMetaTableName)).
+		From(ledgerCloseMetaTableName + " as lcm").
 		JoinClause(fmt.Sprintf("JOIN (%s) as seqs ON lcm.sequence == seqs.ledger_sequence", txnMinMaxLedgersQ))
 
 	var lcms []xdr.LedgerCloseMeta
-	if err = txn.db.Select(ctx, &lcms, finalSql); err != nil {
+	if err = txn.db.Select(ctx, &lcms, finalSQL); err != nil {
 		return ledgerRange, fmt.Errorf("couldn't build ledger range query: %w", err)
 	} else if len(lcms) < 2 {
 		// There is almost certainly a row, but we want to avoid a race condition
@@ -216,7 +220,7 @@ func (txn *transactionHandler) GetTransaction(ctx context.Context, hash xdr.Hash
 	tx := Transaction{}
 
 	ledgerRange, err := txn.GetLedgerRange(ctx)
-	if err != nil && err != ErrEmptyDB {
+	if err != nil && !errors.Is(err, ErrEmptyDB) {
 		return tx, ledgerRange, err
 	}
 
@@ -334,13 +338,15 @@ func (t *transactionTableMigration) ApplicableRange() *LedgerSeqRange {
 	}
 }
 
-func (t *transactionTableMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error {
+func (t *transactionTableMigration) Apply(_ context.Context, meta xdr.LedgerCloseMeta) error {
 	return t.writer.InsertTransactions(meta)
 }
 
-func newTransactionTableMigration(ctx context.Context, logger *log.Entry, retentionWindow uint32, passphrase string) migrationApplierFactory {
+func newTransactionTableMigration(ctx context.Context, logger *log.Entry,
+	retentionWindow uint32, passphrase string,
+) migrationApplierFactory {
 	return migrationApplierFactoryF(func(db *DB, latestLedger uint32) (MigrationApplier, error) {
-		firstLedgerToMigrate := uint32(2)
+		firstLedgerToMigrate := uint32(FirstLedgerToMigrate)
 		writer := &transactionHandler{
 			log:        logger,
 			db:         db,

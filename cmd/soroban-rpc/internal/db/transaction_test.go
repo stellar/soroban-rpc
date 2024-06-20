@@ -64,9 +64,9 @@ func TestTransactionFound(t *testing.T) {
 	ledgerRange, err := reader.GetLedgerRange(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, uint32(1234), ledgerRange.FirstLedger.Sequence)
-	assert.Equal(t, LedgerCloseTime(1334), ledgerRange.FirstLedger.CloseTime)
+	assert.Equal(t, LedgerCloseTime(1234), ledgerRange.FirstLedger.CloseTime)
 	assert.Equal(t, uint32(1237), ledgerRange.LastLedger.Sequence)
-	assert.Equal(t, LedgerCloseTime(1337), ledgerRange.LastLedger.CloseTime)
+	assert.Equal(t, LedgerCloseTime(1237), ledgerRange.LastLedger.CloseTime)
 
 	// check 404 case
 	_, _, err = reader.GetTransaction(ctx, xdr.Hash{})
