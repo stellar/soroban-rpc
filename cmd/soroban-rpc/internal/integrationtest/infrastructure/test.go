@@ -210,7 +210,6 @@ func (i *Test) stopContainers() {
 	}
 	downCmd = append(downCmd, "-v")
 	i.runSuccessfulComposeCommand(downCmd...)
-
 }
 
 func (i *Test) GetPorts() TestPorts {
@@ -224,6 +223,7 @@ func (i *Test) runRPCInContainer() bool {
 func (i *Test) GetRPCLient() *Client {
 	return i.rpcClient
 }
+
 func (i *Test) MasterKey() *keypair.Full {
 	return keypair.Root(StandaloneNetworkPassphrase)
 }
@@ -378,7 +378,8 @@ func (i *Test) generateCaptiveCoreCfg(tmplContents []byte, captiveCorePort uint1
 	}
 
 	captiveCoreCfgContents := os.Expand(string(tmplContents), mapping)
-	err := os.WriteFile(filepath.Join(i.rpcConfigFilesDir, captiveCoreConfigFilename), []byte(captiveCoreCfgContents), 0666)
+	fileName := filepath.Join(i.rpcConfigFilesDir, captiveCoreConfigFilename)
+	err := os.WriteFile(fileName, []byte(captiveCoreCfgContents), 0o666)
 	require.NoError(i.t, err)
 }
 
@@ -393,7 +394,7 @@ func (i *Test) generateRPCConfigFile(rpcConfig rpcConfig) {
 	for k, v := range rpcConfig.toMap() {
 		cfgFileContents += fmt.Sprintf("%s=%q\n", k, v)
 	}
-	err := os.WriteFile(filepath.Join(i.rpcConfigFilesDir, "soroban-rpc.config"), []byte(cfgFileContents), 0666)
+	err := os.WriteFile(filepath.Join(i.rpcConfigFilesDir, "soroban-rpc.config"), []byte(cfgFileContents), 0o666)
 	require.NoError(i.t, err)
 }
 
@@ -442,7 +443,7 @@ func (i *Test) createRPCDaemon(c rpcConfig) *daemon.Daemon {
 	}
 	require.NoError(i.t, cfg.SetValues(lookup))
 	require.NoError(i.t, cfg.Validate())
-	cfg.HistoryArchiveUserAgent = fmt.Sprintf("soroban-rpc/%s", config.Version)
+	cfg.HistoryArchiveUserAgent = "soroban-rpc/" + config.Version
 
 	logger := supportlog.New()
 	logger.SetOutput(newTestLogWriter(i.t, `rpc="daemon" `))

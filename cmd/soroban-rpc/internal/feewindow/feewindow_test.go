@@ -19,7 +19,8 @@ func TestBasicComputeFeeDistribution(t *testing.T) {
 	}{
 		{"nil", nil, FeeDistribution{}},
 		{"empty", []uint64{}, FeeDistribution{}},
-		{"one",
+		{
+			"one",
 			[]uint64{100},
 			FeeDistribution{
 				Max:      100,
@@ -39,7 +40,8 @@ func TestBasicComputeFeeDistribution(t *testing.T) {
 				FeeCount: 1,
 			},
 		},
-		{"even number of elements: four 100s and six 1000s",
+		{
+			"even number of elements: four 100s and six 1000s",
 			[]uint64{100, 100, 100, 1000, 100, 1000, 1000, 1000, 1000, 1000},
 			FeeDistribution{
 				Max:      1000,
@@ -59,7 +61,8 @@ func TestBasicComputeFeeDistribution(t *testing.T) {
 				FeeCount: 10,
 			},
 		},
-		{"odd number of elements: five 100s and six 1000s",
+		{
+			"odd number of elements: five 100s and six 1000s",
 			[]uint64{100, 100, 100, 1000, 100, 1000, 1000, 1000, 1000, 1000, 100},
 			FeeDistribution{
 				Max:      1000,
@@ -79,7 +82,8 @@ func TestBasicComputeFeeDistribution(t *testing.T) {
 				FeeCount: 11,
 			},
 		},
-		{"mutiple modes favors the smallest value",
+		{
+			"mutiple modes favors the smallest value",
 			[]uint64{100, 1000},
 			FeeDistribution{
 				Max:      1000,
@@ -99,7 +103,8 @@ func TestBasicComputeFeeDistribution(t *testing.T) {
 				FeeCount: 2,
 			},
 		},
-		{"random distribution with a repetition",
+		{
+			"random distribution with a repetition",
 			[]uint64{515, 245, 245, 530, 221, 262, 927},
 			FeeDistribution{
 				Max:      927,
@@ -119,7 +124,8 @@ func TestBasicComputeFeeDistribution(t *testing.T) {
 				FeeCount: 7,
 			},
 		},
-		{"random distribution with a repetition of its largest value",
+		{
+			"random distribution with a repetition of its largest value",
 			[]uint64{515, 245, 530, 221, 262, 927, 927},
 			FeeDistribution{
 				Max:      927,
@@ -145,7 +151,6 @@ func TestBasicComputeFeeDistribution(t *testing.T) {
 }
 
 func TestComputeFeeDistributionAgainstAlternative(t *testing.T) {
-
 	for i := 0; i < 100_000; i++ {
 		fees := generateFees(nil)
 		feesCopy1 := make([]uint64, len(fees))

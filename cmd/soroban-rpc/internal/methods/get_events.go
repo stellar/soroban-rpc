@@ -50,7 +50,7 @@ func (e *eventTypeSet) UnmarshalJSON(data []byte) error {
 }
 
 func (e eventTypeSet) MarshalJSON() ([]byte, error) {
-	var keys []string
+	keys := make([]string, 0, len(e))
 	for key := range e {
 		keys = append(keys, key)
 	}
@@ -376,7 +376,7 @@ func (h eventsRPCHandler) getEvents(request GetEventsRequest) (GetEventsResponse
 		results = append(results, info)
 	}
 	return GetEventsResponse{
-		LatestLedger: uint32(latestLedger),
+		LatestLedger: latestLedger,
 		Events:       results,
 	}, nil
 }

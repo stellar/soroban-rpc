@@ -9,10 +9,10 @@ import (
 	"testing"
 
 	io_prometheus_client "github.com/prometheus/client_model/go"
-	"github.com/stellar/go/support/errors"
 	"github.com/stretchr/testify/assert"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/stellar/go/support/errors"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/integrationtest/infrastructure"
@@ -43,13 +43,13 @@ func TestMetrics(t *testing.T) {
 	assert.NoError(t, err)
 	var metric *io_prometheus_client.MetricFamily
 	for _, mf := range metricFamilies {
-		if *mf.Name == "soroban_rpc_log_error_total" {
+		if mf.GetName() == "soroban_rpc_log_error_total" {
 			metric = mf
 			break
 		}
 	}
 	assert.NotNil(t, metric)
-	val := metric.Metric[0].Counter.GetValue()
+	val := metric.GetMetric()[0].GetCounter().GetValue()
 	assert.GreaterOrEqual(t, val, 2.0)
 }
 

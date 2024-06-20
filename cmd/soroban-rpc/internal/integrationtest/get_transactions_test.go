@@ -4,9 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/txnbuild"
-	"github.com/stretchr/testify/assert"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/integrationtest/infrastructure"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
@@ -62,7 +63,7 @@ func TestGetTransactions(t *testing.T) {
 	}
 	err := client.CallResult(context.Background(), "getTransactions", request, &result)
 	assert.NoError(t, err)
-	assert.Equal(t, len(result.Transactions), 3)
+	assert.Len(t, result.Transactions, 3)
 	assert.Equal(t, result.Transactions[0].Ledger, ledgers[0])
 	assert.Equal(t, result.Transactions[1].Ledger, ledgers[1])
 	assert.Equal(t, result.Transactions[2].Ledger, ledgers[2])
@@ -76,7 +77,7 @@ func TestGetTransactions(t *testing.T) {
 	}
 	err = client.CallResult(context.Background(), "getTransactions", request, &result)
 	assert.NoError(t, err)
-	assert.Equal(t, len(result.Transactions), 1)
+	assert.Len(t, result.Transactions, 1)
 	assert.Equal(t, result.Transactions[0].Ledger, ledgers[0])
 
 	// Get transactions using previous result's cursor
@@ -88,7 +89,7 @@ func TestGetTransactions(t *testing.T) {
 	}
 	err = client.CallResult(context.Background(), "getTransactions", request, &result)
 	assert.NoError(t, err)
-	assert.Equal(t, len(result.Transactions), 2)
+	assert.Len(t, result.Transactions, 2)
 	assert.Equal(t, result.Transactions[0].Ledger, ledgers[1])
 	assert.Equal(t, result.Transactions[1].Ledger, ledgers[2])
 }
