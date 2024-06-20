@@ -72,7 +72,7 @@ func testMigrateFromVersion(t *testing.T, version string) {
 	}
 	err := test.GetRPCLient().CallResult(context.Background(), "getTransactions", getTransactions, &transactionsResult)
 	require.NoError(t, err)
-	require.Equal(t, transactionsResult.Transactions, 1)
+	require.Len(t, transactionsResult.Transactions, 1)
 	require.Equal(t, submitTransactionResponse.Ledger, transactionsResult.Transactions[0].Ledger)
 
 	var eventsResult methods.GetEventsResponse
