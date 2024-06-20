@@ -22,7 +22,7 @@ func (cfg *Config) AddFlags(cmd *cobra.Command) error {
 }
 
 // AddFlag adds a CLI flag for this option to the given flagset.
-func (co *ConfigOption) AddFlag(flagset *pflag.FlagSet) error {
+func (co *Option) AddFlag(flagset *pflag.FlagSet) error {
 	// config options that has no names do not represent a valid flag.
 	if len(co.Name) == 0 {
 		return nil
@@ -100,7 +100,7 @@ func (co *ConfigOption) AddFlag(flagset *pflag.FlagSet) error {
 	return nil
 }
 
-func (co *ConfigOption) GetFlag(flagset *pflag.FlagSet) (interface{}, error) {
+func (co *Option) GetFlag(flagset *pflag.FlagSet) (interface{}, error) {
 	// Treat any option with a custom parser as a string option.
 	if co.CustomSetValue != nil {
 		return flagset.GetString(co.Name)
@@ -160,13 +160,12 @@ func (co *ConfigOption) GetFlag(flagset *pflag.FlagSet) (interface{}, error) {
 }
 
 // UsageText returns the string to use for the usage text of the option. The
-// string returned will be the Usage defined on the ConfigOption, along with
+// string returned will be the Usage defined on the Option, along with
 // the environment variable.
-func (co *ConfigOption) UsageText() string {
+func (co *Option) UsageText() string {
 	envVar, hasEnvVar := co.getEnvKey()
 	if hasEnvVar {
 		return fmt.Sprintf("%s (%s)", co.Usage, envVar)
-	} else {
-		return co.Usage
 	}
+	return co.Usage
 }

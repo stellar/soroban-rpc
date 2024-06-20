@@ -47,7 +47,7 @@ func NewGetLedgerEntryHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntr
 		if key.Type == xdr.LedgerEntryTypeTtl {
 			return GetLedgerEntryResponse{}, &jrpc2.Error{
 				Code:    jrpc2.InvalidParams,
-				Message: ErrLedgerTtlEntriesCannotBeQueriedDirectly,
+				Message: ErrLedgerTTLEntriesCannotBeQueriedDirectly,
 			}
 		}
 

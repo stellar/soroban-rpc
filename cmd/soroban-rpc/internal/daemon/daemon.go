@@ -51,7 +51,7 @@ type Daemon struct {
 	db                  *db.DB
 	jsonRPCHandler      *internal.Handler
 	logger              *supportlog.Entry
-	preflightWorkerPool *preflight.PreflightWorkerPool
+	preflightWorkerPool *preflight.WorkerPool
 	listener            net.Listener
 	server              *http.Server
 	adminListener       net.Listener

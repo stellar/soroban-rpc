@@ -7,9 +7,10 @@ import (
 	"path"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/stellar/go/txnbuild"
 	"github.com/stellar/go/xdr"
-	"github.com/stretchr/testify/require"
 )
 
 var testSalt = sha256.Sum256([]byte("a1"))

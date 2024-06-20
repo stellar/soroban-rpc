@@ -10,29 +10,29 @@ import (
 
 // The noOpDeamon is a dummy daemon implementation, supporting the Daemon interface.
 // Used only in testing.
-type noOpDaemon struct {
+type NoOpDaemon struct {
 	metricsRegistry  *prometheus.Registry
 	metricsNamespace string
 	coreClient       noOpCoreClient
 }
 
-func MakeNoOpDeamon() *noOpDaemon {
-	return &noOpDaemon{
+func MakeNoOpDeamon() *NoOpDaemon {
+	return &NoOpDaemon{
 		metricsRegistry:  prometheus.NewRegistry(),
 		metricsNamespace: "soroban_rpc",
 		coreClient:       noOpCoreClient{},
 	}
 }
 
-func (d *noOpDaemon) MetricsRegistry() *prometheus.Registry {
+func (d *NoOpDaemon) MetricsRegistry() *prometheus.Registry {
 	return prometheus.NewRegistry() // so that you can register metrics many times
 }
 
-func (d *noOpDaemon) MetricsNamespace() string {
+func (d *NoOpDaemon) MetricsNamespace() string {
 	return d.metricsNamespace
 }
 
-func (d *noOpDaemon) CoreClient() CoreClient {
+func (d *NoOpDaemon) CoreClient() CoreClient {
 	return d.coreClient
 }
 

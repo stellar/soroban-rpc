@@ -15,8 +15,10 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 )
 
-var passphrase = network.FutureNetworkPassphrase
-var logger = log.DefaultLogger
+var (
+	passphrase = network.FutureNetworkPassphrase
+	logger     = log.DefaultLogger
+)
 
 func createLedger(ledgerSequence uint32) xdr.LedgerCloseMeta {
 	return xdr.LedgerCloseMeta{

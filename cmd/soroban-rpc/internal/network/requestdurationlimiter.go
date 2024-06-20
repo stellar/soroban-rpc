@@ -121,6 +121,9 @@ func (w *bufferedResponseWriter) WriteOut(ctx context.Context, rw http.ResponseW
 	}
 }
 
+// TODO: refactor and simplify this function
+//
+//nolint:gocognit
 func (q *httpRequestDurationLimiter) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	if q.limitThreshold == RequestDurationLimiterNoLimit {
 		// if specified max duration, pass-through

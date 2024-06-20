@@ -11,7 +11,7 @@ import (
 	"github.com/stellar/go/support/errors"
 )
 
-func parseBool(option *ConfigOption, i interface{}) error {
+func parseBool(option *Option, i interface{}) error {
 	switch v := i.(type) {
 	case nil:
 		return nil
@@ -32,7 +32,7 @@ func parseBool(option *ConfigOption, i interface{}) error {
 	return nil
 }
 
-func parseInt(option *ConfigOption, i interface{}) error {
+func parseInt(option *Option, i interface{}) error {
 	switch v := i.(type) {
 	case nil:
 		return nil
@@ -50,7 +50,7 @@ func parseInt(option *ConfigOption, i interface{}) error {
 	return nil
 }
 
-func parseUint(option *ConfigOption, i interface{}) error {
+func parseUint(option *Option, i interface{}) error {
 	switch v := i.(type) {
 	case nil:
 		return nil
@@ -73,7 +73,7 @@ func parseUint(option *ConfigOption, i interface{}) error {
 	return nil
 }
 
-func parseFloat(option *ConfigOption, i interface{}) error {
+func parseFloat(option *Option, i interface{}) error {
 	switch v := i.(type) {
 	case nil:
 		return nil
@@ -91,7 +91,7 @@ func parseFloat(option *ConfigOption, i interface{}) error {
 	return nil
 }
 
-func parseString(option *ConfigOption, i interface{}) error {
+func parseString(option *Option, i interface{}) error {
 	switch v := i.(type) {
 	case nil:
 		return nil
@@ -103,7 +103,7 @@ func parseString(option *ConfigOption, i interface{}) error {
 	return nil
 }
 
-func parseUint32(option *ConfigOption, i interface{}) error {
+func parseUint32(option *Option, i interface{}) error {
 	switch v := i.(type) {
 	case nil:
 		return nil
@@ -129,7 +129,7 @@ func parseUint32(option *ConfigOption, i interface{}) error {
 	return nil
 }
 
-func parseDuration(option *ConfigOption, i interface{}) error {
+func parseDuration(option *Option, i interface{}) error {
 	switch v := i.(type) {
 	case nil:
 		return nil
@@ -149,7 +149,7 @@ func parseDuration(option *ConfigOption, i interface{}) error {
 	return nil
 }
 
-func parseStringSlice(option *ConfigOption, i interface{}) error {
+func parseStringSlice(option *Option, i interface{}) error {
 	switch v := i.(type) {
 	case nil:
 		return nil

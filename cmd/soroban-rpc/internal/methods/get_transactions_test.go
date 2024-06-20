@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/creachadair/jrpc2"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/toid"
 	"github.com/stellar/go/xdr"
-	"github.com/stretchr/testify/assert"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
@@ -71,17 +72,17 @@ func TestGetTransactions_DefaultLimit(t *testing.T) {
 }
 
 func TestGetTransactions_DefaultLimitExceedsLatestLedger(t *testing.T) {
-	mockDbReader := db.NewMockTransactionStore(NetworkPassphrase)
-	mockLedgerReader := db.NewMockLedgerReader(mockDbReader)
+	mockDBReader := db.NewMockTransactionStore(NetworkPassphrase)
+	mockLedgerReader := db.NewMockLedgerReader(mockDBReader)
 	for i := 1; i <= 3; i++ {
 		meta := createTestLedger(uint32(i))
-		err := mockDbReader.InsertTransactions(meta)
+		err := mockDBReader.InsertTransactions(meta)
 		assert.NoError(t, err)
 	}
 
 	handler := transactionsRPCHandler{
 		ledgerReader:      mockLedgerReader,
-		dbReader:          mockDbReader,
+		dbReader:          mockDBReader,
 		maxLimit:          100,
 		defaultLimit:      10,
 		networkPassphrase: NetworkPassphrase,
@@ -102,21 +103,21 @@ func TestGetTransactions_DefaultLimitExceedsLatestLedger(t *testing.T) {
 	assert.Equal(t, toid.New(3, 2, 1).String(), response.Cursor)
 
 	// assert transactions result
-	assert.Equal(t, 6, len(response.Transactions))
+	assert.Equal(t, response.Transactions, 6)
 }
 
 func TestGetTransactions_CustomLimit(t *testing.T) {
-	mockDbReader := db.NewMockTransactionStore(NetworkPassphrase)
-	mockLedgerReader := db.NewMockLedgerReader(mockDbReader)
+	mockDBReader := db.NewMockTransactionStore(NetworkPassphrase)
+	mockLedgerReader := db.NewMockLedgerReader(mockDBReader)
 	for i := 1; i <= 10; i++ {
 		meta := createTestLedger(uint32(i))
-		err := mockDbReader.InsertTransactions(meta)
+		err := mockDBReader.InsertTransactions(meta)
 		assert.NoError(t, err)
 	}
 
 	handler := transactionsRPCHandler{
 		ledgerReader:      mockLedgerReader,
-		dbReader:          mockDbReader,
+		dbReader:          mockDBReader,
 		maxLimit:          100,
 		defaultLimit:      10,
 		networkPassphrase: NetworkPassphrase,
@@ -140,23 +141,23 @@ func TestGetTransactions_CustomLimit(t *testing.T) {
 	assert.Equal(t, toid.New(1, 2, 1).String(), response.Cursor)
 
 	// assert transactions result
-	assert.Equal(t, 2, len(response.Transactions))
+	assert.Len(t, response.Transactions, 2)
 	assert.Equal(t, uint32(1), response.Transactions[0].Ledger)
 	assert.Equal(t, uint32(1), response.Transactions[1].Ledger)
 }
 
 func TestGetTransactions_CustomLimitAndCursor(t *testing.T) {
-	mockDbReader := db.NewMockTransactionStore(NetworkPassphrase)
-	mockLedgerReader := db.NewMockLedgerReader(mockDbReader)
+	mockDBReader := db.NewMockTransactionStore(NetworkPassphrase)
+	mockLedgerReader := db.NewMockLedgerReader(mockDBReader)
 	for i := 1; i <= 10; i++ {
 		meta := createTestLedger(uint32(i))
-		err := mockDbReader.InsertTransactions(meta)
+		err := mockDBReader.InsertTransactions(meta)
 		assert.NoError(t, err)
 	}
 
 	handler := transactionsRPCHandler{
 		ledgerReader:      mockLedgerReader,
-		dbReader:          mockDbReader,
+		dbReader:          mockDBReader,
 		maxLimit:          100,
 		defaultLimit:      10,
 		networkPassphrase: NetworkPassphrase,

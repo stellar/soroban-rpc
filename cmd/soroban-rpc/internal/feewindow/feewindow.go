@@ -72,7 +72,7 @@ func computeFeeDistribution(fees []uint64, ledgerCount uint32) FeeDistribution {
 	localRepetitions := 0
 	for i := 1; i < len(fees); i++ {
 		if fees[i] == lastVal {
-			localRepetitions += 1
+			localRepetitions++
 			continue
 		}
 

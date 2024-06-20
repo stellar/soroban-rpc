@@ -8,11 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
 	"github.com/creachadair/jrpc2/jhttp"
+	"github.com/stretchr/testify/require"
 )
 
 type TestServerHandlerWrapper struct {
@@ -54,7 +53,7 @@ func TestHTTPRequestDurationLimiter_Limiting(t *testing.T) {
 			}
 			n, err := res.Write([]byte{1, 2, 3})
 			require.Equal(t, 3, n)
-			require.Nil(t, err)
+			require.NoError(t, err)
 		},
 	}
 	warningCounter := TestingCounter{}

@@ -23,11 +23,11 @@ type workerResult struct {
 
 type workerRequest struct {
 	ctx        context.Context
-	params     PreflightParameters
+	params     Parameters
 	resultChan chan<- workerResult
 }
 
-type PreflightWorkerPool struct {
+type WorkerPool struct {
 	ledgerEntryReader          db.LedgerEntryReader
 	networkPassphrase          string
 	enableDebug                bool
@@ -41,8 +41,8 @@ type PreflightWorkerPool struct {
 	wg                         sync.WaitGroup
 }
 
-func NewPreflightWorkerPool(daemon interfaces.Daemon, workerCount uint, jobQueueCapacity uint, enableDebug bool, ledgerEntryReader db.LedgerEntryReader, networkPassphrase string, logger *log.Entry) *PreflightWorkerPool {
-	preflightWP := PreflightWorkerPool{
+func NewPreflightWorkerPool(daemon interfaces.Daemon, workerCount uint, jobQueueCapacity uint, enableDebug bool, ledgerEntryReader db.LedgerEntryReader, networkPassphrase string, logger *log.Entry) *WorkerPool {
+	preflightWP := WorkerPool{
 		ledgerEntryReader: ledgerEntryReader,
 		networkPassphrase: networkPassphrase,
 		enableDebug:       enableDebug,
@@ -97,7 +97,7 @@ func NewPreflightWorkerPool(daemon interfaces.Daemon, workerCount uint, jobQueue
 	return &preflightWP
 }
 
-func (pwp *PreflightWorkerPool) work() {
+func (pwp *WorkerPool) work() {
 	defer pwp.wg.Done()
 	for request := range pwp.requestChan {
 		pwp.concurrentRequestsMetric.Inc()
@@ -115,7 +115,7 @@ func (pwp *PreflightWorkerPool) work() {
 	}
 }
 
-func (pwp *PreflightWorkerPool) Close() {
+func (pwp *WorkerPool) Close() {
 	if !pwp.isClosed.CompareAndSwap(false, true) {
 		// it was already closed
 		return
@@ -124,7 +124,7 @@ func (pwp *PreflightWorkerPool) Close() {
 	pwp.wg.Wait()
 }
 
-var PreflightQueueFullErr = errors.New("preflight queue full")
+var ErrPreflightQueueFull = errors.New("preflight queue full")
 
 type metricsLedgerEntryWrapper struct {
 	db.LedgerEntryReadTx
@@ -140,14 +140,14 @@ func (m *metricsLedgerEntryWrapper) GetLedgerEntries(keys ...xdr.LedgerKey) ([]d
 	return entries, err
 }
 
-func (pwp *PreflightWorkerPool) GetPreflight(ctx context.Context, params PreflightGetterParameters) (Preflight, error) {
+func (pwp *WorkerPool) GetPreflight(ctx context.Context, params GetterParameters) (Preflight, error) {
 	if pwp.isClosed.Load() {
 		return Preflight{}, errors.New("preflight worker pool is closed")
 	}
 	wrappedTx := metricsLedgerEntryWrapper{
 		LedgerEntryReadTx: params.LedgerEntryReadTx,
 	}
-	preflightParams := PreflightParameters{
+	preflightParams := Parameters{
 		Logger:            pwp.logger,
 		SourceAccount:     params.SourceAccount,
 		OpBody:            params.OperationBody,
@@ -178,6 +178,6 @@ func (pwp *PreflightWorkerPool) GetPreflight(ctx context.Context, params Preflig
 		return Preflight{}, ctx.Err()
 	default:
 		pwp.errorFullCounter.Inc()
-		return Preflight{}, PreflightQueueFullErr
+		return Preflight{}, ErrPreflightQueueFull
 	}
 }

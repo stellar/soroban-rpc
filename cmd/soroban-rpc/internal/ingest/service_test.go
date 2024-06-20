@@ -21,18 +21,17 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/feewindow"
 )
 
-type ErrorReadWriter struct {
-}
+type ErrorReadWriter struct{}
 
 func (rw *ErrorReadWriter) GetLatestLedgerSequence(ctx context.Context) (uint32, error) {
 	return 0, errors.New("could not get latest ledger sequence")
 }
+
 func (rw *ErrorReadWriter) NewTx(ctx context.Context) (db.WriteTx, error) {
 	return nil, errors.New("could not create new tx")
 }
 
 func TestRetryRunningIngestion(t *testing.T) {
-
 	var retryWg sync.WaitGroup
 	retryWg.Add(1)
 
