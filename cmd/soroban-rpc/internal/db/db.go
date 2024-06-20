@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"path"
 	"strconv"
 	"sync"
@@ -375,18 +376,11 @@ func runSQLMigrations(db *sql.DB, dialect string) error {
 
 func NewTestDB(tb testing.TB) *DB {
 	tmp := tb.TempDir()
-	dbPath := path.Join(tmp, "test-db.sqlite")
+	dbPath := path.Join(tmp, "db.sqlite")
 	db, err := OpenSQLiteDB(dbPath)
-	if err != nil {
-		assert.NoError(tb, db.Close())
-	}
+	require.NoError(tb, err)
 	tb.Cleanup(func() {
 		assert.NoError(tb, db.Close())
 	})
-	return &DB{
-		SessionInterface: db,
-		cache: dbCache{
-			ledgerEntries: newTransactionalCache(),
-		},
-	}
+	return db
 }

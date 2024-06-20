@@ -200,7 +200,7 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 		}, metricsRegistry),
 	}
 
-	feewindows, eventStore := daemon.mustInitializeStorage(cfg)
+	feewindows := daemon.mustInitializeStorage(cfg)
 
 	onIngestionRetry := func(err error, dur time.Duration) {
 		logger.WithError(err).Error("could not run ingestion. Retrying")
@@ -299,12 +299,8 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 }
 
 // mustInitializeStorage initializes the storage using what was on the DB
-func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindows, *events.MemoryStore) {
-	eventStore := events.NewMemoryStore(
-		d,
-		cfg.NetworkPassphrase,
-		cfg.EventLedgerRetentionWindow,
-	)
+func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows {
+
 	feewindows := feewindow.NewFeeWindows(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow, cfg.NetworkPassphrase)
 
 	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
@@ -330,9 +326,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 				"seq": currentSeq,
 			}).Debug("still initializing in-memory store")
 		}
-		if err := eventStore.IngestEvents(txmeta); err != nil {
-			d.logger.WithError(err).Fatal("could not initialize event memory store")
-		}
+
 		if err := feewindows.IngestFees(txmeta); err != nil {
 			d.logger.WithError(err).Fatal("could not initialize fee stats")
 		}
@@ -358,7 +352,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 		}).Info("finished initializing in-memory store")
 	}
 
-	return feewindows, eventStore
+	return feewindows
 }
 
 func (d *Daemon) Run() {
