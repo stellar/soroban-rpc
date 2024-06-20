@@ -13,6 +13,6 @@ jobs:
         with:
           filter-workflow-names: |
             Dependency sanity checker*
-            Linters*
+            Go*
             Rust*
             Soroban RPC*

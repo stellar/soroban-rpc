@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/creachadair/jrpc2"
+
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
@@ -27,7 +28,7 @@ func NewHealthCheck(
 		if err != nil || ledgerRange.LastLedger.Sequence < 1 {
 			extra := ""
 			if err != nil {
-				extra = fmt.Sprintf(": %s", err.Error())
+				extra = ": " + err.Error()
 			}
 			return HealthCheckResult{}, jrpc2.Error{
 				Code:    jrpc2.InternalError,

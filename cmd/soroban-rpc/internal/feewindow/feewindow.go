@@ -1,3 +1,4 @@
+//nolint:mnd // percentile numbers are not really magical
 package feewindow
 
 import (
@@ -173,7 +174,6 @@ func (fw *FeeWindows) IngestFees(meta xdr.LedgerCloseMeta) error {
 		}
 		feePerOp := feeCharged / uint64(len(ops))
 		classicFees = append(classicFees, feePerOp)
-
 	}
 	bucket := ledgerbucketwindow.LedgerBucket[[]uint64]{
 		LedgerSeq:            meta.LedgerSequence(),

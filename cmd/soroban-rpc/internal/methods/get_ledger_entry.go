@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/creachadair/jrpc2"
+
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
@@ -24,7 +25,8 @@ type GetLedgerEntryResponse struct {
 	LastModifiedLedger uint32 `json:"lastModifiedLedgerSeq"`
 	LatestLedger       uint32 `json:"latestLedger"`
 	// The ledger sequence until the entry is live, available for entries that have associated ttl ledger entries.
-	LiveUntilLedgerSeq *uint32 `json:"LiveUntilLedgerSeq,omitempty"`
+	// TODO: it should had been `liveUntilLedgerSeq` :(
+	LiveUntilLedgerSeq *uint32 `json:"LiveUntilLedgerSeq,omitempty"` //nolint:tagliatelle
 }
 
 // NewGetLedgerEntryHandler returns a json rpc handler to retrieve the specified ledger entry from stellar core

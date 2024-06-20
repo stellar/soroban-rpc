@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
-	"net/http/pprof" //nolint:gosec
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	runtimePprof "runtime/pprof"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/stellar/go/clients/stellarcore"
 	"github.com/stellar/go/historyarchive"
 	"github.com/stellar/go/ingest/ledgerbackend"
@@ -66,9 +67,11 @@ func (d *Daemon) GetDB() *db.DB {
 }
 
 func (d *Daemon) GetEndpointAddrs() (net.TCPAddr, *net.TCPAddr) {
-	var addr = d.listener.Addr().(*net.TCPAddr)
+	//nolint:forcetypeassert
+	addr := d.listener.Addr().(*net.TCPAddr)
 	var adminAddr *net.TCPAddr
 	if d.adminListener != nil {
+		//nolint:forcetypeassert
 		adminAddr = d.adminListener.Addr().(*net.TCPAddr)
 	}
 	return *addr, adminAddr
@@ -142,7 +145,6 @@ func newCaptiveCore(cfg *config.Config, logger *supportlog.Entry) (*ledgerbacken
 		UseDB:               true,
 	}
 	return ledgerbackend.NewCaptive(captiveConfig)
-
 }
 
 func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
@@ -173,10 +175,10 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 			CheckpointFrequency: cfg.CheckpointFrequency,
 			ConnectOptions: storage.ConnectOptions{
 				Context:   context.Background(),
-				UserAgent: cfg.HistoryArchiveUserAgent},
+				UserAgent: cfg.HistoryArchiveUserAgent,
+			},
 		},
 	)
-
 	if err != nil {
 		logger.WithError(err).Fatal("could not connect to history archive")
 	}

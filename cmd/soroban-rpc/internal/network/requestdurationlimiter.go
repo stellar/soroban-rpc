@@ -2,19 +2,20 @@ package network
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"reflect"
 	"runtime"
 	"time"
 
 	"github.com/creachadair/jrpc2"
+
 	"github.com/stellar/go/support/log"
+
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/util"
 )
 
-const maxUint = ^uint64(0)         //18446744073709551615
-const maxInt = int64(maxUint >> 1) // 9223372036854775807
-const maxDuration = time.Duration(maxInt)
+const maxDuration = time.Duration(math.MaxInt64)
 
 const RequestDurationLimiterNoLimit = maxDuration
 
@@ -46,7 +47,8 @@ func MakeHTTPRequestDurationLimiter(
 	limitThreshold time.Duration,
 	warningCounter increasingCounter,
 	limitCounter increasingCounter,
-	logger *log.Entry) *httpRequestDurationLimiter {
+	logger *log.Entry,
+) http.Handler {
 	// make sure the warning threshold is less then the limit threshold; otherwise, just set it to the limit threshold.
 	if warningThreshold > limitThreshold {
 		warningThreshold = limitThreshold
@@ -83,10 +85,12 @@ func makeBufferedResponseWriter(rw http.ResponseWriter) *bufferedResponseWriter 
 func (w *bufferedResponseWriter) Header() http.Header {
 	return w.header
 }
+
 func (w *bufferedResponseWriter) Write(buf []byte) (int, error) {
 	w.buffer = append(w.buffer, buf...)
 	return len(buf), nil
 }
+
 func (w *bufferedResponseWriter) WriteHeader(statusCode int) {
 	w.statusCode = statusCode
 }
@@ -192,7 +196,7 @@ func (q *httpRequestDurationLimiter) ServeHTTP(res http.ResponseWriter, req *htt
 	}
 }
 
-type rpcRequestDurationLimiter struct {
+type RPCRequestDurationLimiter struct {
 	jrpcDownstreamHandler jrpc2.Handler
 	requestDurationLimiter
 }
@@ -203,13 +207,14 @@ func MakeJrpcRequestDurationLimiter(
 	limitThreshold time.Duration,
 	warningCounter increasingCounter,
 	limitCounter increasingCounter,
-	logger *log.Entry) *rpcRequestDurationLimiter {
+	logger *log.Entry,
+) *RPCRequestDurationLimiter {
 	// make sure the warning threshold is less then the limit threshold; otherwise, just set it to the limit threshold.
 	if warningThreshold > limitThreshold {
 		warningThreshold = limitThreshold
 	}
 
-	return &rpcRequestDurationLimiter{
+	return &RPCRequestDurationLimiter{
 		jrpcDownstreamHandler: downstream,
 		requestDurationLimiter: requestDurationLimiter{
 			warningThreshold: warningThreshold,
@@ -221,7 +226,10 @@ func MakeJrpcRequestDurationLimiter(
 	}
 }
 
-func (q *rpcRequestDurationLimiter) Handle(ctx context.Context, req *jrpc2.Request) (interface{}, error) {
+// TODO: this function is too complicated we should fix this and remove the nolint:gocognit
+//
+//nolint:gocognit,cyclop
+func (q *RPCRequestDurationLimiter) Handle(ctx context.Context, req *jrpc2.Request) (interface{}, error) {
 	if q.limitThreshold == RequestDurationLimiterNoLimit {
 		// if specified max duration, pass-through
 		return q.jrpcDownstreamHandler(ctx, req)

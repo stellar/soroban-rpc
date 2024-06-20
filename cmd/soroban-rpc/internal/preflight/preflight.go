@@ -1,17 +1,5 @@
+//nolint:lll // CGO LDFLAG definitions are long
 package preflight
-
-import (
-	"context"
-	"fmt"
-	"runtime/cgo"
-	"time"
-	"unsafe"
-
-	"github.com/stellar/go/support/log"
-	"github.com/stellar/go/xdr"
-
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-)
 
 /*
 #include "../../lib/preflight.h"
@@ -29,6 +17,19 @@ import (
 */
 import "C"
 
+import (
+	"context"
+	"fmt"
+	"runtime/cgo"
+	"time"
+	"unsafe"
+
+	"github.com/stellar/go/support/log"
+	"github.com/stellar/go/xdr"
+
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+)
+
 type snapshotSourceHandle struct {
 	readTx db.LedgerEntryReadTx
 	logger *log.Entry
@@ -36,6 +37,8 @@ type snapshotSourceHandle struct {
 
 const (
 	defaultInstructionLeeway uint64 = 0
+	// Current base reserve is 0.5XLM (in stroops)
+	defaultBaseReserve = 5_000_000
 )
 
 // SnapshotSourceGet takes a LedgerKey XDR in base64 string and returns its matching LedgerEntry XDR in base64 string
@@ -156,7 +159,7 @@ func GoXDRDiffVector(xdrDiffVector C.xdr_diff_vector_t) []XDRDiff {
 	return result
 }
 
-func GetPreflight(ctx context.Context, params PreflightParameters) (Preflight, error) {
+func GetPreflight(_ context.Context, params PreflightParameters) (Preflight, error) {
 	switch params.OpBody.Type {
 	case xdr.OperationTypeInvokeHostFunction:
 		return getInvokeHostFunctionPreflight(params)
@@ -173,16 +176,15 @@ func getLedgerInfo(params PreflightParameters) (C.ledger_info_t, error) {
 		return C.ledger_info_t{}, err
 	}
 
-	li := C.ledger_info_t{
+	ledgerInfo := C.ledger_info_t{
 		network_passphrase: C.CString(params.NetworkPassphrase),
 		sequence_number:    C.uint32_t(simulationLedgerSeq),
 		protocol_version:   C.uint32_t(params.ProtocolVersion),
 		timestamp:          C.uint64_t(time.Now().Unix()),
-		// Current base reserve is 0.5XLM (in stroops)
-		base_reserve:     5_000_000,
-		bucket_list_size: C.uint64_t(params.BucketListSize),
+		base_reserve:       defaultBaseReserve,
+		bucket_list_size:   C.uint64_t(params.BucketListSize),
 	}
-	return li, nil
+	return ledgerInfo, nil
 }
 
 func getFootprintTtlPreflight(params PreflightParameters) (Preflight, error) {
@@ -193,13 +195,13 @@ func getFootprintTtlPreflight(params PreflightParameters) (Preflight, error) {
 	opBodyCXDR := CXDR(opBodyXDR)
 	footprintXDR, err := params.Footprint.MarshalBinary()
 	if err != nil {
-		return Preflight{}, err
+		return Preflight{}, fmt.Errorf("cannot marshal footprint: %w", err)
 	}
 	footprintCXDR := CXDR(footprintXDR)
 	handle := cgo.NewHandle(snapshotSourceHandle{params.LedgerEntryReadTx, params.Logger})
 	defer handle.Delete()
 
-	li, err := getLedgerInfo(params)
+	ledgerInfo, err := getLedgerInfo(params)
 	if err != nil {
 		return Preflight{}, err
 	}
@@ -208,7 +210,7 @@ func getFootprintTtlPreflight(params PreflightParameters) (Preflight, error) {
 		C.uintptr_t(handle),
 		opBodyCXDR,
 		footprintCXDR,
-		li,
+		ledgerInfo,
 	)
 
 	FreeGoXDR(opBodyCXDR)
@@ -240,7 +242,7 @@ func getInvokeHostFunctionPreflight(params PreflightParameters) (Preflight, erro
 		return Preflight{}, err
 	}
 	sourceAccountCXDR := CXDR(sourceAccountXDR)
-	li, err := getLedgerInfo(params)
+	ledgerInfo, err := getLedgerInfo(params)
 	if err != nil {
 		return Preflight{}, err
 	}
@@ -254,7 +256,7 @@ func getInvokeHostFunctionPreflight(params PreflightParameters) (Preflight, erro
 		C.uintptr_t(handle),
 		invokeHostFunctionCXDR,
 		sourceAccountCXDR,
-		li,
+		ledgerInfo,
 		resourceConfig,
 		C.bool(params.EnableDebug),
 	)

@@ -1,13 +1,14 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
 	"time"
 
 	"github.com/spf13/pflag"
-	"github.com/stellar/go/support/errors"
+
 	"github.com/stellar/go/support/strutils"
 )
 
@@ -28,7 +29,7 @@ func (options ConfigOptions) Validate() error {
 				missingOptions = append(missingOptions, missingOption)
 				continue
 			}
-			return errors.Wrap(err, fmt.Sprintf("Invalid config value for %s", option.Name))
+			return errors.New("Invalid config value for " + option.Name)
 		}
 	}
 	if len(missingOptions) > 0 {
@@ -95,11 +96,11 @@ func (o *ConfigOption) setValue(i interface{}) (err error) {
 				return
 			}
 
-			err = errors.Errorf("config option setting error ('%s') %v", o.Name, recoverRes)
+			err = fmt.Errorf("config option setting error ('%s') %v", o.Name, recoverRes)
 		}
 	}()
 	parser := func(option *ConfigOption, i interface{}) error {
-		return errors.Errorf("no parser for flag %s", o.Name)
+		return fmt.Errorf("no parser for flag %s", o.Name)
 	}
 	switch o.ConfigKey.(type) {
 	case *bool:
