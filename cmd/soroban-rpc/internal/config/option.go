@@ -18,15 +18,16 @@ type Options []*Option
 
 // Validate all the config options.
 func (options Options) Validate() error {
-	var missingOptions []errMissingRequiredOption
+	var missingOptions []missingRequiredOptionError
 	for _, option := range options {
 		if option.Validate != nil {
 			err := option.Validate(option)
 			if err == nil {
 				continue
 			}
-			if missingOption, ok := err.(errMissingRequiredOption); ok {
-				missingOptions = append(missingOptions, missingOption)
+			var missingOptionErr missingRequiredOptionError
+			if ok := errors.As(err, &missingOptionErr); ok {
+				missingOptions = append(missingOptions, missingOptionErr)
 				continue
 			}
 			return errors.New("Invalid config value for " + option.Name)
@@ -39,7 +40,7 @@ func (options Options) Validate() error {
 			errString += "\n*\t" + missingOpt.strErr
 			errString += "\n \t" + missingOpt.usage
 		}
-		return &errMissingRequiredOption{strErr: errString}
+		return &missingRequiredOptionError{strErr: errString}
 	}
 	return nil
 }

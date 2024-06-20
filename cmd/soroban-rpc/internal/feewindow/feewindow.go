@@ -53,7 +53,7 @@ func (fw *FeeWindow) AppendLedgerFees(fees ledgerbucketwindow.LedgerBucket[[]uin
 	}
 
 	var allFees []uint64
-	for i := uint32(0); i < fw.feesPerLedger.Len(); i++ {
+	for i := range fw.feesPerLedger.Len() {
 		allFees = append(allFees, fw.feesPerLedger.Get(i).BucketContent...)
 	}
 	fw.distribution = computeFeeDistribution(allFees, fw.feesPerLedger.Len())
@@ -166,7 +166,8 @@ func (fw *FeeWindows) IngestFees(meta xdr.LedgerCloseMeta) error {
 					continue
 				}
 				sorobanFees := tx.UnsafeMeta.V3.SorobanMeta.Ext.V1
-				resourceFeeCharged := sorobanFees.TotalNonRefundableResourceFeeCharged + sorobanFees.TotalRefundableResourceFeeCharged
+				resourceFeeCharged := sorobanFees.TotalNonRefundableResourceFeeCharged +
+					sorobanFees.TotalRefundableResourceFeeCharged
 				inclusionFee := feeCharged - uint64(resourceFeeCharged)
 				sorobanInclusionFees = append(sorobanInclusionFees, inclusionFee)
 				continue

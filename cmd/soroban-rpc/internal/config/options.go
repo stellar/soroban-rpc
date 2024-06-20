@@ -12,7 +12,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/stellar/go/network"
-	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/strutils"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
@@ -119,10 +118,10 @@ func (cfg *Config) options() Options {
 				case nil:
 					return nil
 				case string:
-					return errors.Wrapf(
-						cfg.LogFormat.UnmarshalText([]byte(v)),
-						"could not parse %s",
+					return fmt.Errorf(
+						"could not parse %s: %w",
 						option.Name,
+						cfg.LogFormat.UnmarshalText([]byte(v)),
 					)
 				case LogFormat:
 					cfg.LogFormat = v
@@ -484,12 +483,12 @@ func (cfg *Config) options() Options {
 	return *cfg.optionsCache
 }
 
-type errMissingRequiredOption struct {
+type missingRequiredOptionError struct {
 	strErr string
 	usage  string
 }
 
-func (e errMissingRequiredOption) Error() string {
+func (e missingRequiredOptionError) Error() string {
 	return e.strErr
 }
 
@@ -527,7 +526,7 @@ func required(option *Option) error {
 		advice = fmt.Sprintf(" Please %s, %s, or %s.", waysToSet[0], waysToSet[1], waysToSet[2])
 	}
 
-	return errMissingRequiredOption{strErr: fmt.Sprintf("%s is required.%s", option.Name, advice), usage: option.Usage}
+	return missingRequiredOptionError{strErr: fmt.Sprintf("%s is required.%s", option.Name, advice), usage: option.Usage}
 }
 
 func positive(option *Option) error {

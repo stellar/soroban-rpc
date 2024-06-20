@@ -162,7 +162,7 @@ func PreflightTransactionParamsLocally(t *testing.T, params txnbuild.Transaction
 		for _, b64 := range response.Results[0].Auth {
 			var a xdr.SorobanAuthorizationEntry
 			err := xdr.SafeUnmarshalBase64(b64, &a)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			auth = append(auth, a)
 		}
 		v.Auth = auth

@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/stellar/go/support/errors"
 )
 
 func parseBool(option *Option, i interface{}) error {
@@ -136,7 +134,7 @@ func parseDuration(option *Option, i interface{}) error {
 	case string:
 		d, err := time.ParseDuration(v)
 		if err != nil {
-			return errors.Wrapf(err, "could not parse duration: %q", v)
+			return fmt.Errorf("could not parse duration: %q: %w", v, err)
 		}
 		*option.ConfigKey.(*time.Duration) = d
 	case time.Duration:

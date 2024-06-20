@@ -122,4 +122,3 @@ issues:
         - nosprintfhostport
 run:
   timeout: 10m
-  tests: false
