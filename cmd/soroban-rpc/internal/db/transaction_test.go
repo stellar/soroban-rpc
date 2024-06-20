@@ -3,9 +3,10 @@ package db
 import (
 	"context"
 	"encoding/hex"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"math/rand"
 	"testing"
+
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -29,7 +30,6 @@ func TestTransactionNotFound(t *testing.T) {
 }
 
 func txMetaWithEvents(acctSeq uint32, successful bool) xdr.LedgerCloseMeta {
-
 	meta := txMeta(acctSeq, successful)
 
 	contractIDBytes, _ := hex.DecodeString("df06d62447fd25da07c0135eed7557e5a5497ee7d15b7fe345bd47e191d8f577")
@@ -102,6 +102,7 @@ func TestTransactionFound(t *testing.T) {
 	cursorRange := events.CursorRange{Start: start, End: end}
 
 	err = eventReader.GetEvents(ctx, cursorRange, nil, nil)
+	require.NoError(t, err)
 
 	// check all 200 cases
 	for _, lcm := range lcms {

@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
-	"strings"
-	"time"
 
 	"github.com/creachadair/jrpc2"
 
@@ -107,7 +108,7 @@ func (g *GetEventsRequest) Valid(maxLimit uint) error {
 	}
 	for i, filter := range g.Filters {
 		if err := filter.Valid(); err != nil {
-			return errors.Wrapf(err, "filter %d invalid", i+1)
+			return fmt.Errorf("filter %d invalid: %w", i+1)
 		}
 	}
 
@@ -162,7 +163,7 @@ func (e *EventFilter) Valid() error {
 	}
 	for i, topic := range e.Topics {
 		if err := topic.Valid(); err != nil {
-			return errors.Wrapf(err, "topic %d invalid", i+1)
+			return fmt.Errorf("topic %d invalid: %w", i+1, err)
 		}
 	}
 	return nil
@@ -220,7 +221,7 @@ func (t *TopicFilter) Valid() error {
 	}
 	for i, segment := range *t {
 		if err := segment.Valid(); err != nil {
-			return errors.Wrapf(err, "segment %d invalid", i+1)
+			return fmt.Errorf("segment %d invalid: %w", i+1, err)
 		}
 	}
 	return nil
@@ -372,7 +373,6 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 	}
 
 	err := h.dbReader.GetEvents(ctx, cursorRange, contractIds, f)
-
 	if err != nil {
 		return GetEventsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidRequest,
@@ -393,7 +393,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		}
 		results = append(results, info)
 	}
-	//TODO (prit): Refactor latest ledger code !!
+	// TODO (prit): Refactor latest ledger code !!
 	return GetEventsResponse{
 		LatestLedger: 0,
 		Events:       results,

@@ -3,6 +3,9 @@ package db
 import (
 	"context"
 	"fmt"
+	"io"
+	"time"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stellar/go/ingest"
@@ -11,8 +14,6 @@ import (
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
-	"io"
-	"time"
 )
 
 const eventTableName = "events"
@@ -25,7 +26,7 @@ type EventWriter interface {
 // EventReader has all the public methods to fetch events from DB
 type EventReader interface {
 	GetEvents(ctx context.Context, cursorRange events.CursorRange, contractIds []string, f ScanFunction) error
-	//GetLedgerRange(ctx context.Context) error
+	// GetLedgerRange(ctx context.Context) error
 }
 
 type eventHandler struct {
@@ -44,7 +45,7 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 	txCount := lcm.CountTransactions()
 
 	if eventHandler.stmtCache == nil {
-		return errors.New("EventWriter incorrectly initialized without stmtCache")
+		return fmt.Errorf("EventWriter incorrectly initialized without stmtCache")
 	} else if txCount == 0 {
 		return nil
 	}
@@ -52,9 +53,9 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 	var txReader *ingest.LedgerTransactionReader
 	txReader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(eventHandler.passphrase, lcm)
 	if err != nil {
-		return errors.Wrapf(err,
-			"failed to open transaction reader for ledger %d",
-			lcm.LedgerSequence())
+		return fmt.Errorf(
+			"failed to open transaction reader for ledger %d: %w ",
+			lcm.LedgerSequence(), err)
 	}
 	defer func() {
 		closeErr := txReader.Close()
@@ -130,7 +131,6 @@ func (eventHandler *eventHandler) trimEvents(latestLedgerSeq uint32, retentionWi
 // If f returns false, the scan terminates early (f will not be applied on
 // remaining events in the range).
 func (eventHandler *eventHandler) GetEvents(ctx context.Context, cursorRange events.CursorRange, contractIds []string, f ScanFunction) error {
-
 	start := time.Now()
 
 	var rows []struct {
@@ -141,8 +141,8 @@ func (eventHandler *eventHandler) GetEvents(ctx context.Context, cursorRange eve
 
 	rowQ := sq.
 		Select("e.id", "e.application_order", "lcm.meta").
-		From(fmt.Sprintf("%s e", eventTableName)).
-		Join(fmt.Sprintf("%s lcm ON (e.ledger_sequence = lcm.sequence)", ledgerCloseMetaTableName)).
+		From(eventTableName + " e").
+		Join(ledgerCloseMetaTableName + "lcm ON (e.ledger_sequence = lcm.sequence)").
 		Where(sq.GtOrEq{"e.id": cursorRange.Start.String()}).
 		Where(sq.Lt{"e.id": cursorRange.End.String()}).
 		OrderBy("e.id ASC")
@@ -152,7 +152,7 @@ func (eventHandler *eventHandler) GetEvents(ctx context.Context, cursorRange eve
 	}
 
 	if err := eventHandler.db.Select(ctx, &rows, rowQ); err != nil {
-		return errors.Wrapf(err, "db read failed for start ledger cursor= %v contractIds= %v", cursorRange.Start.String(), contractIds)
+		return fmt.Errorf("db read failed for start ledger cursor= %v contractIds= %v: %w", cursorRange.Start.String(), contractIds, err)
 	} else if len(rows) < 1 {
 		return errors.New("No LCM found with requested event filters")
 	}
@@ -160,10 +160,13 @@ func (eventHandler *eventHandler) GetEvents(ctx context.Context, cursorRange eve
 	for _, row := range rows {
 		eventCursorId, txIndex, lcm := row.EventCursorId, row.TxIndex, row.Lcm
 		reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(eventHandler.passphrase, lcm)
-		reader.Seek(txIndex - 1)
-
 		if err != nil {
-			return errors.Wrapf(err, "failed to index to tx %d in ledger %d", txIndex, lcm.LedgerSequence())
+			return fmt.Errorf("failed to index to tx %d in ledger %d: %w", txIndex, lcm.LedgerSequence(), err)
+		}
+
+		err = reader.Seek(txIndex - 1)
+		if err != nil {
+			return fmt.Errorf("failed to index to tx %d in ledger %d: %w", txIndex, lcm.LedgerSequence(), err)
 		}
 
 		ledgerCloseTime := lcm.LedgerCloseTime()
@@ -172,12 +175,12 @@ func (eventHandler *eventHandler) GetEvents(ctx context.Context, cursorRange eve
 		diagEvents, diagErr := ledgerTx.GetDiagnosticEvents()
 
 		if diagErr != nil {
-			return errors.Wrapf(err, "db read failed for Event Id %s", eventCursorId)
+			return fmt.Errorf("db read failed for Event Id %s: %w", eventCursorId, err)
 		}
 
 		// Find events based on filter passed in function f
 		for eventIndex, event := range diagEvents {
-			cur := events.Cursor{lcm.LedgerSequence(), uint32(txIndex), 0, uint32(eventIndex)}
+			cur := events.Cursor{Ledger: lcm.LedgerSequence(), Tx: uint32(txIndex), Event: uint32(eventIndex)}
 			if f != nil && !f(event, cur, ledgerCloseTime, &transactionHash) {
 				return nil
 			}

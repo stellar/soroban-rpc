@@ -206,7 +206,7 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 		logger.WithError(err).Error("could not run ingestion. Retrying")
 	}
 
-	// Take the larger of (event retention, tx retention) and then the smaller
+	// Take the largest of (event retention, tx retention) and then the smallest
 	// of (tx retention, default event retention) if event retention wasn't
 	// specified, for some reason...?
 	maxRetentionWindow := ordered.Max(cfg.EventLedgerRetentionWindow, cfg.TransactionLedgerRetentionWindow)

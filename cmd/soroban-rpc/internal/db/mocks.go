@@ -2,8 +2,9 @@ package db
 
 import (
 	"context"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"io"
+
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -60,7 +61,7 @@ func (eventHandler *mockEventHandler) GetEvents(ctx context.Context, cursorRange
 				}
 
 				for _, event := range diagEvents {
-					if !f(event, events.Cursor{0, 0, 0, 0}, 0, &ledgerTx.Result.TransactionHash) {
+					if !f(event, events.Cursor{}, 0, &ledgerTx.Result.TransactionHash) {
 						return nil
 					}
 				}
@@ -192,8 +193,7 @@ func (m *mockLedgerReader) StreamAllLedgers(ctx context.Context, f StreamLedgerF
 	return nil
 }
 
-type mockEventReader struct {
-}
+type mockEventReader struct{}
 
 func NewMockEventReader() {
 }
