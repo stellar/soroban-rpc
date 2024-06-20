@@ -310,7 +310,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		Namespace: params.Daemon.MetricsNamespace(), Subsystem: "network", Name: "global_request_execution_duration_threshold_limit",
 		Help: "The metric measures the count of requests that surpassed the limit threshold for execution time",
 	})
-	var handler http.Handler = network.MakeHTTPRequestDurationLimiter(
+	handler := network.MakeHTTPRequestDurationLimiter(
 		queueLimitedBridge,
 		cfg.RequestExecutionWarningThreshold,
 		cfg.MaxRequestExecutionDuration,

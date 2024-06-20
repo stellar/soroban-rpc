@@ -87,8 +87,10 @@ linters-settings:
 linters:
   enable-all: true
   disable:
+    # deprecated:
     - gomnd
     - execinquery
+
     - depguard
     - nlreturn
     - godox
@@ -101,23 +103,22 @@ linters:
     - wsl
     - wrapcheck
     - testpackage
-    # TODO: I didn't manage to make it accept short parameter names
+    # TODO: varnamelen: I didn't manage to make it accept short parameter names
     - varnamelen
-    # TODO: consider enabling it later on
+    # TODO: ireturn: consider enabling it later on
     - ireturn
     - godot
   presets: [ ]
   fast: false
 
 issues:
-  # Excluding configuration per-path, per-linter, per-text and per-source
+  # Exclude certain checks in test files
   exclude-rules:
-    - path: _test\.go
+    - path: '^(.*_test\.go|cmd/soroban-rpc/internal/integrationtest/infrastructure/.*)$'
       linters:
+        - mnd
         - gosec
-    - path: cmd/soroban-rpc/internal/integrationtest/infrastructure/
-      linters:
-        - gosec
-
+        - gochecknoglobals
+        - nosprintfhostport
 run:
   timeout: 10m

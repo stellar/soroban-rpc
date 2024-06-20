@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/support/db"
-	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
@@ -80,16 +80,18 @@ func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 
 	reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(txn.passphrase, lcm)
 	if err != nil {
-		return errors.Wrapf(err,
-			"failed to open transaction reader for ledger %d",
-			lcm.LedgerSequence())
+		return fmt.Errorf(
+			"failed to open transaction reader for ledger %d: %w",
+			lcm.LedgerSequence(),
+			err,
+		)
 	}
 
 	transactions := make(map[xdr.Hash]ingest.LedgerTransaction, txCount)
 	for i := 0; i < txCount; i++ {
 		tx, err := reader.Read()
 		if err != nil {
-			return errors.Wrapf(err, "failed reading tx %d", i)
+			return fmt.Errorf("failed reading tx %d: %w", i, err)
 		}
 
 		// For fee-bump transactions, we store lookup entries for both the outer
@@ -164,7 +166,7 @@ func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucket
 			"m2",
 		).ToSql()
 	if err != nil {
-		return ledgerRange, errors.Wrap(err, "couldn't build max ledger sequence query")
+		return ledgerRange, fmt.Errorf("couldn't build ledger range query: %w", err)
 	}
 
 	// Combine the min and max ledger sequence queries using UNION ALL
@@ -257,18 +259,22 @@ func (txn *transactionHandler) getTransactionByHash(ctx context.Context, hash xd
 
 	if err := txn.db.Select(ctx, &rows, rowQ); err != nil {
 		return xdr.LedgerCloseMeta{}, ingest.LedgerTransaction{},
-			errors.Wrapf(err, "db read failed for txhash %s", hex.EncodeToString(hash[:]))
+			fmt.Errorf("db read failed for txhash %s: %w", hex.EncodeToString(hash[:]), err)
 	} else if len(rows) < 1 {
 		return xdr.LedgerCloseMeta{}, ingest.LedgerTransaction{}, ErrNoTransaction
 	}
 
 	txIndex, lcm := rows[0].TxIndex, rows[0].Lcm
 	reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(txn.passphrase, lcm)
-	reader.Seek(txIndex - 1)
 	if err != nil {
 		return lcm, ingest.LedgerTransaction{},
-			errors.Wrapf(err, "failed to index to tx %d in ledger %d (txhash=%s)",
-				txIndex, lcm.LedgerSequence(), hash)
+			fmt.Errorf("failed to create ledger reader: %w", err)
+	}
+	err = reader.Seek(txIndex - 1)
+	if err != nil {
+		return lcm, ingest.LedgerTransaction{},
+			fmt.Errorf("failed to index to tx %d in ledger %d (txhash=%s): %w",
+				txIndex, lcm.LedgerSequence(), hash, err)
 	}
 
 	ledgerTx, err := reader.Read()
@@ -291,25 +297,25 @@ func ParseTransaction(lcm xdr.LedgerCloseMeta, ingestTx ingest.LedgerTransaction
 	}
 
 	if tx.Result, err = ingestTx.Result.Result.MarshalBinary(); err != nil {
-		return tx, errors.Wrap(err, "couldn't encode transaction Result")
+		return tx, fmt.Errorf("couldn't encode transaction Result: %w", err)
 	}
 	if tx.Meta, err = ingestTx.UnsafeMeta.MarshalBinary(); err != nil {
-		return tx, errors.Wrap(err, "couldn't encode transaction UnsafeMeta")
+		return tx, fmt.Errorf("couldn't encode transaction UnsafeMeta: %w", err)
 	}
 	if tx.Envelope, err = ingestTx.Envelope.MarshalBinary(); err != nil {
-		return tx, errors.Wrap(err, "couldn't encode transaction Envelope")
+		return tx, fmt.Errorf("couldn't encode transaction Envelope: %w", err)
 	}
 	if events, diagErr := ingestTx.GetDiagnosticEvents(); diagErr == nil {
 		tx.Events = make([][]byte, 0, len(events))
 		for i, event := range events {
 			bytes, ierr := event.MarshalBinary()
 			if ierr != nil {
-				return tx, errors.Wrapf(ierr, "couldn't encode transaction DiagnosticEvent %d", i)
+				return tx, fmt.Errorf("couldn't encode transaction DiagnosticEvent %d: %w", i, ierr)
 			}
 			tx.Events = append(tx.Events, bytes)
 		}
 	} else {
-		return tx, errors.Wrap(diagErr, "couldn't encode transaction DiagnosticEvents")
+		return tx, fmt.Errorf("couldn't encode transaction DiagnosticEvents: %w", diagErr)
 	}
 
 	return tx, nil

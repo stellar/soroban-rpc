@@ -172,7 +172,6 @@ func (g *guardedMigration) Commit(ctx context.Context) error {
 	}
 	err := setMetaBool(ctx, g.db, g.guardMetaKey, true)
 	if err != nil {
-		g.Rollback(ctx)
 		return errors.Join(err, g.Rollback(ctx))
 	}
 	return g.db.Commit()

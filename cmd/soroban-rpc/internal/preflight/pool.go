@@ -23,11 +23,11 @@ type workerResult struct {
 
 type workerRequest struct {
 	ctx        context.Context
-	params     PreflightParameters
+	params     Parameters
 	resultChan chan<- workerResult
 }
 
-type PreflightWorkerPool struct {
+type WorkerPool struct {
 	ledgerEntryReader          db.LedgerEntryReader
 	networkPassphrase          string
 	enableDebug                bool
@@ -41,16 +41,26 @@ type PreflightWorkerPool struct {
 	wg                         sync.WaitGroup
 }
 
-func NewPreflightWorkerPool(daemon interfaces.Daemon, workerCount uint, jobQueueCapacity uint, enableDebug bool, ledgerEntryReader db.LedgerEntryReader, networkPassphrase string, logger *log.Entry) *PreflightWorkerPool {
-	preflightWP := PreflightWorkerPool{
-		ledgerEntryReader: ledgerEntryReader,
-		networkPassphrase: networkPassphrase,
-		enableDebug:       enableDebug,
-		logger:            logger,
-		requestChan:       make(chan workerRequest, jobQueueCapacity),
+type WorkerPoolConfig struct {
+	Daemon            interfaces.Daemon
+	WorkerCount       uint
+	JobQueueCapacity  uint
+	EnableDebug       bool
+	LedgerEntryReader db.LedgerEntryReader
+	NetworkPassphrase string
+	Logger            *log.Entry
+}
+
+func NewPreflightWorkerPool(cfg WorkerPoolConfig) *WorkerPool {
+	preflightWP := WorkerPool{
+		ledgerEntryReader: cfg.LedgerEntryReader,
+		networkPassphrase: cfg.NetworkPassphrase,
+		enableDebug:       cfg.EnableDebug,
+		logger:            cfg.Logger,
+		requestChan:       make(chan workerRequest, cfg.JobQueueCapacity),
 	}
 	requestQueueMetric := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-		Namespace: daemon.MetricsNamespace(),
+		Namespace: cfg.Daemon.MetricsNamespace(),
 		Subsystem: "preflight_pool",
 		Name:      "queue_length",
 		Help:      "number of preflight requests in the queue",
@@ -58,46 +68,46 @@ func NewPreflightWorkerPool(daemon interfaces.Daemon, workerCount uint, jobQueue
 		return float64(len(preflightWP.requestChan))
 	})
 	preflightWP.concurrentRequestsMetric = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: daemon.MetricsNamespace(),
+		Namespace: cfg.Daemon.MetricsNamespace(),
 		Subsystem: "preflight_pool",
 		Name:      "concurrent_requests",
 		Help:      "number of preflight requests currently running",
 	})
 	preflightWP.errorFullCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: daemon.MetricsNamespace(),
+		Namespace: cfg.Daemon.MetricsNamespace(),
 		Subsystem: "preflight_pool",
 		Name:      "queue_full_errors",
 		Help:      "number of preflight full queue errors",
 	})
 	preflightWP.durationMetric = prometheus.NewSummaryVec(prometheus.SummaryOpts{
-		Namespace:  daemon.MetricsNamespace(),
+		Namespace:  cfg.Daemon.MetricsNamespace(),
 		Subsystem:  "preflight_pool",
 		Name:       "request_ledger_get_duration_seconds",
 		Help:       "preflight request duration broken down by status",
 		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 	}, []string{"status", "type"})
 	preflightWP.ledgerEntriesFetchedMetric = prometheus.NewSummary(prometheus.SummaryOpts{
-		Namespace:  daemon.MetricsNamespace(),
+		Namespace:  cfg.Daemon.MetricsNamespace(),
 		Subsystem:  "preflight_pool",
 		Name:       "request_ledger_entries_fetched",
 		Help:       "ledger entries fetched by simulate transaction calls",
 		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 	})
-	daemon.MetricsRegistry().MustRegister(
+	cfg.Daemon.MetricsRegistry().MustRegister(
 		requestQueueMetric,
 		preflightWP.concurrentRequestsMetric,
 		preflightWP.errorFullCounter,
 		preflightWP.durationMetric,
 		preflightWP.ledgerEntriesFetchedMetric,
 	)
-	for i := uint(0); i < workerCount; i++ {
+	for range cfg.WorkerCount {
 		preflightWP.wg.Add(1)
 		go preflightWP.work()
 	}
 	return &preflightWP
 }
 
-func (pwp *PreflightWorkerPool) work() {
+func (pwp *WorkerPool) work() {
 	defer pwp.wg.Done()
 	for request := range pwp.requestChan {
 		pwp.concurrentRequestsMetric.Inc()
@@ -115,7 +125,7 @@ func (pwp *PreflightWorkerPool) work() {
 	}
 }
 
-func (pwp *PreflightWorkerPool) Close() {
+func (pwp *WorkerPool) Close() {
 	if !pwp.isClosed.CompareAndSwap(false, true) {
 		// it was already closed
 		return
@@ -124,7 +134,7 @@ func (pwp *PreflightWorkerPool) Close() {
 	pwp.wg.Wait()
 }
 
-var PreflightQueueFullErr = errors.New("preflight queue full")
+var ErrPreflightQueueFull = errors.New("preflight queue full")
 
 type metricsLedgerEntryWrapper struct {
 	db.LedgerEntryReadTx
@@ -140,14 +150,14 @@ func (m *metricsLedgerEntryWrapper) GetLedgerEntries(keys ...xdr.LedgerKey) ([]d
 	return entries, err
 }
 
-func (pwp *PreflightWorkerPool) GetPreflight(ctx context.Context, params PreflightGetterParameters) (Preflight, error) {
+func (pwp *WorkerPool) GetPreflight(ctx context.Context, params GetterParameters) (Preflight, error) {
 	if pwp.isClosed.Load() {
 		return Preflight{}, errors.New("preflight worker pool is closed")
 	}
 	wrappedTx := metricsLedgerEntryWrapper{
 		LedgerEntryReadTx: params.LedgerEntryReadTx,
 	}
-	preflightParams := PreflightParameters{
+	preflightParams := Parameters{
 		Logger:            pwp.logger,
 		SourceAccount:     params.SourceAccount,
 		OpBody:            params.OperationBody,
@@ -178,6 +188,6 @@ func (pwp *PreflightWorkerPool) GetPreflight(ctx context.Context, params Preflig
 		return Preflight{}, ctx.Err()
 	default:
 		pwp.errorFullCounter.Inc()
-		return Preflight{}, PreflightQueueFullErr
+		return Preflight{}, ErrPreflightQueueFull
 	}
 }

@@ -7,12 +7,13 @@ import (
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/jhttp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/protocols/stellarcore"
 	"github.com/stellar/go/txnbuild"
 	"github.com/stellar/go/xdr"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 )
@@ -161,7 +162,7 @@ func PreflightTransactionParamsLocally(t *testing.T, params txnbuild.Transaction
 		for _, b64 := range response.Results[0].Auth {
 			var a xdr.SorobanAuthorizationEntry
 			err := xdr.SafeUnmarshalBase64(b64, &a)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			auth = append(auth, a)
 		}
 		v.Auth = auth

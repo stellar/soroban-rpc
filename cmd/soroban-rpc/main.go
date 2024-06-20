@@ -49,8 +49,10 @@ func main() {
 				if branch == "main" {
 					branch = ""
 				}
+				//nolint:forbidigo
 				fmt.Printf("soroban-rpc %s (%s) %s\n", config.Version, config.CommitHash, branch)
 			}
+			//nolint:forbidigo
 			fmt.Printf("stellar-xdr %s\n", goxdr.CommitHash)
 		},
 	}

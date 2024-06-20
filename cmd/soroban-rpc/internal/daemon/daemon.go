@@ -51,7 +51,7 @@ type Daemon struct {
 	db                  *db.DB
 	jsonRPCHandler      *internal.Handler
 	logger              *supportlog.Entry
-	preflightWorkerPool *preflight.PreflightWorkerPool
+	preflightWorkerPool *preflight.WorkerPool
 	listener            net.Listener
 	server              *http.Server
 	adminListener       net.Listener
@@ -238,13 +238,15 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 
 	ledgerEntryReader := db.NewLedgerEntryReader(dbConn)
 	preflightWorkerPool := preflight.NewPreflightWorkerPool(
-		daemon,
-		cfg.PreflightWorkerCount,
-		cfg.PreflightWorkerQueueSize,
-		cfg.PreflightEnableDebug,
-		ledgerEntryReader,
-		cfg.NetworkPassphrase,
-		logger,
+		preflight.WorkerPoolConfig{
+			Daemon:            daemon,
+			WorkerCount:       cfg.PreflightWorkerCount,
+			JobQueueCapacity:  cfg.PreflightWorkerQueueSize,
+			EnableDebug:       cfg.PreflightEnableDebug,
+			LedgerEntryReader: ledgerEntryReader,
+			NetworkPassphrase: cfg.NetworkPassphrase,
+			Logger:            logger,
+		},
 	)
 
 	jsonRPCHandler := internal.NewJSONRPCHandler(cfg, internal.HandlerParams{

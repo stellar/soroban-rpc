@@ -1,55 +1,55 @@
 name: 'Setup the Go environment'
 description: 'Installs go and restores/saves the build/module cache'
-inputs:
-  go-version:
-    required: true
 runs:
   using: "composite"
   steps:
-  - name: Set up Go
-    uses: actions/setup-go@v2
-    with:
-      go-version: ${{ inputs.go-version }}
-      stable: ${{ !(contains(inputs.go-version, 'beta') || contains(inputs.go-version, 'rc')) }}
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+        # unfortunately we cannot use the provided caching because it uses the
+        # same cache for all workflows/jobs, leading to undesired cache clashes,
+        # causing uncached test runs etc ...
+        # You can see the cache key at https://github.com/actions/setup-go/blob/4e0b6c77c6448caafaff5eed51516cad78e7639a/src/cache-restore.ts#L34
+        # There is a ticket to add prefixes for the cache, which should solve it https://github.com/actions/setup-go/issues/358
+        cache: false
 
-  # Restore original modification time of files based on the date of the most
-  # recent commit that modified them as mtimes affect the Go test cache.
-  - name: Restore modification time of checkout files
-    shell: bash
-    run: |
-      # Set a base, fixed modification time of all directories.
-      # git-restore-mtime doesn't set the mtime of all directories.
-      # (see https://github.com/MestreLion/git-tools/issues/47 for details)
-      touch -m -t '201509301646' $(find . -type d -not -path '.git/*')
-      # Restore original modification time from git. git clone sets the
-      # modification time to the current time, but Go tests that access fixtures
-      # get invalidated if their modification times change.
-      sudo apt-get install -y git-restore-mtime
-      git restore-mtime
+    # Restore original modification time of files based on the date of the most
+    # recent commit that modified them as mtimes affect the Go test cache.
+    # See https://github.com/golang/go/issues/58571 for details
+    - name: Restore modification time of checkout files
+      uses: chetan/git-restore-mtime-action@075f9bc9d159805603419d50f794bd9f33252ebe
 
-  # The PREFIX must uniquely identify the specific instance of a job executing.
-  - shell: bash
-    run: echo 'PREFIX=${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-${{ inputs.go-version }}-matrix(${{ join(matrix.*,'|') }})' >> $GITHUB_ENV
 
-  # Cache the Go Modules downloaded during the job.
-  - uses: actions/cache@v2
-    with:
-      path: ~/go/pkg/mod
-      key: ${{ env.PREFIX }}-go-mod-${{ hashFiles('**/go.sum') }}
-      restore-keys: ${{ env.PREFIX }}-go-mod-
+    # KEY_PREFIX must uniquely identify the specific instance of a job executing.
+    - shell: bash
+      run: |
+        echo 'KEY_PREFIX=${{ github.workflow }}-${{ github.job }}-${{ runner.os }}-${{ inputs.go-version }}-matrix(${{ join(matrix.*,'|') }})' >> $GITHUB_OUTPUT
+        echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+        echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+        if [ ${{ runner.os }} != 'Windows' ]; then echo SUDO='sudo' >> $GITHUB_OUTPUT; fi
+      id: variables
 
-  # Cache any build and test artifacts during the job, which will speed up
-  # rebuilds and cause test runs to skip tests that have no reason to rerun.
-  - uses: actions/cache@v2
-    with:
-      path: ~/.cache/go-build
-      key: ${{ env.PREFIX }}-go-build-${{ github.ref }}-${{ hashFiles('**', '!.git') }}
-      restore-keys: |
-        ${{ env.PREFIX }}-go-build-${{ github.ref }}-
-        ${{ env.PREFIX }}-go-build-
+    # Cache the Go Modules downloaded during the job.
+    - uses: actions/cache@v4
+      with:
+        path: ${{ steps.variables.outputs.GOMODCACHE }}
+        key: ${{ steps.variables.outputs.KEY_PREFIX }}-go-mod-${{ hashFiles('**/go.sum') }}
+        restore-keys: ${{ steps.variables.outputs.KEY_PREFIX  }}-go-mod-
 
-  # Reset the cache for master/protected branches, to ensure they build and run the tests from zero
-  # and that the module cache is cleaned (otherwise it accumulates orphan dependencies over time).
-  - if: github.ref_protected
-    shell: bash
-    run: sudo rm -rf ~/.cache/go-build ~/go/pkg/mod
+    # Cache any build and test artifacts during the job, which will speed up
+    # rebuilds and cause test runs to skip tests that have no reason to rerun.
+    - uses: actions/cache@v4
+      with:
+        path: ${{ steps.variables.outputs.GOCACHE }}
+        key: ${{ steps.variables.outputs.KEY_PREFIX  }}-go-build-${{ github.ref }}-${{ hashFiles('**', '!.git') }}
+        restore-keys: |
+          ${{ steps.variables.outputs.KEY_PREFIX }}-go-build-${{ github.ref }}-
+          ${{ steps.variables.outputs.KEY_PREFIX }}-go-build-
+
+    # Reset the cache for master/protected branches, to ensure they build and run the tests from zero
+    # and that the module cache is cleaned (otherwise it accumulates orphan dependencies over time).
+    - if: github.ref_protected
+      shell: bash
+      run: ${{ steps.variables.outputs.SUDO }} rm -rf ${{ steps.variables.outputs.GOMODCACHE }} ${{ steps.variables.outputs.GOCACHE  }}
+

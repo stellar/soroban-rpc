@@ -4,12 +4,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
 
 	"github.com/stellar/go/support/db"
-	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/xdr"
 )
 
@@ -54,7 +54,7 @@ func (l ledgerEntryWriter) UpsertLedgerEntry(entry xdr.LedgerEntry) error {
 	// because the key can be derived from the entry.
 	key, err := entry.LedgerKey()
 	if err != nil {
-		return errors.Wrap(err, "could not get ledger key from entry")
+		return fmt.Errorf("could not get ledger key from entry: %w", err)
 	}
 
 	encodedKey, err := encodeLedgerKey(l.buffer, key)
@@ -304,7 +304,7 @@ func (l *ledgerEntryReadTx) GetLedgerEntries(keys ...xdr.LedgerKey) ([]LedgerKey
 		}
 		var entry xdr.LedgerEntry
 		if err := xdr.SafeUnmarshal([]byte(encodedEntry), &entry); err != nil {
-			return nil, errors.Wrap(err, "cannot decode ledger entry from DB")
+			return nil, fmt.Errorf("cannot decode ledger entry from DB: %w", err)
 		}
 		if k2e.encodedTTLKey == nil {
 			result = append(result, LedgerKeyAndEntry{k2e.key, entry, nil})
@@ -317,7 +317,7 @@ func (l *ledgerEntryReadTx) GetLedgerEntries(keys ...xdr.LedgerKey) ([]LedgerKey
 		}
 		var ttlEntry xdr.LedgerEntry
 		if err := xdr.SafeUnmarshal([]byte(encodedTTLEntry), &ttlEntry); err != nil {
-			return nil, errors.Wrap(err, "cannot decode TTL ledger entry from DB")
+			return nil, fmt.Errorf("cannot decode TTL ledger entry from DB: %w", err)
 		}
 		liveUntilSeq := uint32(ttlEntry.Data.Ttl.LiveUntilLedgerSeq)
 		result = append(result, LedgerKeyAndEntry{k2e.key, entry, &liveUntilSeq})

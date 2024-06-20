@@ -87,7 +87,7 @@ func DefaultResourceConfig() ResourceConfig {
 	}
 }
 
-type PreflightGetterParameters struct {
+type GetterParameters struct {
 	LedgerEntryReadTx db.LedgerEntryReadTx
 	BucketListSize    uint64
 	SourceAccount     xdr.AccountId
@@ -97,7 +97,7 @@ type PreflightGetterParameters struct {
 	ProtocolVersion   uint32
 }
 
-type PreflightParameters struct {
+type Parameters struct {
 	Logger            *log.Entry
 	SourceAccount     xdr.AccountId
 	OpBody            xdr.OperationBody
@@ -159,18 +159,18 @@ func GoXDRDiffVector(xdrDiffVector C.xdr_diff_vector_t) []XDRDiff {
 	return result
 }
 
-func GetPreflight(_ context.Context, params PreflightParameters) (Preflight, error) {
+func GetPreflight(_ context.Context, params Parameters) (Preflight, error) {
 	switch params.OpBody.Type {
 	case xdr.OperationTypeInvokeHostFunction:
 		return getInvokeHostFunctionPreflight(params)
 	case xdr.OperationTypeExtendFootprintTtl, xdr.OperationTypeRestoreFootprint:
-		return getFootprintTtlPreflight(params)
+		return getFootprintTTLPreflight(params)
 	default:
 		return Preflight{}, fmt.Errorf("unsupported operation type: %s", params.OpBody.Type.String())
 	}
 }
 
-func getLedgerInfo(params PreflightParameters) (C.ledger_info_t, error) {
+func getLedgerInfo(params Parameters) (C.ledger_info_t, error) {
 	simulationLedgerSeq, err := getSimulationLedgerSeq(params.LedgerEntryReadTx)
 	if err != nil {
 		return C.ledger_info_t{}, err
@@ -187,7 +187,7 @@ func getLedgerInfo(params PreflightParameters) (C.ledger_info_t, error) {
 	return ledgerInfo, nil
 }
 
-func getFootprintTtlPreflight(params PreflightParameters) (Preflight, error) {
+func getFootprintTTLPreflight(params Parameters) (Preflight, error) {
 	opBodyXDR, err := params.OpBody.MarshalBinary()
 	if err != nil {
 		return Preflight{}, err
@@ -231,7 +231,7 @@ func getSimulationLedgerSeq(readTx db.LedgerEntryReadTx) (uint32, error) {
 	return sequenceNumber, nil
 }
 
-func getInvokeHostFunctionPreflight(params PreflightParameters) (Preflight, error) {
+func getInvokeHostFunctionPreflight(params Parameters) (Preflight, error) {
 	invokeHostFunctionXDR, err := params.OpBody.MustInvokeHostFunctionOp().MarshalBinary()
 	if err != nil {
 		return Preflight{}, err

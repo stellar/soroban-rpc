@@ -2,13 +2,14 @@ package methods
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/stellar/go/support/errors"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/stellar/go/toid"
 	"github.com/stellar/go/xdr"
-	"github.com/stretchr/testify/assert"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
@@ -71,17 +72,17 @@ func TestGetTransactions_DefaultLimit(t *testing.T) {
 }
 
 func TestGetTransactions_DefaultLimitExceedsLatestLedger(t *testing.T) {
-	mockDbReader := db.NewMockTransactionStore(NetworkPassphrase)
-	mockLedgerReader := db.NewMockLedgerReader(mockDbReader)
+	mockDBReader := db.NewMockTransactionStore(NetworkPassphrase)
+	mockLedgerReader := db.NewMockLedgerReader(mockDBReader)
 	for i := 1; i <= 3; i++ {
 		meta := createTestLedger(uint32(i))
-		err := mockDbReader.InsertTransactions(meta)
+		err := mockDBReader.InsertTransactions(meta)
 		assert.NoError(t, err)
 	}
 
 	handler := transactionsRPCHandler{
 		ledgerReader:      mockLedgerReader,
-		dbReader:          mockDbReader,
+		dbReader:          mockDBReader,
 		maxLimit:          100,
 		defaultLimit:      10,
 		networkPassphrase: NetworkPassphrase,
@@ -102,21 +103,21 @@ func TestGetTransactions_DefaultLimitExceedsLatestLedger(t *testing.T) {
 	assert.Equal(t, toid.New(3, 2, 1).String(), response.Cursor)
 
 	// assert transactions result
-	assert.Equal(t, 6, len(response.Transactions))
+	assert.Len(t, response.Transactions, 6)
 }
 
 func TestGetTransactions_CustomLimit(t *testing.T) {
-	mockDbReader := db.NewMockTransactionStore(NetworkPassphrase)
-	mockLedgerReader := db.NewMockLedgerReader(mockDbReader)
+	mockDBReader := db.NewMockTransactionStore(NetworkPassphrase)
+	mockLedgerReader := db.NewMockLedgerReader(mockDBReader)
 	for i := 1; i <= 10; i++ {
 		meta := createTestLedger(uint32(i))
-		err := mockDbReader.InsertTransactions(meta)
+		err := mockDBReader.InsertTransactions(meta)
 		assert.NoError(t, err)
 	}
 
 	handler := transactionsRPCHandler{
 		ledgerReader:      mockLedgerReader,
-		dbReader:          mockDbReader,
+		dbReader:          mockDBReader,
 		maxLimit:          100,
 		defaultLimit:      10,
 		networkPassphrase: NetworkPassphrase,
@@ -140,23 +141,23 @@ func TestGetTransactions_CustomLimit(t *testing.T) {
 	assert.Equal(t, toid.New(1, 2, 1).String(), response.Cursor)
 
 	// assert transactions result
-	assert.Equal(t, 2, len(response.Transactions))
+	assert.Len(t, response.Transactions, 2)
 	assert.Equal(t, uint32(1), response.Transactions[0].Ledger)
 	assert.Equal(t, uint32(1), response.Transactions[1].Ledger)
 }
 
 func TestGetTransactions_CustomLimitAndCursor(t *testing.T) {
-	mockDbReader := db.NewMockTransactionStore(NetworkPassphrase)
-	mockLedgerReader := db.NewMockLedgerReader(mockDbReader)
+	mockDBReader := db.NewMockTransactionStore(NetworkPassphrase)
+	mockLedgerReader := db.NewMockLedgerReader(mockDBReader)
 	for i := 1; i <= 10; i++ {
 		meta := createTestLedger(uint32(i))
-		err := mockDbReader.InsertTransactions(meta)
+		err := mockDBReader.InsertTransactions(meta)
 		assert.NoError(t, err)
 	}
 
 	handler := transactionsRPCHandler{
 		ledgerReader:      mockLedgerReader,
-		dbReader:          mockDbReader,
+		dbReader:          mockDBReader,
 		maxLimit:          100,
 		defaultLimit:      10,
 		networkPassphrase: NetworkPassphrase,
@@ -208,7 +209,10 @@ func TestGetTransactions_InvalidStartLedger(t *testing.T) {
 	}
 
 	response, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
-	expectedErr := errors.Errorf("[%d] start ledger must be between the oldest ledger: 1 and the latest ledger: 3 for this rpc instance.", jrpc2.InvalidRequest)
+	expectedErr := fmt.Errorf(
+		"[%d] start ledger must be between the oldest ledger: 1 and the latest ledger: 3 for this rpc instance",
+		jrpc2.InvalidRequest,
+	)
 	assert.Equal(t, expectedErr.Error(), err.Error())
 	assert.Nil(t, response.Transactions)
 }
@@ -239,7 +243,7 @@ func TestGetTransactions_LedgerNotFound(t *testing.T) {
 	}
 
 	response, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
-	expectedErr := errors.Errorf("[%d] ledger close meta not found: 2", jrpc2.InvalidParams)
+	expectedErr := fmt.Errorf("[%d] ledger close meta not found: 2", jrpc2.InvalidParams)
 	assert.Equal(t, expectedErr.Error(), err.Error())
 	assert.Nil(t, response.Transactions)
 }
@@ -269,7 +273,7 @@ func TestGetTransactions_LimitGreaterThanMaxLimit(t *testing.T) {
 	}
 
 	_, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
-	expectedErr := errors.Errorf("[%d] limit must not exceed 100", jrpc2.InvalidRequest)
+	expectedErr := fmt.Errorf("[%d] limit must not exceed 100", jrpc2.InvalidRequest)
 	assert.Equal(t, expectedErr.Error(), err.Error())
 }
 
@@ -297,6 +301,6 @@ func TestGetTransactions_InvalidCursorString(t *testing.T) {
 	}
 
 	_, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
-	expectedErr := errors.Errorf("[%d] strconv.ParseInt: parsing \"abc\": invalid syntax", jrpc2.InvalidParams)
+	expectedErr := fmt.Errorf("[%d] strconv.ParseInt: parsing \"abc\": invalid syntax", jrpc2.InvalidParams)
 	assert.Equal(t, expectedErr.Error(), err.Error())
 }
