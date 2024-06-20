@@ -86,7 +86,7 @@ jobs:
           repository: ${{ env.SYSTEM_TEST_JS_STELLAR_SDK_GH_REPO }}
           ref: ${{ env.SYSTEM_TEST_JS_STELLAR_SDK_GH_REF }}
           path: system-test/js-stellar-sdk
-      - run: rurstup update
+      - run: rustup update
       - uses: stellar/actions/rust-cache@main
       - uses: ./.github/actions/setup-go
       - name: Build system test with component versions
