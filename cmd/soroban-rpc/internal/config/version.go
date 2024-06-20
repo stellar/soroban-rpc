@@ -1,3 +1,4 @@
+//nolint:gochecknoglobals // allow global variables
 package config
 
 var (

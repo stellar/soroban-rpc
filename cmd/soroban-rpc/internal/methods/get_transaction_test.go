@@ -253,7 +253,6 @@ func txMeta(acctSeq uint32, successful bool) xdr.LedgerCloseMeta {
 }
 
 func txMetaWithEvents(acctSeq uint32, successful bool) xdr.LedgerCloseMeta {
-
 	meta := txMeta(acctSeq, successful)
 
 	contractIDBytes, _ := hex.DecodeString("df06d62447fd25da07c0135eed7557e5a5497ee7d15b7fe345bd47e191d8f577")

@@ -5,13 +5,15 @@ import (
 	"fmt"
 
 	"github.com/creachadair/jrpc2"
+
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
-var ErrLedgerTtlEntriesCannotBeQueriedDirectly = "ledger ttl entries cannot be queried directly"
+//nolint:gochecknoglobals
+var ErrLedgerTTLEntriesCannotBeQueriedDirectly = "ledger ttl entries cannot be queried directly"
 
 type GetLedgerEntriesRequest struct {
 	Keys []string `json:"keys"`
@@ -62,7 +64,7 @@ func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEn
 					Infof("could not provide ledger ttl entry %s at index %d from getLedgerEntries request", requestKey, i)
 				return GetLedgerEntriesResponse{}, &jrpc2.Error{
 					Code:    jrpc2.InvalidParams,
-					Message: ErrLedgerTtlEntriesCannotBeQueriedDirectly,
+					Message: ErrLedgerTTLEntriesCannotBeQueriedDirectly,
 				}
 			}
 			ledgerKeys = append(ledgerKeys, ledgerKey)
@@ -129,7 +131,7 @@ func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEn
 
 		response := GetLedgerEntriesResponse{
 			Entries:      ledgerEntryResults,
-			LatestLedger: uint32(latestLedger),
+			LatestLedger: latestLedger,
 		}
 		return response, nil
 	})

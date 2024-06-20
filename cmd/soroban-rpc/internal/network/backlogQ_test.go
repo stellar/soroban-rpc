@@ -43,17 +43,17 @@ func TestBacklogQueueLimiter_HttpNonBlocking(t *testing.T) {
 	testGauge := &TestingGauge{}
 	limiter := MakeHTTPBacklogQueueLimiter(adding, testGauge, requestsSizeLimit, logCounter.Entry())
 	for i := 1; i < 50; i++ {
-		n := rand.Int63n(int64(requestsSizeLimit)) //nolint:gosec
+		requestCount := rand.Int63n(int64(requestsSizeLimit))
 		require.Zero(t, int(testGauge.count))
-		wg.Add(int(n))
-		for k := n; k > 0; k-- {
+		wg.Add(int(requestCount))
+		for k := requestCount; k > 0; k-- {
 			go func() {
 				limiter.ServeHTTP(nil, nil)
 				wg.Done()
 			}()
 		}
 		wg.Wait()
-		require.Equal(t, uint64(n), sum)
+		require.Equal(t, uint64(requestCount), sum)
 		require.Zero(t, int(testGauge.count))
 		sum = 0
 	}
@@ -75,19 +75,19 @@ func TestBacklogQueueLimiter_JrpcNonBlocking(t *testing.T) {
 	testGauge := &TestingGauge{}
 	limiter := MakeJrpcBacklogQueueLimiter(adding.Handle, testGauge, requestsSizeLimit, logCounter.Entry())
 	for i := 1; i < 50; i++ {
-		n := rand.Int63n(int64(requestsSizeLimit)) //nolint:gosec
+		requestCount := rand.Int63n(int64(requestsSizeLimit))
 		require.Zero(t, int(testGauge.count))
-		wg.Add(int(n))
-		for k := n; k > 0; k-- {
+		wg.Add(int(requestCount))
+		for k := requestCount; k > 0; k-- {
 			go func() {
 				_, err := limiter.Handle(context.Background(), nil)
-				require.Nil(t, err)
+				require.NoError(t, err)
 				wg.Done()
 			}()
 		}
 		wg.Wait()
 		require.Zero(t, int(testGauge.count))
-		require.Equal(t, uint64(n), sum)
+		require.Equal(t, uint64(requestCount), sum)
 		sum = 0
 	}
 	require.Equal(t, [7]int{0, 0, 0, 0, 0, 0, 0}, logCounter.writtenLogEntries)
@@ -184,7 +184,7 @@ func TestBacklogQueueLimiter_JrpcBlocking(t *testing.T) {
 		for i := uint64(0); i < queueSize/2; i++ {
 			go func() {
 				_, err := limiter.Handle(context.Background(), &jrpc2.Request{})
-				require.Nil(t, err)
+				require.NoError(t, err)
 				initialGroupBlocking.Done()
 			}()
 		}
@@ -204,7 +204,7 @@ func TestBacklogQueueLimiter_JrpcBlocking(t *testing.T) {
 		for i := queueSize / 2; i < queueSize; i++ {
 			go func() {
 				_, err := limiter.Handle(context.Background(), &jrpc2.Request{})
-				require.Nil(t, err)
+				require.NoError(t, err)
 				secondBlockingGroupWg.Done()
 			}()
 		}
@@ -214,7 +214,7 @@ func TestBacklogQueueLimiter_JrpcBlocking(t *testing.T) {
 		// now, try to place additional entry - which should be blocked.
 		var res TestingResponseWriter
 		_, err := limiter.Handle(context.Background(), &jrpc2.Request{})
-		require.NotNil(t, err)
+		require.Error(t, err)
 		require.Equal(t, [7]int{0, 0, 0, 0, 1, 0, 0}, logCounter.writtenLogEntries)
 
 		secondBlockingGroupWg.Add(int(queueSize) - int(queueSize)/2)

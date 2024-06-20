@@ -1,3 +1,4 @@
+//nolint:mnd,lll // lots of magic constants and long lines due to default values and help strings
 package config
 
 import (
@@ -11,7 +12,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/stellar/go/network"
-	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/strutils"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
@@ -19,12 +19,15 @@ import (
 
 const defaultHTTPEndpoint = "localhost:8000"
 
-func (cfg *Config) options() ConfigOptions {
+// TODO: refactor and remove the linter exceptions
+//
+//nolint:funlen,cyclop,maintidx
+func (cfg *Config) options() Options {
 	if cfg.optionsCache != nil {
 		return *cfg.optionsCache
 	}
 	defaultStellarCoreBinaryPath, _ := exec.LookPath("stellar-core")
-	cfg.optionsCache = &ConfigOptions{
+	cfg.optionsCache = &Options{
 		{
 			Name:      "config-path",
 			EnvVar:    "SOROBAN_RPC_CONFIG_PATH",
@@ -55,7 +58,7 @@ func (cfg *Config) options() ConfigOptions {
 			Name:      "stellar-core-url",
 			Usage:     "URL used to query Stellar Core (local captive core by default)",
 			ConfigKey: &cfg.StellarCoreURL,
-			Validate: func(co *ConfigOption) error {
+			Validate: func(_ *Option) error {
 				// This is a bit awkward. We're actually setting a default, but we
 				// can't do that until the config is fully parsed, so we do it as a
 				// validator here.
@@ -82,7 +85,7 @@ func (cfg *Config) options() ConfigOptions {
 			Usage:        "minimum log severity (debug, info, warn, error) to log",
 			ConfigKey:    &cfg.LogLevel,
 			DefaultValue: logrus.InfoLevel,
-			CustomSetValue: func(option *ConfigOption, i interface{}) error {
+			CustomSetValue: func(option *Option, i interface{}) error {
 				switch v := i.(type) {
 				case nil:
 					return nil
@@ -101,7 +104,7 @@ func (cfg *Config) options() ConfigOptions {
 				}
 				return nil
 			},
-			MarshalTOML: func(option *ConfigOption) (interface{}, error) {
+			MarshalTOML: func(_ *Option) (interface{}, error) {
 				return cfg.LogLevel.String(), nil
 			},
 		},
@@ -110,15 +113,15 @@ func (cfg *Config) options() ConfigOptions {
 			Usage:        "format used for output logs (json or text)",
 			ConfigKey:    &cfg.LogFormat,
 			DefaultValue: LogFormatText,
-			CustomSetValue: func(option *ConfigOption, i interface{}) error {
+			CustomSetValue: func(option *Option, i interface{}) error {
 				switch v := i.(type) {
 				case nil:
 					return nil
 				case string:
-					return errors.Wrapf(
-						cfg.LogFormat.UnmarshalText([]byte(v)),
-						"could not parse %s",
+					return fmt.Errorf(
+						"could not parse %s: %w",
 						option.Name,
+						cfg.LogFormat.UnmarshalText([]byte(v)),
 					)
 				case LogFormat:
 					cfg.LogFormat = v
@@ -129,7 +132,7 @@ func (cfg *Config) options() ConfigOptions {
 				}
 				return nil
 			},
-			MarshalTOML: func(option *ConfigOption) (interface{}, error) {
+			MarshalTOML: func(_ *Option) (interface{}, error) {
 				return cfg.LogFormat.String()
 			},
 		},
@@ -150,7 +153,7 @@ func (cfg *Config) options() ConfigOptions {
 			Name:      "captive-core-storage-path",
 			Usage:     "Storage location for Captive Core bucket data",
 			ConfigKey: &cfg.CaptiveCoreStoragePath,
-			CustomSetValue: func(option *ConfigOption, i interface{}) error {
+			CustomSetValue: func(option *Option, i interface{}) error {
 				switch v := i.(type) {
 				case string:
 					if v == "" || v == "." {
@@ -254,7 +257,7 @@ func (cfg *Config) options() ConfigOptions {
 			Usage:        "Default cap on the amount of events included in a single getEvents response",
 			ConfigKey:    &cfg.DefaultEventsLimit,
 			DefaultValue: uint(100),
-			Validate: func(co *ConfigOption) error {
+			Validate: func(_ *Option) error {
 				if cfg.DefaultEventsLimit > cfg.MaxEventsLimit {
 					return fmt.Errorf(
 						"default-events-limit (%v) cannot exceed max-events-limit (%v)",
@@ -276,7 +279,7 @@ func (cfg *Config) options() ConfigOptions {
 			Usage:        "Default cap on the amount of transactions included in a single getTransactions response",
 			ConfigKey:    &cfg.DefaultTransactionsLimit,
 			DefaultValue: uint(50),
-			Validate: func(co *ConfigOption) error {
+			Validate: func(_ *Option) error {
 				if cfg.DefaultTransactionsLimit > cfg.MaxTransactionsLimit {
 					return fmt.Errorf(
 						"default-transactions-limit (%v) cannot exceed max-transactions-limit (%v)",
@@ -480,16 +483,16 @@ func (cfg *Config) options() ConfigOptions {
 	return *cfg.optionsCache
 }
 
-type errMissingRequiredOption struct {
+type missingRequiredOptionError struct {
 	strErr string
 	usage  string
 }
 
-func (e errMissingRequiredOption) Error() string {
+func (e missingRequiredOptionError) Error() string {
 	return e.strErr
 }
 
-func required(option *ConfigOption) error {
+func required(option *Option) error {
 	switch reflect.ValueOf(option.ConfigKey).Elem().Kind() {
 	case reflect.Slice:
 		if reflect.ValueOf(option.ConfigKey).Elem().Len() > 0 {
@@ -523,10 +526,10 @@ func required(option *ConfigOption) error {
 		advice = fmt.Sprintf(" Please %s, %s, or %s.", waysToSet[0], waysToSet[1], waysToSet[2])
 	}
 
-	return errMissingRequiredOption{strErr: fmt.Sprintf("%s is required.%s", option.Name, advice), usage: option.Usage}
+	return missingRequiredOptionError{strErr: fmt.Sprintf("%s is required.%s", option.Name, advice), usage: option.Usage}
 }
 
-func positive(option *ConfigOption) error {
+func positive(option *Option) error {
 	switch v := option.ConfigKey.(type) {
 	case *int, *int8, *int16, *int32, *int64:
 		if reflect.ValueOf(v).Elem().Int() <= 0 {

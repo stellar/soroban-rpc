@@ -5,6 +5,7 @@ import (
 	"sync/atomic"
 
 	"github.com/sirupsen/logrus"
+
 	"github.com/stellar/go/support/log"
 )
 
@@ -41,12 +42,15 @@ func makeTestLogCounter() *TestLogsCounter {
 	out.entry.SetLevel(logrus.DebugLevel)
 	return out
 }
+
 func (te *TestLogsCounter) Entry() *log.Entry {
 	return te.entry
 }
+
 func (te *TestLogsCounter) Levels() []logrus.Level {
 	return []logrus.Level{logrus.PanicLevel, logrus.FatalLevel, logrus.ErrorLevel, logrus.WarnLevel, logrus.InfoLevel, logrus.DebugLevel, logrus.TraceLevel}
 }
+
 func (te *TestLogsCounter) Fire(e *logrus.Entry) error {
 	te.writtenLogEntries[e.Level]++
 	return nil
@@ -59,6 +63,7 @@ type TestingResponseWriter struct {
 func (t *TestingResponseWriter) Header() http.Header {
 	return http.Header{}
 }
+
 func (t *TestingResponseWriter) Write([]byte) (int, error) {
 	return 0, nil
 }

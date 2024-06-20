@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 
 	"github.com/creachadair/jrpc2"
+
 	"github.com/stellar/go/network"
 	proto "github.com/stellar/go/protocols/stellarcore"
 	"github.com/stellar/go/support/log"
