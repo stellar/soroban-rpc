@@ -25,14 +25,14 @@ func TestTransactionNotFound(t *testing.T) {
 
 	// Assert the ledger range
 	ledgerRange, err := reader.GetLedgerRange(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(0), ledgerRange.FirstLedger.Sequence)
 	assert.Equal(t, int64(0), ledgerRange.FirstLedger.CloseTime)
 	assert.Equal(t, uint32(0), ledgerRange.LastLedger.Sequence)
 	assert.Equal(t, int64(0), ledgerRange.LastLedger.CloseTime)
 
 	_, _, err = reader.GetTransaction(context.TODO(), xdr.Hash{})
-	require.Error(t, err, ErrNoTransaction)
+	require.ErrorIs(t, err, ErrNoTransaction)
 }
 
 func TestTransactionFound(t *testing.T) {
@@ -62,7 +62,7 @@ func TestTransactionFound(t *testing.T) {
 	// Assert the ledger range
 	reader := NewTransactionReader(log, db, passphrase)
 	ledgerRange, err := reader.GetLedgerRange(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, uint32(1234), ledgerRange.FirstLedger.Sequence)
 	assert.Equal(t, LedgerCloseTime(1334), ledgerRange.FirstLedger.CloseTime)
 	assert.Equal(t, uint32(1237), ledgerRange.LastLedger.Sequence)
@@ -70,7 +70,7 @@ func TestTransactionFound(t *testing.T) {
 
 	// check 404 case
 	_, _, err = reader.GetTransaction(ctx, xdr.Hash{})
-	require.Error(t, err, ErrNoTransaction)
+	require.ErrorIs(t, err, ErrNoTransaction)
 
 	// check all 200 cases
 	for _, lcm := range lcms {
