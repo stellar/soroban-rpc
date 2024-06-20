@@ -132,7 +132,7 @@ func (l *LedgerEntryChange) FromXDRDiff(diff preflight.XDRDiff) error {
 	return nil
 }
 
-// LedgerEntryChange designates a change in a ledger entry. Before and After cannot be be omitted at the same time.
+// LedgerEntryChange designates a change in a ledger entry. Before and After cannot be omitted at the same time.
 // If Before is omitted, it constitutes a creation, if After is omitted, it constitutes a delation.
 type LedgerEntryChange struct {
 	Type   LedgerEntryChangeType `json:"type"`
@@ -154,7 +154,7 @@ type SimulateTransactionResponse struct {
 }
 
 type PreflightGetter interface {
-	GetPreflight(ctx context.Context, params preflight.PreflightGetterParameters) (preflight.Preflight, error)
+	GetPreflight(ctx context.Context, params preflight.GetterParameters) (preflight.Preflight, error)
 }
 
 // NewSimulateTransactionHandler returns a json rpc handler to run preflight simulations
@@ -220,17 +220,17 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 			}
 		}
 
-		resource_config := preflight.DefaultResourceConfig()
+		resourceConfig := preflight.DefaultResourceConfig()
 		if request.ResourceConfig != nil {
-			resource_config = *request.ResourceConfig
+			resourceConfig = *request.ResourceConfig
 		}
-		params := preflight.PreflightGetterParameters{
+		params := preflight.GetterParameters{
 			LedgerEntryReadTx: readTx,
 			BucketListSize:    bucketListSize,
 			SourceAccount:     sourceAccount,
 			OperationBody:     op.Body,
 			Footprint:         footprint,
-			ResourceConfig:    resource_config,
+			ResourceConfig:    resourceConfig,
 			ProtocolVersion:   protocolVersion,
 		}
 		result, err := getter.GetPreflight(ctx, params)

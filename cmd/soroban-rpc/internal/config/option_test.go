@@ -12,39 +12,39 @@ import (
 
 func TestConfigOptionGetTomlKey(t *testing.T) {
 	// Explicitly set toml key
-	key, ok := ConfigOption{TomlKey: "TOML_KEY"}.getTomlKey()
+	key, ok := Option{TomlKey: "TOML_KEY"}.getTomlKey()
 	assert.Equal(t, "TOML_KEY", key)
 	assert.True(t, ok)
 
 	// Explicitly disabled toml key via `-`
-	key, ok = ConfigOption{TomlKey: "-"}.getTomlKey()
+	key, ok = Option{TomlKey: "-"}.getTomlKey()
 	assert.Equal(t, "", key)
 	assert.False(t, ok)
 
 	// Explicitly disabled toml key via `_`
-	key, ok = ConfigOption{TomlKey: "_"}.getTomlKey()
+	key, ok = Option{TomlKey: "_"}.getTomlKey()
 	assert.Equal(t, "", key)
 	assert.False(t, ok)
 
 	// Fallback to env var
-	key, ok = ConfigOption{EnvVar: "ENV_VAR"}.getTomlKey()
+	key, ok = Option{EnvVar: "ENV_VAR"}.getTomlKey()
 	assert.Equal(t, "ENV_VAR", key)
 	assert.True(t, ok)
 
 	// Env-var disabled, autogenerate from name
-	key, ok = ConfigOption{Name: "test-flag", EnvVar: "-"}.getTomlKey()
+	key, ok = Option{Name: "test-flag", EnvVar: "-"}.getTomlKey()
 	assert.Equal(t, "TEST_FLAG", key)
 	assert.True(t, ok)
 
 	// Env-var not set, autogenerate from name
-	key, ok = ConfigOption{Name: "test-flag"}.getTomlKey()
+	key, ok = Option{Name: "test-flag"}.getTomlKey()
 	assert.Equal(t, "TEST_FLAG", key)
 	assert.True(t, ok)
 }
 
 func TestValidateRequired(t *testing.T) {
 	var strVal string
-	o := &ConfigOption{
+	o := &Option{
 		Name:      "required-option",
 		ConfigKey: &strVal,
 		Validate:  required,
@@ -64,7 +64,7 @@ func TestValidateRequired(t *testing.T) {
 
 func TestValidatePositiveUint32(t *testing.T) {
 	var val uint32
-	o := &ConfigOption{
+	o := &Option{
 		Name:      "positive-option",
 		ConfigKey: &val,
 		Validate:  positive,
@@ -84,7 +84,7 @@ func TestValidatePositiveUint32(t *testing.T) {
 
 func TestValidatePositiveInt(t *testing.T) {
 	var val int
-	o := &ConfigOption{
+	o := &Option{
 		Name:      "positive-option",
 		ConfigKey: &val,
 		Validate:  positive,
@@ -107,7 +107,7 @@ func TestValidatePositiveInt(t *testing.T) {
 }
 
 func TestUnassignableField(t *testing.T) {
-	var co ConfigOption
+	var co Option
 	var b bool
 	co.Name = "mykey"
 	co.ConfigKey = &b
@@ -117,7 +117,7 @@ func TestUnassignableField(t *testing.T) {
 }
 
 func TestNoParserForFlag(t *testing.T) {
-	var co ConfigOption
+	var co Option
 	var invalidKey []time.Duration
 	co.Name = "mykey"
 	co.ConfigKey = &invalidKey
@@ -256,7 +256,7 @@ func TestSetValue(t *testing.T) {
 		},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
-			co := ConfigOption{
+			co := Option{
 				Name:      scenario.name,
 				ConfigKey: scenario.key,
 			}

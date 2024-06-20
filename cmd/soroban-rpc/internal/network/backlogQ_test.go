@@ -81,7 +81,7 @@ func TestBacklogQueueLimiter_JrpcNonBlocking(t *testing.T) {
 		for k := requestCount; k > 0; k-- {
 			go func() {
 				_, err := limiter.Handle(context.Background(), nil)
-				require.Nil(t, err)
+				require.NoError(t, err)
 				wg.Done()
 			}()
 		}
@@ -184,7 +184,7 @@ func TestBacklogQueueLimiter_JrpcBlocking(t *testing.T) {
 		for i := uint64(0); i < queueSize/2; i++ {
 			go func() {
 				_, err := limiter.Handle(context.Background(), &jrpc2.Request{})
-				require.Nil(t, err)
+				require.NoError(t, err)
 				initialGroupBlocking.Done()
 			}()
 		}

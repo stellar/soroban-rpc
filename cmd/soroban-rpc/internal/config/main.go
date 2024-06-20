@@ -71,7 +71,7 @@ type Config struct {
 	MaxGetFeeStatsExecutionDuration                time.Duration
 
 	// We memoize these, so they bind to pflags correctly
-	optionsCache *ConfigOptions
+	optionsCache *Options
 	flagset      *pflag.FlagSet
 }
 

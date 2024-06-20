@@ -5,11 +5,12 @@ import (
 	"testing"
 
 	"github.com/creachadair/jrpc2"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/stellar/go/keypair"
 	proto "github.com/stellar/go/protocols/stellarcore"
 	"github.com/stellar/go/txnbuild"
 	"github.com/stellar/go/xdr"
-	"github.com/stretchr/testify/assert"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/integrationtest/infrastructure"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
@@ -130,11 +131,10 @@ func TestSendTransactionFailedInsufficientResourceFee(t *testing.T) {
 	assert.NoError(t, xdr.SafeUnmarshalBase64(result.ErrorResultXDR, &errorResult))
 	assert.Equal(t, xdr.TransactionResultCodeTxSorobanInvalid, errorResult.Result.Code)
 
-	assert.Greater(t, len(result.DiagnosticEventsXDR), 0)
+	assert.NotEmpty(t, result.DiagnosticEventsXDR)
 	var event xdr.DiagnosticEvent
 	err = xdr.SafeUnmarshalBase64(result.DiagnosticEventsXDR[0], &event)
 	assert.NoError(t, err)
-
 }
 
 func TestSendTransactionFailedInLedger(t *testing.T) {

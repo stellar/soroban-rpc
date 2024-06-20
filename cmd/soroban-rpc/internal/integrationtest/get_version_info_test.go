@@ -4,11 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/integrationtest/infrastructure"
-
 	"github.com/stretchr/testify/assert"
 
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/integrationtest/infrastructure"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 )
 
