@@ -209,7 +209,7 @@ func TestGetTransactions_InvalidStartLedger(t *testing.T) {
 	}
 
 	response, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
-	expectedErr := errors.Errorf("[%d] start ledger must be between the oldest ledger: 1 and the latest ledger: 3 for this rpc instance.", jrpc2.InvalidRequest)
+	expectedErr := errors.Errorf("[%d] start ledger must be between the oldest ledger: 1 and the latest ledger: 3 for this rpc instance", jrpc2.InvalidRequest)
 	assert.Equal(t, expectedErr.Error(), err.Error())
 	assert.Nil(t, response.Transactions)
 }
