@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
 	_ "github.com/mattn/go-sqlite3"
@@ -16,14 +17,14 @@ import (
 	"testing"
 
 	"github.com/stellar/go/support/db"
-	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
+
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 )
 
-//go:embed migrations/*.sql
-var migrations embed.FS
+//go:embed sqlmigrations/*.sql
+var sqlMigrations embed.FS
 
 var ErrEmptyDB = errors.New("DB is empty")
 
@@ -55,7 +56,7 @@ type dbCache struct {
 
 type DB struct {
 	db.SessionInterface
-	cache dbCache
+	cache *dbCache
 }
 
 func openSQLiteDB(dbFilePath string) (*db.Session, error) {
@@ -65,12 +66,12 @@ func openSQLiteDB(dbFilePath string) (*db.Session, error) {
 	// 3. Use synchronous=NORMAL, which is faster and still safe in WAL mode.
 	session, err := db.Open("sqlite3", fmt.Sprintf("file:%s?_journal_mode=WAL&_wal_autocheckpoint=0&_synchronous=NORMAL", dbFilePath))
 	if err != nil {
-		return nil, errors.Wrap(err, "open failed")
+		return nil, fmt.Errorf("open failed: %w", err)
 	}
 
-	if err = runMigrations(session.DB.DB, "sqlite3"); err != nil {
+	if err = runSQLMigrations(session.DB.DB, "sqlite3"); err != nil {
 		_ = session.Close()
-		return nil, errors.Wrap(err, "could not run migrations")
+		return nil, fmt.Errorf("could not run SQL migrations: %w", err)
 	}
 	return session, nil
 }
@@ -82,7 +83,7 @@ func OpenSQLiteDBWithPrometheusMetrics(dbFilePath string, namespace string, sub 
 	}
 	result := DB{
 		SessionInterface: db.RegisterMetrics(session, namespace, sub, registry),
-		cache: dbCache{
+		cache: &dbCache{
 			ledgerEntries: newTransactionalCache(),
 		},
 	}
@@ -96,28 +97,50 @@ func OpenSQLiteDB(dbFilePath string) (*DB, error) {
 	}
 	result := DB{
 		SessionInterface: session,
-		cache: dbCache{
+		cache: &dbCache{
 			ledgerEntries: newTransactionalCache(),
 		},
 	}
 	return &result, nil
 }
 
-func getLatestLedgerSequence(ctx context.Context, q db.SessionInterface, cache *dbCache) (uint32, error) {
-	sql := sq.Select("value").From(metaTableName).Where(sq.Eq{"key": latestLedgerSequenceMetaKey})
+func getMetaBool(ctx context.Context, q db.SessionInterface, key string) (bool, error) {
+	valueStr, err := getMetaValue(ctx, q, key)
+	if err != nil {
+		return false, err
+	}
+	return strconv.ParseBool(valueStr)
+}
+
+func setMetaBool(ctx context.Context, q db.SessionInterface, key string, value bool) error {
+	query := sq.Replace(metaTableName).
+		Values(key, strconv.FormatBool(value))
+	_, err := q.Exec(ctx, query)
+	return err
+}
+
+func getMetaValue(ctx context.Context, q db.SessionInterface, key string) (string, error) {
+	sql := sq.Select("value").From(metaTableName).Where(sq.Eq{"key": key})
 	var results []string
 	if err := q.Select(ctx, &results, sql); err != nil {
-		return 0, err
+		return "", err
 	}
 	switch len(results) {
 	case 0:
-		return 0, ErrEmptyDB
+		return "", ErrEmptyDB
 	case 1:
 		// expected length on an initialized DB
 	default:
-		return 0, fmt.Errorf("multiple entries (%d) for key %q in table %q", len(results), latestLedgerSequenceMetaKey, metaTableName)
+		return "", fmt.Errorf("multiple entries (%d) for key %q in table %q", len(results), latestLedgerSequenceMetaKey, metaTableName)
 	}
-	latestLedgerStr := results[0]
+	return results[0], nil
+}
+
+func getLatestLedgerSequence(ctx context.Context, q db.SessionInterface, cache *dbCache) (uint32, error) {
+	latestLedgerStr, err := getMetaValue(ctx, q, latestLedgerSequenceMetaKey)
+	if err != nil {
+		return 0, err
+	}
 	latestLedger, err := strconv.ParseUint(latestLedgerStr, 10, 32)
 	if err != nil {
 		return 0, err
@@ -128,7 +151,7 @@ func getLatestLedgerSequence(ctx context.Context, q db.SessionInterface, cache *
 	// Otherwise, the write-through cache won't get updated until the first ingestion commit
 	cache.Lock()
 	if cache.latestLedgerSeq == 0 {
-		// Only update the cache if value is missing (0), otherwise
+		// Only update the cache if the value is missing (0), otherwise
 		// we may end up overwriting the entry with an older version
 		cache.latestLedgerSeq = result
 	}
@@ -195,7 +218,7 @@ func NewReadWriter(
 }
 
 func (rw *readWriter) GetLatestLedgerSequence(ctx context.Context) (uint32, error) {
-	return getLatestLedgerSequence(ctx, rw.db, &rw.db.cache)
+	return getLatestLedgerSequence(ctx, rw.db, rw.db.cache)
 }
 
 func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
@@ -207,8 +230,9 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 
 	db := rw.db
 	writer := writeTx{
-		globalCache: &db.cache,
+		globalCache: db.cache,
 		postCommit: func() error {
+			// TODO: this is sqlite-only, it shouldn't be here
 			_, err := db.ExecRaw(ctx, "PRAGMA wal_checkpoint(TRUNCATE)")
 			return err
 		},
@@ -288,7 +312,7 @@ func (w writeTx) Commit(ledgerSeq uint32) error {
 	}
 
 	_, err := sq.Replace(metaTableName).
-		Values(latestLedgerSequenceMetaKey, fmt.Sprintf("%d", ledgerSeq)).
+		Values(latestLedgerSequenceMetaKey, strconv.FormatUint(uint64(ledgerSeq), 10)).
 		RunWith(w.stmtCache).
 		Exec()
 	if err != nil {
@@ -326,12 +350,12 @@ func (w writeTx) Rollback() error {
 	}
 }
 
-func runMigrations(db *sql.DB, dialect string) error {
+func runSQLMigrations(db *sql.DB, dialect string) error {
 	m := &migrate.AssetMigrationSource{
-		Asset: migrations.ReadFile,
+		Asset: sqlMigrations.ReadFile,
 		AssetDir: func() func(string) ([]string, error) {
 			return func(path string) ([]string, error) {
-				dirEntry, err := migrations.ReadDir(path)
+				dirEntry, err := sqlMigrations.ReadDir(path)
 				if err != nil {
 					return nil, err
 				}
@@ -343,7 +367,7 @@ func runMigrations(db *sql.DB, dialect string) error {
 				return entries, nil
 			}
 		}(),
-		Dir: "migrations",
+		Dir: "sqlmigrations",
 	}
 	_, err := migrate.ExecMax(db, dialect, m, migrate.Up, 0)
 	return err

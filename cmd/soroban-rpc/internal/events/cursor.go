@@ -55,11 +55,11 @@ func (c *Cursor) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	if parsed, err := ParseCursor(s); err != nil {
+	parsed, err := ParseCursor(s)
+	if err != nil {
 		return err
-	} else {
-		*c = parsed
 	}
+	*c = parsed
 	return nil
 }
 
@@ -120,8 +120,10 @@ func (c Cursor) Cmp(other Cursor) int {
 
 var (
 	// MinCursor is the smallest possible cursor
+	//nolint:gochecknoglobals
 	MinCursor = Cursor{}
 	// MaxCursor is the largest possible cursor
+	//nolint:gochecknoglobals
 	MaxCursor = Cursor{
 		Ledger: math.MaxUint32,
 		Tx:     math.MaxUint32,

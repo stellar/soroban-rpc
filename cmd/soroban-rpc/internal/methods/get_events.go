@@ -53,7 +53,7 @@ func (e *eventTypeSet) UnmarshalJSON(data []byte) error {
 }
 
 func (e eventTypeSet) MarshalJSON() ([]byte, error) {
-	var keys []string
+	keys := make([]string, 0, len(e))
 	for key := range e {
 		keys = append(keys, key)
 	}
@@ -126,9 +126,11 @@ func (g *GetEventsRequest) Matches(event xdr.DiagnosticEvent) bool {
 	return false
 }
 
-const EventTypeSystem = "system"
-const EventTypeContract = "contract"
-const EventTypeDiagnostic = "diagnostic"
+const (
+	EventTypeSystem     = "system"
+	EventTypeContract   = "contract"
+	EventTypeDiagnostic = "diagnostic"
+)
 
 var eventTypeFromXDR = map[xdr.ContractEventType]string{
 	xdr.ContractEventTypeSystem:     EventTypeSystem,
@@ -204,8 +206,10 @@ func (e *EventFilter) matchesTopics(event xdr.ContractEvent) bool {
 
 type TopicFilter []SegmentFilter
 
-const minTopicCount = 1
-const maxTopicCount = 4
+const (
+	minTopicCount = 1
+	maxTopicCount = 4
+)
 
 func (t *TopicFilter) Valid() error {
 	if len(*t) < minTopicCount {

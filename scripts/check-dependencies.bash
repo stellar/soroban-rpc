@@ -107,8 +107,6 @@ for P in $PROTOCOL_VERSIONS; do
 	    echo
 	    echo "Current repository's revision $RS_STELLAR_XDR_REVISION"
 	    echo "Core's revision $RS_STELLAR_XDR_REVISION_FROM_CORE"
-	    # Temporarily skip check since Core is not currently using the exact version rs-stellar-xdr revision
-	    # exit 1
     fi
 done
 

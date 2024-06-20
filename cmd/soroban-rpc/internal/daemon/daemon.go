@@ -3,8 +3,9 @@ package daemon
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
-	"net/http/pprof" //nolint:gosec
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	runtimePprof "runtime/pprof"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/stellar/go/clients/stellarcore"
 	"github.com/stellar/go/historyarchive"
 	"github.com/stellar/go/ingest/ledgerbackend"
@@ -48,8 +50,10 @@ type Daemon struct {
 	db                  *db.DB
 	jsonRPCHandler      *internal.Handler
 	logger              *supportlog.Entry
-	preflightWorkerPool *preflight.PreflightWorkerPool
+	preflightWorkerPool *preflight.WorkerPool
+	listener            net.Listener
 	server              *http.Server
+	adminListener       net.Listener
 	adminServer         *http.Server
 	closeOnce           sync.Once
 	closeError          error
@@ -59,6 +63,17 @@ type Daemon struct {
 
 func (d *Daemon) GetDB() *db.DB {
 	return d.db
+}
+
+func (d *Daemon) GetEndpointAddrs() (net.TCPAddr, *net.TCPAddr) {
+	//nolint:forcetypeassert
+	addr := d.listener.Addr().(*net.TCPAddr)
+	var adminAddr *net.TCPAddr
+	if d.adminListener != nil {
+		//nolint:forcetypeassert
+		adminAddr = d.adminListener.Addr().(*net.TCPAddr)
+	}
+	return *addr, adminAddr
 }
 
 func (d *Daemon) close() {
@@ -129,11 +144,9 @@ func newCaptiveCore(cfg *config.Config, logger *supportlog.Entry) (*ledgerbacken
 		UseDB:               true,
 	}
 	return ledgerbackend.NewCaptive(captiveConfig)
-
 }
 
-func MustNew(cfg *config.Config) *Daemon {
-	logger := supportlog.New()
+func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 	logger.SetLevel(cfg.LogLevel)
 	if cfg.LogFormat == config.LogFormatJSON {
 		logger.UseJSONFormatter()
@@ -156,14 +169,15 @@ func MustNew(cfg *config.Config) *Daemon {
 	historyArchive, err := historyarchive.NewArchivePool(
 		cfg.HistoryArchiveURLs,
 		historyarchive.ArchiveOptions{
+			Logger:              logger,
 			NetworkPassphrase:   cfg.NetworkPassphrase,
 			CheckpointFrequency: cfg.CheckpointFrequency,
 			ConnectOptions: storage.ConnectOptions{
 				Context:   context.Background(),
-				UserAgent: cfg.HistoryArchiveUserAgent},
+				UserAgent: cfg.HistoryArchiveUserAgent,
+			},
 		},
 	)
-
 	if err != nil {
 		logger.WithError(err).Fatal("could not connect to history archive")
 	}
@@ -186,42 +200,7 @@ func MustNew(cfg *config.Config) *Daemon {
 		}, metricsRegistry),
 	}
 
-	feewindows := feewindow.NewFeeWindows(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow, cfg.NetworkPassphrase)
-
-	// initialize the stores using what was on the DB
-	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
-	defer cancelReadTxMeta()
-	// NOTE: We could optimize this to avoid unnecessary ingestion calls
-	//       (the range of txmetas can be larger than the individual store retention windows)
-	//       but it's probably not worth the pain.
-	var initialSeq uint32
-	var currentSeq uint32
-	err = db.NewLedgerReader(dbConn).StreamAllLedgers(readTxMetaCtx, func(txmeta xdr.LedgerCloseMeta) error {
-		currentSeq = txmeta.LedgerSequence()
-		if initialSeq == 0 {
-			initialSeq = currentSeq
-			logger.WithFields(supportlog.F{
-				"seq": currentSeq,
-			}).Info("initializing in-memory store")
-		} else if (currentSeq-initialSeq)%inMemoryInitializationLedgerLogPeriod == 0 {
-			logger.WithFields(supportlog.F{
-				"seq": currentSeq,
-			}).Debug("still initializing in-memory store")
-		}
-
-		if err := feewindows.IngestFees(txmeta); err != nil {
-			logger.WithError(err).Fatal("could not initialize fee stats")
-		}
-		return nil
-	})
-	if err != nil {
-		logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
-	}
-	if currentSeq != 0 {
-		logger.WithFields(supportlog.F{
-			"seq": currentSeq,
-		}).Info("finished initializing in-memory store")
-	}
+	feewindows, eventStore := daemon.mustInitializeStorage(cfg)
 
 	onIngestionRetry := func(err error, dur time.Duration) {
 		logger.WithError(err).Error("could not run ingestion. Retrying")
@@ -257,13 +236,15 @@ func MustNew(cfg *config.Config) *Daemon {
 
 	ledgerEntryReader := db.NewLedgerEntryReader(dbConn)
 	preflightWorkerPool := preflight.NewPreflightWorkerPool(
-		daemon,
-		cfg.PreflightWorkerCount,
-		cfg.PreflightWorkerQueueSize,
-		cfg.PreflightEnableDebug,
-		ledgerEntryReader,
-		cfg.NetworkPassphrase,
-		logger,
+		preflight.WorkerPoolConfig{
+			Daemon:            daemon,
+			WorkerCount:       cfg.PreflightWorkerCount,
+			JobQueueCapacity:  cfg.PreflightWorkerQueueSize,
+			EnableDebug:       cfg.PreflightEnableDebug,
+			LedgerEntryReader: ledgerEntryReader,
+			NetworkPassphrase: cfg.NetworkPassphrase,
+			Logger:            logger,
+		},
 	)
 
 	jsonRPCHandler := internal.NewJSONRPCHandler(cfg, internal.HandlerParams{
@@ -284,8 +265,13 @@ func MustNew(cfg *config.Config) *Daemon {
 	daemon.ingestService = ingestService
 	daemon.jsonRPCHandler = &jsonRPCHandler
 
+	// Use a separate listener in order to obtain the actual TCP port
+	// when using dynamic ports during testing (e.g. endpoint="localhost:0")
+	daemon.listener, err = net.Listen("tcp", cfg.Endpoint)
+	if err != nil {
+		daemon.logger.WithError(err).WithField("endpoint", cfg.Endpoint).Fatal("cannot listen on endpoint")
+	}
 	daemon.server = &http.Server{
-		Addr:        cfg.Endpoint,
 		Handler:     httpHandler,
 		ReadTimeout: defaultReadTimeout,
 	}
@@ -302,28 +288,97 @@ func MustNew(cfg *config.Config) *Daemon {
 			adminMux.Handle("/debug/pprof/"+profile.Name(), pprof.Handler(profile.Name()))
 		}
 		adminMux.Handle("/metrics", promhttp.HandlerFor(metricsRegistry, promhttp.HandlerOpts{}))
-		daemon.adminServer = &http.Server{Addr: cfg.AdminEndpoint, Handler: adminMux}
+		daemon.adminListener, err = net.Listen("tcp", cfg.AdminEndpoint)
+		if err != nil {
+			daemon.logger.WithError(err).WithField("endpoint", cfg.Endpoint).Fatal("cannot listen on admin endpoint")
+		}
+		daemon.adminServer = &http.Server{Handler: adminMux}
 	}
 	daemon.registerMetrics()
 	return daemon
 }
 
+// mustInitializeStorage initializes the storage using what was on the DB
+func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindows, *events.MemoryStore) {
+	eventStore := events.NewMemoryStore(
+		d,
+		cfg.NetworkPassphrase,
+		cfg.EventLedgerRetentionWindow,
+	)
+	feewindows := feewindow.NewFeeWindows(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow, cfg.NetworkPassphrase)
+
+	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
+	defer cancelReadTxMeta()
+	var initialSeq uint32
+	var currentSeq uint32
+	dataMigrations, err := db.BuildMigrations(readTxMetaCtx, d.logger, d.db, cfg)
+	if err != nil {
+		d.logger.WithError(err).Fatal("could not build migrations")
+	}
+	// NOTE: We could optimize this to avoid unnecessary ingestion calls
+	//       (the range of txmetas can be larger than the individual store retention windows)
+	//       but it's probably not worth the pain.
+	err = db.NewLedgerReader(d.db).StreamAllLedgers(readTxMetaCtx, func(txmeta xdr.LedgerCloseMeta) error {
+		currentSeq = txmeta.LedgerSequence()
+		if initialSeq == 0 {
+			initialSeq = currentSeq
+			d.logger.WithFields(supportlog.F{
+				"seq": currentSeq,
+			}).Info("initializing in-memory store")
+		} else if (currentSeq-initialSeq)%inMemoryInitializationLedgerLogPeriod == 0 {
+			d.logger.WithFields(supportlog.F{
+				"seq": currentSeq,
+			}).Debug("still initializing in-memory store")
+		}
+		if err := eventStore.IngestEvents(txmeta); err != nil {
+			d.logger.WithError(err).Fatal("could not initialize event memory store")
+		}
+		if err := feewindows.IngestFees(txmeta); err != nil {
+			d.logger.WithError(err).Fatal("could not initialize fee stats")
+		}
+		// TODO: clean up once we remove the in-memory storage.
+		//       (we should only stream over the required range)
+		if r := dataMigrations.ApplicableRange(); r.IsLedgerIncluded(currentSeq) {
+			if err := dataMigrations.Apply(readTxMetaCtx, txmeta); err != nil {
+				d.logger.WithError(err).Fatal("could not run migrations")
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
+	}
+	if err := dataMigrations.Commit(readTxMetaCtx); err != nil {
+		d.logger.WithError(err).Fatal("could not commit data migrations")
+	}
+
+	if currentSeq != 0 {
+		d.logger.WithFields(supportlog.F{
+			"seq": currentSeq,
+		}).Info("finished initializing in-memory store")
+	}
+
+	return feewindows, eventStore
+}
+
 func (d *Daemon) Run() {
 	d.logger.WithFields(supportlog.F{
-		"addr": d.server.Addr,
+		"addr": d.listener.Addr().String(),
 	}).Info("starting HTTP server")
 
 	panicGroup := util.UnrecoverablePanicGroup.Log(d.logger)
 	panicGroup.Go(func() {
-		if err := d.server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-			// Error starting or closing listener:
+		if err := d.server.Serve(d.listener); !errors.Is(err, http.ErrServerClosed) {
 			d.logger.WithError(err).Fatal("soroban JSON RPC server encountered fatal error")
 		}
 	})
 
 	if d.adminServer != nil {
+		d.logger.WithFields(supportlog.F{
+			"addr": d.adminListener.Addr().String(),
+		}).Info("starting Admin HTTP server")
 		panicGroup.Go(func() {
-			if err := d.adminServer.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+			if err := d.adminServer.Serve(d.adminListener); !errors.Is(err, http.ErrServerClosed) {
 				d.logger.WithError(err).Error("soroban admin server encountered fatal error")
 			}
 		})

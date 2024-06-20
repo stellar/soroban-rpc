@@ -1,3 +1,4 @@
+//nolint:mnd // percentile numbers are not really magical
 package feewindow
 
 import (
@@ -52,7 +53,7 @@ func (fw *FeeWindow) AppendLedgerFees(fees ledgerbucketwindow.LedgerBucket[[]uin
 	}
 
 	var allFees []uint64
-	for i := uint32(0); i < fw.feesPerLedger.Len(); i++ {
+	for i := range fw.feesPerLedger.Len() {
 		allFees = append(allFees, fw.feesPerLedger.Get(i).BucketContent...)
 	}
 	fw.distribution = computeFeeDistribution(allFees, fw.feesPerLedger.Len())
@@ -71,7 +72,7 @@ func computeFeeDistribution(fees []uint64, ledgerCount uint32) FeeDistribution {
 	localRepetitions := 0
 	for i := 1; i < len(fees); i++ {
 		if fees[i] == lastVal {
-			localRepetitions += 1
+			localRepetitions++
 			continue
 		}
 
@@ -165,7 +166,8 @@ func (fw *FeeWindows) IngestFees(meta xdr.LedgerCloseMeta) error {
 					continue
 				}
 				sorobanFees := tx.UnsafeMeta.V3.SorobanMeta.Ext.V1
-				resourceFeeCharged := sorobanFees.TotalNonRefundableResourceFeeCharged + sorobanFees.TotalRefundableResourceFeeCharged
+				resourceFeeCharged := sorobanFees.TotalNonRefundableResourceFeeCharged +
+					sorobanFees.TotalRefundableResourceFeeCharged
 				inclusionFee := feeCharged - uint64(resourceFeeCharged)
 				sorobanInclusionFees = append(sorobanInclusionFees, inclusionFee)
 				continue
@@ -173,7 +175,6 @@ func (fw *FeeWindows) IngestFees(meta xdr.LedgerCloseMeta) error {
 		}
 		feePerOp := feeCharged / uint64(len(ops))
 		classicFees = append(classicFees, feePerOp)
-
 	}
 	bucket := ledgerbucketwindow.LedgerBucket[[]uint64]{
 		LedgerSeq:            meta.LedgerSequence(),

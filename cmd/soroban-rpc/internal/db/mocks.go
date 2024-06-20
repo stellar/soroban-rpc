@@ -202,6 +202,8 @@ func (m *mockEventReader) GetEvents(ctx context.Context, startLedgerSequence int
 	return nil
 }
 
-var _ TransactionReader = &mockTransactionHandler{}
-var _ TransactionWriter = &mockTransactionHandler{}
-var _ LedgerReader = &mockLedgerReader{}
+var (
+	_ TransactionReader = &mockTransactionHandler{}
+	_ TransactionWriter = &mockTransactionHandler{}
+	_ LedgerReader      = &mockLedgerReader{}
+)

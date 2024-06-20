@@ -2,15 +2,17 @@ package network
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"net/http"
 	"sync/atomic"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/stellar/go/support/errors"
+
 	"github.com/stellar/go/support/log"
 )
 
-const RequestBacklogQueueNoLimit = maxUint
+const RequestBacklogQueueNoLimit = math.MaxUint64
 
 // The gauge is a subset of prometheus.Gauge, and it allows us to mock the
 // gauge usage for testing purposes without requiring the implementation of the true
@@ -77,13 +79,10 @@ func (q *backlogHTTPQLimiter) ServeHTTP(res http.ResponseWriter, req *http.Reque
 			}
 		}
 		return
-	} else {
-		if q.gauge != nil {
-			q.gauge.Inc()
-		}
+	} else if q.gauge != nil {
+		q.gauge.Inc()
 	}
 	defer func() {
-
 		atomic.AddUint64(&q.pending, ^uint64(0))
 		if q.gauge != nil {
 			q.gauge.Dec()
@@ -109,11 +108,10 @@ func (q *backlogJrpcQLimiter) Handle(ctx context.Context, req *jrpc2.Request) (i
 				q.logger.Infof("Backlog queue limiter reached the queue limit of %d executing concurrent rpc %s requests.", q.limit, req.Method())
 			}
 		}
-		return nil, errors.Errorf("rpc queue for %s surpassed queue limit of %d requests", req.Method(), q.limit)
-	} else {
-		if q.gauge != nil {
-			q.gauge.Inc()
-		}
+		return nil, fmt.Errorf("rpc queue for %s surpassed queue limit of %d requests", req.Method(), q.limit)
+	}
+	if q.gauge != nil {
+		q.gauge.Inc()
 	}
 
 	defer func() {

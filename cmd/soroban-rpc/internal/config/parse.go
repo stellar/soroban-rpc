@@ -7,32 +7,30 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/stellar/go/support/errors"
 )
 
-func parseBool(option *ConfigOption, i interface{}) error {
+func parseBool(option *Option, i interface{}) error {
 	switch v := i.(type) {
 	case nil:
 		return nil
 	case bool:
+		//nolint:forcetypeassert
 		*option.ConfigKey.(*bool) = v
 	case string:
 		lower := strings.ToLower(v)
-		if lower == "true" {
-			*option.ConfigKey.(*bool) = true
-		} else if lower == "false" {
-			*option.ConfigKey.(*bool) = false
-		} else {
+		b, err := strconv.ParseBool(lower)
+		if err != nil {
 			return fmt.Errorf("invalid boolean value %s: %s", option.Name, v)
 		}
+		//nolint:forcetypeassert
+		*option.ConfigKey.(*bool) = b
 	default:
 		return fmt.Errorf("could not parse boolean %s: %v", option.Name, i)
 	}
 	return nil
 }
 
-func parseInt(option *ConfigOption, i interface{}) error {
+func parseInt(option *Option, i interface{}) error {
 	switch v := i.(type) {
 	case nil:
 		return nil
@@ -50,7 +48,7 @@ func parseInt(option *ConfigOption, i interface{}) error {
 	return nil
 }
 
-func parseUint(option *ConfigOption, i interface{}) error {
+func parseUint(option *Option, i interface{}) error {
 	switch v := i.(type) {
 	case nil:
 		return nil
@@ -73,7 +71,7 @@ func parseUint(option *ConfigOption, i interface{}) error {
 	return nil
 }
 
-func parseFloat(option *ConfigOption, i interface{}) error {
+func parseFloat(option *Option, i interface{}) error {
 	switch v := i.(type) {
 	case nil:
 		return nil
@@ -91,7 +89,7 @@ func parseFloat(option *ConfigOption, i interface{}) error {
 	return nil
 }
 
-func parseString(option *ConfigOption, i interface{}) error {
+func parseString(option *Option, i interface{}) error {
 	switch v := i.(type) {
 	case nil:
 		return nil
@@ -103,7 +101,7 @@ func parseString(option *ConfigOption, i interface{}) error {
 	return nil
 }
 
-func parseUint32(option *ConfigOption, i interface{}) error {
+func parseUint32(option *Option, i interface{}) error {
 	switch v := i.(type) {
 	case nil:
 		return nil
@@ -129,14 +127,14 @@ func parseUint32(option *ConfigOption, i interface{}) error {
 	return nil
 }
 
-func parseDuration(option *ConfigOption, i interface{}) error {
+func parseDuration(option *Option, i interface{}) error {
 	switch v := i.(type) {
 	case nil:
 		return nil
 	case string:
 		d, err := time.ParseDuration(v)
 		if err != nil {
-			return errors.Wrapf(err, "could not parse duration: %q", v)
+			return fmt.Errorf("could not parse duration: %q: %w", v, err)
 		}
 		*option.ConfigKey.(*time.Duration) = d
 	case time.Duration:
@@ -149,7 +147,7 @@ func parseDuration(option *ConfigOption, i interface{}) error {
 	return nil
 }
 
-func parseStringSlice(option *ConfigOption, i interface{}) error {
+func parseStringSlice(option *Option, i interface{}) error {
 	switch v := i.(type) {
 	case nil:
 		return nil

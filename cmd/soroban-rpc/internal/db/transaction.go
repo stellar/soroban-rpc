@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/support/db"
-	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
@@ -39,7 +39,7 @@ type TransactionWriter interface {
 	RegisterMetrics(ingest, count prometheus.Observer)
 }
 
-// TransactionReader provides all of the public ways to read from the DB.
+// TransactionReader provides all the public ways to read from the DB.
 type TransactionReader interface {
 	GetTransaction(ctx context.Context, hash xdr.Hash) (Transaction, ledgerbucketwindow.LedgerRange, error)
 	GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error)
@@ -80,16 +80,18 @@ func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 
 	reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(txn.passphrase, lcm)
 	if err != nil {
-		return errors.Wrapf(err,
-			"failed to open transaction reader for ledger %d",
-			lcm.LedgerSequence())
+		return fmt.Errorf(
+			"failed to open transaction reader for ledger %d: %w",
+			lcm.LedgerSequence(),
+			err,
+		)
 	}
 
 	transactions := make(map[xdr.Hash]ingest.LedgerTransaction, txCount)
 	for i := 0; i < txCount; i++ {
 		tx, err := reader.Read()
 		if err != nil {
-			return errors.Wrapf(err, "failed reading tx %d", i)
+			return fmt.Errorf("failed reading tx %d: %w", i, err)
 		}
 
 		// For fee-bump transactions, we store lookup entries for both the outer
@@ -107,8 +109,7 @@ func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 	}
 	_, err = query.RunWith(txn.stmtCache).Exec()
 
-	L.WithError(err).
-		WithField("duration", time.Since(start)).
+	L.WithField("duration", time.Since(start)).
 		Infof("Ingested %d transaction lookups", len(transactions))
 
 	return err
@@ -164,12 +165,12 @@ func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucket
 			"m2",
 		).ToSql()
 	if err != nil {
-		return ledgerRange, errors.Wrap(err, "couldn't build ledger range query")
+		return ledgerRange, fmt.Errorf("couldn't build ledger range query: %w", err)
 	}
 
 	var lcms []xdr.LedgerCloseMeta
 	if err = txn.db.Select(ctx, &lcms, newestQ.Suffix("UNION ALL "+sql, args...)); err != nil {
-		return ledgerRange, errors.Wrap(err, "couldn't query ledger range")
+		return ledgerRange, fmt.Errorf("couldn't query ledger range: %w", err)
 	} else if len(lcms) < 2 {
 		// There is almost certainly a row, but we want to avoid a race condition
 		// with ingestion as well as support test cases from an empty DB, so we need
@@ -238,25 +239,29 @@ func (txn *transactionHandler) getTransactionByHash(ctx context.Context, hash xd
 	}
 	rowQ := sq.
 		Select("t.application_order", "lcm.meta").
-		From(fmt.Sprintf("%s t", transactionTableName)).
-		Join(fmt.Sprintf("%s lcm ON (t.ledger_sequence = lcm.sequence)", ledgerCloseMetaTableName)).
-		Where(sq.Eq{"t.hash": []byte(hash[:])}).
+		From(transactionTableName + " t").
+		Join(ledgerCloseMetaTableName + " lcm ON (t.ledger_sequence = lcm.sequence)").
+		Where(sq.Eq{"t.hash": hash[:]}).
 		Limit(1)
 
 	if err := txn.db.Select(ctx, &rows, rowQ); err != nil {
 		return xdr.LedgerCloseMeta{}, ingest.LedgerTransaction{},
-			errors.Wrapf(err, "db read failed for txhash %s", hex.EncodeToString(hash[:]))
+			fmt.Errorf("db read failed for txhash %s: %w", hex.EncodeToString(hash[:]), err)
 	} else if len(rows) < 1 {
 		return xdr.LedgerCloseMeta{}, ingest.LedgerTransaction{}, ErrNoTransaction
 	}
 
 	txIndex, lcm := rows[0].TxIndex, rows[0].Lcm
 	reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(txn.passphrase, lcm)
-	reader.Seek(txIndex - 1)
 	if err != nil {
 		return lcm, ingest.LedgerTransaction{},
-			errors.Wrapf(err, "failed to index to tx %d in ledger %d (txhash=%s)",
-				txIndex, lcm.LedgerSequence(), hash)
+			fmt.Errorf("failed to create ledger reader: %w", err)
+	}
+	err = reader.Seek(txIndex - 1)
+	if err != nil {
+		return lcm, ingest.LedgerTransaction{},
+			fmt.Errorf("failed to index to tx %d in ledger %d (txhash=%s): %w",
+				txIndex, lcm.LedgerSequence(), hash, err)
 	}
 
 	ledgerTx, err := reader.Read()
@@ -279,26 +284,73 @@ func ParseTransaction(lcm xdr.LedgerCloseMeta, ingestTx ingest.LedgerTransaction
 	}
 
 	if tx.Result, err = ingestTx.Result.Result.MarshalBinary(); err != nil {
-		return tx, errors.Wrap(err, "couldn't encode transaction Result")
+		return tx, fmt.Errorf("couldn't encode transaction Result: %w", err)
 	}
 	if tx.Meta, err = ingestTx.UnsafeMeta.MarshalBinary(); err != nil {
-		return tx, errors.Wrap(err, "couldn't encode transaction UnsafeMeta")
+		return tx, fmt.Errorf("couldn't encode transaction UnsafeMeta: %w", err)
 	}
 	if tx.Envelope, err = ingestTx.Envelope.MarshalBinary(); err != nil {
-		return tx, errors.Wrap(err, "couldn't encode transaction Envelope")
+		return tx, fmt.Errorf("couldn't encode transaction Envelope: %w", err)
 	}
 	if events, diagErr := ingestTx.GetDiagnosticEvents(); diagErr == nil {
 		tx.Events = make([][]byte, 0, len(events))
 		for i, event := range events {
 			bytes, ierr := event.MarshalBinary()
 			if ierr != nil {
-				return tx, errors.Wrapf(ierr, "couldn't encode transaction DiagnosticEvent %d", i)
+				return tx, fmt.Errorf("couldn't encode transaction DiagnosticEvent %d: %w", i, ierr)
 			}
 			tx.Events = append(tx.Events, bytes)
 		}
 	} else {
-		return tx, errors.Wrap(diagErr, "couldn't encode transaction DiagnosticEvents")
+		return tx, fmt.Errorf("couldn't encode transaction DiagnosticEvents: %w", diagErr)
 	}
 
 	return tx, nil
+}
+
+type transactionTableMigration struct {
+	firstLedger uint32
+	lastLedger  uint32
+	writer      TransactionWriter
+}
+
+func (t *transactionTableMigration) ApplicableRange() *LedgerSeqRange {
+	return &LedgerSeqRange{
+		firstLedgerSeq: t.firstLedger,
+		lastLedgerSeq:  t.lastLedger,
+	}
+}
+
+func (t *transactionTableMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error {
+	return t.writer.InsertTransactions(meta)
+}
+
+func newTransactionTableMigration(ctx context.Context, logger *log.Entry, retentionWindow uint32, passphrase string) migrationApplierFactory {
+	return migrationApplierFactoryF(func(db *DB, latestLedger uint32) (MigrationApplier, error) {
+		firstLedgerToMigrate := uint32(2)
+		writer := &transactionHandler{
+			log:        logger,
+			db:         db,
+			stmtCache:  sq.NewStmtCache(db.GetTx()),
+			passphrase: passphrase,
+		}
+		if latestLedger > retentionWindow {
+			firstLedgerToMigrate = latestLedger - retentionWindow
+		}
+		// Truncate the table, since it may contain data, causing insert conflicts later on.
+		// (the migration was shipped after the actual transactions table change)
+		// FIXME: this can be simply replaced by an upper limit in the ledgers to migrate
+		//        but ... it can't be done until https://github.com/stellar/soroban-rpc/issues/208
+		//        is addressed
+		_, err := db.Exec(ctx, sq.Delete(transactionTableName))
+		if err != nil {
+			return nil, fmt.Errorf("couldn't delete table %q: %w", transactionTableName, err)
+		}
+		migration := transactionTableMigration{
+			firstLedger: firstLedgerToMigrate,
+			lastLedger:  latestLedger,
+			writer:      writer,
+		}
+		return &migration, nil
+	})
 }

@@ -8,17 +8,20 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
-	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
-var mockContractID = xdr.Hash{0xa, 0xb, 0xc}
-var mockContractHash = xdr.Hash{0xd, 0xe, 0xf}
+var (
+	mockContractID   = xdr.Hash{0xa, 0xb, 0xc}
+	mockContractHash = xdr.Hash{0xd, 0xe, 0xf}
+)
 
 var contractCostParams = func() *xdr.ContractCostParams {
 	var result xdr.ContractCostParams
@@ -321,7 +324,7 @@ type preflightParametersDBConfig struct {
 	disableCache bool
 }
 
-func getPreflightParameters(t testing.TB, dbConfig *preflightParametersDBConfig) PreflightParameters {
+func getPreflightParameters(t testing.TB, dbConfig *preflightParametersDBConfig) Parameters {
 	var ledgerEntryReadTx db.LedgerEntryReadTx
 	if dbConfig != nil {
 		entryReader := db.NewLedgerEntryReader(dbConfig.dbInstance)
@@ -338,11 +341,12 @@ func getPreflightParameters(t testing.TB, dbConfig *preflightParametersDBConfig)
 		require.NoError(t, err)
 	}
 	argSymbol := xdr.ScSymbol("world")
-	params := PreflightParameters{
+	params := Parameters{
 		EnableDebug:   true,
 		Logger:        log.New(),
 		SourceAccount: xdr.MustAddress("GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H"),
-		OpBody: xdr.OperationBody{Type: xdr.OperationTypeInvokeHostFunction,
+		OpBody: xdr.OperationBody{
+			Type: xdr.OperationTypeInvokeHostFunction,
 			InvokeHostFunctionOp: &xdr.InvokeHostFunctionOp{
 				HostFunction: xdr.HostFunction{
 					Type: xdr.HostFunctionTypeHostFunctionTypeInvokeContract,
@@ -360,7 +364,8 @@ func getPreflightParameters(t testing.TB, dbConfig *preflightParametersDBConfig)
 						},
 					},
 				},
-			}},
+			},
+		},
 		NetworkPassphrase: "foo",
 		LedgerEntryReadTx: ledgerEntryReadTx,
 		BucketListSize:    200,

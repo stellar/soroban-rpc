@@ -44,7 +44,6 @@ func ledgerCloseMetaWithEvents(sequence uint32, closeTimestamp int64, txMeta ...
 	var txProcessing []xdr.TransactionResultMeta
 	var phases []xdr.TransactionPhase
 
-	var components []xdr.TxSetComponent
 	for _, item := range txMeta {
 		var operations []xdr.Operation
 		for range item.MustV3().SorobanMeta.Events {
@@ -89,7 +88,7 @@ func ledgerCloseMetaWithEvents(sequence uint32, closeTimestamp int64, txMeta ...
 				TransactionHash: txHash,
 			},
 		})
-		components = []xdr.TxSetComponent{
+		components := []xdr.TxSetComponent{
 			{
 				Type: xdr.TxSetComponentTypeTxsetCompTxsMaybeDiscountedFee,
 				TxsMaybeDiscountedFee: &xdr.TxSetComponentTxsMaybeDiscountedFee{
@@ -121,10 +120,7 @@ func ledgerCloseMetaWithEvents(sequence uint32, closeTimestamp int64, txMeta ...
 				V: 1,
 				V1TxSet: &xdr.TransactionSetV1{
 					PreviousLedgerHash: xdr.Hash{},
-					Phases: []xdr.TransactionPhase{{
-						V:            0,
-						V0Components: &components,
-					}},
+					Phases:             phases,
 				},
 			},
 			TxProcessing: txProcessing,

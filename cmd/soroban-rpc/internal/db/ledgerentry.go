@@ -4,12 +4,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
 
 	"github.com/stellar/go/support/db"
-	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/xdr"
 )
 
@@ -54,7 +54,7 @@ func (l ledgerEntryWriter) UpsertLedgerEntry(entry xdr.LedgerEntry) error {
 	// because the key can be derived from the entry.
 	key, err := entry.LedgerKey()
 	if err != nil {
-		return errors.Wrap(err, "could not get ledger key from entry")
+		return fmt.Errorf("could not get ledger key from entry: %w", err)
 	}
 
 	encodedKey, err := encodeLedgerKey(l.buffer, key)
@@ -85,7 +85,7 @@ func (l ledgerEntryWriter) maybeFlush() error {
 func (l ledgerEntryWriter) flush() error {
 	upsertCount := 0
 	upsertSQL := sq.StatementBuilder.RunWith(l.stmtCache).Replace(ledgerEntriesTableName)
-	var deleteKeys = make([]string, 0, len(l.keyToEntryBatch))
+	deleteKeys := make([]string, 0, len(l.keyToEntryBatch))
 
 	upsertCacheUpdates := make(map[string]*string, len(l.keyToEntryBatch))
 	for key, entry := range l.keyToEntryBatch {
@@ -304,7 +304,7 @@ func (l *ledgerEntryReadTx) GetLedgerEntries(keys ...xdr.LedgerKey) ([]LedgerKey
 		}
 		var entry xdr.LedgerEntry
 		if err := xdr.SafeUnmarshal([]byte(encodedEntry), &entry); err != nil {
-			return nil, errors.Wrap(err, "cannot decode ledger entry from DB")
+			return nil, fmt.Errorf("cannot decode ledger entry from DB: %w", err)
 		}
 		if k2e.encodedTTLKey == nil {
 			result = append(result, LedgerKeyAndEntry{k2e.key, entry, nil})
@@ -317,7 +317,7 @@ func (l *ledgerEntryReadTx) GetLedgerEntries(keys ...xdr.LedgerKey) ([]LedgerKey
 		}
 		var ttlEntry xdr.LedgerEntry
 		if err := xdr.SafeUnmarshal([]byte(encodedTTLEntry), &ttlEntry); err != nil {
-			return nil, errors.Wrap(err, "cannot decode TTL ledger entry from DB")
+			return nil, fmt.Errorf("cannot decode TTL ledger entry from DB: %w", err)
 		}
 		liveUntilSeq := uint32(ttlEntry.Data.Ttl.LiveUntilLedgerSeq)
 		result = append(result, LedgerKeyAndEntry{k2e.key, entry, &liveUntilSeq})
@@ -341,7 +341,7 @@ func NewLedgerEntryReader(db *DB) LedgerEntryReader {
 }
 
 func (r ledgerEntryReader) GetLatestLedgerSequence(ctx context.Context) (uint32, error) {
-	return getLatestLedgerSequence(ctx, r.db, &r.db.cache)
+	return getLatestLedgerSequence(ctx, r.db, r.db.cache)
 }
 
 // NewCachedTx() caches all accessed ledger entries and select statements. If many ledger entries are accessed, it will grow without bounds.
@@ -360,7 +360,7 @@ func (r ledgerEntryReader) NewCachedTx(ctx context.Context) (LedgerEntryReadTx, 
 	}
 	cacheReadTx := r.db.cache.ledgerEntries.newReadTx()
 	return &ledgerEntryReadTx{
-		globalCache:            &r.db.cache,
+		globalCache:            r.db.cache,
 		stmtCache:              sq.NewStmtCache(txSession.GetTx()),
 		latestLedgerSeqCache:   r.db.cache.latestLedgerSeq,
 		ledgerEntryCacheReadTx: &cacheReadTx,
@@ -377,7 +377,7 @@ func (r ledgerEntryReader) NewTx(ctx context.Context) (LedgerEntryReadTx, error)
 	r.db.cache.RLock()
 	defer r.db.cache.RUnlock()
 	return &ledgerEntryReadTx{
-		globalCache:          &r.db.cache,
+		globalCache:          r.db.cache,
 		latestLedgerSeqCache: r.db.cache.latestLedgerSeq,
 		tx:                   txSession,
 		buffer:               xdr.NewEncodingBuffer(),

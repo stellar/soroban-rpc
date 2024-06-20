@@ -3,14 +3,15 @@ package methods
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
+
 	"github.com/stellar/go/ingest"
-	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/toid"
 
@@ -37,7 +38,11 @@ func (req GetTransactionsRequest) isValid(maxLimit uint, ledgerRange ledgerbucke
 			return errors.New("startLedger and cursor cannot both be set")
 		}
 	} else if req.StartLedger < ledgerRange.FirstLedger.Sequence || req.StartLedger > ledgerRange.LastLedger.Sequence {
-		return errors.Errorf("start ledger must be between the oldest ledger: %d and the latest ledger: %d for this rpc instance.", ledgerRange.FirstLedger.Sequence, ledgerRange.LastLedger.Sequence)
+		return fmt.Errorf(
+			"start ledger must be between the oldest ledger: %d and the latest ledger: %d for this rpc instance",
+			ledgerRange.FirstLedger.Sequence,
+			ledgerRange.LastLedger.Sequence,
+		)
 	}
 
 	if req.Pagination != nil && req.Pagination.Limit > maxLimit {
@@ -147,11 +152,11 @@ LedgerLoop:
 		} else if !found {
 			return GetTransactionsResponse{}, &jrpc2.Error{
 				Code:    jrpc2.InvalidParams,
-				Message: errors.Errorf("ledger close meta not found: %d", ledgerSeq).Error(),
+				Message: fmt.Sprintf("ledger close meta not found: %d", ledgerSeq),
 			}
 		}
 
-		// Initialise tx reader.
+		// Initialize tx reader.
 		reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(h.networkPassphrase, ledger)
 		if err != nil {
 			return GetTransactionsResponse{}, &jrpc2.Error{
