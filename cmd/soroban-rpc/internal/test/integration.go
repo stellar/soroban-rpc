@@ -20,9 +20,15 @@ import (
 	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/stellar/go/clients/stellarcore"
 	"github.com/stellar/go/keypair"
+	"github.com/stellar/go/network"
+	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/txnbuild"
+	"github.com/stellar/go/xdr"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 
@@ -62,6 +68,7 @@ type Test struct {
 	rpcContainerConfigMountDir string
 	rpcContainerSQLiteMountDir string
 	rpcContainerLogsCommand    *exec.Cmd
+	sqlitePath                 string
 
 	rpcClient  *jrpc2.Client
 	coreClient *stellarcore.Client
@@ -118,6 +125,10 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 	}
 	i.waitForRPC()
 
+	// We populate the transactions table with some rows so that GetLedgerRange called in transaction related
+	// integration tests returns a valid latest ledger.
+	i.insertTransactions()
+
 	return i
 }
 
@@ -144,6 +155,26 @@ func (i *Test) adminURL() string {
 	return fmt.Sprintf("http://localhost:%d", adminPort)
 }
 
+func (i *Test) insertTransactions() {
+	testDb, err := db.OpenSQLiteDB(i.sqlitePath)
+	assert.NoError(i.t, err)
+
+	writer := db.NewReadWriter(log.DefaultLogger, testDb, interfaces.MakeNoOpDeamon(), 100, 1_000_000, network.FutureNetworkPassphrase)
+	write, err := writer.NewTx(context.Background())
+	assert.NoError(i.t, err)
+
+	lcms := make([]xdr.LedgerCloseMeta, 0, 3)
+	for i := uint32(0); i < uint32(cap(lcms)); i++ {
+		lcms = append(lcms, db.CreateTxMeta(9+i, i%2 == 0))
+	}
+
+	_, txW := write.LedgerWriter(), write.TransactionWriter()
+	for _, lcm := range lcms {
+		assert.NoError(i.t, txW.InsertTransactions(lcm))
+	}
+	assert.NoError(i.t, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
+}
+
 func (i *Test) waitForCheckpoint() {
 	i.t.Log("Waiting for core to be up...")
 	for t := 30 * time.Second; t >= 0; t -= time.Second {
@@ -167,7 +198,7 @@ func (i *Test) waitForCheckpoint() {
 
 func (i *Test) getRPConfig(sqlitePath string) map[string]string {
 	if sqlitePath == "" {
-		sqlitePath = path.Join(i.t.TempDir(), "soroban_rpc.sqlite")
+		i.sqlitePath = path.Join(i.t.TempDir(), "soroban_rpc.sqlite")
 	}
 
 	// Container's default path to captive core
@@ -200,7 +231,7 @@ func (i *Test) getRPConfig(sqlitePath string) map[string]string {
 		bindHost = "0.0.0.0"
 		// The container needs to use the sqlite mount point
 		i.rpcContainerSQLiteMountDir = filepath.Dir(sqlitePath)
-		sqlitePath = "/db/" + filepath.Base(sqlitePath)
+		i.sqlitePath = "/db/" + filepath.Base(sqlitePath)
 		stellarCoreURL = fmt.Sprintf("http://core:%d", stellarCorePort)
 	}
 
@@ -223,7 +254,7 @@ func (i *Test) getRPConfig(sqlitePath string) map[string]string {
 		"NETWORK_PASSPHRASE":             StandaloneNetworkPassphrase,
 		"HISTORY_ARCHIVE_URLS":           archiveURL,
 		"LOG_LEVEL":                      "debug",
-		"DB_PATH":                        sqlitePath,
+		"DB_PATH":                        i.sqlitePath,
 		"INGESTION_TIMEOUT":              "10m",
 		"EVENT_LEDGER_RETENTION_WINDOW":  strconv.Itoa(ledgerbucketwindow.OneDayOfLedgers),
 		"TRANSACTION_RETENTION_WINDOW":   strconv.Itoa(ledgerbucketwindow.OneDayOfLedgers),
