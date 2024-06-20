@@ -2,12 +2,12 @@ package methods
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/toid"
 	"github.com/stellar/go/xdr"
 
@@ -209,7 +209,10 @@ func TestGetTransactions_InvalidStartLedger(t *testing.T) {
 	}
 
 	response, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
-	expectedErr := errors.Errorf("[%d] start ledger must be between the oldest ledger: 1 and the latest ledger: 3 for this rpc instance", jrpc2.InvalidRequest)
+	expectedErr := fmt.Errorf(
+		"[%d] start ledger must be between the oldest ledger: 1 and the latest ledger: 3 for this rpc instance",
+		jrpc2.InvalidRequest,
+	)
 	assert.Equal(t, expectedErr.Error(), err.Error())
 	assert.Nil(t, response.Transactions)
 }
@@ -240,7 +243,7 @@ func TestGetTransactions_LedgerNotFound(t *testing.T) {
 	}
 
 	response, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
-	expectedErr := errors.Errorf("[%d] ledger close meta not found: 2", jrpc2.InvalidParams)
+	expectedErr := fmt.Errorf("[%d] ledger close meta not found: 2", jrpc2.InvalidParams)
 	assert.Equal(t, expectedErr.Error(), err.Error())
 	assert.Nil(t, response.Transactions)
 }
@@ -270,7 +273,7 @@ func TestGetTransactions_LimitGreaterThanMaxLimit(t *testing.T) {
 	}
 
 	_, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
-	expectedErr := errors.Errorf("[%d] limit must not exceed 100", jrpc2.InvalidRequest)
+	expectedErr := fmt.Errorf("[%d] limit must not exceed 100", jrpc2.InvalidRequest)
 	assert.Equal(t, expectedErr.Error(), err.Error())
 }
 
@@ -298,6 +301,6 @@ func TestGetTransactions_InvalidCursorString(t *testing.T) {
 	}
 
 	_, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
-	expectedErr := errors.Errorf("[%d] strconv.ParseInt: parsing \"abc\": invalid syntax", jrpc2.InvalidParams)
+	expectedErr := fmt.Errorf("[%d] strconv.ParseInt: parsing \"abc\": invalid syntax", jrpc2.InvalidParams)
 	assert.Equal(t, expectedErr.Error(), err.Error())
 }
