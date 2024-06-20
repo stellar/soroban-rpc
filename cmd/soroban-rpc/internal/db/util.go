@@ -5,6 +5,59 @@ import (
 	"github.com/stellar/go/xdr"
 )
 
+// Methods for creating test txMeta
+
+func CreateTxMeta(acctSeq uint32, successful bool) xdr.LedgerCloseMeta {
+	envelope := txEnvelope(acctSeq)
+	txProcessing := []xdr.TransactionResultMeta{
+		{
+			TxApplyProcessing: xdr.TransactionMeta{
+				V:          3,
+				Operations: &[]xdr.OperationMeta{},
+				V3:         &xdr.TransactionMetaV3{},
+			},
+			Result: xdr.TransactionResultPair{
+				TransactionHash: txHash(acctSeq),
+				Result:          transactionResult(successful),
+			},
+		},
+	}
+	components := []xdr.TxSetComponent{
+		{
+			Type: xdr.TxSetComponentTypeTxsetCompTxsMaybeDiscountedFee,
+			TxsMaybeDiscountedFee: &xdr.TxSetComponentTxsMaybeDiscountedFee{
+				BaseFee: nil,
+				Txs:     []xdr.TransactionEnvelope{envelope},
+			},
+		},
+	}
+
+	return xdr.LedgerCloseMeta{
+		V: 1,
+		V1: &xdr.LedgerCloseMetaV1{
+			LedgerHeader: xdr.LedgerHeaderHistoryEntry{
+				Header: xdr.LedgerHeader{
+					ScpValue: xdr.StellarValue{
+						CloseTime: xdr.TimePoint(LedgerCloseTime(acctSeq + 100)),
+					},
+					LedgerSeq: xdr.Uint32(acctSeq),
+				},
+			},
+			TxProcessing: txProcessing,
+			TxSet: xdr.GeneralizedTransactionSet{
+				V: 1,
+				V1TxSet: &xdr.TransactionSetV1{
+					PreviousLedgerHash: xdr.Hash{1},
+					Phases: []xdr.TransactionPhase{{
+						V:            0,
+						V0Components: &components,
+					}},
+				},
+			},
+		},
+	}
+}
+
 func txHash(acctSeq uint32) xdr.Hash {
 	envelope := txEnvelope(acctSeq)
 	hash, err := network.HashTransactionInEnvelope(envelope, network.FutureNetworkPassphrase)
@@ -43,57 +96,6 @@ func transactionResult(successful bool) xdr.TransactionResult {
 	}
 }
 
-func CreateTxMeta(acctSeq uint32, successful bool) xdr.LedgerCloseMeta {
-	envelope := txEnvelope(acctSeq)
-	txProcessing := []xdr.TransactionResultMeta{
-		{
-			TxApplyProcessing: xdr.TransactionMeta{
-				V:          3,
-				Operations: &[]xdr.OperationMeta{},
-				V3:         &xdr.TransactionMetaV3{},
-			},
-			Result: xdr.TransactionResultPair{
-				TransactionHash: txHash(acctSeq),
-				Result:          transactionResult(successful),
-			},
-		},
-	}
-	components := []xdr.TxSetComponent{
-		{
-			Type: xdr.TxSetComponentTypeTxsetCompTxsMaybeDiscountedFee,
-			TxsMaybeDiscountedFee: &xdr.TxSetComponentTxsMaybeDiscountedFee{
-				BaseFee: nil,
-				Txs:     []xdr.TransactionEnvelope{envelope},
-			},
-		},
-	}
-
-	return xdr.LedgerCloseMeta{
-		V: 1,
-		V1: &xdr.LedgerCloseMetaV1{
-			LedgerHeader: xdr.LedgerHeaderHistoryEntry{
-				Header: xdr.LedgerHeader{
-					ScpValue: xdr.StellarValue{
-						CloseTime: xdr.TimePoint(ledgerCloseTime(acctSeq + 100)),
-					},
-					LedgerSeq: xdr.Uint32(acctSeq),
-				},
-			},
-			TxProcessing: txProcessing,
-			TxSet: xdr.GeneralizedTransactionSet{
-				V: 1,
-				V1TxSet: &xdr.TransactionSetV1{
-					PreviousLedgerHash: xdr.Hash{1},
-					Phases: []xdr.TransactionPhase{{
-						V:            0,
-						V0Components: &components,
-					}},
-				},
-			},
-		},
-	}
-}
-
-func ledgerCloseTime(ledgerSequence uint32) int64 {
+func LedgerCloseTime(ledgerSequence uint32) int64 {
 	return int64(ledgerSequence)*25 + 100
 }

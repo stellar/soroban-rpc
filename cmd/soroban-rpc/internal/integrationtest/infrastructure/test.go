@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stellar/go/network"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -30,6 +31,8 @@ import (
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 )
@@ -170,6 +173,10 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 		i.waitForRPC()
 	}
 
+	// We populate the transactions table with some rows so that GetLedgerRange called in transaction related
+	// integration tests returns a valid latest ledger.
+	i.insertTransactions()
+
 	return i
 }
 
@@ -200,6 +207,27 @@ func (i *Test) spawnContainers() {
 		require.NoError(i.t, i.rpcContainerLogsCommand.Start())
 	}
 	i.fillContainerPorts()
+}
+
+func (i *Test) insertTransactions() {
+	i.t.Logf("inserting transactions")
+	testDb, err := db.OpenSQLiteDB(i.sqlitePath)
+	assert.NoError(i.t, err)
+
+	writer := db.NewReadWriter(supportlog.New(), testDb, interfaces.MakeNoOpDeamon(), 100, 1_000_000, network.FutureNetworkPassphrase)
+	write, err := writer.NewTx(context.Background())
+	assert.NoError(i.t, err)
+
+	lcms := make([]xdr.LedgerCloseMeta, 0, 3)
+	for i := uint32(0); i < uint32(cap(lcms)); i++ {
+		lcms = append(lcms, db.CreateTxMeta(9+i, true))
+	}
+
+	_, txW := write.LedgerWriter(), write.TransactionWriter()
+	for _, lcm := range lcms {
+		assert.NoError(i.t, txW.InsertTransactions(lcm))
+	}
+	assert.NoError(i.t, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
 }
 
 func (i *Test) stopContainers() {
