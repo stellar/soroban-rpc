@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
@@ -20,10 +19,9 @@ import (
 func TestTransactionNotFound(t *testing.T) {
 	db := NewTestDB(t)
 	ctx := context.TODO()
-	log := log.DefaultLogger
 	log.SetLevel(logrus.TraceLevel)
 
-	reader := NewTransactionReader(log, db, passphrase)
+	reader := NewTransactionReader(log.DefaultLogger, db, passphrase)
 
 	// Assert the ledger range
 	ledgerRange, err := reader.GetLedgerRange(ctx)

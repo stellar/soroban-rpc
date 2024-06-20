@@ -172,7 +172,7 @@ func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucket
 	// Combine the min and max ledger sequence queries using UNION ALL
 	txnMinMaxLedgersQ, _, err := minLedgerSeqQ.Suffix("UNION ALL "+maxLedgerSeqQ, args...).ToSql()
 	if err != nil {
-		return ledgerRange, errors.Wrap(err, "couldn't build max ledger sequence query")
+		return ledgerRange, fmt.Errorf("couldn't build ledger range query: %w", err)
 	}
 
 	// Final query to join ledger_close_meta table and the sequence numbers we got from txnMinMaxLedgersQ
@@ -183,7 +183,7 @@ func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucket
 
 	var lcms []xdr.LedgerCloseMeta
 	if err = txn.db.Select(ctx, &lcms, finalSql); err != nil {
-		return ledgerRange, errors.Wrap(err, "couldn't query ledger range")
+		return ledgerRange, fmt.Errorf("couldn't build ledger range query: %w", err)
 	} else if len(lcms) < 2 {
 		// There is almost certainly a row, but we want to avoid a race condition
 		// with ingestion as well as support test cases from an empty DB, so we need
