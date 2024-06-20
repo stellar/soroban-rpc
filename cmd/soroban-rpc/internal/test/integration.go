@@ -156,6 +156,7 @@ func (i *Test) adminURL() string {
 }
 
 func (i *Test) insertTransactions() {
+	i.t.Logf("inserting transactions")
 	testDb, err := db.OpenSQLiteDB(i.sqlitePath)
 	assert.NoError(i.t, err)
 
@@ -165,7 +166,7 @@ func (i *Test) insertTransactions() {
 
 	lcms := make([]xdr.LedgerCloseMeta, 0, 3)
 	for i := uint32(0); i < uint32(cap(lcms)); i++ {
-		lcms = append(lcms, db.CreateTxMeta(9+i, i%2 == 0))
+		lcms = append(lcms, db.CreateTxMeta(9+i, true))
 	}
 
 	_, txW := write.LedgerWriter(), write.TransactionWriter()
