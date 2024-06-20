@@ -215,7 +215,8 @@ func (i *Test) insertTransactions() {
 	testDB, err := db.OpenSQLiteDB(i.sqlitePath)
 	require.NoError(i.t, err)
 
-	writer := db.NewReadWriter(supportlog.New(), testDB, interfaces.MakeNoOpDeamon(), 100, 1_000_000, network.FutureNetworkPassphrase)
+	writer := db.NewReadWriter(supportlog.New(), testDB, interfaces.MakeNoOpDeamon(),
+		100, 1_000_000, network.FutureNetworkPassphrase)
 	write, err := writer.NewTx(context.Background())
 	require.NoError(i.t, err)
 
