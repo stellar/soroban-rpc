@@ -46,15 +46,23 @@ func (options Options) Validate() error {
 
 // Option is a complete description of the configuration of a command line option
 type Option struct {
-	Name           string                           // e.g. "database-url"
-	EnvVar         string                           // e.g. "DATABASE_URL". Defaults to uppercase/underscore representation of name
-	TomlKey        string                           // e.g. "DATABASE_URL". Defaults to uppercase/underscore representation of name. - to omit from toml
-	Usage          string                           // Help text
-	DefaultValue   interface{}                      // A default if no option is provided. Omit or set to `nil` if no default
-	ConfigKey      interface{}                      // Pointer to the final key in the linked Config struct
-	CustomSetValue func(*Option, interface{}) error // Optional function for custom validation/transformation
-	Validate       func(*Option) error              // Function called after loading all options, to validate the configuration
-	MarshalTOML    func(*Option) (interface{}, error)
+	// e.g. "database-url"
+	Name string
+	// e.g. "DATABASE_URL".Defaults to uppercase/underscore representation of name
+	EnvVar string
+	// e.g. "DATABASE_URL". Defaults to uppercase/underscore representation of name. - to omit from toml
+	TomlKey string
+	// Help text
+	Usage string
+	// A default if no option is provided. Omit or set to `nil` if no default
+	DefaultValue interface{}
+	// Pointer to the final key in the linked Config struct
+	ConfigKey interface{}
+	// Optional function for custom validation/transformation
+	CustomSetValue func(*Option, interface{}) error
+	// Function called after loading all options, to validate the configuration
+	Validate    func(*Option) error
+	MarshalTOML func(*Option) (interface{}, error)
 
 	flag *pflag.Flag // The persistent flag that the config option is attached to
 }
@@ -99,7 +107,7 @@ func (o *Option) setValue(i interface{}) (err error) {
 			err = fmt.Errorf("config option setting error ('%s') %v", o.Name, recoverRes)
 		}
 	}()
-	parser := func(option *Option, i interface{}) error {
+	parser := func(_ *Option, _ interface{}) error {
 		return fmt.Errorf("no parser for flag %s", o.Name)
 	}
 	switch o.ConfigKey.(type) {

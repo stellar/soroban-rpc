@@ -20,6 +20,9 @@ import (
 
 const defaultHTTPEndpoint = "localhost:8000"
 
+// TODO: refactor and remove the linter exceptions
+//
+//nolint:funlen,cyclop,maintidx
 func (cfg *Config) options() Options {
 	if cfg.optionsCache != nil {
 		return *cfg.optionsCache
@@ -56,7 +59,7 @@ func (cfg *Config) options() Options {
 			Name:      "stellar-core-url",
 			Usage:     "URL used to query Stellar Core (local captive core by default)",
 			ConfigKey: &cfg.StellarCoreURL,
-			Validate: func(co *Option) error {
+			Validate: func(_ *Option) error {
 				// This is a bit awkward. We're actually setting a default, but we
 				// can't do that until the config is fully parsed, so we do it as a
 				// validator here.
@@ -102,7 +105,7 @@ func (cfg *Config) options() Options {
 				}
 				return nil
 			},
-			MarshalTOML: func(option *Option) (interface{}, error) {
+			MarshalTOML: func(_ *Option) (interface{}, error) {
 				return cfg.LogLevel.String(), nil
 			},
 		},
@@ -130,7 +133,7 @@ func (cfg *Config) options() Options {
 				}
 				return nil
 			},
-			MarshalTOML: func(option *Option) (interface{}, error) {
+			MarshalTOML: func(_ *Option) (interface{}, error) {
 				return cfg.LogFormat.String()
 			},
 		},
@@ -255,7 +258,7 @@ func (cfg *Config) options() Options {
 			Usage:        "Default cap on the amount of events included in a single getEvents response",
 			ConfigKey:    &cfg.DefaultEventsLimit,
 			DefaultValue: uint(100),
-			Validate: func(co *Option) error {
+			Validate: func(_ *Option) error {
 				if cfg.DefaultEventsLimit > cfg.MaxEventsLimit {
 					return fmt.Errorf(
 						"default-events-limit (%v) cannot exceed max-events-limit (%v)",
@@ -277,7 +280,7 @@ func (cfg *Config) options() Options {
 			Usage:        "Default cap on the amount of transactions included in a single getTransactions response",
 			ConfigKey:    &cfg.DefaultTransactionsLimit,
 			DefaultValue: uint(50),
-			Validate: func(co *Option) error {
+			Validate: func(_ *Option) error {
 				if cfg.DefaultTransactionsLimit > cfg.MaxTransactionsLimit {
 					return fmt.Errorf(
 						"default-transactions-limit (%v) cannot exceed max-transactions-limit (%v)",

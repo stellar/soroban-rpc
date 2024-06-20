@@ -378,7 +378,8 @@ func (i *Test) generateCaptiveCoreCfg(tmplContents []byte, captiveCorePort uint1
 	}
 
 	captiveCoreCfgContents := os.Expand(string(tmplContents), mapping)
-	err := os.WriteFile(filepath.Join(i.rpcConfigFilesDir, captiveCoreConfigFilename), []byte(captiveCoreCfgContents), 0o666)
+	fileName := filepath.Join(i.rpcConfigFilesDir, captiveCoreConfigFilename)
+	err := os.WriteFile(fileName, []byte(captiveCoreCfgContents), 0o666)
 	require.NoError(i.t, err)
 }
 

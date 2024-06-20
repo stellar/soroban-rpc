@@ -41,16 +41,26 @@ type WorkerPool struct {
 	wg                         sync.WaitGroup
 }
 
-func NewPreflightWorkerPool(daemon interfaces.Daemon, workerCount uint, jobQueueCapacity uint, enableDebug bool, ledgerEntryReader db.LedgerEntryReader, networkPassphrase string, logger *log.Entry) *WorkerPool {
+type WorkerPoolConfig struct {
+	Daemon            interfaces.Daemon
+	WorkerCount       uint
+	JobQueueCapacity  uint
+	EnableDebug       bool
+	LedgerEntryReader db.LedgerEntryReader
+	NetworkPassphrase string
+	Logger            *log.Entry
+}
+
+func NewPreflightWorkerPool(cfg WorkerPoolConfig) *WorkerPool {
 	preflightWP := WorkerPool{
-		ledgerEntryReader: ledgerEntryReader,
-		networkPassphrase: networkPassphrase,
-		enableDebug:       enableDebug,
-		logger:            logger,
-		requestChan:       make(chan workerRequest, jobQueueCapacity),
+		ledgerEntryReader: cfg.LedgerEntryReader,
+		networkPassphrase: cfg.NetworkPassphrase,
+		enableDebug:       cfg.EnableDebug,
+		logger:            cfg.Logger,
+		requestChan:       make(chan workerRequest, cfg.JobQueueCapacity),
 	}
 	requestQueueMetric := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-		Namespace: daemon.MetricsNamespace(),
+		Namespace: cfg.Daemon.MetricsNamespace(),
 		Subsystem: "preflight_pool",
 		Name:      "queue_length",
 		Help:      "number of preflight requests in the queue",
@@ -58,39 +68,39 @@ func NewPreflightWorkerPool(daemon interfaces.Daemon, workerCount uint, jobQueue
 		return float64(len(preflightWP.requestChan))
 	})
 	preflightWP.concurrentRequestsMetric = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: daemon.MetricsNamespace(),
+		Namespace: cfg.Daemon.MetricsNamespace(),
 		Subsystem: "preflight_pool",
 		Name:      "concurrent_requests",
 		Help:      "number of preflight requests currently running",
 	})
 	preflightWP.errorFullCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: daemon.MetricsNamespace(),
+		Namespace: cfg.Daemon.MetricsNamespace(),
 		Subsystem: "preflight_pool",
 		Name:      "queue_full_errors",
 		Help:      "number of preflight full queue errors",
 	})
 	preflightWP.durationMetric = prometheus.NewSummaryVec(prometheus.SummaryOpts{
-		Namespace:  daemon.MetricsNamespace(),
+		Namespace:  cfg.Daemon.MetricsNamespace(),
 		Subsystem:  "preflight_pool",
 		Name:       "request_ledger_get_duration_seconds",
 		Help:       "preflight request duration broken down by status",
 		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 	}, []string{"status", "type"})
 	preflightWP.ledgerEntriesFetchedMetric = prometheus.NewSummary(prometheus.SummaryOpts{
-		Namespace:  daemon.MetricsNamespace(),
+		Namespace:  cfg.Daemon.MetricsNamespace(),
 		Subsystem:  "preflight_pool",
 		Name:       "request_ledger_entries_fetched",
 		Help:       "ledger entries fetched by simulate transaction calls",
 		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 	})
-	daemon.MetricsRegistry().MustRegister(
+	cfg.Daemon.MetricsRegistry().MustRegister(
 		requestQueueMetric,
 		preflightWP.concurrentRequestsMetric,
 		preflightWP.errorFullCounter,
 		preflightWP.durationMetric,
 		preflightWP.ledgerEntriesFetchedMetric,
 	)
-	for i := uint(0); i < workerCount; i++ {
+	for range cfg.WorkerCount {
 		preflightWP.wg.Add(1)
 		go preflightWP.work()
 	}

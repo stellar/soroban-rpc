@@ -12,6 +12,7 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
+//nolint:gochecknoglobals
 var ErrLedgerTTLEntriesCannotBeQueriedDirectly = "ledger ttl entries cannot be queried directly"
 
 type GetLedgerEntriesRequest struct {
