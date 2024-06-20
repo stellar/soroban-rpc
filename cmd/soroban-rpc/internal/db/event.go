@@ -25,6 +25,7 @@ type EventWriter interface {
 // EventReader has all the public methods to fetch events from DB
 type EventReader interface {
 	GetEvents(ctx context.Context, cursorRange events.CursorRange, contractIds []string, f ScanFunction) error
+	//GetLedgerRange(ctx context.Context) error
 }
 
 type eventHandler struct {
@@ -124,6 +125,10 @@ func (eventHandler *eventHandler) trimEvents(latestLedgerSeq uint32, retentionWi
 	return err
 }
 
+// GetEvents applies f on all the events occurring in the given range with specified contract IDs if provided.
+// The events are returned in sorted ascending Cursor order.
+// If f returns false, the scan terminates early (f will not be applied on
+// remaining events in the range).
 func (eventHandler *eventHandler) GetEvents(ctx context.Context, cursorRange events.CursorRange, contractIds []string, f ScanFunction) error {
 
 	start := time.Now()
@@ -139,7 +144,8 @@ func (eventHandler *eventHandler) GetEvents(ctx context.Context, cursorRange eve
 		From(fmt.Sprintf("%s e", eventTableName)).
 		Join(fmt.Sprintf("%s lcm ON (e.ledger_sequence = lcm.sequence)", ledgerCloseMetaTableName)).
 		Where(sq.GtOrEq{"e.id": cursorRange.Start.String()}).
-		Where(sq.Lt{"e.id": cursorRange.End.String()})
+		Where(sq.Lt{"e.id": cursorRange.End.String()}).
+		OrderBy("e.id ASC")
 
 	if len(contractIds) > 0 {
 		rowQ = rowQ.Where(sq.Eq{"e.contract_id": contractIds})
