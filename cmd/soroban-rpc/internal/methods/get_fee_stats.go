@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/creachadair/jrpc2"
+
 	"github.com/stellar/go/support/log"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
@@ -48,7 +49,6 @@ func convertFeeDistribution(distribution feewindow.FeeDistribution) FeeDistribut
 		TransactionCount: distribution.FeeCount,
 		LedgerCount:      distribution.LedgerCount,
 	}
-
 }
 
 type GetFeeStatsResult struct {

@@ -28,7 +28,7 @@ func NewHealthCheck(
 		if err != nil || ledgerRange.LastLedger.Sequence < 1 {
 			extra := ""
 			if err != nil {
-				extra = fmt.Sprintf(": %s", err.Error())
+				extra = ": " + err.Error()
 			}
 			return HealthCheckResult{}, jrpc2.Error{
 				Code:    jrpc2.InternalError,

@@ -1,24 +1,19 @@
-package test
+package integrationtest
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/integrationtest/infrastructure"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 )
 
 func TestHealth(t *testing.T) {
-	test := NewTest(t, nil)
-
-	client := test.GetRPCLient()
-
-	var result methods.HealthCheckResult
-	if err := client.CallResult(context.Background(), "getHealth", nil, &result); err != nil {
-		t.Fatalf("rpc call failed: %v", err)
-	}
+	test := infrastructure.NewTest(t, nil)
+	result, err := test.GetRPCHealth()
+	require.NoError(t, err)
 	assert.Equal(t, "healthy", result.Status)
 	assert.Equal(t, uint32(ledgerbucketwindow.OneDayOfLedgers), result.LedgerRetentionWindow)
 	assert.Greater(t, result.OldestLedger, uint32(0))

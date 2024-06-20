@@ -3,8 +3,9 @@ package daemon
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
-	"net/http/pprof" //nolint:gosec
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	runtimePprof "runtime/pprof"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/stellar/go/clients/stellarcore"
 	"github.com/stellar/go/historyarchive"
 	"github.com/stellar/go/ingest/ledgerbackend"
@@ -50,7 +52,9 @@ type Daemon struct {
 	jsonRPCHandler      *internal.Handler
 	logger              *supportlog.Entry
 	preflightWorkerPool *preflight.PreflightWorkerPool
+	listener            net.Listener
 	server              *http.Server
+	adminListener       net.Listener
 	adminServer         *http.Server
 	closeOnce           sync.Once
 	closeError          error
@@ -60,6 +64,17 @@ type Daemon struct {
 
 func (d *Daemon) GetDB() *db.DB {
 	return d.db
+}
+
+func (d *Daemon) GetEndpointAddrs() (net.TCPAddr, *net.TCPAddr) {
+	//nolint:forcetypeassert
+	addr := d.listener.Addr().(*net.TCPAddr)
+	var adminAddr *net.TCPAddr
+	if d.adminListener != nil {
+		//nolint:forcetypeassert
+		adminAddr = d.adminListener.Addr().(*net.TCPAddr)
+	}
+	return *addr, adminAddr
 }
 
 func (d *Daemon) close() {
@@ -130,11 +145,9 @@ func newCaptiveCore(cfg *config.Config, logger *supportlog.Entry) (*ledgerbacken
 		UseDB:               true,
 	}
 	return ledgerbackend.NewCaptive(captiveConfig)
-
 }
 
-func MustNew(cfg *config.Config) *Daemon {
-	logger := supportlog.New()
+func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 	logger.SetLevel(cfg.LogLevel)
 	if cfg.LogFormat == config.LogFormatJSON {
 		logger.UseJSONFormatter()
@@ -157,14 +170,15 @@ func MustNew(cfg *config.Config) *Daemon {
 	historyArchive, err := historyarchive.NewArchivePool(
 		cfg.HistoryArchiveURLs,
 		historyarchive.ArchiveOptions{
+			Logger:              logger,
 			NetworkPassphrase:   cfg.NetworkPassphrase,
 			CheckpointFrequency: cfg.CheckpointFrequency,
 			ConnectOptions: storage.ConnectOptions{
 				Context:   context.Background(),
-				UserAgent: cfg.HistoryArchiveUserAgent},
+				UserAgent: cfg.HistoryArchiveUserAgent,
+			},
 		},
 	)
-
 	if err != nil {
 		logger.WithError(err).Fatal("could not connect to history archive")
 	}
@@ -251,8 +265,13 @@ func MustNew(cfg *config.Config) *Daemon {
 	daemon.ingestService = ingestService
 	daemon.jsonRPCHandler = &jsonRPCHandler
 
+	// Use a separate listener in order to obtain the actual TCP port
+	// when using dynamic ports during testing (e.g. endpoint="localhost:0")
+	daemon.listener, err = net.Listen("tcp", cfg.Endpoint)
+	if err != nil {
+		daemon.logger.WithError(err).WithField("endpoint", cfg.Endpoint).Fatal("cannot listen on endpoint")
+	}
 	daemon.server = &http.Server{
-		Addr:        cfg.Endpoint,
 		Handler:     httpHandler,
 		ReadTimeout: defaultReadTimeout,
 	}
@@ -269,7 +288,11 @@ func MustNew(cfg *config.Config) *Daemon {
 			adminMux.Handle("/debug/pprof/"+profile.Name(), pprof.Handler(profile.Name()))
 		}
 		adminMux.Handle("/metrics", promhttp.HandlerFor(metricsRegistry, promhttp.HandlerOpts{}))
-		daemon.adminServer = &http.Server{Addr: cfg.AdminEndpoint, Handler: adminMux}
+		daemon.adminListener, err = net.Listen("tcp", cfg.AdminEndpoint)
+		if err != nil {
+			daemon.logger.WithError(err).WithField("endpoint", cfg.Endpoint).Fatal("cannot listen on admin endpoint")
+		}
+		daemon.adminServer = &http.Server{Handler: adminMux}
 	}
 	daemon.registerMetrics()
 	return daemon
@@ -340,20 +363,22 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 
 func (d *Daemon) Run() {
 	d.logger.WithFields(supportlog.F{
-		"addr": d.server.Addr,
+		"addr": d.listener.Addr().String(),
 	}).Info("starting HTTP server")
 
 	panicGroup := util.UnrecoverablePanicGroup.Log(d.logger)
 	panicGroup.Go(func() {
-		if err := d.server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-			// Error starting or closing listener:
+		if err := d.server.Serve(d.listener); !errors.Is(err, http.ErrServerClosed) {
 			d.logger.WithError(err).Fatal("soroban JSON RPC server encountered fatal error")
 		}
 	})
 
 	if d.adminServer != nil {
+		d.logger.WithFields(supportlog.F{
+			"addr": d.adminListener.Addr().String(),
+		}).Info("starting Admin HTTP server")
 		panicGroup.Go(func() {
-			if err := d.adminServer.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+			if err := d.adminServer.Serve(d.adminListener); !errors.Is(err, http.ErrServerClosed) {
 				d.logger.WithError(err).Error("soroban admin server encountered fatal error")
 			}
 		})

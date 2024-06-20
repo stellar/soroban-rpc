@@ -128,17 +128,17 @@ func newGuardedDataMigration(ctx context.Context, uniqueMigrationName string, fa
 	metaKey := "Migration" + uniqueMigrationName + "Done"
 	previouslyMigrated, err := getMetaBool(ctx, migrationDB, metaKey)
 	if err != nil && !errors.Is(err, ErrEmptyDB) {
-		migrationDB.Rollback()
+		err = errors.Join(err, migrationDB.Rollback())
 		return nil, err
 	}
 	latestLedger, err := NewLedgerEntryReader(db).GetLatestLedgerSequence(ctx)
 	if err != nil && err != ErrEmptyDB {
-		migrationDB.Rollback()
+		err = errors.Join(err, migrationDB.Rollback())
 		return nil, fmt.Errorf("failed to get latest ledger sequence: %w", err)
 	}
 	applier, err := factory.New(migrationDB, latestLedger)
 	if err != nil {
-		migrationDB.Rollback()
+		err = errors.Join(err, migrationDB.Rollback())
 		return nil, err
 	}
 	guardedMigration := &guardedMigration{

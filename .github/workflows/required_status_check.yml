@@ -9,10 +9,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: int128/wait-for-workflows-action@v1
+      - uses: int128/wait-for-workflows-action@8aa9c53102cda84041a879b99a88b2a93721231d # v1.10.0
         with:
           filter-workflow-names: |
             Dependency sanity checker*
-            Linters*
+            Go*
             Rust*
             Soroban RPC*

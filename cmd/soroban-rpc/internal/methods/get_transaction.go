@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/creachadair/jrpc2"
+
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/xdr"
 

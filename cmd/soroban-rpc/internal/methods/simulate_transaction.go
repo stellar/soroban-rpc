@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/creachadair/jrpc2"
+
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
@@ -76,7 +77,7 @@ func (l *LedgerEntryChangeType) Parse(s string) error {
 	return nil
 }
 
-func (l *LedgerEntryChangeType) UnmarshalJSON(data []byte) (err error) {
+func (l *LedgerEntryChangeType) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err
@@ -158,7 +159,6 @@ type PreflightGetter interface {
 
 // NewSimulateTransactionHandler returns a json rpc handler to run preflight simulations
 func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntryReader, ledgerReader db.LedgerReader, daemon interfaces.Daemon, getter PreflightGetter) jrpc2.Handler {
-
 	return NewHandler(func(ctx context.Context, request SimulateTransactionRequest) SimulateTransactionResponse {
 		var txEnvelope xdr.TransactionEnvelope
 		if err := xdr.SafeUnmarshalBase64(request.Transaction, &txEnvelope); err != nil {
@@ -288,7 +288,7 @@ func base64EncodeSlice(in [][]byte) []string {
 
 func getBucketListSizeAndProtocolVersion(ctx context.Context, ledgerReader db.LedgerReader, latestLedger uint32) (uint64, uint32, error) {
 	// obtain bucket size
-	var closeMeta, ok, err = ledgerReader.GetLedger(ctx, latestLedger)
+	closeMeta, ok, err := ledgerReader.GetLedger(ctx, latestLedger)
 	if err != nil {
 		return 0, 0, err
 	}

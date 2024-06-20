@@ -16,16 +16,16 @@ func parseBool(option *ConfigOption, i interface{}) error {
 	case nil:
 		return nil
 	case bool:
+		//nolint:forcetypeassert
 		*option.ConfigKey.(*bool) = v
 	case string:
 		lower := strings.ToLower(v)
-		if lower == "true" {
-			*option.ConfigKey.(*bool) = true
-		} else if lower == "false" {
-			*option.ConfigKey.(*bool) = false
-		} else {
+		b, err := strconv.ParseBool(lower)
+		if err != nil {
 			return fmt.Errorf("invalid boolean value %s: %s", option.Name, v)
 		}
+		//nolint:forcetypeassert
+		*option.ConfigKey.(*bool) = b
 	default:
 		return fmt.Errorf("could not parse boolean %s: %v", option.Name, i)
 	}

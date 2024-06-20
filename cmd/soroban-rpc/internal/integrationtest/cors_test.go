@@ -1,4 +1,4 @@
-package test
+package integrationtest
 
 import (
 	"bytes"
@@ -7,15 +7,17 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/integrationtest/infrastructure"
 )
 
 // TestCORS ensures that we receive the correct CORS headers as a response to an HTTP request.
 // Specifically, when we include an Origin header in the request, a soroban-rpc should response
 // with a corresponding Access-Control-Allow-Origin.
 func TestCORS(t *testing.T) {
-	test := NewTest(t, nil)
+	test := infrastructure.NewTest(t, nil)
 
-	request, err := http.NewRequest("POST", test.sorobanRPCURL(), bytes.NewBufferString("{\"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"getHealth\"}"))
+	request, err := http.NewRequest("POST", test.GetSorobanRPCURL(), bytes.NewBufferString("{\"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"getHealth\"}"))
 	require.NoError(t, err)
 	request.Header.Set("Content-Type", "application/json")
 	origin := "testorigin.com"

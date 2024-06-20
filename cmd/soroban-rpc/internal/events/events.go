@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/xdr"
 
@@ -20,7 +21,9 @@ type event struct {
 	diagnosticEventXDR []byte
 	txIndex            uint32
 	eventIndex         uint32
-	txHash             *xdr.Hash // intentionally stored as a pointer to save memory (amortized as soon as there are two events in a transaction)
+	// intentionally stored as a pointer to save memory
+	// (amortized as soon as there are two events in a transaction)
+	txHash *xdr.Hash
 }
 
 func (e event) cursor(ledgerSeq uint32) Cursor {
