@@ -89,6 +89,8 @@ jobs:
       - run: rustup update
       - uses: stellar/actions/rust-cache@main
       - uses: ./soroban-rpc/.github/actions/setup-go
+        with:
+          working-directory: ./soroban-rpc/
       - name: Build system test with component versions
         run: |
           cd $GITHUB_WORKSPACE/system-test
