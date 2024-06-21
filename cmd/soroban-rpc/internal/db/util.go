@@ -8,9 +8,9 @@ import (
 // Methods for creating test txMeta
 
 const (
-	TxMetaV                 = 3
-	LedgerCloseTimeConstant = 100
-	FeeCharged              = 100
+	txMetaV                 = 3
+	ledgerCloseTimeConstant = 100
+	feeCharged              = 100
 )
 
 func CreateTxMeta(acctSeq uint32, successful bool) xdr.LedgerCloseMeta {
@@ -18,7 +18,7 @@ func CreateTxMeta(acctSeq uint32, successful bool) xdr.LedgerCloseMeta {
 	txProcessing := []xdr.TransactionResultMeta{
 		{
 			TxApplyProcessing: xdr.TransactionMeta{
-				V:          TxMetaV,
+				V:          txMetaV,
 				Operations: &[]xdr.OperationMeta{},
 				V3:         &xdr.TransactionMetaV3{},
 			},
@@ -94,7 +94,7 @@ func transactionResult(successful bool) xdr.TransactionResult {
 	}
 	opResults := []xdr.OperationResult{}
 	return xdr.TransactionResult{
-		FeeCharged: FeeCharged,
+		FeeCharged: feeCharged,
 		Result: xdr.TransactionResultResult{
 			Code:    code,
 			Results: &opResults,
@@ -103,5 +103,5 @@ func transactionResult(successful bool) xdr.TransactionResult {
 }
 
 func LedgerCloseTime(ledgerSequence uint32) int64 {
-	return int64(ledgerSequence)*25 + LedgerCloseTimeConstant
+	return int64(ledgerSequence)*25 + ledgerCloseTimeConstant
 }
