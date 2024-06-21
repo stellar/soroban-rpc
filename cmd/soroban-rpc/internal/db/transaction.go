@@ -143,51 +143,27 @@ func (txn *transactionHandler) trimTransactions(latestLedgerSeq uint32, retentio
 func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
 	var ledgerRange ledgerbucketwindow.LedgerRange
 
-	//
-	// We use subqueries alongside a UNION ALL stitch in order to select the min
-	// and max from the ledger table in a single query and get around sqlite's
-	// limitations with parentheses (see https://stackoverflow.com/a/22609948).
-	//
-	// Queries to get the minimum and maximum ledger sequence from the transactions table
-	minLedgerSeqQ := sq.
-		Select("m1.ledger_sequence").
-		FromSelect(
-			sq.
-				Select("ledger_sequence").
-				From(transactionTableName).
-				OrderBy("ledger_sequence ASC").
-				Limit(1),
-			"m1",
-		)
-	maxLedgerSeqQ, args, err := sq.
-		Select("m2.ledger_sequence").
-		FromSelect(
-			sq.
-				Select("ledger_sequence").
-				From(transactionTableName).
-				OrderBy("ledger_sequence DESC").
-				Limit(1),
-			"m2",
-		).ToSql()
-	if err != nil {
-		return ledgerRange, fmt.Errorf("couldn't build ledger range query: %w", err)
+	// Query to get the minimum and maximum ledger sequence from the transactions table
+	var ledgerSeqs struct {
+		MinLedgerSequence uint32 `db:"min_ledger_sequence"`
+		MaxLedgerSequence uint32 `db:"max_ledger_sequence"`
+	}
+	minMaxLedgerSequenceSql := sq.
+		Select("MIN(ledger_sequence) AS min_ledger_sequence, MAX(ledger_sequence) AS max_ledger_sequence").
+		From(transactionTableName)
+	if err := txn.db.Get(ctx, &ledgerSeqs, minMaxLedgerSequenceSql); err != nil {
+		return ledgerRange, fmt.Errorf("couldn't query ledger range: %w", err)
 	}
 
-	// Combine the min and max ledger sequence queries using UNION ALL
-	txnMinMaxLedgersQ, _, err := minLedgerSeqQ.Suffix("UNION ALL "+maxLedgerSeqQ, args...).ToSql()
-	if err != nil {
-		return ledgerRange, fmt.Errorf("couldn't build ledger range query: %w", err)
-	}
-
-	// Final query to join ledger_close_meta table and the sequence numbers we got from txnMinMaxLedgersQ
-	finalSQL := sq.
+	// Use the min and max ledger sequences to query the ledger_close_meta table
+	ledgerMetaSql := sq.
 		Select("lcm.meta").
 		From(ledgerCloseMetaTableName + " as lcm").
-		JoinClause(fmt.Sprintf("JOIN (%s) as seqs ON lcm.sequence == seqs.ledger_sequence", txnMinMaxLedgersQ))
+		Where(sq.Eq{"lcm.sequence": []uint32{ledgerSeqs.MinLedgerSequence, ledgerSeqs.MaxLedgerSequence}})
 
 	var lcms []xdr.LedgerCloseMeta
-	if err = txn.db.Select(ctx, &lcms, finalSQL); err != nil {
-		return ledgerRange, fmt.Errorf("couldn't build ledger range query: %w", err)
+	if err := txn.db.Select(ctx, &lcms, ledgerMetaSql); err != nil {
+		return ledgerRange, fmt.Errorf("couldn't query ledger range: %w", err)
 	} else if len(lcms) < 2 {
 		// There is almost certainly a row, but we want to avoid a race condition
 		// with ingestion as well as support test cases from an empty DB, so we need
@@ -206,6 +182,73 @@ func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucket
 		ledgerRange.FirstLedger.Sequence, ledgerRange.LastLedger.Sequence)
 	return ledgerRange, nil
 }
+
+//func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
+//	var ledgerRange ledgerbucketwindow.LedgerRange
+//
+//	//
+//	// We use subqueries alongside a UNION ALL stitch in order to select the min
+//	// and max from the ledger table in a single query and get around sqlite's
+//	// limitations with parentheses (see https://stackoverflow.com/a/22609948).
+//	//
+//	// Queries to get the minimum and maximum ledger sequence from the transactions table
+//	minLedgerSeqQ := sq.
+//		Select("m1.ledger_sequence").
+//		FromSelect(
+//			sq.
+//				Select("ledger_sequence").
+//				From(transactionTableName).
+//				OrderBy("ledger_sequence ASC").
+//				Limit(1),
+//			"m1",
+//		)
+//	maxLedgerSeqQ, args, err := sq.
+//		Select("m2.ledger_sequence").
+//		FromSelect(
+//			sq.
+//				Select("ledger_sequence").
+//				From(transactionTableName).
+//				OrderBy("ledger_sequence DESC").
+//				Limit(1),
+//			"m2",
+//		).ToSql()
+//	if err != nil {
+//		return ledgerRange, fmt.Errorf("couldn't build ledger range query: %w", err)
+//	}
+//
+//	// Combine the min and max ledger sequence queries using UNION ALL
+//	txnMinMaxLedgersQ, _, err := minLedgerSeqQ.Suffix("UNION ALL "+maxLedgerSeqQ, args...).ToSql()
+//	if err != nil {
+//		return ledgerRange, fmt.Errorf("couldn't build ledger range query: %w", err)
+//	}
+//
+//	// Final query to join ledger_close_meta table and the sequence numbers we got from txnMinMaxLedgersQ
+//	finalSQL := sq.
+//		Select("lcm.meta").
+//		From(ledgerCloseMetaTableName + " as lcm").
+//		JoinClause(fmt.Sprintf("JOIN (%s) as seqs ON lcm.sequence == seqs.ledger_sequence", txnMinMaxLedgersQ))
+//
+//	var lcms []xdr.LedgerCloseMeta
+//	if err = txn.db.Select(ctx, &lcms, finalSQL); err != nil {
+//		return ledgerRange, fmt.Errorf("couldn't build ledger range query: %w", err)
+//	} else if len(lcms) < 2 {
+//		// There is almost certainly a row, but we want to avoid a race condition
+//		// with ingestion as well as support test cases from an empty DB, so we need
+//		// to sanity check that there is in fact a result. Note that no ledgers in
+//		// the database isn't an error, it's just an empty range.
+//		return ledgerRange, nil
+//	}
+//
+//	lcm1, lcm2 := lcms[0], lcms[1]
+//	ledgerRange.FirstLedger.Sequence = lcm1.LedgerSequence()
+//	ledgerRange.FirstLedger.CloseTime = lcm1.LedgerCloseTime()
+//	ledgerRange.LastLedger.Sequence = lcm2.LedgerSequence()
+//	ledgerRange.LastLedger.CloseTime = lcm2.LedgerCloseTime()
+//
+//	txn.log.Debugf("Database ledger range: [%d, %d]",
+//		ledgerRange.FirstLedger.Sequence, ledgerRange.LastLedger.Sequence)
+//	return ledgerRange, nil
+//}
 
 // GetTransaction conforms to the interface in
 // methods/get_transaction.go#NewGetTransactionHandler so that it can be used
