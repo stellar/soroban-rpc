@@ -21,7 +21,7 @@ import (
 
 const (
 	transactionTableName = "transactions"
-	FirstLedgerToMigrate = 2
+	firstLedgerToMigrate = 2
 )
 
 var ErrNoTransaction = errors.New("no transaction with this hash exists")
@@ -346,7 +346,7 @@ func newTransactionTableMigration(ctx context.Context, logger *log.Entry,
 	retentionWindow uint32, passphrase string,
 ) migrationApplierFactory {
 	return migrationApplierFactoryF(func(db *DB, latestLedger uint32) (MigrationApplier, error) {
-		firstLedgerToMigrate := uint32(FirstLedgerToMigrate)
+		firstLedgerToMigrate := uint32(firstLedgerToMigrate)
 		writer := &transactionHandler{
 			log:        logger,
 			db:         db,
