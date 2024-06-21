@@ -33,41 +33,30 @@ func NewMockTransactionStore(passphrase string) *mockTransactionHandler {
 }
 
 type mockEventHandler struct {
-	passphrase       string
-	ledgerRange      ledgerbucketwindow.LedgerRange
-	contractIdToMeta map[string]ingest.LedgerTransaction
-	eventTypeToTx    map[int]ingest.LedgerTransaction
-	eventIdToTx      map[string]ingest.LedgerTransaction
-	ledgerSeqToMeta  map[uint32]*xdr.LedgerCloseMeta
+	passphrase      string
+	ledgerRange     ledgerbucketwindow.LedgerRange
+	contractIDToTx  map[string]ingest.LedgerTransaction
+	eventTypeToTx   map[int]ingest.LedgerTransaction
+	eventIdToTx     map[string]ingest.LedgerTransaction
+	ledgerSeqToMeta map[uint32]*xdr.LedgerCloseMeta
 }
 
 func NewMockEventStore(passphrase string) *mockEventHandler {
 	return &mockEventHandler{
-		passphrase:       passphrase,
-		contractIdToMeta: make(map[string]ingest.LedgerTransaction),
-		eventTypeToTx:    make(map[int]ingest.LedgerTransaction),
-		eventIdToTx:      make(map[string]ingest.LedgerTransaction),
-		ledgerSeqToMeta:  make(map[uint32]*xdr.LedgerCloseMeta),
+		passphrase:      passphrase,
+		contractIDToTx:  make(map[string]ingest.LedgerTransaction),
+		eventTypeToTx:   make(map[int]ingest.LedgerTransaction),
+		eventIdToTx:     make(map[string]ingest.LedgerTransaction),
+		ledgerSeqToMeta: make(map[uint32]*xdr.LedgerCloseMeta),
 	}
 }
 
-func (eventHandler *mockEventHandler) GetEvents(ctx context.Context, cursorRange events.CursorRange, contractIds []string, f ScanFunction) error {
-	if contractIds != nil {
-		for _, contractId := range contractIds {
-			ledgerTx, ok := eventHandler.contractIdToMeta[contractId]
-			if ok {
-				diagEvents, diagErr := ledgerTx.GetDiagnosticEvents()
-				if diagErr != nil {
-				}
-
-				for _, event := range diagEvents {
-					if !f(event, events.Cursor{}, 0, &ledgerTx.Result.TransactionHash) {
-						return nil
-					}
-				}
-			}
-		}
-	}
+func (eventHandler *mockEventHandler) GetEvents(
+	ctx context.Context,
+	cursorRange events.CursorRange,
+	contractIds []string,
+	f ScanFunction,
+) error {
 	return nil
 }
 
@@ -96,7 +85,7 @@ func (eventHandler *mockEventHandler) IngestEvents(lcm xdr.LedgerCloseMeta) erro
 			var contractId []byte
 			if e.Event.ContractId != nil {
 				contractId = e.Event.ContractId[:]
-				eventHandler.contractIdToMeta[string(contractId)] = tx
+				eventHandler.contractIDToTx[string(contractId)] = tx
 			}
 			id := events.Cursor{Ledger: lcm.LedgerSequence(), Tx: tx.Index, Op: 0, Event: uint32(index)}.String()
 			eventHandler.eventTypeToTx[int(e.Event.Type)] = tx
@@ -190,15 +179,6 @@ func (m *mockLedgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.
 }
 
 func (m *mockLedgerReader) StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error {
-	return nil
-}
-
-type mockEventReader struct{}
-
-func NewMockEventReader() {
-}
-
-func (m *mockEventReader) GetEvents(ctx context.Context, startLedgerSequence int, eventTypes []int, contractIds []string, f ScanFunction) error {
 	return nil
 }
 

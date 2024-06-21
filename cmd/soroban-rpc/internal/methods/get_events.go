@@ -104,11 +104,11 @@ func (g *GetEventsRequest) Valid(maxLimit uint) error {
 
 	// Validate filters
 	if len(g.Filters) > 5 {
-		return errors.New("maximum 5 filters per request")
+		return fmt.Errorf("maximum 5 filters per request")
 	}
 	for i, filter := range g.Filters {
 		if err := filter.Valid(); err != nil {
-			return fmt.Errorf("filter %d invalid: %w", i+1)
+			return fmt.Errorf("filter %d invalid: %w", i+1, err)
 		}
 	}
 
@@ -314,7 +314,7 @@ type eventsRPCHandler struct {
 	networkPassphrase string
 }
 
-func combineContractIds(filters []EventFilter) []string {
+func combineContractIDs(filters []EventFilter) []string {
 	contractIDSet := make(map[string]struct{})
 
 	for _, filter := range filters {
@@ -338,7 +338,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		}
 	}
 
-	start := events.Cursor{Ledger: uint32(request.StartLedger)}
+	start := events.Cursor{Ledger: request.StartLedger}
 	limit := h.defaultLimit
 	if request.Pagination != nil {
 		if request.Pagination.Cursor != nil {
@@ -351,7 +351,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 			limit = request.Pagination.Limit
 		}
 	}
-	end := events.Cursor{Ledger: uint32(request.StartLedger + ledgerbucketwindow.OneDayOfLedgers)}
+	end := events.Cursor{Ledger: request.StartLedger + ledgerbucketwindow.OneDayOfLedgers}
 	cursorRange := events.CursorRange{Start: start, End: end}
 
 	type entry struct {
@@ -362,7 +362,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 	}
 	var found []entry
 
-	contractIds := combineContractIds(request.Filters)
+	contractIDs := combineContractIDs(request.Filters)
 
 	// Scan function to apply filters
 	f := func(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCloseTimestamp int64, txHash *xdr.Hash) bool {
@@ -372,7 +372,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		return uint(len(found)) < limit
 	}
 
-	err := h.dbReader.GetEvents(ctx, cursorRange, contractIds, f)
+	err := h.dbReader.GetEvents(ctx, cursorRange, contractIDs, f)
 	if err != nil {
 		return GetEventsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidRequest,
@@ -400,7 +400,12 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 	}, nil
 }
 
-func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerClosedAt string, txHash string) (EventInfo, error) {
+func eventInfoForEvent(
+	event xdr.DiagnosticEvent,
+	cursor events.Cursor,
+	ledgerClosedAt string,
+	txHash string,
+) (EventInfo, error) {
 	v0, ok := event.Event.Body.GetV0()
 	if !ok {
 		return EventInfo{}, errors.New("unknown event version")
@@ -445,7 +450,12 @@ func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCl
 }
 
 // NewGetEventsHandler returns a json rpc handler to fetch and filter events
-func NewGetEventsHandler(logger *log.Entry, dbReader db.EventReader, maxLimit, defaultLimit uint, networkPassphrase string) jrpc2.Handler {
+func NewGetEventsHandler(logger *log.Entry,
+	dbReader db.EventReader,
+	maxLimit uint,
+	defaultLimit uint,
+	networkPassphrase string,
+) jrpc2.Handler {
 	eventsHandler := eventsRPCHandler{
 		dbReader:          dbReader,
 		maxLimit:          maxLimit,

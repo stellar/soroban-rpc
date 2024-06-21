@@ -10,7 +10,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/support/db"
-	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
@@ -25,7 +24,7 @@ type EventWriter interface {
 
 // EventReader has all the public methods to fetch events from DB
 type EventReader interface {
-	GetEvents(ctx context.Context, cursorRange events.CursorRange, contractIds []string, f ScanFunction) error
+	GetEvents(ctx context.Context, cursorRange events.CursorRange, contractIDs []string, f ScanFunction) error
 	// GetLedgerRange(ctx context.Context) error
 }
 
@@ -130,11 +129,16 @@ func (eventHandler *eventHandler) trimEvents(latestLedgerSeq uint32, retentionWi
 // The events are returned in sorted ascending Cursor order.
 // If f returns false, the scan terminates early (f will not be applied on
 // remaining events in the range).
-func (eventHandler *eventHandler) GetEvents(ctx context.Context, cursorRange events.CursorRange, contractIds []string, f ScanFunction) error {
+func (eventHandler *eventHandler) GetEvents(
+	ctx context.Context,
+	cursorRange events.CursorRange,
+	contractIDs []string,
+	f ScanFunction,
+) error {
 	start := time.Now()
 
 	var rows []struct {
-		EventCursorId string              `db:"id"`
+		EventCursorID string              `db:"id"`
 		TxIndex       int                 `db:"application_order"`
 		Lcm           xdr.LedgerCloseMeta `db:"meta"`
 	}
@@ -147,18 +151,22 @@ func (eventHandler *eventHandler) GetEvents(ctx context.Context, cursorRange eve
 		Where(sq.Lt{"e.id": cursorRange.End.String()}).
 		OrderBy("e.id ASC")
 
-	if len(contractIds) > 0 {
-		rowQ = rowQ.Where(sq.Eq{"e.contract_id": contractIds})
+	if len(contractIDs) > 0 {
+		rowQ = rowQ.Where(sq.Eq{"e.contract_id": contractIDs})
 	}
 
 	if err := eventHandler.db.Select(ctx, &rows, rowQ); err != nil {
-		return fmt.Errorf("db read failed for start ledger cursor= %v contractIds= %v: %w", cursorRange.Start.String(), contractIds, err)
+		return fmt.Errorf(
+			"db read failed for start ledger cursor= %v contractIDs= %v: %w",
+			cursorRange.Start.String(),
+			contractIDs,
+			err)
 	} else if len(rows) < 1 {
-		return errors.New("No LCM found with requested event filters")
+		return fmt.Errorf("no LCM found with requested event filters")
 	}
 
 	for _, row := range rows {
-		eventCursorId, txIndex, lcm := row.EventCursorId, row.TxIndex, row.Lcm
+		eventCursorID, txIndex, lcm := row.EventCursorID, row.TxIndex, row.Lcm
 		reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(eventHandler.passphrase, lcm)
 		if err != nil {
 			return fmt.Errorf("failed to index to tx %d in ledger %d: %w", txIndex, lcm.LedgerSequence(), err)
@@ -175,7 +183,7 @@ func (eventHandler *eventHandler) GetEvents(ctx context.Context, cursorRange eve
 		diagEvents, diagErr := ledgerTx.GetDiagnosticEvents()
 
 		if diagErr != nil {
-			return fmt.Errorf("db read failed for Event Id %s: %w", eventCursorId, err)
+			return fmt.Errorf("db read failed for Event Id %s: %w", eventCursorID, err)
 		}
 
 		// Find events based on filter passed in function f
@@ -191,7 +199,7 @@ func (eventHandler *eventHandler) GetEvents(ctx context.Context, cursorRange eve
 		WithField("startLedgerSequence", cursorRange.Start.Ledger).
 		WithField("endLedgerSequence", cursorRange.End.Ledger).
 		WithField("duration", time.Since(start)).
-		Debugf("Fetched and decoded all the events with filters - contractIds: %v ", contractIds)
+		Debugf("Fetched and decoded all the events with filters - contractIDs: %v ", contractIDs)
 
 	return nil
 }
