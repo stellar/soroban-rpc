@@ -300,8 +300,11 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 
 // mustInitializeStorage initializes the storage using what was on the DB
 func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows {
-
-	feewindows := feewindow.NewFeeWindows(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow, cfg.NetworkPassphrase)
+	feewindows := feewindow.NewFeeWindows(
+		cfg.ClassicFeeStatsLedgerRetentionWindow,
+		cfg.SorobanFeeStatsLedgerRetentionWindow,
+		cfg.NetworkPassphrase,
+	)
 
 	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
 	defer cancelReadTxMeta()

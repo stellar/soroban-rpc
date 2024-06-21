@@ -60,6 +60,10 @@ func (eventHandler *MockEventHandler) GetEvents(
 	return nil
 }
 
+func (eventHandler *MockEventHandler) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
+	return ledgerbucketwindow.LedgerRange{}, nil
+}
+
 func (eventHandler *MockEventHandler) IngestEvents(lcm xdr.LedgerCloseMeta) error {
 	eventHandler.ledgerSeqToMeta[lcm.LedgerSequence()] = &lcm
 
