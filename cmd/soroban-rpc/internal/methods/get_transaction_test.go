@@ -25,7 +25,7 @@ func TestGetTransaction(t *testing.T) {
 
 	_, err := GetTransaction(ctx, log, store, GetTransactionRequest{"ab"})
 	require.EqualError(t, err, "[-32602] unexpected hash length (2)")
-	_, err = GetTransaction(ctx, log, store, GetTransactionRequest{"foo"})
+	_, err = GetTransaction(ctx, log, store, GetTransactionRequest{"foo                                                              "})
 	require.EqualError(t, err, "[-32602] incorrect hash: encoding/hex: invalid byte: U+006F 'o'")
 
 	hash := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
