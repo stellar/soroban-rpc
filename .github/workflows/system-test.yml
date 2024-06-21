@@ -1,4 +1,4 @@
-name: Soroban Tools e2e
+name: System test
 
 on:
   push:
@@ -6,8 +6,8 @@ on:
   pull_request:
 
 jobs:
-  integration:
-    name: System tests
+  test:
+    name: "Test"
     strategy:
       matrix:
         scenario-filter: [ "^TestDappDevelop$/^.*$" ]
@@ -88,7 +88,7 @@ jobs:
           path: system-test/js-stellar-sdk
       - run: rustup update
       - uses: stellar/actions/rust-cache@main
-      - uses: soroban-rpc/.github/actions/setup-go
+      - uses: ./soroban-rpc/.github/actions/setup-go
       - name: Build system test with component versions
         run: |
           cd $GITHUB_WORKSPACE/system-test
