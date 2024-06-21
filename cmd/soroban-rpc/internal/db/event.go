@@ -6,6 +6,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stellar/go/ingest"
@@ -25,7 +27,7 @@ type EventWriter interface {
 // EventReader has all the public methods to fetch events from DB
 type EventReader interface {
 	GetEvents(ctx context.Context, cursorRange events.CursorRange, contractIDs []string, f ScanFunction) error
-	// GetLedgerRange(ctx context.Context) error
+	GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error)
 }
 
 type eventHandler struct {
@@ -146,7 +148,7 @@ func (eventHandler *eventHandler) GetEvents(
 	rowQ := sq.
 		Select("e.id", "e.application_order", "lcm.meta").
 		From(eventTableName + " e").
-		Join(ledgerCloseMetaTableName + "lcm ON (e.ledger_sequence = lcm.sequence)").
+		Join(ledgerCloseMetaTableName + " lcm ON (e.ledger_sequence = lcm.sequence)").
 		Where(sq.GtOrEq{"e.id": cursorRange.Start.String()}).
 		Where(sq.Lt{"e.id": cursorRange.End.String()}).
 		OrderBy("e.id ASC")
@@ -202,4 +204,74 @@ func (eventHandler *eventHandler) GetEvents(
 		Debugf("Fetched and decoded all the events with filters - contractIDs: %v ", contractIDs)
 
 	return nil
+}
+
+// GetLedgerRange returns the min/max ledger sequence numbers from the events table
+// TODO: Once we unify all the retention window we would keep only one GetLedgerRange logic
+
+func (eventHandler *eventHandler) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
+	var ledgerRange ledgerbucketwindow.LedgerRange
+
+	//
+	// We use subqueries alongside a UNION ALL stitch in order to select the min
+	// and max from the ledger table in a single query and get around sqlite's
+	// limitations with parentheses (see https://stackoverflow.com/a/22609948).
+	//
+	// Queries to get the minimum and maximum ledger sequence from the transactions table
+	minLedgerSeqQ := sq.
+		Select("m1.ledger_sequence").
+		FromSelect(
+			sq.
+				Select("ledger_sequence").
+				From(eventTableName).
+				OrderBy("ledger_sequence ASC").
+				Limit(1),
+			"m1",
+		)
+	maxLedgerSeqQ, args, err := sq.
+		Select("m2.ledger_sequence").
+		FromSelect(
+			sq.
+				Select("ledger_sequence").
+				From(eventTableName).
+				OrderBy("ledger_sequence DESC").
+				Limit(1),
+			"m2",
+		).ToSql()
+	if err != nil {
+		return ledgerRange, fmt.Errorf("couldn't build ledger range query: %w", err)
+	}
+
+	// Combine the min and max ledger sequence queries using UNION ALL
+	eventMinMaxLedgersQ, _, err := minLedgerSeqQ.Suffix("UNION ALL "+maxLedgerSeqQ, args...).ToSql()
+	if err != nil {
+		return ledgerRange, fmt.Errorf("couldn't build ledger range query: %w", err)
+	}
+
+	// Final query to join ledger_close_meta table and the sequence numbers we got from eventMinMaxLedgersQ
+	finalSQL := sq.
+		Select("lcm.meta").
+		From(ledgerCloseMetaTableName + " as lcm").
+		JoinClause(fmt.Sprintf("JOIN (%s) as seqs ON lcm.sequence == seqs.ledger_sequence", eventMinMaxLedgersQ))
+
+	var lcms []xdr.LedgerCloseMeta
+	if err = eventHandler.db.Select(ctx, &lcms, finalSQL); err != nil {
+		return ledgerRange, fmt.Errorf("couldn't build ledger range query: %w", err)
+	} else if len(lcms) < 2 {
+		// There is almost certainly a row, but we want to avoid a race condition
+		// with ingestion as well as support test cases from an empty DB, so we need
+		// to sanity check that there is in fact a result. Note that no ledgers in
+		// the database isn't an error, it's just an empty range.
+		return ledgerRange, nil
+	}
+
+	lcm1, lcm2 := lcms[0], lcms[1]
+	ledgerRange.FirstLedger.Sequence = lcm1.LedgerSequence()
+	ledgerRange.FirstLedger.CloseTime = lcm1.LedgerCloseTime()
+	ledgerRange.LastLedger.Sequence = lcm2.LedgerSequence()
+	ledgerRange.LastLedger.CloseTime = lcm2.LedgerCloseTime()
+
+	eventHandler.log.Debugf("Database ledger range: [%d, %d]",
+		ledgerRange.FirstLedger.Sequence, ledgerRange.LastLedger.Sequence)
+	return ledgerRange, nil
 }

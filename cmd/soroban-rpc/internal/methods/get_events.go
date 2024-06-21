@@ -331,9 +331,18 @@ func combineContractIDs(filters []EventFilter) []string {
 }
 
 func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsRequest) (GetEventsResponse, error) {
+
 	if err := request.Valid(h.maxLimit); err != nil {
 		return GetEventsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidParams,
+			Message: err.Error(),
+		}
+	}
+
+	ledgerRange, err := h.dbReader.GetLedgerRange(ctx)
+	if err != nil {
+		return GetEventsResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InternalError,
 			Message: err.Error(),
 		}
 	}
@@ -372,7 +381,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		return uint(len(found)) < limit
 	}
 
-	err := h.dbReader.GetEvents(ctx, cursorRange, contractIDs, f)
+	err = h.dbReader.GetEvents(ctx, cursorRange, contractIDs, f)
 	if err != nil {
 		return GetEventsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidRequest,
@@ -393,9 +402,9 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		}
 		results = append(results, info)
 	}
-	// TODO (prit): Refactor latest ledger code !!
+
 	return GetEventsResponse{
-		LatestLedger: 0,
+		LatestLedger: ledgerRange.LastLedger.Sequence,
 		Events:       results,
 	}, nil
 }
