@@ -20,11 +20,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stellar/go/network"
 	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/go/clients/stellarcore"
 	"github.com/stellar/go/keypair"
+	"github.com/stellar/go/network"
 	proto "github.com/stellar/go/protocols/stellarcore"
 	supportlog "github.com/stellar/go/support/log"
 	"github.com/stellar/go/txnbuild"
@@ -385,7 +385,7 @@ func (i *Test) generateCaptiveCoreCfgForContainer() {
 		// Try the directory before the integration test refactoring
 		// TODO: remove this hack after protocol 22 is released
 		out, err = getOldVersionCaptiveCoreConfigVersion("../../test", captiveCoreConfigFilename)
-		outStr := strings.Replace(string(out), `ADDRESS="localhost"`, `ADDRESS="${CORE_HOST_PORT}"`, -1)
+		outStr := strings.ReplaceAll(string(out), `ADDRESS="localhost"`, `ADDRESS="${CORE_HOST_PORT}"`)
 		out = []byte(outStr)
 	}
 	require.NoError(i.t, err)
