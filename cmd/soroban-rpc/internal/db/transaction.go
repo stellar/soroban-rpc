@@ -20,8 +20,9 @@ import (
 )
 
 const (
-	transactionTableName = "transactions"
-	firstLedgerToMigrate = 2
+	transactionTableName         = "transactions"
+	firstLedgerToMigrate         = 2
+	getLedgerRangeQueryCondition = 2
 )
 
 var ErrNoTransaction = errors.New("no transaction with this hash exists")
@@ -145,8 +146,8 @@ func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucket
 
 	// Query to get the minimum and maximum ledger sequence from the transactions table
 	var ledgerSeqs struct {
-		MinLedgerSequence uint32 `db:"min_ledger_sequence"`
-		MaxLedgerSequence uint32 `db:"max_ledger_sequence"`
+		MinLedgerSequence *uint32 `db:"min_ledger_sequence"`
+		MaxLedgerSequence *uint32 `db:"max_ledger_sequence"`
 	}
 	minMaxLedgerSequenceSQL := sq.
 		Select("MIN(ledger_sequence) AS min_ledger_sequence, MAX(ledger_sequence) AS max_ledger_sequence").
@@ -155,16 +156,21 @@ func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucket
 		return ledgerRange, fmt.Errorf("couldn't query ledger range: %w", err)
 	}
 
+	// Empty DB
+	if ledgerSeqs.MinLedgerSequence == nil || ledgerSeqs.MaxLedgerSequence == nil {
+		return ledgerRange, nil
+	}
+
 	// Use the min and max ledger sequences to query the ledger_close_meta table
 	ledgerMetaSQL := sq.
 		Select("lcm.meta").
 		From(ledgerCloseMetaTableName + " as lcm").
-		Where(sq.Eq{"lcm.sequence": []uint32{ledgerSeqs.MinLedgerSequence, ledgerSeqs.MaxLedgerSequence}})
+		Where(sq.Eq{"lcm.sequence": []uint32{*ledgerSeqs.MinLedgerSequence, *ledgerSeqs.MaxLedgerSequence}})
 
 	var lcms []xdr.LedgerCloseMeta
 	if err := txn.db.Select(ctx, &lcms, ledgerMetaSQL); err != nil {
 		return ledgerRange, fmt.Errorf("couldn't query ledger range: %w", err)
-	} else if len(lcms) < 2 {
+	} else if len(lcms) < getLedgerRangeQueryCondition {
 		// There is almost certainly a row, but we want to avoid a race condition
 		// with ingestion as well as support test cases from an empty DB, so we need
 		// to sanity check that there is in fact a result. Note that no ledgers in

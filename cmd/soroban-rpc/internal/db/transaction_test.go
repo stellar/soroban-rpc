@@ -123,3 +123,39 @@ func BenchmarkTransactionFetch(b *testing.B) {
 		assert.Equal(b, r%2 == 0, tx.Successful)
 	}
 }
+
+//func BenchmarkGetLedgerRange(b *testing.B) {
+//	logger := log.DefaultLogger
+//
+//	// create 100k tx rows
+//	lcms := make([]xdr.LedgerCloseMeta, 0, 100_000)
+//	for i := uint32(0); i < uint32(cap(lcms)); i++ {
+//		lcms = append(lcms, CreateTxMeta(1234+i, i%2 == 0))
+//	}
+//
+//	randoms := make([]int, b.N)
+//	for i := 0; i < b.N; i++ {
+//		randoms[i] = rand.Intn(len(lcms))
+//	}
+//
+//	for i := 2; i < b.N; i++ {
+//		db := NewTestDB(b)
+//		writer := NewReadWriter(logger, db, interfaces.MakeNoOpDeamon(), 100, 1_000_000, passphrase)
+//		write, err := writer.NewTx(context.TODO())
+//		require.NoError(b, err)
+//
+//		ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
+//		for j := 0; j < i; j++ {
+//			require.NoError(b, ledgerW.InsertLedger(lcms[j]))
+//			require.NoError(b, txW.InsertTransactions(lcms[j]))
+//		}
+//		require.NoError(b, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
+//		reader := NewTransactionReader(logger, db, passphrase)
+//
+//		b.ResetTimer()
+//		ledgerRange, err := reader.GetLedgerRange(context.TODO())
+//		require.NoError(b, err)
+//		assert.Equal(b, ledgerRange.FirstLedger.Sequence, lcms[0].LedgerSequence())
+//		assert.Equal(b, ledgerRange.LastLedger.Sequence, lcms[i-1].LedgerSequence())
+//	}
+//}
