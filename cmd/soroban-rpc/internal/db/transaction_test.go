@@ -162,7 +162,7 @@ func BenchmarkTransactionFetch(b *testing.B) {
 
 func txHash(acctSeq uint32) xdr.Hash {
 	envelope := txEnvelope(acctSeq)
-	hash, err := network.HashTransactionInEnvelope(envelope, passphrase)
+	hash, err := network.HashTransactionInEnvelope(envelope, "passphrase")
 	if err != nil {
 		panic(err)
 	}

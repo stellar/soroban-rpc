@@ -4,8 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/sirupsen/logrus"
+	"github.com/stellar/go/support/log"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
+	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +21,8 @@ import (
 	"github.com/stellar/go/strkey"
 	"github.com/stellar/go/xdr"
 )
+
+var passphrase = "passphrase"
 
 func TestEventTypeSetMatches(t *testing.T) {
 	var defaultSet eventTypeSet
@@ -573,9 +579,18 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("no filtering returns all", func(t *testing.T) {
-		contractID := xdr.Hash([32]byte{})
-		store := db.NewMockEventStore("passphrase")
 
+		dbx := db.NewTestDB(t)
+		ctx := context.TODO()
+		log := log.DefaultLogger
+		log.SetLevel(logrus.TraceLevel)
+
+		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+		write, err := writer.NewTx(ctx)
+		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+		store := db.NewEventReader(log, dbx, passphrase)
+
+		contractID := xdr.Hash([32]byte{})
 		var txMeta []xdr.TransactionMeta
 		for i := 0; i < 10; i++ {
 			txMeta = append(txMeta, transactionMetaWithEvents(
@@ -592,8 +607,11 @@ func TestGetEvents(t *testing.T) {
 				),
 			))
 		}
+
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)
-		assert.NoError(t, store.IngestEvents(ledgerCloseMeta))
+		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+		assert.NoError(t, eventW.InsertEvents(ledgerCloseMeta))
+		require.NoError(t, write.Commit(1))
 
 		handler := eventsRPCHandler{
 			dbReader:     store,
@@ -635,17 +653,26 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("filtering by contract id", func(t *testing.T) {
-		store := db.NewMockEventStore("passphrase")
+
+		dbx := db.NewTestDB(t)
+		ctx := context.TODO()
+		log := log.DefaultLogger
+		log.SetLevel(logrus.TraceLevel)
+
+		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+		write, err := writer.NewTx(ctx)
+		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+		store := db.NewEventReader(log, dbx, passphrase)
 
 		var txMeta []xdr.TransactionMeta
-		contractIds := []xdr.Hash{
+		contractIDs := []xdr.Hash{
 			xdr.Hash([32]byte{}),
 			xdr.Hash([32]byte{1}),
 		}
 		for i := 0; i < 5; i++ {
 			txMeta = append(txMeta, transactionMetaWithEvents(
 				contractEvent(
-					contractIds[i%len(contractIds)],
+					contractIDs[i%len(contractIDs)],
 					xdr.ScVec{xdr.ScVal{
 						Type: xdr.ScValTypeScvSymbol,
 						Sym:  &counter,
@@ -657,7 +684,13 @@ func TestGetEvents(t *testing.T) {
 				),
 			))
 		}
-		assert.NoError(t, store.IngestEvents(ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)))
+
+		ledgerCloseMeta := ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)
+		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+		assert.NoError(t, eventW.InsertEvents(ledgerCloseMeta))
+		require.NoError(t, write.Commit(1))
+
+		//assert.NoError(t, store.IngestEvents(ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)))
 
 		handler := eventsRPCHandler{
 			dbReader:     store,
@@ -667,7 +700,7 @@ func TestGetEvents(t *testing.T) {
 		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 			Filters: []EventFilter{
-				{ContractIDs: []string{strkey.MustEncode(strkey.VersionByteContract, contractIds[0][:])}},
+				{ContractIDs: []string{strkey.MustEncode(strkey.VersionByteContract, contractIDs[0][:])}},
 			},
 		})
 		assert.NoError(t, err)
@@ -1102,7 +1135,7 @@ func ledgerCloseMetaWithEvents(sequence uint32, closeTimestamp int64, txMeta ...
 				},
 			},
 		}
-		txHash, err := network.HashTransactionInEnvelope(envelope, "unit-tests")
+		txHash, err := network.HashTransactionInEnvelope(envelope, "passphrase")
 		if err != nil {
 			panic(err)
 		}
@@ -1111,6 +1144,7 @@ func ledgerCloseMetaWithEvents(sequence uint32, closeTimestamp int64, txMeta ...
 			TxApplyProcessing: item,
 			Result: xdr.TransactionResultPair{
 				TransactionHash: txHash,
+				Result:          transactionResult(true),
 			},
 		})
 		components := []xdr.TxSetComponent{
@@ -1154,12 +1188,18 @@ func ledgerCloseMetaWithEvents(sequence uint32, closeTimestamp int64, txMeta ...
 }
 
 func transactionMetaWithEvents(events ...xdr.ContractEvent) xdr.TransactionMeta {
+	counter := xdr.ScSymbol("COUNTER")
+
 	return xdr.TransactionMeta{
 		V:          3,
 		Operations: &[]xdr.OperationMeta{},
 		V3: &xdr.TransactionMetaV3{
 			SorobanMeta: &xdr.SorobanTransactionMeta{
 				Events: events,
+				ReturnValue: xdr.ScVal{
+					Type: xdr.ScValTypeScvSymbol,
+					Sym:  &counter,
+				},
 			},
 		},
 	}
