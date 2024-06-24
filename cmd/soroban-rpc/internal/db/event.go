@@ -165,7 +165,11 @@ func (eventHandler *eventHandler) GetEvents(
 			contractIDs,
 			err)
 	} else if len(rows) < 1 {
-		return fmt.Errorf("no LCM found with requested event filters")
+		eventHandler.log.Infof("No events found for start ledger cursor= %v contractIDs= %v",
+			cursorRange.Start.String(),
+			contractIDs,
+		)
+		return nil
 	}
 
 	for _, row := range rows {
@@ -192,7 +196,7 @@ func (eventHandler *eventHandler) GetEvents(
 		// Find events based on filter passed in function f
 		for eventIndex, event := range diagEvents {
 			cur := events.Cursor{Ledger: lcm.LedgerSequence(), Tx: uint32(txIndex), Event: uint32(eventIndex)}
-			if f != nil && !f(event, cur, ledgerCloseTime, &transactionHash) {
+			if !f(event, cur, ledgerCloseTime, &transactionHash) {
 				return nil
 			}
 		}

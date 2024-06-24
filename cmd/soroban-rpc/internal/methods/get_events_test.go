@@ -530,22 +530,18 @@ func TestGetEvents(t *testing.T) {
 	counterXdr, err := xdr.MarshalBase64(counterScVal)
 	assert.NoError(t, err)
 
-	t.Run("empty", func(t *testing.T) {
-		store := db.NewMockEventStore("passphrase")
-		handler := eventsRPCHandler{
-			dbReader:     store,
-			maxLimit:     10000,
-			defaultLimit: 100,
-		}
-		_, err = handler.getEvents(context.TODO(), GetEventsRequest{
-			StartLedger: 1,
-		})
-		assert.EqualError(t, err, "[-32600] event store is empty")
-	})
-
 	t.Run("startLedger validation", func(t *testing.T) {
 		contractID := xdr.Hash([32]byte{})
-		store := db.NewMockEventStore("passphrase")
+		dbx := db.NewTestDB(t)
+		ctx := context.TODO()
+		log := log.DefaultLogger
+		log.SetLevel(logrus.TraceLevel)
+
+		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+		write, err := writer.NewTx(ctx)
+		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+		store := db.NewEventReader(log, dbx, passphrase)
+
 		var txMeta []xdr.TransactionMeta
 		txMeta = append(txMeta, transactionMetaWithEvents(
 			contractEvent(
@@ -560,7 +556,11 @@ func TestGetEvents(t *testing.T) {
 				},
 			),
 		))
-		assert.NoError(t, store.IngestEvents(ledgerCloseMetaWithEvents(2, now.Unix(), txMeta...)))
+
+		ledgerCloseMeta := ledgerCloseMetaWithEvents(2, now.Unix(), txMeta...)
+		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+		assert.NoError(t, eventW.InsertEvents(ledgerCloseMeta))
+		require.NoError(t, write.Commit(2))
 
 		handler := eventsRPCHandler{
 			dbReader:     store,
@@ -570,12 +570,12 @@ func TestGetEvents(t *testing.T) {
 		_, err = handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 		})
-		assert.EqualError(t, err, "[-32600] start is before oldest ledger")
+		assert.EqualError(t, err, "[-32600] startLedger must be within the ledger range: 2 - 2")
 
 		_, err = handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 3,
 		})
-		assert.EqualError(t, err, "[-32600] start is after newest ledger")
+		assert.EqualError(t, err, "[-32600] startLedger must be within the ledger range: 2 - 2")
 	})
 
 	t.Run("no filtering returns all", func(t *testing.T) {
@@ -1098,7 +1098,7 @@ func TestGetEvents(t *testing.T) {
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(5, now.Unix(), txMeta...)
 		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
 		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
-		require.NoError(t, write.Commit(1))
+		require.NoError(t, write.Commit(4))
 
 		id := &events.Cursor{Ledger: 5, Tx: 1, Op: 0, Event: 0}
 		handler := eventsRPCHandler{
