@@ -20,9 +20,8 @@ import (
 )
 
 const (
-	transactionTableName         = "transactions"
-	firstLedgerToMigrate         = 2
-	getLedgerRangeQueryCondition = 2
+	transactionTableName = "transactions"
+	firstLedgerToMigrate = 2
 )
 
 var ErrNoTransaction = errors.New("no transaction with this hash exists")
@@ -156,7 +155,7 @@ func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucket
 		return ledgerRange, fmt.Errorf("couldn't query ledger range: %w", err)
 	}
 
-	// Empty DB
+	// Empty DB or just a single row in the DB.
 	if ledgerSeqs.MinLedgerSequence == nil || ledgerSeqs.MaxLedgerSequence == nil {
 		return ledgerRange, nil
 	}
@@ -170,12 +169,6 @@ func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucket
 	var lcms []xdr.LedgerCloseMeta
 	if err := txn.db.Select(ctx, &lcms, ledgerMetaSQL); err != nil {
 		return ledgerRange, fmt.Errorf("couldn't query ledger range: %w", err)
-	} else if len(lcms) < getLedgerRangeQueryCondition {
-		// There is almost certainly a row, but we want to avoid a race condition
-		// with ingestion as well as support test cases from an empty DB, so we need
-		// to sanity check that there is in fact a result. Note that no ledgers in
-		// the database isn't an error, it's just an empty range.
-		return ledgerRange, nil
 	}
 
 	lcm1, lcm2 := lcms[0], lcms[1]
