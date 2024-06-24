@@ -98,8 +98,8 @@ func BenchmarkTransactionFetch(b *testing.B) {
 
 	// ingest 100k tx rows
 	lcms := make([]xdr.LedgerCloseMeta, 0, 100_000)
-	for i := uint32(0); i < uint32(cap(lcms)); i++ {
-		lcms = append(lcms, CreateTxMeta(1234+i, i%2 == 0))
+	for i := range cap(lcms) {
+		lcms = append(lcms, CreateTxMeta(uint32(1234+i), i%2 == 0))
 	}
 
 	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
@@ -111,12 +111,12 @@ func BenchmarkTransactionFetch(b *testing.B) {
 	reader := NewTransactionReader(log, db, passphrase)
 
 	randoms := make([]int, b.N)
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		randoms[i] = rand.Intn(len(lcms))
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		r := randoms[i]
 		tx, _, err := reader.GetTransaction(ctx, lcms[r].TransactionHash(0))
 		require.NoError(b, err)
@@ -133,8 +133,8 @@ func BenchmarkGetLedgerRange(b *testing.B) {
 
 	// create 100k tx rows
 	lcms := make([]xdr.LedgerCloseMeta, 0, 100_000)
-	for i := uint32(0); i < uint32(cap(lcms)); i++ {
-		lcms = append(lcms, CreateTxMeta(1234+i, i%2 == 0))
+	for i := range cap(lcms) {
+		lcms = append(lcms, CreateTxMeta(uint32(1234+i), i%2 == 0))
 	}
 
 	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
@@ -146,7 +146,7 @@ func BenchmarkGetLedgerRange(b *testing.B) {
 	reader := NewTransactionReader(logger, db, passphrase)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		ledgerRange, err := reader.GetLedgerRange(context.TODO())
 		require.NoError(b, err)
 		assert.Equal(b, ledgerRange.FirstLedger.Sequence, lcms[0].LedgerSequence())
