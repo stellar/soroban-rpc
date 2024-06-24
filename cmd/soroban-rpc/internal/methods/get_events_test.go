@@ -687,10 +687,8 @@ func TestGetEvents(t *testing.T) {
 
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)
 		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
-		assert.NoError(t, eventW.InsertEvents(ledgerCloseMeta))
-		require.NoError(t, write.Commit(1))
-
-		//assert.NoError(t, store.IngestEvents(ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)))
+		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
+		require.NoError(t, write.Commit(2))
 
 		handler := eventsRPCHandler{
 			dbReader:     store,
@@ -719,7 +717,15 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("filtering by topic", func(t *testing.T) {
-		store := db.NewMockEventStore("passphrase")
+		dbx := db.NewTestDB(t)
+		ctx := context.TODO()
+		log := log.DefaultLogger
+		log.SetLevel(logrus.TraceLevel)
+
+		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+		write, err := writer.NewTx(ctx)
+		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+		store := db.NewEventReader(log, dbx, passphrase)
 
 		var txMeta []xdr.TransactionMeta
 		contractID := xdr.Hash([32]byte{})
@@ -738,7 +744,10 @@ func TestGetEvents(t *testing.T) {
 			))
 		}
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)
-		assert.NoError(t, store.IngestEvents(ledgerCloseMeta))
+
+		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
+		require.NoError(t, write.Commit(1))
 
 		number := xdr.Uint64(4)
 		handler := eventsRPCHandler{
@@ -784,7 +793,16 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("filtering by both contract id and topic", func(t *testing.T) {
-		store := db.NewMockEventStore("passphrase")
+
+		dbx := db.NewTestDB(t)
+		ctx := context.TODO()
+		log := log.DefaultLogger
+		log.SetLevel(logrus.TraceLevel)
+
+		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+		write, err := writer.NewTx(ctx)
+		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+		store := db.NewEventReader(log, dbx, passphrase)
 
 		contractID := xdr.Hash([32]byte{})
 		otherContractID := xdr.Hash([32]byte{1})
@@ -834,7 +852,10 @@ func TestGetEvents(t *testing.T) {
 			),
 		}
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)
-		assert.NoError(t, store.IngestEvents(ledgerCloseMeta))
+
+		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
+		require.NoError(t, write.Commit(1))
 
 		handler := eventsRPCHandler{
 			dbReader:     store,
@@ -881,7 +902,15 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("filtering by event type", func(t *testing.T) {
-		store := db.NewMockEventStore("passphrase")
+		dbx := db.NewTestDB(t)
+		ctx := context.TODO()
+		log := log.DefaultLogger
+		log.SetLevel(logrus.TraceLevel)
+
+		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+		write, err := writer.NewTx(ctx)
+		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+		store := db.NewEventReader(log, dbx, passphrase)
 
 		contractID := xdr.Hash([32]byte{})
 		txMeta := []xdr.TransactionMeta{
@@ -910,7 +939,9 @@ func TestGetEvents(t *testing.T) {
 			),
 		}
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)
-		assert.NoError(t, store.IngestEvents(ledgerCloseMeta))
+		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
+		require.NoError(t, write.Commit(1))
 
 		handler := eventsRPCHandler{
 			dbReader:     store,
@@ -944,7 +975,15 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("with limit", func(t *testing.T) {
-		store := db.NewMockEventStore("passphrase")
+		dbx := db.NewTestDB(t)
+		ctx := context.TODO()
+		log := log.DefaultLogger
+		log.SetLevel(logrus.TraceLevel)
+
+		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+		write, err := writer.NewTx(ctx)
+		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+		store := db.NewEventReader(log, dbx, passphrase)
 
 		contractID := xdr.Hash([32]byte{})
 		var txMeta []xdr.TransactionMeta
@@ -961,7 +1000,9 @@ func TestGetEvents(t *testing.T) {
 			))
 		}
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)
-		assert.NoError(t, store.IngestEvents(ledgerCloseMeta))
+		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
+		require.NoError(t, write.Commit(1))
 
 		handler := eventsRPCHandler{
 			dbReader:     store,
@@ -1002,7 +1043,15 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("with cursor", func(t *testing.T) {
-		store := db.NewMockEventStore("passphrase")
+		dbx := db.NewTestDB(t)
+		ctx := context.TODO()
+		log := log.DefaultLogger
+		log.SetLevel(logrus.TraceLevel)
+
+		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+		write, err := writer.NewTx(ctx)
+		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+		store := db.NewEventReader(log, dbx, passphrase)
 
 		contractID := xdr.Hash([32]byte{})
 		datas := []xdr.ScSymbol{
@@ -1047,7 +1096,9 @@ func TestGetEvents(t *testing.T) {
 			),
 		}
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(5, now.Unix(), txMeta...)
-		assert.NoError(t, store.IngestEvents(ledgerCloseMeta))
+		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
+		require.NoError(t, write.Commit(1))
 
 		id := &events.Cursor{Ledger: 5, Tx: 1, Op: 0, Event: 0}
 		handler := eventsRPCHandler{

@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"github.com/stellar/go/strkey"
 	"io"
 	"time"
 
@@ -93,12 +94,12 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 			Columns("id", "ledger_sequence", "application_order", "contract_id", "event_type")
 
 		for index, e := range txEvents {
-			var contractId []byte
+			var contractID string
 			if e.Event.ContractId != nil {
-				contractId = e.Event.ContractId[:]
+				contractID = strkey.MustEncode(strkey.VersionByteContract, (*e.Event.ContractId)[:])
 			}
 			id := events.Cursor{Ledger: lcm.LedgerSequence(), Tx: tx.Index, Op: 0, Event: uint32(index)}.String()
-			query = query.Values(id, lcm.LedgerSequence(), tx.Index, contractId, int(e.Event.Type))
+			query = query.Values(id, lcm.LedgerSequence(), tx.Index, contractID, int(e.Event.Type))
 		}
 
 		_, err = query.RunWith(eventHandler.stmtCache).Exec()

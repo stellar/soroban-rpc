@@ -370,12 +370,20 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		txHash               *xdr.Hash
 	}
 	var found []entry
+	cursorSet := make(map[string]struct{})
 
 	contractIDs := combineContractIDs(request.Filters)
 
 	// Scan function to apply filters
 	f := func(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCloseTimestamp int64, txHash *xdr.Hash) bool {
+
+		cursorID := cursor.String()
+		if _, exists := cursorSet[cursorID]; exists {
+			return true
+		}
+
 		if request.Matches(event) && cursor.Cmp(start) >= 0 {
+			cursorSet[cursorID] = struct{}{}
 			found = append(found, entry{cursor, ledgerCloseTimestamp, event, txHash})
 		}
 		return uint(len(found)) < limit
