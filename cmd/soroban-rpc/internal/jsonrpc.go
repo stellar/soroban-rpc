@@ -27,10 +27,10 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/network"
 )
 
-// maxHTTPRequestSize defines the largest request size that the http handler
-// would be willing to accept before dropping the request. The implementation
-// uses the default MaxBytesHandler to limit the request size.
 const (
+	// maxHTTPRequestSize defines the largest request size that the http handler
+	// would be willing to accept before dropping the request. The implementation
+	// uses the default MaxBytesHandler to limit the request size.
 	maxHTTPRequestSize          = 512 * 1024 // half a megabyte
 	warningThresholdDenominator = 3
 )
