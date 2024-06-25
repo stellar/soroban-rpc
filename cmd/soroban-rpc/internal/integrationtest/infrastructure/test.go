@@ -220,8 +220,8 @@ func (i *Test) insertTransactions() {
 	require.NoError(i.t, err)
 
 	lcms := make([]xdr.LedgerCloseMeta, 0, 3)
-	for i := uint32(0); i < uint32(cap(lcms)); i++ {
-		lcms = append(lcms, db.CreateTxMeta(9+i, true))
+	for i := range cap(lcms) {
+		lcms = append(lcms, db.CreateTxMeta(uint32(9+i), true))
 	}
 
 	_, txW := write.LedgerWriter(), write.TransactionWriter()
