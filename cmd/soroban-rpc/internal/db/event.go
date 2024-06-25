@@ -280,3 +280,53 @@ func (eventHandler *eventHandler) GetLedgerRange(ctx context.Context) (ledgerbuc
 		ledgerRange.FirstLedger.Sequence, ledgerRange.LastLedger.Sequence)
 	return ledgerRange, nil
 }
+
+type eventTableMigration struct {
+	firstLedger uint32
+	lastLedger  uint32
+	writer      EventWriter
+}
+
+func (e *eventTableMigration) ApplicableRange() *LedgerSeqRange {
+	return &LedgerSeqRange{
+		firstLedgerSeq: e.firstLedger,
+		lastLedgerSeq:  e.lastLedger,
+	}
+}
+
+func (e *eventTableMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error {
+	return e.writer.InsertEvents(meta)
+}
+
+func newEventTableMigration(
+	ctx context.Context,
+	logger *log.Entry,
+	retentionWindow uint32,
+	passphrase string,
+) migrationApplierFactory {
+	return migrationApplierFactoryF(func(db *DB, latestLedger uint32) (MigrationApplier, error) {
+		firstLedgerToMigrate := uint32(2)
+		writer := &eventHandler{
+			log:        logger,
+			db:         db,
+			stmtCache:  sq.NewStmtCache(db.GetTx()),
+			passphrase: passphrase,
+		}
+		if latestLedger > retentionWindow {
+			firstLedgerToMigrate = latestLedger - retentionWindow
+		}
+
+		// Truncate the table, since it may contain data, causing insert conflicts later on.
+		_, err := db.Exec(ctx, sq.Delete(transactionTableName).Where(sq.Lt{"ledger_sequence": firstLedgerToMigrate}))
+
+		if err != nil {
+			return nil, fmt.Errorf("couldn't truncate the table %q: %w", transactionTableName, err)
+		}
+		migration := eventTableMigration{
+			firstLedger: firstLedgerToMigrate,
+			lastLedger:  latestLedger,
+			writer:      writer,
+		}
+		return &migration, nil
+	})
+}
