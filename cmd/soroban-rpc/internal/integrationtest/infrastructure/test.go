@@ -567,18 +567,12 @@ func (i *Test) prepareShutdownHandlers() {
 		close(done)
 		if i.daemon != nil {
 			err := i.daemon.Close()
-			if err != nil {
-				i.t.Logf("could not close RPC daemon: %v", err)
-				return
-			}
+			require.NoError(i.t, err)
 			i.daemon = nil
 		}
 		if i.rpcClient != nil {
 			err := i.rpcClient.Close()
-			if err != nil {
-				i.t.Logf("could not close RPC client: %v", err)
-				return
-			}
+			require.NoError(i.t, err)
 		}
 		if i.areThereContainers() {
 			i.stopContainers()
@@ -661,10 +655,7 @@ func (i *Test) UpgradeProtocol(version uint32) {
 func (i *Test) StopRPC() {
 	if i.daemon != nil {
 		err := i.daemon.Close()
-		if err != nil {
-			i.t.Logf("could not close RPC daemon: %v", err)
-			return
-		}
+		require.NoError(i.t, err)
 		i.daemon = nil
 	}
 	if i.runRPCInContainer() {
