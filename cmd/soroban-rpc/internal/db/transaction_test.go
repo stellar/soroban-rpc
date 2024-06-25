@@ -29,8 +29,8 @@ func TestTransactionNotFound(t *testing.T) {
 	require.Error(t, err, ErrNoTransaction)
 }
 
-func txMetaWithEvents(acctSeq uint32, successful bool) xdr.LedgerCloseMeta {
-	meta := txMeta(acctSeq, successful)
+func txMetaWithEvents(acctSeq uint32) xdr.LedgerCloseMeta {
+	meta := txMeta(acctSeq, true)
 
 	contractIDBytes, _ := hex.DecodeString("df06d62447fd25da07c0135eed7557e5a5497ee7d15b7fe345bd47e191d8f577")
 	var contractID xdr.Hash
@@ -77,10 +77,10 @@ func TestTransactionFound(t *testing.T) {
 	require.NoError(t, err)
 
 	lcms := []xdr.LedgerCloseMeta{
-		txMetaWithEvents(1234, true),
-		txMetaWithEvents(1235, true),
-		txMetaWithEvents(1236, true),
-		txMetaWithEvents(1237, true),
+		txMetaWithEvents(1234),
+		txMetaWithEvents(1235),
+		txMetaWithEvents(1236),
+		txMetaWithEvents(1237),
 	}
 	eventW := write.EventWriter()
 	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
@@ -162,7 +162,7 @@ func BenchmarkTransactionFetch(b *testing.B) {
 
 func txHash(acctSeq uint32) xdr.Hash {
 	envelope := txEnvelope(acctSeq)
-	hash, err := network.HashTransactionInEnvelope(envelope, "passphrase")
+	hash, err := network.HashTransactionInEnvelope(envelope, passphrase)
 	if err != nil {
 		panic(err)
 	}

@@ -539,6 +539,7 @@ func TestGetEvents(t *testing.T) {
 
 		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
 		write, err := writer.NewTx(ctx)
+		require.NoError(t, err)
 		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
 		store := db.NewEventReader(log, dbx, passphrase)
 
@@ -570,12 +571,12 @@ func TestGetEvents(t *testing.T) {
 		_, err = handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 		})
-		assert.EqualError(t, err, "[-32600] startLedger must be within the ledger range: 2 - 2")
+		require.EqualError(t, err, "[-32600] startLedger must be within the ledger range: 2 - 2")
 
 		_, err = handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 3,
 		})
-		assert.EqualError(t, err, "[-32600] startLedger must be within the ledger range: 2 - 2")
+		require.EqualError(t, err, "[-32600] startLedger must be within the ledger range: 2 - 2")
 	})
 
 	t.Run("no filtering returns all", func(t *testing.T) {
@@ -587,6 +588,8 @@ func TestGetEvents(t *testing.T) {
 
 		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
 		write, err := writer.NewTx(ctx)
+		require.NoError(t, err)
+
 		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
 		store := db.NewEventReader(log, dbx, passphrase)
 
@@ -661,6 +664,8 @@ func TestGetEvents(t *testing.T) {
 
 		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
 		write, err := writer.NewTx(ctx)
+		require.NoError(t, err)
+
 		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
 		store := db.NewEventReader(log, dbx, passphrase)
 
@@ -724,6 +729,8 @@ func TestGetEvents(t *testing.T) {
 
 		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
 		write, err := writer.NewTx(ctx)
+		require.NoError(t, err)
+
 		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
 		store := db.NewEventReader(log, dbx, passphrase)
 
@@ -801,6 +808,8 @@ func TestGetEvents(t *testing.T) {
 
 		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
 		write, err := writer.NewTx(ctx)
+		require.NoError(t, err)
+
 		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
 		store := db.NewEventReader(log, dbx, passphrase)
 
@@ -982,6 +991,8 @@ func TestGetEvents(t *testing.T) {
 
 		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
 		write, err := writer.NewTx(ctx)
+		require.NoError(t, err)
+
 		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
 		store := db.NewEventReader(log, dbx, passphrase)
 
@@ -1050,6 +1061,8 @@ func TestGetEvents(t *testing.T) {
 
 		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
 		write, err := writer.NewTx(ctx)
+		require.NoError(t, err)
+
 		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
 		store := db.NewEventReader(log, dbx, passphrase)
 

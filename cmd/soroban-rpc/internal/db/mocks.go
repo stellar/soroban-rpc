@@ -4,8 +4,6 @@ import (
 	"context"
 	"io"
 
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
-
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/stellar/go/ingest"
@@ -30,85 +28,6 @@ func NewMockTransactionStore(passphrase string) *MockTransactionHandler {
 		txHashToMeta:    make(map[string]*xdr.LedgerCloseMeta),
 		ledgerSeqToMeta: make(map[uint32]*xdr.LedgerCloseMeta),
 	}
-}
-
-type MockEventHandler struct {
-	passphrase      string
-	ledgerRange     ledgerbucketwindow.LedgerRange
-	contractIDToTx  map[string]ingest.LedgerTransaction
-	eventTypeToTx   map[int]ingest.LedgerTransaction
-	eventIDToTx     map[string]ingest.LedgerTransaction
-	ledgerSeqToMeta map[uint32]*xdr.LedgerCloseMeta
-}
-
-func NewMockEventStore(passphrase string) *MockEventHandler {
-	return &MockEventHandler{
-		passphrase:      passphrase,
-		contractIDToTx:  make(map[string]ingest.LedgerTransaction),
-		eventTypeToTx:   make(map[int]ingest.LedgerTransaction),
-		eventIDToTx:     make(map[string]ingest.LedgerTransaction),
-		ledgerSeqToMeta: make(map[uint32]*xdr.LedgerCloseMeta),
-	}
-}
-
-func (eventHandler *MockEventHandler) GetEvents(
-	ctx context.Context,
-	cursorRange events.CursorRange,
-	contractIDs []string,
-	f ScanFunction,
-) error {
-	return nil
-}
-
-func (eventHandler *MockEventHandler) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
-	return ledgerbucketwindow.LedgerRange{}, nil
-}
-
-func (eventHandler *MockEventHandler) IngestEvents(lcm xdr.LedgerCloseMeta) error {
-	eventHandler.ledgerSeqToMeta[lcm.LedgerSequence()] = &lcm
-
-	reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(eventHandler.passphrase, lcm)
-	if err != nil {
-		return err
-	}
-
-	for {
-		tx, err := reader.Read()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-
-		txEvents, err := tx.GetDiagnosticEvents()
-		if err != nil {
-			return err
-		}
-
-		for index, e := range txEvents {
-			var contractID []byte
-			if e.Event.ContractId != nil {
-				contractID = e.Event.ContractId[:]
-				eventHandler.contractIDToTx[string(contractID)] = tx
-			}
-			id := events.Cursor{Ledger: lcm.LedgerSequence(), Tx: tx.Index, Op: 0, Event: uint32(index)}.String()
-			eventHandler.eventTypeToTx[int(e.Event.Type)] = tx
-			eventHandler.eventIDToTx[id] = tx
-		}
-	}
-
-	if lcmSeq := lcm.LedgerSequence(); lcmSeq < eventHandler.ledgerRange.FirstLedger.Sequence ||
-		eventHandler.ledgerRange.FirstLedger.Sequence == 0 {
-		eventHandler.ledgerRange.FirstLedger.Sequence = lcmSeq
-		eventHandler.ledgerRange.FirstLedger.CloseTime = lcm.LedgerCloseTime()
-	}
-
-	if lcmSeq := lcm.LedgerSequence(); lcmSeq > eventHandler.ledgerRange.LastLedger.Sequence {
-		eventHandler.ledgerRange.LastLedger.Sequence = lcmSeq
-		eventHandler.ledgerRange.LastLedger.CloseTime = lcm.LedgerCloseTime()
-	}
-
-	return nil
 }
 
 func (txn *MockTransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error {
