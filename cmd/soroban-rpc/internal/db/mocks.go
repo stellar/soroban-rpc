@@ -66,11 +66,11 @@ func (txn *MockTransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) e
 }
 
 // GetLedgerRange pulls the min/max ledger sequence numbers from the database.
-func (txn *MockTransactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
+func (txn *MockTransactionHandler) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
 	return txn.ledgerRange, nil
 }
 
-func (txn *MockTransactionHandler) GetTransaction(ctx context.Context, hash xdr.Hash) (
+func (txn *MockTransactionHandler) GetTransaction(_ context.Context, hash xdr.Hash) (
 	Transaction, ledgerbucketwindow.LedgerRange, error,
 ) {
 	if tx, ok := txn.txs[hash.HexString()]; !ok {
@@ -93,7 +93,7 @@ func NewMockLedgerReader(txn *MockTransactionHandler) *MockLedgerReader {
 	}
 }
 
-func (m *MockLedgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
+func (m *MockLedgerReader) GetLedger(_ context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
 	lcm, ok := m.txn.ledgerSeqToMeta[sequence]
 	if !ok {
 		return xdr.LedgerCloseMeta{}, false, nil
@@ -101,7 +101,7 @@ func (m *MockLedgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.
 	return *lcm, true, nil
 }
 
-func (m *MockLedgerReader) StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error {
+func (m *MockLedgerReader) StreamAllLedgers(_ context.Context, f StreamLedgerFn) error {
 	return nil
 }
 

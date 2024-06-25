@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/stellar/go/strkey"
 	"io"
@@ -47,7 +48,7 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 	txCount := lcm.CountTransactions()
 
 	if eventHandler.stmtCache == nil {
-		return fmt.Errorf("EventWriter incorrectly initialized without stmtCache")
+		return errors.New("EventWriter incorrectly initialized without stmtCache")
 	} else if txCount == 0 {
 		return nil
 	}
@@ -186,6 +187,9 @@ func (eventHandler *eventHandler) GetEvents(
 
 		ledgerCloseTime := lcm.LedgerCloseTime()
 		ledgerTx, err := reader.Read()
+		if err != nil {
+			return fmt.Errorf("failed reading tx: %w", err)
+		}
 		transactionHash := ledgerTx.Result.TransactionHash
 		diagEvents, diagErr := ledgerTx.GetDiagnosticEvents()
 

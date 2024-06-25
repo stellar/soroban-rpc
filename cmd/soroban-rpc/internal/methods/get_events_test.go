@@ -918,6 +918,7 @@ func TestGetEvents(t *testing.T) {
 
 		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
 		write, err := writer.NewTx(ctx)
+		require.NoError(t, err)
 		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
 		store := db.NewEventReader(log, dbx, passphrase)
 

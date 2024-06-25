@@ -104,7 +104,7 @@ func (g *GetEventsRequest) Valid(maxLimit uint) error {
 
 	// Validate filters
 	if len(g.Filters) > 5 {
-		return fmt.Errorf("maximum 5 filters per request")
+		return errors.New("maximum 5 filters per request")
 	}
 	for i, filter := range g.Filters {
 		if err := filter.Valid(); err != nil {
@@ -363,7 +363,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 	end := events.Cursor{Ledger: request.StartLedger + ledgerbucketwindow.OneDayOfLedgers}
 	cursorRange := events.CursorRange{Start: start, End: end}
 
-	// Check if requested start ledger is within stored ledger range:
+	// Check if requested start ledger is within stored ledger range
 	if start.Ledger < ledgerRange.FirstLedger.Sequence || start.Ledger > ledgerRange.LastLedger.Sequence {
 		return GetEventsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidRequest,
