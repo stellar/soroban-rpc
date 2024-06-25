@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/stellar/go/strkey"
 	"io"
 	"time"
+
+	"github.com/stellar/go/strkey"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 
@@ -298,7 +299,7 @@ func (e *eventTableMigration) ApplicableRange() *LedgerSeqRange {
 	}
 }
 
-func (e *eventTableMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error {
+func (e *eventTableMigration) Apply(_ context.Context, meta xdr.LedgerCloseMeta) error {
 	return e.writer.InsertEvents(meta)
 }
 
@@ -322,7 +323,6 @@ func newEventTableMigration(
 
 		// Truncate the table, since it may contain data, causing insert conflicts later on.
 		_, err := db.Exec(ctx, sq.Delete(transactionTableName).Where(sq.Lt{"ledger_sequence": firstLedgerToMigrate}))
-
 		if err != nil {
 			return nil, fmt.Errorf("couldn't truncate the table %q: %w", transactionTableName, err)
 		}

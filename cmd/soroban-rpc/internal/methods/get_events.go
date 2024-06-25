@@ -331,7 +331,6 @@ func combineContractIDs(filters []EventFilter) []string {
 }
 
 func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsRequest) (GetEventsResponse, error) {
-
 	if err := request.Valid(h.maxLimit); err != nil {
 		return GetEventsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidParams,
@@ -384,7 +383,6 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 
 	// Scan function to apply filters
 	f := func(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCloseTimestamp int64, txHash *xdr.Hash) bool {
-
 		cursorID := cursor.String()
 		if _, exists := cursorSet[cursorID]; exists {
 			return true

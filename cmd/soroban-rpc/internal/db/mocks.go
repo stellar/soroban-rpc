@@ -101,7 +101,7 @@ func (m *MockLedgerReader) GetLedger(_ context.Context, sequence uint32) (xdr.Le
 	return *lcm, true, nil
 }
 
-func (m *MockLedgerReader) StreamAllLedgers(_ context.Context, f StreamLedgerFn) error {
+func (m *MockLedgerReader) StreamAllLedgers(_ context.Context, _ StreamLedgerFn) error {
 	return nil
 }
 
