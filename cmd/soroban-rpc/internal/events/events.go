@@ -1,4 +1,3 @@
-//nolint:mnd
 package events
 
 import (
@@ -16,6 +15,15 @@ import (
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
+)
+
+const (
+	QuantileKey1   = 0.5
+	QuantileValue1 = 0.05
+	QuantileKey2   = 0.9
+	QuantileValue2 = 0.01
+	QuantileKey3   = 0.99
+	QuantileValue3 = 0.001
 )
 
 type event struct {
@@ -62,16 +70,24 @@ func NewMemoryStore(daemon interfaces.Daemon, networkPassphrase string, retentio
 	// eventsDurationMetric is a metric for measuring latency of event store operations
 	eventsDurationMetric := prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Namespace: daemon.MetricsNamespace(), Subsystem: "events", Name: "operation_duration_seconds",
-		Help:       "event store operation durations, sliding window = 10m",
-		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+		Help: "event store operation durations, sliding window = 10m",
+		Objectives: map[float64]float64{
+			QuantileKey1: QuantileValue1,
+			QuantileKey2: QuantileValue2,
+			QuantileKey3: QuantileValue3,
+		},
 	},
 		[]string{"operation"},
 	)
 
 	eventCountMetric := prometheus.NewSummary(prometheus.SummaryOpts{
 		Namespace: daemon.MetricsNamespace(), Subsystem: "events", Name: "count",
-		Help:       "count of events ingested, sliding window = 10m",
-		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+		Help: "count of events ingested, sliding window = 10m",
+		Objectives: map[float64]float64{
+			QuantileKey1: QuantileValue1,
+			QuantileKey2: QuantileValue2,
+			QuantileKey3: QuantileValue3,
+		},
 	})
 	daemon.MetricsRegistry().MustRegister(eventCountMetric, eventsDurationMetric)
 	return &MemoryStore{
