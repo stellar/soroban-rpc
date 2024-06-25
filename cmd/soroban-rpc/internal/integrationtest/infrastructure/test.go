@@ -1,4 +1,3 @@
-//nolint:intrange
 package infrastructure
 
 import (
