@@ -20,8 +20,9 @@ import (
 )
 
 const (
-	transactionTableName = "transactions"
-	firstLedgerToMigrate = 2
+	transactionTableName              = "transactions"
+	firstLedgerToMigrate              = 2
+	getLedgerRangeMetaArrayCheckValue = 2
 )
 
 var ErrNoTransaction = errors.New("no transaction with this hash exists")
@@ -143,32 +144,24 @@ func (txn *transactionHandler) trimTransactions(latestLedgerSeq uint32, retentio
 func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
 	var ledgerRange ledgerbucketwindow.LedgerRange
 
-	// Query to get the minimum and maximum ledger sequence from the transactions table
-	var ledgerSeqs struct {
-		MinLedgerSequence *uint32 `db:"min_ledger_sequence"`
-		MaxLedgerSequence *uint32 `db:"max_ledger_sequence"`
-	}
-	minMaxLedgerSequenceSQL := sq.
-		Select("MIN(ledger_sequence) AS min_ledger_sequence, MAX(ledger_sequence) AS max_ledger_sequence").
-		From(transactionTableName)
-	if err := txn.db.Get(ctx, &ledgerSeqs, minMaxLedgerSequenceSQL); err != nil {
-		return ledgerRange, fmt.Errorf("couldn't query ledger range: %w", err)
-	}
-
-	// Empty DB or just a single row in the DB.
-	if ledgerSeqs.MinLedgerSequence == nil || ledgerSeqs.MaxLedgerSequence == nil {
-		return ledgerRange, nil
-	}
-
-	// Use the min and max ledger sequences to query the ledger_close_meta table
-	ledgerMetaSQL := sq.
-		Select("lcm.meta").
-		From(ledgerCloseMetaTableName + " as lcm").
-		Where(sq.Eq{"lcm.sequence": []uint32{*ledgerSeqs.MinLedgerSequence, *ledgerSeqs.MaxLedgerSequence}})
+	query := sq.Select("lcm.meta").
+		FromSelect(
+			sq.Select("meta").
+				From(ledgerCloseMetaTableName+" as lcm").
+				Where(sq.Expr("lcm.sequence IN (SELECT MIN(ledger_sequence) FROM "+transactionTableName+
+					" UNION ALL SELECT MAX(ledger_sequence) FROM "+transactionTableName+")")),
+			"lcm",
+		)
 
 	var lcms []xdr.LedgerCloseMeta
-	if err := txn.db.Select(ctx, &lcms, ledgerMetaSQL); err != nil {
+	if err := txn.db.Select(ctx, &lcms, query); err != nil {
 		return ledgerRange, fmt.Errorf("couldn't query ledger range: %w", err)
+	} else if len(lcms) < getLedgerRangeMetaArrayCheckValue {
+		// There is almost certainly a row, but we want to avoid a race condition
+		// with ingestion as well as support test cases from an empty DB, so we need
+		// to sanity check that there is in fact a result. Note that no ledgers in
+		// the database isn't an error, it's just an empty range.
+		return ledgerRange, nil
 	}
 
 	lcm1, lcm2 := lcms[0], lcms[1]
@@ -177,8 +170,7 @@ func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucket
 	ledgerRange.LastLedger.Sequence = lcm2.LedgerSequence()
 	ledgerRange.LastLedger.CloseTime = lcm2.LedgerCloseTime()
 
-	txn.log.Debugf("Database ledger range: [%d, %d]",
-		ledgerRange.FirstLedger.Sequence, ledgerRange.LastLedger.Sequence)
+	txn.log.Debugf("Database ledger range: [%d, %d]", ledgerRange.FirstLedger.Sequence, ledgerRange.LastLedger.Sequence)
 	return ledgerRange, nil
 }
 

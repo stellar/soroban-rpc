@@ -18,30 +18,20 @@ import (
 
 func TestTransactionNotFound(t *testing.T) {
 	db := NewTestDB(t)
-	ctx := context.TODO()
 	log.SetLevel(logrus.TraceLevel)
 
 	reader := NewTransactionReader(log.DefaultLogger, db, passphrase)
-
-	// Assert the ledger range
-	ledgerRange, err := reader.GetLedgerRange(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, uint32(0), ledgerRange.FirstLedger.Sequence)
-	assert.Equal(t, int64(0), ledgerRange.FirstLedger.CloseTime)
-	assert.Equal(t, uint32(0), ledgerRange.LastLedger.Sequence)
-	assert.Equal(t, int64(0), ledgerRange.LastLedger.CloseTime)
-
-	_, _, err = reader.GetTransaction(context.TODO(), xdr.Hash{})
+	_, _, err := reader.GetTransaction(context.TODO(), xdr.Hash{})
 	require.ErrorIs(t, err, ErrNoTransaction)
 }
 
 func TestTransactionFound(t *testing.T) {
 	db := NewTestDB(t)
 	ctx := context.TODO()
-	log := log.DefaultLogger
+	logger := log.DefaultLogger
 	log.SetLevel(logrus.TraceLevel)
 
-	writer := NewReadWriter(log, db, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+	writer := NewReadWriter(logger, db, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
 	write, err := writer.NewTx(ctx)
 	require.NoError(t, err)
 
@@ -59,16 +49,8 @@ func TestTransactionFound(t *testing.T) {
 	}
 	require.NoError(t, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
 
-	// Assert the ledger range
-	reader := NewTransactionReader(log, db, passphrase)
-	ledgerRange, err := reader.GetLedgerRange(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, uint32(1234), ledgerRange.FirstLedger.Sequence)
-	assert.Equal(t, LedgerCloseTime(1234), ledgerRange.FirstLedger.CloseTime)
-	assert.Equal(t, uint32(1237), ledgerRange.LastLedger.Sequence)
-	assert.Equal(t, LedgerCloseTime(1237), ledgerRange.LastLedger.CloseTime)
-
 	// check 404 case
+	reader := NewTransactionReader(logger, db, passphrase)
 	_, _, err = reader.GetTransaction(ctx, xdr.Hash{})
 	require.ErrorIs(t, err, ErrNoTransaction)
 
@@ -87,12 +69,60 @@ func TestTransactionFound(t *testing.T) {
 	}
 }
 
+func TestGetLedgerRange_NonEmptyDB(t *testing.T) {
+	db := NewTestDB(t)
+	ctx := context.TODO()
+	logger := log.DefaultLogger
+	log.SetLevel(logrus.TraceLevel)
+
+	writer := NewReadWriter(logger, db, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+	write, err := writer.NewTx(ctx)
+	require.NoError(t, err)
+
+	lcms := []xdr.LedgerCloseMeta{
+		CreateTxMeta(1234, true),
+		CreateTxMeta(1235, true),
+		CreateTxMeta(1236, true),
+		CreateTxMeta(1237, true),
+	}
+
+	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
+	for _, lcm := range lcms {
+		require.NoError(t, ledgerW.InsertLedger(lcm), "ingestion failed for ledger %+v", lcm.V1)
+		require.NoError(t, txW.InsertTransactions(lcm), "ingestion failed for ledger %+v", lcm.V1)
+	}
+	require.NoError(t, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
+
+	reader := NewTransactionReader(logger, db, passphrase)
+	ledgerRange, err := reader.GetLedgerRange(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, uint32(1234), ledgerRange.FirstLedger.Sequence)
+	assert.Equal(t, LedgerCloseTime(1234), ledgerRange.FirstLedger.CloseTime)
+	assert.Equal(t, uint32(1237), ledgerRange.LastLedger.Sequence)
+	assert.Equal(t, LedgerCloseTime(1237), ledgerRange.LastLedger.CloseTime)
+}
+
+func TestGetLedgerRange_EmptyDB(t *testing.T) {
+	db := NewTestDB(t)
+	ctx := context.TODO()
+	logger := log.DefaultLogger
+	log.SetLevel(logrus.TraceLevel)
+
+	reader := NewTransactionReader(logger, db, passphrase)
+	ledgerRange, err := reader.GetLedgerRange(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, uint32(0), ledgerRange.FirstLedger.Sequence)
+	assert.Equal(t, int64(0), ledgerRange.FirstLedger.CloseTime)
+	assert.Equal(t, uint32(0), ledgerRange.LastLedger.Sequence)
+	assert.Equal(t, int64(0), ledgerRange.LastLedger.CloseTime)
+}
+
 func BenchmarkTransactionFetch(b *testing.B) {
 	db := NewTestDB(b)
 	ctx := context.TODO()
-	log := log.DefaultLogger
+	logger := log.DefaultLogger
 
-	writer := NewReadWriter(log, db, interfaces.MakeNoOpDeamon(), 100, 1_000_000, passphrase)
+	writer := NewReadWriter(logger, db, interfaces.MakeNoOpDeamon(), 100, 1_000_000, passphrase)
 	write, err := writer.NewTx(ctx)
 	require.NoError(b, err)
 
@@ -108,7 +138,7 @@ func BenchmarkTransactionFetch(b *testing.B) {
 		require.NoError(b, txW.InsertTransactions(lcm))
 	}
 	require.NoError(b, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
-	reader := NewTransactionReader(log, db, passphrase)
+	reader := NewTransactionReader(logger, db, passphrase)
 
 	randoms := make([]int, b.N)
 	for i := range b.N {
