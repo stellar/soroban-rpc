@@ -113,7 +113,12 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 	return nil
 }
 
-type ScanFunction func(xdr.DiagnosticEvent, events.Cursor, int64, *xdr.Hash) bool
+type ScanFunction func(
+	event xdr.DiagnosticEvent,
+	cursor events.Cursor,
+	ledgerCloseTimestamp int64,
+	txHash *xdr.Hash,
+) bool
 
 // trimEvents removes all Events which fall outside the ledger retention window.
 func (eventHandler *eventHandler) trimEvents(latestLedgerSeq uint32, retentionWindow uint32) error {
@@ -167,7 +172,7 @@ func (eventHandler *eventHandler) GetEvents(
 			contractIDs,
 			err)
 	} else if len(rows) < 1 {
-		eventHandler.log.Infof("No events found for start ledger cursor= %v contractIDs= %v",
+		eventHandler.log.Debugf("No events found for start ledger cursor= %v contractIDs= %v",
 			cursorRange.Start.String(),
 			contractIDs,
 		)
@@ -178,7 +183,7 @@ func (eventHandler *eventHandler) GetEvents(
 		eventCursorID, txIndex, lcm := row.EventCursorID, row.TxIndex, row.Lcm
 		reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(eventHandler.passphrase, lcm)
 		if err != nil {
-			return fmt.Errorf("failed to index to tx %d in ledger %d: %w", txIndex, lcm.LedgerSequence(), err)
+			return fmt.Errorf("failed to create ledger reader from LCM: %w", err)
 		}
 
 		err = reader.Seek(txIndex - 1)
@@ -217,7 +222,7 @@ func (eventHandler *eventHandler) GetEvents(
 }
 
 // GetLedgerRange returns the min/max ledger sequence numbers from the events table
-// TODO: Once we unify all the retention window we would keep only one GetLedgerRange logic
+// TODO: Once we unify all the retention windows we should keep only one GetLedgerRange logic
 
 func (eventHandler *eventHandler) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
 	var ledgerRange ledgerbucketwindow.LedgerRange
@@ -304,7 +309,6 @@ func (e *eventTableMigration) Apply(_ context.Context, meta xdr.LedgerCloseMeta)
 }
 
 func newEventTableMigration(
-	ctx context.Context,
 	logger *log.Entry,
 	retentionWindow uint32,
 	passphrase string,
@@ -321,11 +325,6 @@ func newEventTableMigration(
 			firstLedgerToMigrate = latestLedger - retentionWindow
 		}
 
-		// Truncate the table, since it may contain data, causing insert conflicts later on.
-		_, err := db.Exec(ctx, sq.Delete(transactionTableName).Where(sq.Lt{"ledger_sequence": firstLedgerToMigrate}))
-		if err != nil {
-			return nil, fmt.Errorf("couldn't truncate the table %q: %w", transactionTableName, err)
-		}
 		migration := eventTableMigration{
 			firstLedger: firstLedgerToMigrate,
 			lastLedger:  latestLedger,

@@ -188,11 +188,9 @@ func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, cfg *config
 	if err != nil {
 		return nil, fmt.Errorf("creating guarded transaction migration: %w", err)
 	}
-	// Add other migrations here
 
 	eventMigrationName := "EventsTable"
 	eventFactory := newEventTableMigration(
-		ctx,
 		logger.WithField("migration", eventMigrationName),
 		cfg.EventLedgerRetentionWindow,
 		cfg.NetworkPassphrase,
