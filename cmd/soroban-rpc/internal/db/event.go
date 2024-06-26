@@ -7,8 +7,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/stellar/go/strkey"
-
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 
 	sq "github.com/Masterminds/squirrel"
@@ -29,7 +27,7 @@ type EventWriter interface {
 
 // EventReader has all the public methods to fetch events from DB
 type EventReader interface {
-	GetEvents(ctx context.Context, cursorRange events.CursorRange, contractIDs []string, f ScanFunction) error
+	GetEvents(ctx context.Context, cursorRange events.CursorRange, contractIDs [][]byte, f ScanFunction) error
 	GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error)
 }
 
@@ -96,9 +94,9 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 			Columns("id", "ledger_sequence", "application_order", "contract_id", "event_type")
 
 		for index, e := range txEvents {
-			var contractID string
+			var contractID []byte
 			if e.Event.ContractId != nil {
-				contractID = strkey.MustEncode(strkey.VersionByteContract, (*e.Event.ContractId)[:])
+				contractID = e.Event.ContractId[:]
 			}
 			id := events.Cursor{Ledger: lcm.LedgerSequence(), Tx: tx.Index, Op: 0, Event: uint32(index)}.String()
 			query = query.Values(id, lcm.LedgerSequence(), tx.Index, contractID, int(e.Event.Type))
@@ -142,7 +140,7 @@ func (eventHandler *eventHandler) trimEvents(latestLedgerSeq uint32, retentionWi
 func (eventHandler *eventHandler) GetEvents(
 	ctx context.Context,
 	cursorRange events.CursorRange,
-	contractIDs []string,
+	contractIDs [][]byte,
 	f ScanFunction,
 ) error {
 	start := time.Now()

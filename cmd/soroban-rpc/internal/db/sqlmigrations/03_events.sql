@@ -5,7 +5,7 @@ CREATE TABLE events(
     id                TEXT PRIMARY KEY,
     ledger_sequence   INTEGER NOT NULL,
     application_order INTEGER NOT NULL,
-    contract_id       TEXT,
+    contract_id       BLOB(32),
     event_type        INTEGER NOT NULL
 );
 

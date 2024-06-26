@@ -314,7 +314,7 @@ type eventsRPCHandler struct {
 	networkPassphrase string
 }
 
-func combineContractIDs(filters []EventFilter) []string {
+func combineContractIDs(filters []EventFilter) ([][]byte, error) {
 	contractIDSet := make(map[string]struct{})
 
 	for _, filter := range filters {
@@ -323,11 +323,16 @@ func combineContractIDs(filters []EventFilter) []string {
 		}
 	}
 
-	contractIDs := make([]string, 0, len(contractIDSet))
+	contractIDs := make([][]byte, 0, len(contractIDSet))
 	for contractID := range contractIDSet {
-		contractIDs = append(contractIDs, contractID)
+		id, err := strkey.Decode(strkey.VersionByteContract, contractID)
+		if err != nil {
+			return nil, fmt.Errorf("contract ID %v invalid", contractID)
+		}
+
+		contractIDs = append(contractIDs, id)
 	}
-	return contractIDs
+	return contractIDs, nil
 }
 
 func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsRequest) (GetEventsResponse, error) {
@@ -379,7 +384,13 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 	var found []entry
 	cursorSet := make(map[string]struct{})
 
-	contractIDs := combineContractIDs(request.Filters)
+	contractIDs, err := combineContractIDs(request.Filters)
+	if err != nil {
+		return GetEventsResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InvalidParams,
+			Message: err.Error(),
+		}
+	}
 
 	// Scan function to apply filters
 	f := func(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCloseTimestamp int64, txHash *xdr.Hash) bool {
