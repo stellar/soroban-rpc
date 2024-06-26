@@ -368,8 +368,12 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 	// Check if requested start ledger is within stored ledger range
 	if start.Ledger < ledgerRange.FirstLedger.Sequence || start.Ledger > ledgerRange.LastLedger.Sequence {
 		return GetEventsResponse{}, &jrpc2.Error{
-			Code:    jrpc2.InvalidRequest,
-			Message: fmt.Sprintf("startLedger must be within the ledger range: %d - %d", ledgerRange.FirstLedger.Sequence, ledgerRange.LastLedger.Sequence),
+			Code: jrpc2.InvalidRequest,
+			Message: fmt.Sprintf(
+				"startLedger must be within the ledger range: %d - %d",
+				ledgerRange.FirstLedger.Sequence,
+				ledgerRange.LastLedger.Sequence,
+			),
 		}
 	}
 
