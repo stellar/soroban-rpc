@@ -65,30 +65,21 @@ func (txn *mockTransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) e
 	return nil
 }
 
-// GetLedgerRange pulls the min/max ledger sequence numbers from the database.
-func (txn *mockTransactionHandler) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
-	return txn.ledgerRange, nil
-}
-
 func (txn *mockTransactionHandler) GetTransaction(_ context.Context, hash xdr.Hash) (
-	Transaction, ledgerbucketwindow.LedgerRange, error,
+	Transaction, error,
 ) {
 	tx, ok := txn.txs[hash.HexString()]
 	if !ok {
-		return Transaction{}, txn.ledgerRange, ErrNoTransaction
+		return Transaction{}, ErrNoTransaction
 	}
 	itx, err := ParseTransaction(*txn.txHashToMeta[hash.HexString()], tx)
-	return itx, txn.ledgerRange, err
+	return itx, err
 }
 
 func (txn *mockTransactionHandler) RegisterMetrics(_, _ prometheus.Observer) {}
 
 type mockLedgerReader struct {
 	txn mockTransactionHandler
-}
-
-func (m *mockLedgerReader) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
-	return ledgerbucketwindow.LedgerRange{}, nil
 }
 
 func NewMockLedgerReader(txn *mockTransactionHandler) *mockLedgerReader {
@@ -107,6 +98,10 @@ func (m *mockLedgerReader) GetLedger(_ context.Context, sequence uint32) (xdr.Le
 
 func (m *mockLedgerReader) StreamAllLedgers(_ context.Context, _ StreamLedgerFn) error {
 	return nil
+}
+
+func (m *mockLedgerReader) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
+	return ledgerbucketwindow.LedgerRange{}, nil
 }
 
 var (
