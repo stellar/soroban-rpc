@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	"github.com/sirupsen/logrus"
-	"github.com/stellar/go/network"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 

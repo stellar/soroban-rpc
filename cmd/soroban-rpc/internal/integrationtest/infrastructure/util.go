@@ -5,11 +5,11 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/stellar/go/network"
-	"github.com/stellar/go/xdr"
 	"github.com/stretchr/testify/require"
 
+	"github.com/stellar/go/network"
 	"github.com/stellar/go/txnbuild"
+	"github.com/stellar/go/xdr"
 )
 
 const (
