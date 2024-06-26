@@ -2,9 +2,11 @@ package db
 
 import (
 	"context"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/log"
@@ -102,4 +104,15 @@ func TestLedgers(t *testing.T) {
 	assert.NoError(t, tx.Commit(ledgerSequence))
 
 	assertLedgerRange(t, reader, 8, 12)
+}
+
+func NewTestDB(tb testing.TB) *DB {
+	tmp := tb.TempDir()
+	dbPath := path.Join(tmp, "db.sqlite")
+	db, err := OpenSQLiteDB(dbPath)
+	require.NoError(tb, err)
+	tb.Cleanup(func() {
+		assert.NoError(tb, db.Close())
+	})
+	return db
 }

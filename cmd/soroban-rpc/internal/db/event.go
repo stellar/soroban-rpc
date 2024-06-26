@@ -7,14 +7,15 @@ import (
 	"io"
 	"time"
 
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
-
 	sq "github.com/Masterminds/squirrel"
 	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/support/db"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
+
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
 const eventTableName = "events"

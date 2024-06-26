@@ -4,22 +4,23 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/stellar/go/support/log"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-	"github.com/stretchr/testify/require"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/strkey"
+	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
+
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
 var passphrase = "passphrase"
@@ -532,7 +533,7 @@ func TestGetEvents(t *testing.T) {
 
 	t.Run("startLedger validation", func(t *testing.T) {
 		contractID := xdr.Hash([32]byte{})
-		dbx := db.NewTestDB(t)
+		dbx := newTestDB(t)
 		ctx := context.TODO()
 		log := log.DefaultLogger
 		log.SetLevel(logrus.TraceLevel)
@@ -580,7 +581,7 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("no filtering returns all", func(t *testing.T) {
-		dbx := db.NewTestDB(t)
+		dbx := newTestDB(t)
 		ctx := context.TODO()
 		log := log.DefaultLogger
 		log.SetLevel(logrus.TraceLevel)
@@ -655,7 +656,7 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("filtering by contract id", func(t *testing.T) {
-		dbx := db.NewTestDB(t)
+		dbx := newTestDB(t)
 		ctx := context.TODO()
 		log := log.DefaultLogger
 		log.SetLevel(logrus.TraceLevel)
@@ -720,7 +721,7 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("filtering by topic", func(t *testing.T) {
-		dbx := db.NewTestDB(t)
+		dbx := newTestDB(t)
 		ctx := context.TODO()
 		log := log.DefaultLogger
 		log.SetLevel(logrus.TraceLevel)
@@ -798,7 +799,7 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("filtering by both contract id and topic", func(t *testing.T) {
-		dbx := db.NewTestDB(t)
+		dbx := newTestDB(t)
 		ctx := context.TODO()
 		log := log.DefaultLogger
 		log.SetLevel(logrus.TraceLevel)
@@ -908,7 +909,7 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("filtering by event type", func(t *testing.T) {
-		dbx := db.NewTestDB(t)
+		dbx := newTestDB(t)
 		ctx := context.TODO()
 		log := log.DefaultLogger
 		log.SetLevel(logrus.TraceLevel)
@@ -982,7 +983,7 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("with limit", func(t *testing.T) {
-		dbx := db.NewTestDB(t)
+		dbx := newTestDB(t)
 		ctx := context.TODO()
 		log := log.DefaultLogger
 		log.SetLevel(logrus.TraceLevel)
@@ -1052,7 +1053,7 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("with cursor", func(t *testing.T) {
-		dbx := db.NewTestDB(t)
+		dbx := newTestDB(t)
 		ctx := context.TODO()
 		log := log.DefaultLogger
 		log.SetLevel(logrus.TraceLevel)
@@ -1307,4 +1308,15 @@ func diagnosticEvent(contractID xdr.Hash, topic []xdr.ScVal, body xdr.ScVal) xdr
 			},
 		},
 	}
+}
+
+func newTestDB(tb testing.TB) *db.DB {
+	tmp := tb.TempDir()
+	dbPath := path.Join(tmp, "db.sqlite")
+	db, err := db.OpenSQLiteDB(dbPath)
+	require.NoError(tb, err)
+	tb.Cleanup(func() {
+		assert.NoError(tb, db.Close())
+	})
+	return db
 }

@@ -6,16 +6,13 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"strconv"
+	"sync"
+
 	sq "github.com/Masterminds/squirrel"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/prometheus/client_golang/prometheus"
 	migrate "github.com/rubenv/sql-migrate"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"path"
-	"strconv"
-	"sync"
-	"testing"
 
 	"github.com/stellar/go/support/db"
 	"github.com/stellar/go/support/log"
@@ -372,15 +369,4 @@ func runSQLMigrations(db *sql.DB, dialect string) error {
 	}
 	_, err := migrate.ExecMax(db, dialect, m, migrate.Up, 0)
 	return err
-}
-
-func NewTestDB(tb testing.TB) *DB {
-	tmp := tb.TempDir()
-	dbPath := path.Join(tmp, "db.sqlite")
-	db, err := OpenSQLiteDB(dbPath)
-	require.NoError(tb, err)
-	tb.Cleanup(func() {
-		assert.NoError(tb, db.Close())
-	})
-	return db
 }

@@ -2,16 +2,19 @@ package db
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
+
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 func transactionMetaWithEvents(events ...xdr.ContractEvent) xdr.TransactionMeta {
@@ -163,5 +166,5 @@ func TestInsertEvents(t *testing.T) {
 	err = eventW.InsertEvents(ledgerCloseMeta)
 	assert.NoError(t, err)
 
-	//TODO: Call getEvents and validate events data.
+	// TODO: Call getEvents and validate events data.
 }
