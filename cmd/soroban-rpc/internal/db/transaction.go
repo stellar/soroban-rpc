@@ -324,9 +324,6 @@ func newTransactionTableMigration(ctx context.Context, logger *log.Entry,
 		}
 		// Truncate the table, since it may contain data, causing insert conflicts later on.
 		// (the migration was shipped after the actual transactions table change)
-		// FIXME: this can be simply replaced by an upper limit in the ledgers to migrate
-		//        but ... it can't be done until https://github.com/stellar/soroban-rpc/issues/208
-		//        is addressed
 		_, err := db.Exec(ctx, sq.Delete(transactionTableName))
 		if err != nil {
 			return nil, fmt.Errorf("couldn't delete table %q: %w", transactionTableName, err)
