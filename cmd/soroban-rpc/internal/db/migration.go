@@ -117,7 +117,9 @@ type guardedMigration struct {
 	alreadyMigrated bool
 }
 
-func newGuardedDataMigration(ctx context.Context, uniqueMigrationName string, factory migrationApplierFactory, db *DB) (Migration, error) {
+func newGuardedDataMigration(ctx context.Context, uniqueMigrationName string,
+	factory migrationApplierFactory, db *DB,
+) (Migration, error) {
 	migrationDB := &DB{
 		cache:            db.cache,
 		SessionInterface: db.SessionInterface.Clone(),
@@ -132,7 +134,7 @@ func newGuardedDataMigration(ctx context.Context, uniqueMigrationName string, fa
 		return nil, err
 	}
 	latestLedger, err := NewLedgerEntryReader(db).GetLatestLedgerSequence(ctx)
-	if err != nil && err != ErrEmptyDB {
+	if err != nil && !errors.Is(err, ErrEmptyDB) {
 		err = errors.Join(err, migrationDB.Rollback())
 		return nil, fmt.Errorf("failed to get latest ledger sequence: %w", err)
 	}
@@ -177,13 +179,14 @@ func (g *guardedMigration) Commit(ctx context.Context) error {
 	return g.db.Commit()
 }
 
-func (g *guardedMigration) Rollback(ctx context.Context) error {
+func (g *guardedMigration) Rollback(_ context.Context) error {
 	return g.db.Rollback()
 }
 
 func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, cfg *config.Config) (Migration, error) {
 	migrationName := "TransactionsTable"
-	factory := newTransactionTableMigration(ctx, logger.WithField("migration", migrationName), cfg.TransactionLedgerRetentionWindow, cfg.NetworkPassphrase)
+	factory := newTransactionTableMigration(ctx, logger.WithField("migration", migrationName),
+		cfg.TransactionLedgerRetentionWindow, cfg.NetworkPassphrase)
 	m, err := newGuardedDataMigration(ctx, migrationName, factory, db)
 	if err != nil {
 		return nil, fmt.Errorf("creating guarded transaction migration: %w", err)
