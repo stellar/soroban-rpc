@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/sirupsen/logrus"
+	"github.com/stellar/go/network"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -14,6 +15,12 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
+)
+
+const (
+	txMetaV                 = 3
+	ledgerCloseTimeConstant = 100
+	feeCharged              = 100
 )
 
 func TestTransactionNotFound(t *testing.T) {
@@ -36,10 +43,10 @@ func TestTransactionFound(t *testing.T) {
 	require.NoError(t, err)
 
 	lcms := []xdr.LedgerCloseMeta{
-		CreateTxMeta(1234, true),
-		CreateTxMeta(1235, true),
-		CreateTxMeta(1236, true),
-		CreateTxMeta(1237, true),
+		txMeta(1234, true),
+		txMeta(1235, true),
+		txMeta(1236, true),
+		txMeta(1237, true),
 	}
 
 	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
@@ -80,10 +87,10 @@ func TestGetLedgerRange_NonEmptyDB(t *testing.T) {
 	require.NoError(t, err)
 
 	lcms := []xdr.LedgerCloseMeta{
-		CreateTxMeta(1234, true),
-		CreateTxMeta(1235, true),
-		CreateTxMeta(1236, true),
-		CreateTxMeta(1237, true),
+		txMeta(1234, true),
+		txMeta(1235, true),
+		txMeta(1236, true),
+		txMeta(1237, true),
 	}
 
 	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
@@ -97,9 +104,9 @@ func TestGetLedgerRange_NonEmptyDB(t *testing.T) {
 	ledgerRange, err := reader.GetLedgerRange(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, uint32(1234), ledgerRange.FirstLedger.Sequence)
-	assert.Equal(t, LedgerCloseTime(1234), ledgerRange.FirstLedger.CloseTime)
+	assert.Equal(t, ledgerCloseTime(1234), ledgerRange.FirstLedger.CloseTime)
 	assert.Equal(t, uint32(1237), ledgerRange.LastLedger.Sequence)
-	assert.Equal(t, LedgerCloseTime(1237), ledgerRange.LastLedger.CloseTime)
+	assert.Equal(t, ledgerCloseTime(1237), ledgerRange.LastLedger.CloseTime)
 }
 
 func TestGetLedgerRange_EmptyDB(t *testing.T) {
@@ -129,7 +136,7 @@ func BenchmarkTransactionFetch(b *testing.B) {
 	// ingest 100k tx rows
 	lcms := make([]xdr.LedgerCloseMeta, 0, 100_000)
 	for i := range cap(lcms) {
-		lcms = append(lcms, CreateTxMeta(uint32(1234+i), i%2 == 0))
+		lcms = append(lcms, txMeta(uint32(1234+i), i%2 == 0))
 	}
 
 	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
@@ -164,7 +171,7 @@ func BenchmarkGetLedgerRange(b *testing.B) {
 	// create 100k tx rows
 	lcms := make([]xdr.LedgerCloseMeta, 0, 100_000)
 	for i := range cap(lcms) {
-		lcms = append(lcms, CreateTxMeta(uint32(1234+i), i%2 == 0))
+		lcms = append(lcms, txMeta(uint32(1234+i), i%2 == 0))
 	}
 
 	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
@@ -182,4 +189,101 @@ func BenchmarkGetLedgerRange(b *testing.B) {
 		assert.Equal(b, ledgerRange.FirstLedger.Sequence, lcms[0].LedgerSequence())
 		assert.Equal(b, ledgerRange.LastLedger.Sequence, lcms[len(lcms)-1].LedgerSequence())
 	}
+}
+
+//
+// Structure creation methods below.
+//
+
+func txHash(acctSeq uint32) xdr.Hash {
+	envelope := txEnvelope(acctSeq)
+	hash, err := network.HashTransactionInEnvelope(envelope, passphrase)
+	if err != nil {
+		panic(err)
+	}
+	return hash
+}
+
+func txEnvelope(acctSeq uint32) xdr.TransactionEnvelope {
+	envelope, err := xdr.NewTransactionEnvelope(xdr.EnvelopeTypeEnvelopeTypeTx, xdr.TransactionV1Envelope{
+		Tx: xdr.Transaction{
+			Fee:           feeCharged,
+			SeqNum:        xdr.SequenceNumber(acctSeq),
+			SourceAccount: xdr.MustMuxedAddress("MA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVAAAAAAAAAAAAAJLK"),
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return envelope
+}
+
+func transactionResult(successful bool) xdr.TransactionResult {
+	code := xdr.TransactionResultCodeTxBadSeq
+	if successful {
+		code = xdr.TransactionResultCodeTxSuccess
+	}
+	opResults := []xdr.OperationResult{}
+	return xdr.TransactionResult{
+		FeeCharged: feeCharged,
+		Result: xdr.TransactionResultResult{
+			Code:    code,
+			Results: &opResults,
+		},
+	}
+}
+
+func txMeta(acctSeq uint32, successful bool) xdr.LedgerCloseMeta {
+	envelope := txEnvelope(acctSeq)
+	txProcessing := []xdr.TransactionResultMeta{
+		{
+			TxApplyProcessing: xdr.TransactionMeta{
+				V:          txMetaV,
+				Operations: &[]xdr.OperationMeta{},
+				V3:         &xdr.TransactionMetaV3{},
+			},
+			Result: xdr.TransactionResultPair{
+				TransactionHash: txHash(acctSeq),
+				Result:          transactionResult(successful),
+			},
+		},
+	}
+	components := []xdr.TxSetComponent{
+		{
+			Type: xdr.TxSetComponentTypeTxsetCompTxsMaybeDiscountedFee,
+			TxsMaybeDiscountedFee: &xdr.TxSetComponentTxsMaybeDiscountedFee{
+				BaseFee: nil,
+				Txs:     []xdr.TransactionEnvelope{envelope},
+			},
+		},
+	}
+
+	return xdr.LedgerCloseMeta{
+		V: 1,
+		V1: &xdr.LedgerCloseMetaV1{
+			LedgerHeader: xdr.LedgerHeaderHistoryEntry{
+				Header: xdr.LedgerHeader{
+					ScpValue: xdr.StellarValue{
+						CloseTime: xdr.TimePoint(ledgerCloseTime(acctSeq)),
+					},
+					LedgerSeq: xdr.Uint32(acctSeq),
+				},
+			},
+			TxProcessing: txProcessing,
+			TxSet: xdr.GeneralizedTransactionSet{
+				V: 1,
+				V1TxSet: &xdr.TransactionSetV1{
+					PreviousLedgerHash: xdr.Hash{1},
+					Phases: []xdr.TransactionPhase{{
+						V:            0,
+						V0Components: &components,
+					}},
+				},
+			},
+		},
+	}
+}
+
+func ledgerCloseTime(ledgerSequence uint32) int64 {
+	return int64(ledgerSequence)*25 + ledgerCloseTimeConstant
 }

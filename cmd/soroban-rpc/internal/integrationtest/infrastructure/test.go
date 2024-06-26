@@ -221,7 +221,7 @@ func (i *Test) insertTransactions() {
 
 	lcms := make([]xdr.LedgerCloseMeta, 0, 3)
 	for i := range cap(lcms) {
-		lcms = append(lcms, db.CreateTxMeta(uint32(9+i), true))
+		lcms = append(lcms, txMeta(uint32(9+i), true))
 	}
 
 	_, txW := write.LedgerWriter(), write.TransactionWriter()
