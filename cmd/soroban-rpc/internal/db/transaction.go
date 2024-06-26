@@ -1,4 +1,3 @@
-//nolint:intrange
 package db
 
 import (
@@ -93,7 +92,7 @@ func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 	}
 
 	transactions := make(map[xdr.Hash]ingest.LedgerTransaction, txCount)
-	for i := 0; i < txCount; i++ {
+	for i := range txCount {
 		tx, err := reader.Read()
 		if err != nil {
 			return fmt.Errorf("failed reading tx %d: %w", i, err)
