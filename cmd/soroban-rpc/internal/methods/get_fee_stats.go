@@ -58,7 +58,7 @@ type GetFeeStatsResult struct {
 }
 
 // NewGetFeeStatsHandler returns a handler obtaining fee statistics
-func NewGetFeeStatsHandler(windows *feewindow.FeeWindows, reader db.LedgerRangeGetter,
+func NewGetFeeStatsHandler(windows *feewindow.FeeWindows, reader db.LedgerReader,
 	logger *log.Entry,
 ) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context) (GetFeeStatsResult, error) {
