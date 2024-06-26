@@ -106,6 +106,80 @@ func TestLedgers(t *testing.T) {
 	assertLedgerRange(t, reader, 8, 12)
 }
 
+func TestGetLedgerRange_NonEmptyDB(t *testing.T) {
+	db := NewTestDB(t)
+	ctx := context.TODO()
+
+	writer := NewReadWriter(logger, db, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+	write, err := writer.NewTx(ctx)
+	require.NoError(t, err)
+
+	lcms := []xdr.LedgerCloseMeta{
+		txMeta(1234, true),
+		txMeta(1235, true),
+		txMeta(1236, true),
+		txMeta(1237, true),
+	}
+
+	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
+	for _, lcm := range lcms {
+		require.NoError(t, ledgerW.InsertLedger(lcm), "ingestion failed for ledger %+v", lcm.V1)
+		require.NoError(t, txW.InsertTransactions(lcm), "ingestion failed for ledger %+v", lcm.V1)
+	}
+	require.NoError(t, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
+
+	reader := NewLedgerReader(db)
+	ledgerRange, err := reader.GetLedgerRange(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, uint32(1334), ledgerRange.FirstLedger.Sequence)
+	assert.Equal(t, ledgerCloseTime(1334), ledgerRange.FirstLedger.CloseTime)
+	assert.Equal(t, uint32(1337), ledgerRange.LastLedger.Sequence)
+	assert.Equal(t, ledgerCloseTime(1337), ledgerRange.LastLedger.CloseTime)
+}
+
+func TestGetLedgerRange_EmptyDB(t *testing.T) {
+	db := NewTestDB(t)
+	ctx := context.TODO()
+
+	reader := NewLedgerReader(db)
+	ledgerRange, err := reader.GetLedgerRange(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, uint32(0), ledgerRange.FirstLedger.Sequence)
+	assert.Equal(t, int64(0), ledgerRange.FirstLedger.CloseTime)
+	assert.Equal(t, uint32(0), ledgerRange.LastLedger.Sequence)
+	assert.Equal(t, int64(0), ledgerRange.LastLedger.CloseTime)
+}
+
+func BenchmarkGetLedgerRange(b *testing.B) {
+	db := NewTestDB(b)
+	logger := log.DefaultLogger
+	writer := NewReadWriter(logger, db, interfaces.MakeNoOpDeamon(), 100, 1_000_000, passphrase)
+	write, err := writer.NewTx(context.TODO())
+	require.NoError(b, err)
+
+	// create 100k tx rows
+	lcms := make([]xdr.LedgerCloseMeta, 0, 100_000)
+	for i := range cap(lcms) {
+		lcms = append(lcms, txMeta(uint32(1234+i), i%2 == 0))
+	}
+
+	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
+	for _, lcm := range lcms {
+		require.NoError(b, ledgerW.InsertLedger(lcm))
+		require.NoError(b, txW.InsertTransactions(lcm))
+	}
+	require.NoError(b, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
+	reader := NewLedgerReader(db)
+
+	b.ResetTimer()
+	for range b.N {
+		ledgerRange, err := reader.GetLedgerRange(context.TODO())
+		require.NoError(b, err)
+		assert.Equal(b, ledgerRange.FirstLedger.Sequence, lcms[0].LedgerSequence())
+		assert.Equal(b, ledgerRange.LastLedger.Sequence, lcms[len(lcms)-1].LedgerSequence())
+	}
+}
+
 func NewTestDB(tb testing.TB) *DB {
 	tmp := tb.TempDir()
 	dbPath := path.Join(tmp, "db.sqlite")

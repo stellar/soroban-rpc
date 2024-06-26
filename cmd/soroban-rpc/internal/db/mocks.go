@@ -66,19 +66,19 @@ func (txn *mockTransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) e
 }
 
 // GetLedgerRange pulls the min/max ledger sequence numbers from the database.
-func (txn *mockTransactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
+func (txn *mockTransactionHandler) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
 	return txn.ledgerRange, nil
 }
 
-func (txn *mockTransactionHandler) GetTransaction(ctx context.Context, hash xdr.Hash) (
+func (txn *mockTransactionHandler) GetTransaction(_ context.Context, hash xdr.Hash) (
 	Transaction, ledgerbucketwindow.LedgerRange, error,
 ) {
-	if tx, ok := txn.txs[hash.HexString()]; !ok {
+	tx, ok := txn.txs[hash.HexString()]
+	if !ok {
 		return Transaction{}, txn.ledgerRange, ErrNoTransaction
-	} else {
-		itx, err := ParseTransaction(*txn.txHashToMeta[hash.HexString()], tx)
-		return itx, txn.ledgerRange, err
 	}
+	itx, err := ParseTransaction(*txn.txHashToMeta[hash.HexString()], tx)
+	return itx, txn.ledgerRange, err
 }
 
 func (txn *mockTransactionHandler) RegisterMetrics(_, _ prometheus.Observer) {}
@@ -87,13 +87,17 @@ type mockLedgerReader struct {
 	txn mockTransactionHandler
 }
 
+func (m *mockLedgerReader) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
+	return ledgerbucketwindow.LedgerRange{}, nil
+}
+
 func NewMockLedgerReader(txn *mockTransactionHandler) *mockLedgerReader {
 	return &mockLedgerReader{
 		txn: *txn,
 	}
 }
 
-func (m *mockLedgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
+func (m *mockLedgerReader) GetLedger(_ context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
 	lcm, ok := m.txn.ledgerSeqToMeta[sequence]
 	if !ok {
 		return xdr.LedgerCloseMeta{}, false, nil
@@ -101,7 +105,7 @@ func (m *mockLedgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.
 	return *lcm, true, nil
 }
 
-func (m *mockLedgerReader) StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error {
+func (m *mockLedgerReader) StreamAllLedgers(_ context.Context, _ StreamLedgerFn) error {
 	return nil
 }
 

@@ -7,6 +7,8 @@ import (
 	sq "github.com/Masterminds/squirrel"
 
 	"github.com/stellar/go/xdr"
+
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
 const (
@@ -18,6 +20,7 @@ type StreamLedgerFn func(xdr.LedgerCloseMeta) error
 type LedgerReader interface {
 	GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error)
 	StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error
+	GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error)
 }
 
 type LedgerWriter interface {
@@ -65,8 +68,37 @@ func (r ledgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.Ledge
 	case 1:
 		return results[0], true, nil
 	default:
-		return xdr.LedgerCloseMeta{}, false, fmt.Errorf("multiple lcm entries (%d) for sequence %d in table %q", len(results), sequence, ledgerCloseMetaTableName)
+		return xdr.LedgerCloseMeta{}, false, fmt.Errorf("multiple lcm entries (%d) for sequence %d in table %q",
+			len(results), sequence, ledgerCloseMetaTableName)
 	}
+}
+
+// GetLedgerRange pulls the min/max ledger sequence numbers from the meta table.
+func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
+	var ledgerRange ledgerbucketwindow.LedgerRange
+
+	query := sq.Select("lcm.meta").
+		From(ledgerCloseMetaTableName + " as lcm").
+		Where(sq.Expr("lcm.sequence = (SELECT MIN(sequence) FROM " + ledgerCloseMetaTableName + ") " +
+			"OR lcm.sequence = (SELECT MAX(sequence) FROM " + ledgerCloseMetaTableName + ")"))
+
+	var lcms []xdr.LedgerCloseMeta
+	if err := r.db.Select(ctx, &lcms, query); err != nil {
+		return ledgerRange, fmt.Errorf("couldn't query ledger range: %w", err)
+	} else if len(lcms) < getLedgerRangeMetaArrayCheckValue {
+		// There is almost certainly a row, but we want to avoid a race condition
+		// with ingestion as well as support test cases from an empty DB, so we need
+		// to sanity check that there is in fact a result. Note that no ledgers in
+		// the database isn't an error, it's just an empty range.
+		return ledgerRange, nil
+	}
+
+	lcm1, lcm2 := lcms[0], lcms[1]
+	ledgerRange.FirstLedger.Sequence = lcm1.LedgerSequence()
+	ledgerRange.FirstLedger.CloseTime = lcm1.LedgerCloseTime()
+	ledgerRange.LastLedger.Sequence = lcm2.LedgerSequence()
+	ledgerRange.LastLedger.CloseTime = lcm2.LedgerCloseTime()
+	return ledgerRange, nil
 }
 
 type ledgerWriter struct {
