@@ -16,8 +16,6 @@ import (
 	"github.com/stellar/go/strkey"
 	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/xdr"
-
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 )
 
 type eventTypeSet map[string]interface{}
@@ -297,8 +295,8 @@ func (s *SegmentFilter) UnmarshalJSON(p []byte) error {
 }
 
 type PaginationOptions struct {
-	Cursor *events.Cursor `json:"cursor,omitempty"`
-	Limit  uint           `json:"limit,omitempty"`
+	Cursor *db.Cursor `json:"cursor,omitempty"`
+	Limit  uint       `json:"limit,omitempty"`
 }
 
 type GetEventsResponse struct {
@@ -351,7 +349,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		}
 	}
 
-	start := events.Cursor{Ledger: request.StartLedger}
+	start := db.Cursor{Ledger: request.StartLedger}
 	limit := h.defaultLimit
 	if request.Pagination != nil {
 		if request.Pagination.Cursor != nil {
@@ -364,8 +362,8 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 			limit = request.Pagination.Limit
 		}
 	}
-	end := events.Cursor{Ledger: request.StartLedger + ledgerbucketwindow.OneDayOfLedgers}
-	cursorRange := events.CursorRange{Start: start, End: end}
+	end := db.Cursor{Ledger: request.StartLedger + ledgerbucketwindow.OneDayOfLedgers}
+	cursorRange := db.CursorRange{Start: start, End: end}
 
 	// Check if requested start ledger is within stored ledger range
 	if start.Ledger < ledgerRange.FirstLedger.Sequence || start.Ledger > ledgerRange.LastLedger.Sequence {
@@ -376,7 +374,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 	}
 
 	type entry struct {
-		cursor               events.Cursor
+		cursor               db.Cursor
 		ledgerCloseTimestamp int64
 		event                xdr.DiagnosticEvent
 		txHash               *xdr.Hash
@@ -393,7 +391,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 	}
 
 	// Scan function to apply filters
-	f := func(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCloseTimestamp int64, txHash *xdr.Hash) bool {
+	f := func(event xdr.DiagnosticEvent, cursor db.Cursor, ledgerCloseTimestamp int64, txHash *xdr.Hash) bool {
 		cursorID := cursor.String()
 		if _, exists := cursorSet[cursorID]; exists {
 			return true
@@ -436,7 +434,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 
 func eventInfoForEvent(
 	event xdr.DiagnosticEvent,
-	cursor events.Cursor,
+	cursor db.Cursor,
 	ledgerClosedAt string,
 	txHash string,
 ) (EventInfo, error) {

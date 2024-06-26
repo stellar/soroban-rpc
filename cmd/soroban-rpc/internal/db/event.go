@@ -15,7 +15,6 @@ import (
 	"github.com/stellar/go/support/db"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 )
 
 const eventTableName = "events"
@@ -27,7 +26,7 @@ type EventWriter interface {
 
 // EventReader has all the public methods to fetch events from DB
 type EventReader interface {
-	GetEvents(ctx context.Context, cursorRange events.CursorRange, contractIDs [][]byte, f ScanFunction) error
+	GetEvents(ctx context.Context, cursorRange CursorRange, contractIDs [][]byte, f ScanFunction) error
 	GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error)
 }
 
@@ -98,7 +97,7 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 			if e.Event.ContractId != nil {
 				contractID = e.Event.ContractId[:]
 			}
-			id := events.Cursor{Ledger: lcm.LedgerSequence(), Tx: tx.Index, Op: 0, Event: uint32(index)}.String()
+			id := Cursor{Ledger: lcm.LedgerSequence(), Tx: tx.Index, Op: 0, Event: uint32(index)}.String()
 			query = query.Values(id, lcm.LedgerSequence(), tx.Index, contractID, int(e.Event.Type))
 		}
 
@@ -113,7 +112,7 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 
 type ScanFunction func(
 	event xdr.DiagnosticEvent,
-	cursor events.Cursor,
+	cursor Cursor,
 	ledgerCloseTimestamp int64,
 	txHash *xdr.Hash,
 ) bool
@@ -139,7 +138,7 @@ func (eventHandler *eventHandler) trimEvents(latestLedgerSeq uint32, retentionWi
 // remaining events in the range).
 func (eventHandler *eventHandler) GetEvents(
 	ctx context.Context,
-	cursorRange events.CursorRange,
+	cursorRange CursorRange,
 	contractIDs [][]byte,
 	f ScanFunction,
 ) error {
@@ -203,7 +202,7 @@ func (eventHandler *eventHandler) GetEvents(
 
 		// Find events based on filter passed in function f
 		for eventIndex, event := range diagEvents {
-			cur := events.Cursor{Ledger: lcm.LedgerSequence(), Tx: uint32(txIndex), Event: uint32(eventIndex)}
+			cur := Cursor{Ledger: lcm.LedgerSequence(), Tx: uint32(txIndex), Event: uint32(eventIndex)}
 			if !f(event, cur, ledgerCloseTime, &transactionHash) {
 				return nil
 			}

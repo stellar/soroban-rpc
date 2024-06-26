@@ -4,15 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/sirupsen/logrus"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"github.com/stretchr/testify/require"
-	"strings"
-	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -416,7 +416,7 @@ func TestGetEventsRequestValid(t *testing.T) {
 	assert.EqualError(t, (&GetEventsRequest{
 		StartLedger: 1,
 		Filters:     []EventFilter{},
-		Pagination:  &PaginationOptions{Cursor: &events.Cursor{}},
+		Pagination:  &PaginationOptions{Cursor: &db.Cursor{}},
 	}).Valid(1000), "startLedger and cursor cannot both be set")
 
 	assert.NoError(t, (&GetEventsRequest{
@@ -580,7 +580,6 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("no filtering returns all", func(t *testing.T) {
-
 		dbx := db.NewTestDB(t)
 		ctx := context.TODO()
 		log := log.DefaultLogger
@@ -628,7 +627,7 @@ func TestGetEvents(t *testing.T) {
 
 		var expected []EventInfo
 		for i := range txMeta {
-			id := events.Cursor{
+			id := db.Cursor{
 				Ledger: 1,
 				Tx:     uint32(i + 1),
 				Op:     0,
@@ -656,7 +655,6 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("filtering by contract id", func(t *testing.T) {
-
 		dbx := db.NewTestDB(t)
 		ctx := context.TODO()
 		log := log.DefaultLogger
@@ -710,9 +708,9 @@ func TestGetEvents(t *testing.T) {
 		assert.Equal(t, uint32(1), results.LatestLedger)
 
 		expectedIds := []string{
-			events.Cursor{Ledger: 1, Tx: 1, Op: 0, Event: 0}.String(),
-			events.Cursor{Ledger: 1, Tx: 3, Op: 0, Event: 0}.String(),
-			events.Cursor{Ledger: 1, Tx: 5, Op: 0, Event: 0}.String(),
+			db.Cursor{Ledger: 1, Tx: 1, Op: 0, Event: 0}.String(),
+			db.Cursor{Ledger: 1, Tx: 3, Op: 0, Event: 0}.String(),
+			db.Cursor{Ledger: 1, Tx: 5, Op: 0, Event: 0}.String(),
 		}
 		eventIds := []string{}
 		for _, event := range results.Events {
@@ -775,7 +773,7 @@ func TestGetEvents(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		id := events.Cursor{Ledger: 1, Tx: 5, Op: 0, Event: 0}.String()
+		id := db.Cursor{Ledger: 1, Tx: 5, Op: 0, Event: 0}.String()
 		assert.NoError(t, err)
 		value, err := xdr.MarshalBase64(xdr.ScVal{
 			Type: xdr.ScValTypeScvU64,
@@ -800,7 +798,6 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("filtering by both contract id and topic", func(t *testing.T) {
-
 		dbx := db.NewTestDB(t)
 		ctx := context.TODO()
 		log := log.DefaultLogger
@@ -887,7 +884,7 @@ func TestGetEvents(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		id := events.Cursor{Ledger: 1, Tx: 4, Op: 0, Event: 0}.String()
+		id := db.Cursor{Ledger: 1, Tx: 4, Op: 0, Event: 0}.String()
 		value, err := xdr.MarshalBase64(xdr.ScVal{
 			Type: xdr.ScValTypeScvU64,
 			U64:  &number,
@@ -966,7 +963,7 @@ func TestGetEvents(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		id := events.Cursor{Ledger: 1, Tx: 1, Op: 0, Event: 1}.String()
+		id := db.Cursor{Ledger: 1, Tx: 1, Op: 0, Event: 1}.String()
 		expected := []EventInfo{
 			{
 				EventType:                EventTypeSystem,
@@ -1030,7 +1027,7 @@ func TestGetEvents(t *testing.T) {
 
 		var expected []EventInfo
 		for i := 0; i < 10; i++ {
-			id := events.Cursor{
+			id := db.Cursor{
 				Ledger: 1,
 				Tx:     uint32(i + 1),
 				Op:     0,
@@ -1114,7 +1111,7 @@ func TestGetEvents(t *testing.T) {
 		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
 		require.NoError(t, write.Commit(4))
 
-		id := &events.Cursor{Ledger: 5, Tx: 1, Op: 0, Event: 0}
+		id := &db.Cursor{Ledger: 5, Tx: 1, Op: 0, Event: 0}
 		handler := eventsRPCHandler{
 			dbReader:     store,
 			maxLimit:     10000,
@@ -1130,8 +1127,8 @@ func TestGetEvents(t *testing.T) {
 
 		var expected []EventInfo
 		expectedIDs := []string{
-			events.Cursor{Ledger: 5, Tx: 1, Op: 0, Event: 1}.String(),
-			events.Cursor{Ledger: 5, Tx: 2, Op: 0, Event: 0}.String(),
+			db.Cursor{Ledger: 5, Tx: 1, Op: 0, Event: 1}.String(),
+			db.Cursor{Ledger: 5, Tx: 2, Op: 0, Event: 0}.String(),
 		}
 		symbols := datas[1:3]
 		for i, id := range expectedIDs {
@@ -1154,7 +1151,7 @@ func TestGetEvents(t *testing.T) {
 
 		results, err = handler.getEvents(context.TODO(), GetEventsRequest{
 			Pagination: &PaginationOptions{
-				Cursor: &events.Cursor{Ledger: 5, Tx: 2, Op: 0, Event: 1},
+				Cursor: &db.Cursor{Ledger: 5, Tx: 2, Op: 0, Event: 1},
 				Limit:  2,
 			},
 		})

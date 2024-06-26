@@ -6,8 +6,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
-
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -97,9 +95,9 @@ func TestTransactionFound(t *testing.T) {
 	require.Error(t, err, ErrNoTransaction)
 
 	eventReader := NewEventReader(log, db, passphrase)
-	start := events.Cursor{Ledger: 1}
-	end := events.Cursor{Ledger: 1000}
-	cursorRange := events.CursorRange{Start: start, End: end}
+	start := Cursor{Ledger: 1}
+	end := Cursor{Ledger: 1000}
+	cursorRange := CursorRange{Start: start, End: end}
 
 	err = eventReader.GetEvents(ctx, cursorRange, nil, nil)
 	require.NoError(t, err)
