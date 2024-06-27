@@ -142,11 +142,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 	}
 
-	// Get the largest history window
-	retentionWindow := cfg.EventLedgerRetentionWindow
-	if cfg.TransactionLedgerRetentionWindow > cfg.EventLedgerRetentionWindow {
-		retentionWindow = cfg.TransactionLedgerRetentionWindow
-	}
+	retentionWindow := cfg.HistoryRetentionWindow
 
 	handlers := []struct {
 		methodName           string

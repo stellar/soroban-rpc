@@ -3,7 +3,6 @@ package infrastructure
 import (
 	"context"
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -19,11 +18,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/go/clients/stellarcore"
 	"github.com/stellar/go/keypair"
-	"github.com/stellar/go/network"
 	proto "github.com/stellar/go/protocols/stellarcore"
 	supportlog "github.com/stellar/go/support/log"
 	"github.com/stellar/go/txnbuild"
@@ -31,9 +30,6 @@ import (
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 )
 
@@ -173,10 +169,6 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 		i.waitForRPC()
 	}
 
-	// We populate the transactions table with some rows so that GetLedgerRange called in transaction related
-	// integration tests returns a valid latest ledger.
-	i.insertTransactions()
-
 	return i
 }
 
@@ -207,28 +199,6 @@ func (i *Test) spawnContainers() {
 		require.NoError(i.t, i.rpcContainerLogsCommand.Start())
 	}
 	i.fillContainerPorts()
-}
-
-func (i *Test) insertTransactions() {
-	i.t.Logf("inserting transactions")
-	testDB, err := db.OpenSQLiteDB(i.sqlitePath)
-	require.NoError(i.t, err)
-
-	writer := db.NewReadWriter(supportlog.New(), testDB, interfaces.MakeNoOpDeamon(),
-		100, 1_000_000, network.FutureNetworkPassphrase)
-	write, err := writer.NewTx(context.Background())
-	require.NoError(i.t, err)
-
-	lcms := make([]xdr.LedgerCloseMeta, 0, 3)
-	for i := range cap(lcms) {
-		lcms = append(lcms, txMeta(uint32(9+i), true))
-	}
-
-	_, txW := write.LedgerWriter(), write.TransactionWriter()
-	for _, lcm := range lcms {
-		require.NoError(i.t, txW.InsertTransactions(lcm))
-	}
-	require.NoError(i.t, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
 }
 
 func (i *Test) stopContainers() {
@@ -350,8 +320,7 @@ func (vars rpcConfig) toMap() map[string]string {
 		"LOG_LEVEL":                      "debug",
 		"DB_PATH":                        vars.sqlitePath,
 		"INGESTION_TIMEOUT":              "10m",
-		"EVENT_LEDGER_RETENTION_WINDOW":  strconv.Itoa(ledgerbucketwindow.OneDayOfLedgers),
-		"TRANSACTION_RETENTION_WINDOW":   strconv.Itoa(ledgerbucketwindow.OneDayOfLedgers),
+		"HISTORY_RETENTION_WINDOW":       strconv.Itoa(config.OneDayOfLedgers),
 		"CHECKPOINT_FREQUENCY":           strconv.Itoa(checkpointFrequency),
 		"MAX_HEALTHY_LEDGER_LATENCY":     "10s",
 		"PREFLIGHT_ENABLE_DEBUG":         "true",
@@ -384,7 +353,7 @@ func (i *Test) generateCaptiveCoreCfgForContainer() {
 		// Try the directory before the integration test refactoring
 		// TODO: remove this hack after protocol 22 is released
 		out, err = getOldVersionCaptiveCoreConfigVersion("../../test", captiveCoreConfigFilename)
-		outStr := strings.ReplaceAll(string(out), `ADDRESS="localhost"`, `ADDRESS="${CORE_HOST_PORT}"`)
+		outStr := strings.Replace(string(out), `ADDRESS="localhost"`, `ADDRESS="${CORE_HOST_PORT}"`, -1)
 		out = []byte(outStr)
 	}
 	require.NoError(i.t, err)
@@ -444,7 +413,7 @@ type testLogWriter struct {
 	testDone   bool
 }
 
-func (tw *testLogWriter) Write(p []byte) (int, error) {
+func (tw *testLogWriter) Write(p []byte) (n int, err error) {
 	tw.testDoneMx.RLock()
 	if tw.testDone {
 		// Workaround for https://github.com/stellar/go/issues/5342
@@ -472,7 +441,6 @@ func (i *Test) createRPCDaemon(c rpcConfig) *daemon.Daemon {
 	}
 	require.NoError(i.t, cfg.SetValues(lookup))
 	require.NoError(i.t, cfg.Validate())
-	cfg.HistoryArchiveUserAgent = "soroban-rpc/" + config.Version
 
 	logger := supportlog.New()
 	logger.SetOutput(newTestLogWriter(i.t, `rpc="daemon" `))
@@ -552,8 +520,7 @@ func (i *Test) runSuccessfulComposeCommand(args ...string) []byte {
 	if err != nil {
 		i.t.Log("Compose command failed, args:", args)
 	}
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if exitErr, ok := err.(*exec.ExitError); ok {
 		i.t.Log("stdout:\n", string(out))
 		i.t.Log("stderr:\n", string(exitErr.Stderr))
 	}
@@ -566,22 +533,17 @@ func (i *Test) prepareShutdownHandlers() {
 	i.shutdown = func() {
 		close(done)
 		if i.daemon != nil {
-			err := i.daemon.Close()
-			require.NoError(i.t, err)
+			i.daemon.Close()
 			i.daemon = nil
 		}
 		if i.rpcClient != nil {
-			err := i.rpcClient.Close()
-			require.NoError(i.t, err)
+			i.rpcClient.Close()
 		}
 		if i.areThereContainers() {
 			i.stopContainers()
 		}
 		if i.rpcContainerLogsCommand != nil {
-			err := i.rpcContainerLogsCommand.Wait()
-			if err != nil {
-				return
-			}
+			i.rpcContainerLogsCommand.Wait()
 		}
 	}
 
@@ -654,8 +616,7 @@ func (i *Test) UpgradeProtocol(version uint32) {
 
 func (i *Test) StopRPC() {
 	if i.daemon != nil {
-		err := i.daemon.Close()
-		require.NoError(i.t, err)
+		i.daemon.Close()
 		i.daemon = nil
 	}
 	if i.runRPCInContainer() {
@@ -674,7 +635,7 @@ func (i *Test) GetDaemon() *daemon.Daemon {
 func (i *Test) SendMasterOperation(op txnbuild.Operation) methods.GetTransactionResponse {
 	params := CreateTransactionParams(i.MasterAccount(), op)
 	tx, err := txnbuild.NewTransaction(params)
-	require.NoError(i.t, err)
+	assert.NoError(i.t, err)
 	return i.SendMasterTransaction(tx)
 }
 
@@ -694,7 +655,7 @@ func (i *Test) PreflightAndSendMasterOperation(op txnbuild.Operation) methods.Ge
 	)
 	params = PreflightTransactionParams(i.t, i.rpcClient, params)
 	tx, err := txnbuild.NewTransaction(params)
-	require.NoError(i.t, err)
+	assert.NoError(i.t, err)
 	return i.SendMasterTransaction(tx)
 }
 

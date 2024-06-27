@@ -185,8 +185,12 @@ func (g *guardedMigration) Rollback(_ context.Context) error {
 
 func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, cfg *config.Config) (Migration, error) {
 	migrationName := "TransactionsTable"
-	factory := newTransactionTableMigration(ctx, logger.WithField("migration", migrationName),
-		cfg.TransactionLedgerRetentionWindow, cfg.NetworkPassphrase)
+	factory := newTransactionTableMigration(
+		ctx,
+		logger.WithField("migration", migrationName),
+		cfg.HistoryRetentionWindow,
+		cfg.NetworkPassphrase,
+	)
 	m, err := newGuardedDataMigration(ctx, migrationName, factory, db)
 	if err != nil {
 		return nil, fmt.Errorf("creating guarded transaction migration: %w", err)
