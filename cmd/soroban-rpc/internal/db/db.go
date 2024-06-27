@@ -61,8 +61,7 @@ func openSQLiteDB(dbFilePath string) (*db.Session, error) {
 	// 2. Disable WAL auto-checkpointing (we will do the checkpointing ourselves with wal_checkpoint pragmas
 	//    after every write transaction).
 	// 3. Use synchronous=NORMAL, which is faster and still safe in WAL mode.
-	session, err := db.Open("sqlite3",
-		fmt.Sprintf("file:%s?_journal_mode=WAL&_wal_autocheckpoint=0&_synchronous=NORMAL", dbFilePath))
+	session, err := db.Open("sqlite3", fmt.Sprintf("file:%s?_journal_mode=WAL&_wal_autocheckpoint=0&_synchronous=NORMAL", dbFilePath))
 	if err != nil {
 		return nil, fmt.Errorf("open failed: %w", err)
 	}
@@ -74,9 +73,7 @@ func openSQLiteDB(dbFilePath string) (*db.Session, error) {
 	return session, nil
 }
 
-func OpenSQLiteDBWithPrometheusMetrics(dbFilePath string, namespace string, sub db.Subservice,
-	registry *prometheus.Registry,
-) (*DB, error) {
+func OpenSQLiteDBWithPrometheusMetrics(dbFilePath string, namespace string, sub db.Subservice, registry *prometheus.Registry) (*DB, error) {
 	session, err := openSQLiteDB(dbFilePath)
 	if err != nil {
 		return nil, err
@@ -131,8 +128,7 @@ func getMetaValue(ctx context.Context, q db.SessionInterface, key string) (strin
 	case 1:
 		// expected length on an initialized DB
 	default:
-		return "", fmt.Errorf("multiple entries (%d) for key %q in table %q", len(results),
-			latestLedgerSequenceMetaKey, metaTableName)
+		return "", fmt.Errorf("multiple entries (%d) for key %q in table %q", len(results), latestLedgerSequenceMetaKey, metaTableName)
 	}
 	return results[0], nil
 }
@@ -329,11 +325,11 @@ func (w writeTx) Rollback() error {
 	// errors.New("not in transaction") is returned when rolling back a transaction which has
 	// already been committed or rolled back. We can ignore those errors
 	// because we allow rolling back after commits in defer statements.
-	err := w.tx.Rollback()
-	if err == nil || err.Error() == "not in transaction" {
+	if err := w.tx.Rollback(); err == nil || err.Error() == "not in transaction" {
 		return nil
+	} else {
+		return err
 	}
-	return err
 }
 
 func runSQLMigrations(db *sql.DB, dialect string) error {
