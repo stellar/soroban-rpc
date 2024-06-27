@@ -54,11 +54,13 @@ func (entryReaderTx ConstantLedgerEntryReaderTx) Done() error {
 	return nil
 }
 
-func (ledgerReader *ConstantLedgerReader) GetLedger(_ context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
+func (ledgerReader *ConstantLedgerReader) GetLedger(_ context.Context,
+	sequence uint32,
+) (xdr.LedgerCloseMeta, bool, error) {
 	return createLedger(sequence, expectedLatestLedgerProtocolVersion, expectedLatestLedgerHashBytes), true, nil
 }
 
-func (ledgerReader *ConstantLedgerReader) StreamAllLedgers(_ context.Context, f db.StreamLedgerFn) error {
+func (ledgerReader *ConstantLedgerReader) StreamAllLedgers(_ context.Context, _ db.StreamLedgerFn) error {
 	return nil
 }
 

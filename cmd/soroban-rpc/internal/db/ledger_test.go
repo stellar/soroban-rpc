@@ -44,24 +44,24 @@ func assertLedgerRange(t *testing.T, reader LedgerReader, start, end uint32) {
 		allLedgers = append(allLedgers, txmeta)
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	for i := start - 1; i <= end+1; i++ {
 		ledger, exists, err := reader.GetLedger(context.Background(), i)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		if i < start || i > end {
 			assert.False(t, exists)
 			continue
 		}
 		assert.True(t, exists)
 		ledgerBinary, err := ledger.MarshalBinary()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		expected := createLedger(i)
 		expectedBinary, err := expected.MarshalBinary()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, expectedBinary, ledgerBinary)
 
 		ledgerBinary, err = allLedgers[0].MarshalBinary()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, expectedBinary, ledgerBinary)
 		allLedgers = allLedgers[1:]
 	}
@@ -74,34 +74,34 @@ func TestLedgers(t *testing.T) {
 
 	reader := NewLedgerReader(db)
 	_, exists, err := reader.GetLedger(context.Background(), 1)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.False(t, exists)
 
 	for i := 1; i <= 10; i++ {
 		ledgerSequence := uint32(i)
 		tx, err := NewReadWriter(logger, db, daemon, 150, 15, passphrase).NewTx(context.Background())
-		assert.NoError(t, err)
-		assert.NoError(t, tx.LedgerWriter().InsertLedger(createLedger(ledgerSequence)))
-		assert.NoError(t, tx.Commit(ledgerSequence))
+		require.NoError(t, err)
+		require.NoError(t, tx.LedgerWriter().InsertLedger(createLedger(ledgerSequence)))
+		require.NoError(t, tx.Commit(ledgerSequence))
 		// rolling back after a commit is a no-op
-		assert.NoError(t, tx.Rollback())
+		require.NoError(t, tx.Rollback())
 	}
 
 	assertLedgerRange(t, reader, 1, 10)
 
 	ledgerSequence := uint32(11)
 	tx, err := NewReadWriter(logger, db, daemon, 150, 15, passphrase).NewTx(context.Background())
-	assert.NoError(t, err)
-	assert.NoError(t, tx.LedgerWriter().InsertLedger(createLedger(ledgerSequence)))
-	assert.NoError(t, tx.Commit(ledgerSequence))
+	require.NoError(t, err)
+	require.NoError(t, tx.LedgerWriter().InsertLedger(createLedger(ledgerSequence)))
+	require.NoError(t, tx.Commit(ledgerSequence))
 
 	assertLedgerRange(t, reader, 1, 11)
 
 	ledgerSequence = uint32(12)
 	tx, err = NewReadWriter(logger, db, daemon, 150, 5, passphrase).NewTx(context.Background())
-	assert.NoError(t, err)
-	assert.NoError(t, tx.LedgerWriter().InsertLedger(createLedger(ledgerSequence)))
-	assert.NoError(t, tx.Commit(ledgerSequence))
+	require.NoError(t, err)
+	require.NoError(t, tx.LedgerWriter().InsertLedger(createLedger(ledgerSequence)))
+	require.NoError(t, tx.Commit(ledgerSequence))
 
 	assertLedgerRange(t, reader, 8, 12)
 }
@@ -186,7 +186,7 @@ func NewTestDB(tb testing.TB) *DB {
 	db, err := OpenSQLiteDB(dbPath)
 	require.NoError(tb, err)
 	tb.Cleanup(func() {
-		assert.NoError(tb, db.Close())
+		require.NoError(tb, db.Close())
 	})
 	return db
 }
