@@ -6,6 +6,7 @@ import (
 
 	"github.com/creachadair/jrpc2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/go/xdr"
 
@@ -80,7 +81,7 @@ func TestGetLatestLedger(t *testing.T) {
 	getLatestLedgerHandler := NewGetLatestLedgerHandler(&ConstantLedgerEntryReader{}, &ConstantLedgerReader{})
 	latestLedgerRespI, err := getLatestLedgerHandler(context.Background(), &jrpc2.Request{})
 	latestLedgerResp := latestLedgerRespI.(GetLatestLedgerResponse)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	expectedLatestLedgerHashStr := xdr.Hash{expectedLatestLedgerHashBytes}.HexString()
 	assert.Equal(t, expectedLatestLedgerHashStr, latestLedgerResp.Hash)
