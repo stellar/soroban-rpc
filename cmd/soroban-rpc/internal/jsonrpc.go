@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/cors"
+
 	"github.com/stellar/go/support/log"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
@@ -136,10 +137,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 	}
 
-	// While we transition from in-memory to database-oriented history storage,
-	// the on-disk (transaction) retention window will always be larger than the
-	// in-memory (events) one.
-	var retentionWindow = cfg.TransactionLedgerRetentionWindow
+	retentionWindow := cfg.HistoryRetentionWindow
 
 	handlers := []struct {
 		methodName           string
@@ -306,7 +304,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		Namespace: params.Daemon.MetricsNamespace(), Subsystem: "network", Name: "global_request_execution_duration_threshold_limit",
 		Help: "The metric measures the count of requests that surpassed the limit threshold for execution time",
 	})
-	var handler http.Handler = network.MakeHTTPRequestDurationLimiter(
+	handler := network.MakeHTTPRequestDurationLimiter(
 		queueLimitedBridge,
 		cfg.RequestExecutionWarningThreshold,
 		cfg.MaxRequestExecutionDuration,

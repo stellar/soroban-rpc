@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
 	supportlog "github.com/stellar/go/support/log"
 	goxdr "github.com/stellar/go/xdr"
 
@@ -27,7 +28,6 @@ func main() {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
-			cfg.HistoryArchiveUserAgent = fmt.Sprintf("soroban-rpc/%s", config.Version)
 			daemon.MustNew(&cfg, supportlog.New()).Run()
 		},
 	}
@@ -37,6 +37,7 @@ func main() {
 		Short: "Print version information and exit",
 		Run: func(_ *cobra.Command, _ []string) {
 			if config.CommitHash == "" {
+				//nolint:forbidigo
 				fmt.Printf("soroban-rpc dev\n")
 			} else {
 				// avoid printing the branch for the main branch
@@ -47,8 +48,10 @@ func main() {
 				if branch == "main" {
 					branch = ""
 				}
+				//nolint:forbidigo
 				fmt.Printf("soroban-rpc %s (%s) %s\n", config.Version, config.CommitHash, branch)
 			}
+			//nolint:forbidigo
 			fmt.Printf("stellar-xdr %s\n", goxdr.CommitHash)
 		},
 	}

@@ -5,8 +5,9 @@ import (
 	"testing"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/stellar/go/xdr"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
@@ -17,14 +18,11 @@ const (
 	expectedLatestLedgerHashBytes       byte   = 42
 )
 
-type ConstantLedgerEntryReader struct {
-}
+type ConstantLedgerEntryReader struct{}
 
-type ConstantLedgerEntryReaderTx struct {
-}
+type ConstantLedgerEntryReaderTx struct{}
 
-type ConstantLedgerReader struct {
-}
+type ConstantLedgerReader struct{}
 
 func (entryReader *ConstantLedgerEntryReader) GetLatestLedgerSequence(ctx context.Context) (uint32, error) {
 	return expectedLatestLedgerSequence, nil

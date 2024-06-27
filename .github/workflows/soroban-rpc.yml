@@ -15,10 +15,9 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-20.04, ubuntu-22.04 ]
-        go: [ 1.22 ]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           # For pull requests, build and test the PR head not a merge of the PR with the destination.
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
@@ -26,11 +25,10 @@ jobs:
           # Otherwise, the Go test cache will fail (due to the modification time of fixtures changing).
           fetch-depth: "0"
       - uses: ./.github/actions/setup-go
-        with:
-          go-version: ${{ matrix.go }}
       - run: rustup update
+      - uses: stellar/actions/rust-cache@main
       - run: make build-libpreflight
-      - run: go test -race -cover -timeout 25m -v ./cmd/soroban-rpc/...
+      - run: go test -race -timeout 25m ./cmd/soroban-rpc/...
 
   build:
     name: Build
@@ -54,13 +52,8 @@ jobs:
             go_arch: amd64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
-      # we cannot use our own ./.github/actions/setup-go action
-      # because it uses apt-get and some OSs (e.g. windows) don't have it
-      - uses: actions/setup-go@v3
-        with:
-          go-version: 1.22
-
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-go
       # On windows, make sure we have the same compiler (linker) used by rust.
       # This is important since the symbols names won't match otherwise.
       - if: matrix.os == 'windows-latest'
@@ -81,9 +74,8 @@ jobs:
       - run: |
           rustup target add ${{ matrix.rust_target }}
           rustup update
-
-      - name: Build libpreflight
-        run: make build-libpreflight
+      - uses: stellar/actions/rust-cache@main
+      - run: make build-libpreflight
         env:
           CARGO_BUILD_TARGET: ${{ matrix.rust_target }}
 
@@ -102,7 +94,6 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-20.04, ubuntu-22.04 ]
-        go: [ 1.22 ]
         protocol-version: [ 20, 21 ]
     runs-on: ${{ matrix.os }}
     env:
@@ -114,7 +105,7 @@ jobs:
       PROTOCOL_21_CORE_DEBIAN_PKG_VERSION: 21.0.1-1897.dfd3dbff1.focal
       PROTOCOL_21_CORE_DOCKER_IMG: stellar/unsafe-stellar-core:21.0.1-1897.dfd3dbff1.focal
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           # For pull requests, build and test the PR head not a merge of the PR with the destination.
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
@@ -123,16 +114,12 @@ jobs:
           fetch-depth: "0"
 
       - uses: ./.github/actions/setup-go
-        with:
-          go-version: ${{ matrix.go }}
 
       - name: Pull and set Stellar Core image
         shell: bash
         run: |
           docker pull "$PROTOCOL_${{ matrix.protocol-version }}_CORE_DOCKER_IMG"
           echo SOROBAN_RPC_INTEGRATION_TESTS_DOCKER_IMG="$PROTOCOL_${{ matrix.protocol-version }}_CORE_DOCKER_IMG" >> $GITHUB_ENV
-
-      - uses: stellar/actions/rust-cache@main
 
       - name: Install Captive Core
         shell: bash
@@ -176,11 +163,9 @@ jobs:
           docker-compose version
 
       - run: rustup update
-
-      - name: Build libpreflight
-        shell: bash
-        run: make build-libpreflight
+      - uses: stellar/actions/rust-cache@main
+      - run: make build-libpreflight
 
       - name: Run Soroban RPC Integration Tests
         run: |
-          go test -race -timeout 20m  ./cmd/soroban-rpc/internal/integrationtest/...
+          go test -race -timeout 20m ./cmd/soroban-rpc/internal/integrationtest/...

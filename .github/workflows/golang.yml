@@ -1,28 +1,28 @@
-name: Linters
+name: Go
 on:
   push:
-    branches:
-      - main
+    branches: [ main, release/** ]
   pull_request:
 
 permissions:
   contents: read
   # Optional: allow read access to pull request. Use with `only-new-issues` option.
   pull-requests: read
+  # Optional: allow the action to annotate code in the PR.
+  checks: write
 
 jobs:
-  golangci:
+  golangci-lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # version v3.0.2
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0 # required for new-from-rev option in .golangci.yml
-      - name: Setup GO
-        uses: actions/setup-go@268d8c0ca0432bb2cf416faae41297df9d262d7f # version v3.3.0
-        with:
-          go-version: '>=1.22.1'
 
+      - uses: ./.github/actions/setup-go
+
+      - uses: stellar/actions/rust-cache@main
       - name: Build libpreflight
         run: |
           rustup update
@@ -31,8 +31,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@a4f60bb28d35aeee14e6880718e0c85ff1882e64 # version v6.0.1
         with:
-          version: v1.52.2 # this is the golangci-lint version
-          args: --issues-exit-code=0 # exit without errors for now - won't fail the build
+          version: v1.59.1 # this is the golangci-lint version
           github-token: ${{ secrets.GITHUB_TOKEN }}
           only-new-issues: true
 

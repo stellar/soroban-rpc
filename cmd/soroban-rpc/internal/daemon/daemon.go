@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
-	"net/http/pprof" //nolint:gosec
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	runtimePprof "runtime/pprof"
@@ -15,12 +15,12 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/stellar/go/clients/stellarcore"
 	"github.com/stellar/go/historyarchive"
 	"github.com/stellar/go/ingest/ledgerbackend"
 	supporthttp "github.com/stellar/go/support/http"
 	supportlog "github.com/stellar/go/support/log"
-	"github.com/stellar/go/support/ordered"
 	"github.com/stellar/go/support/storage"
 	"github.com/stellar/go/xdr"
 
@@ -30,7 +30,6 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/feewindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ingest"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/preflight"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/util"
 )
@@ -50,7 +49,7 @@ type Daemon struct {
 	db                  *db.DB
 	jsonRPCHandler      *internal.Handler
 	logger              *supportlog.Entry
-	preflightWorkerPool *preflight.PreflightWorkerPool
+	preflightWorkerPool *preflight.WorkerPool
 	listener            net.Listener
 	server              *http.Server
 	adminListener       net.Listener
@@ -66,9 +65,11 @@ func (d *Daemon) GetDB() *db.DB {
 }
 
 func (d *Daemon) GetEndpointAddrs() (net.TCPAddr, *net.TCPAddr) {
-	var addr = d.listener.Addr().(*net.TCPAddr)
+	//nolint:forcetypeassert
+	addr := d.listener.Addr().(*net.TCPAddr)
 	var adminAddr *net.TCPAddr
 	if d.adminListener != nil {
+		//nolint:forcetypeassert
 		adminAddr = d.adminListener.Addr().(*net.TCPAddr)
 	}
 	return *addr, adminAddr
@@ -142,7 +143,6 @@ func newCaptiveCore(cfg *config.Config, logger *supportlog.Entry) (*ledgerbacken
 		UseDB:               true,
 	}
 	return ledgerbackend.NewCaptive(captiveConfig)
-
 }
 
 func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
@@ -173,10 +173,10 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 			CheckpointFrequency: cfg.CheckpointFrequency,
 			ConnectOptions: storage.ConnectOptions{
 				Context:   context.Background(),
-				UserAgent: cfg.HistoryArchiveUserAgent},
+				UserAgent: cfg.HistoryArchiveUserAgent,
+			},
 		},
 	)
-
 	if err != nil {
 		logger.WithError(err).Fatal("could not connect to history archive")
 	}
@@ -205,15 +205,6 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 		logger.WithError(err).Error("could not run ingestion. Retrying")
 	}
 
-	// Take the larger of (event retention, tx retention) and then the smaller
-	// of (tx retention, default event retention) if event retention wasn't
-	// specified, for some reason...?
-	maxRetentionWindow := ordered.Max(cfg.EventLedgerRetentionWindow, cfg.TransactionLedgerRetentionWindow)
-	if cfg.EventLedgerRetentionWindow <= 0 {
-		maxRetentionWindow = ordered.Min(
-			maxRetentionWindow,
-			ledgerbucketwindow.DefaultEventLedgerRetentionWindow)
-	}
 	ingestService := ingest.NewService(ingest.Config{
 		Logger: logger,
 		DB: db.NewReadWriter(
@@ -221,7 +212,7 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 			dbConn,
 			daemon,
 			maxLedgerEntryWriteBatchSize,
-			maxRetentionWindow,
+			cfg.HistoryRetentionWindow,
 			cfg.NetworkPassphrase,
 		),
 		EventStore:        eventStore,
@@ -236,13 +227,15 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 
 	ledgerEntryReader := db.NewLedgerEntryReader(dbConn)
 	preflightWorkerPool := preflight.NewPreflightWorkerPool(
-		daemon,
-		cfg.PreflightWorkerCount,
-		cfg.PreflightWorkerQueueSize,
-		cfg.PreflightEnableDebug,
-		ledgerEntryReader,
-		cfg.NetworkPassphrase,
-		logger,
+		preflight.WorkerPoolConfig{
+			Daemon:            daemon,
+			WorkerCount:       cfg.PreflightWorkerCount,
+			JobQueueCapacity:  cfg.PreflightWorkerQueueSize,
+			EnableDebug:       cfg.PreflightEnableDebug,
+			LedgerEntryReader: ledgerEntryReader,
+			NetworkPassphrase: cfg.NetworkPassphrase,
+			Logger:            logger,
+		},
 	)
 
 	jsonRPCHandler := internal.NewJSONRPCHandler(cfg, internal.HandlerParams{
@@ -301,7 +294,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 	eventStore := events.NewMemoryStore(
 		d,
 		cfg.NetworkPassphrase,
-		cfg.EventLedgerRetentionWindow,
+		cfg.HistoryRetentionWindow,
 	)
 	feewindows := feewindow.NewFeeWindows(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow, cfg.NetworkPassphrase)
 

@@ -105,6 +105,8 @@ func (m *mockLedgerReader) StreamAllLedgers(ctx context.Context, f StreamLedgerF
 	return nil
 }
 
-var _ TransactionReader = &mockTransactionHandler{}
-var _ TransactionWriter = &mockTransactionHandler{}
-var _ LedgerReader = &mockLedgerReader{}
+var (
+	_ TransactionReader = &mockTransactionHandler{}
+	_ TransactionWriter = &mockTransactionHandler{}
+	_ LedgerReader      = &mockLedgerReader{}
+)

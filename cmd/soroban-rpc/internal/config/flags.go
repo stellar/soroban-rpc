@@ -1,3 +1,4 @@
+//nolint:forcetypeassert // this file uses several unchecked assertions
 package config
 
 import (
@@ -22,151 +23,153 @@ func (cfg *Config) AddFlags(cmd *cobra.Command) error {
 }
 
 // AddFlag adds a CLI flag for this option to the given flagset.
-func (co *ConfigOption) AddFlag(flagset *pflag.FlagSet) error {
+//
+//nolint:funlen,cyclop
+func (o *Option) AddFlag(flagset *pflag.FlagSet) error {
 	// config options that has no names do not represent a valid flag.
-	if len(co.Name) == 0 {
+	if len(o.Name) == 0 {
 		return nil
 	}
 	// Treat any option with a custom parser as a string option.
-	if co.CustomSetValue != nil {
-		if co.DefaultValue == nil {
-			co.DefaultValue = ""
+	if o.CustomSetValue != nil {
+		if o.DefaultValue == nil {
+			o.DefaultValue = ""
 		}
-		flagset.String(co.Name, fmt.Sprint(co.DefaultValue), co.UsageText())
-		co.flag = flagset.Lookup(co.Name)
+		flagset.String(o.Name, fmt.Sprint(o.DefaultValue), o.UsageText())
+		o.flag = flagset.Lookup(o.Name)
 		return nil
 	}
 
 	// Infer the type of the flag based on the type of the ConfigKey. This list
 	// of options is based on the available flag types from pflags
-	switch co.ConfigKey.(type) {
+	switch o.ConfigKey.(type) {
 	case *bool:
-		flagset.Bool(co.Name, co.DefaultValue.(bool), co.UsageText())
+		flagset.Bool(o.Name, o.DefaultValue.(bool), o.UsageText())
 	case *time.Duration:
-		flagset.Duration(co.Name, co.DefaultValue.(time.Duration), co.UsageText())
+		flagset.Duration(o.Name, o.DefaultValue.(time.Duration), o.UsageText())
 	case *float32:
-		flagset.Float32(co.Name, co.DefaultValue.(float32), co.UsageText())
+		flagset.Float32(o.Name, o.DefaultValue.(float32), o.UsageText())
 	case *float64:
-		flagset.Float64(co.Name, co.DefaultValue.(float64), co.UsageText())
+		flagset.Float64(o.Name, o.DefaultValue.(float64), o.UsageText())
 	case *net.IP:
-		flagset.IP(co.Name, co.DefaultValue.(net.IP), co.UsageText())
+		flagset.IP(o.Name, o.DefaultValue.(net.IP), o.UsageText())
 	case *net.IPNet:
-		flagset.IPNet(co.Name, co.DefaultValue.(net.IPNet), co.UsageText())
+		flagset.IPNet(o.Name, o.DefaultValue.(net.IPNet), o.UsageText())
 	case *int:
-		flagset.Int(co.Name, co.DefaultValue.(int), co.UsageText())
+		flagset.Int(o.Name, o.DefaultValue.(int), o.UsageText())
 	case *int8:
-		flagset.Int8(co.Name, co.DefaultValue.(int8), co.UsageText())
+		flagset.Int8(o.Name, o.DefaultValue.(int8), o.UsageText())
 	case *int16:
-		flagset.Int16(co.Name, co.DefaultValue.(int16), co.UsageText())
+		flagset.Int16(o.Name, o.DefaultValue.(int16), o.UsageText())
 	case *int32:
-		flagset.Int32(co.Name, co.DefaultValue.(int32), co.UsageText())
+		flagset.Int32(o.Name, o.DefaultValue.(int32), o.UsageText())
 	case *int64:
-		flagset.Int64(co.Name, co.DefaultValue.(int64), co.UsageText())
+		flagset.Int64(o.Name, o.DefaultValue.(int64), o.UsageText())
 	case *[]int:
-		flagset.IntSlice(co.Name, co.DefaultValue.([]int), co.UsageText())
+		flagset.IntSlice(o.Name, o.DefaultValue.([]int), o.UsageText())
 	case *[]int32:
-		flagset.Int32Slice(co.Name, co.DefaultValue.([]int32), co.UsageText())
+		flagset.Int32Slice(o.Name, o.DefaultValue.([]int32), o.UsageText())
 	case *[]int64:
-		flagset.Int64Slice(co.Name, co.DefaultValue.([]int64), co.UsageText())
+		flagset.Int64Slice(o.Name, o.DefaultValue.([]int64), o.UsageText())
 	case *string:
 		// Set an empty string if no default was provided, since some value is always required for pflags
-		if co.DefaultValue == nil {
-			co.DefaultValue = ""
+		if o.DefaultValue == nil {
+			o.DefaultValue = ""
 		}
-		flagset.String(co.Name, co.DefaultValue.(string), co.UsageText())
+		flagset.String(o.Name, o.DefaultValue.(string), o.UsageText())
 	case *[]string:
 		// Set an empty string if no default was provided, since some value is always required for pflags
-		if co.DefaultValue == nil {
-			co.DefaultValue = []string{}
+		if o.DefaultValue == nil {
+			o.DefaultValue = []string{}
 		}
-		flagset.StringSlice(co.Name, co.DefaultValue.([]string), co.UsageText())
+		flagset.StringSlice(o.Name, o.DefaultValue.([]string), o.UsageText())
 	case *uint:
-		flagset.Uint(co.Name, co.DefaultValue.(uint), co.UsageText())
+		flagset.Uint(o.Name, o.DefaultValue.(uint), o.UsageText())
 	case *uint8:
-		flagset.Uint8(co.Name, co.DefaultValue.(uint8), co.UsageText())
+		flagset.Uint8(o.Name, o.DefaultValue.(uint8), o.UsageText())
 	case *uint16:
-		flagset.Uint16(co.Name, co.DefaultValue.(uint16), co.UsageText())
+		flagset.Uint16(o.Name, o.DefaultValue.(uint16), o.UsageText())
 	case *uint32:
-		flagset.Uint32(co.Name, co.DefaultValue.(uint32), co.UsageText())
+		flagset.Uint32(o.Name, o.DefaultValue.(uint32), o.UsageText())
 	case *uint64:
-		flagset.Uint64(co.Name, co.DefaultValue.(uint64), co.UsageText())
+		flagset.Uint64(o.Name, o.DefaultValue.(uint64), o.UsageText())
 	case *[]uint:
-		flagset.UintSlice(co.Name, co.DefaultValue.([]uint), co.UsageText())
+		flagset.UintSlice(o.Name, o.DefaultValue.([]uint), o.UsageText())
 	default:
-		return fmt.Errorf("unexpected option type: %T", co.ConfigKey)
+		return fmt.Errorf("unexpected option type: %T", o.ConfigKey)
 	}
 
-	co.flag = flagset.Lookup(co.Name)
+	o.flag = flagset.Lookup(o.Name)
 	return nil
 }
 
-func (co *ConfigOption) GetFlag(flagset *pflag.FlagSet) (interface{}, error) {
+//nolint:cyclop
+func (o *Option) GetFlag(flagset *pflag.FlagSet) (interface{}, error) {
 	// Treat any option with a custom parser as a string option.
-	if co.CustomSetValue != nil {
-		return flagset.GetString(co.Name)
+	if o.CustomSetValue != nil {
+		return flagset.GetString(o.Name)
 	}
 
 	// Infer the type of the flag based on the type of the ConfigKey. This list
 	// of options is based on the available flag types from pflags, and must
 	// match the above in `AddFlag`.
-	switch co.ConfigKey.(type) {
+	switch o.ConfigKey.(type) {
 	case *bool:
-		return flagset.GetBool(co.Name)
+		return flagset.GetBool(o.Name)
 	case *time.Duration:
-		return flagset.GetDuration(co.Name)
+		return flagset.GetDuration(o.Name)
 	case *float32:
-		return flagset.GetFloat32(co.Name)
+		return flagset.GetFloat32(o.Name)
 	case *float64:
-		return flagset.GetFloat64(co.Name)
+		return flagset.GetFloat64(o.Name)
 	case *net.IP:
-		return flagset.GetIP(co.Name)
+		return flagset.GetIP(o.Name)
 	case *net.IPNet:
-		return flagset.GetIPNet(co.Name)
+		return flagset.GetIPNet(o.Name)
 	case *int:
-		return flagset.GetInt(co.Name)
+		return flagset.GetInt(o.Name)
 	case *int8:
-		return flagset.GetInt8(co.Name)
+		return flagset.GetInt8(o.Name)
 	case *int16:
-		return flagset.GetInt16(co.Name)
+		return flagset.GetInt16(o.Name)
 	case *int32:
-		return flagset.GetInt32(co.Name)
+		return flagset.GetInt32(o.Name)
 	case *int64:
-		return flagset.GetInt64(co.Name)
+		return flagset.GetInt64(o.Name)
 	case *[]int:
-		return flagset.GetIntSlice(co.Name)
+		return flagset.GetIntSlice(o.Name)
 	case *[]int32:
-		return flagset.GetInt32Slice(co.Name)
+		return flagset.GetInt32Slice(o.Name)
 	case *[]int64:
-		return flagset.GetInt64Slice(co.Name)
+		return flagset.GetInt64Slice(o.Name)
 	case *string:
-		return flagset.GetString(co.Name)
+		return flagset.GetString(o.Name)
 	case *[]string:
-		return flagset.GetStringSlice(co.Name)
+		return flagset.GetStringSlice(o.Name)
 	case *uint:
-		return flagset.GetUint(co.Name)
+		return flagset.GetUint(o.Name)
 	case *uint8:
-		return flagset.GetUint8(co.Name)
+		return flagset.GetUint8(o.Name)
 	case *uint16:
-		return flagset.GetUint16(co.Name)
+		return flagset.GetUint16(o.Name)
 	case *uint32:
-		return flagset.GetUint32(co.Name)
+		return flagset.GetUint32(o.Name)
 	case *uint64:
-		return flagset.GetUint64(co.Name)
+		return flagset.GetUint64(o.Name)
 	case *[]uint:
-		return flagset.GetUintSlice(co.Name)
+		return flagset.GetUintSlice(o.Name)
 	default:
-		return nil, fmt.Errorf("unexpected option type: %T", co.ConfigKey)
+		return nil, fmt.Errorf("unexpected option type: %T", o.ConfigKey)
 	}
 }
 
 // UsageText returns the string to use for the usage text of the option. The
-// string returned will be the Usage defined on the ConfigOption, along with
+// string returned will be the Usage defined on the Option, along with
 // the environment variable.
-func (co *ConfigOption) UsageText() string {
-	envVar, hasEnvVar := co.getEnvKey()
+func (o *Option) UsageText() string {
+	envVar, hasEnvVar := o.getEnvKey()
 	if hasEnvVar {
-		return fmt.Sprintf("%s (%s)", co.Usage, envVar)
-	} else {
-		return co.Usage
+		return fmt.Sprintf("%s (%s)", o.Usage, envVar)
 	}
+	return o.Usage
 }

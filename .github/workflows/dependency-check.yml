@@ -2,7 +2,7 @@ name: Dependency sanity checker
 
 on:
   push:
-    branches: [main, release/**]
+    branches: [ main, release/** ]
   pull_request:
 
 defaults:
@@ -13,14 +13,14 @@ jobs:
   dependency-sanity-checker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: rustup update
-      - uses: actions/setup-go@v3
-        with:
-          go-version: 1.22
+      - uses: stellar/actions/rust-cache@main
+      - uses: ./.github/actions/setup-go
       - run: scripts/check-dependencies.bash
+
   validate-rust-git-rev-deps:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: stellar/actions/rust-check-git-rev-deps@main

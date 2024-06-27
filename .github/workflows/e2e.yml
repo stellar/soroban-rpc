@@ -2,7 +2,7 @@ name: Soroban Tools e2e
 
 on:
   push:
-    branches: [main, release/**]
+    branches: [ main, release/** ]
   pull_request:
 
 jobs:
@@ -10,7 +10,7 @@ jobs:
     name: System tests
     strategy:
       matrix:
-        scenario-filter: ["^TestDappDevelop$/^.*$"]
+        scenario-filter: [ "^TestDappDevelop$/^.*$" ]
     runs-on: ubuntu-latest-4-cores
     env:
       # the gh tag of system-test repo version to run
@@ -28,7 +28,7 @@ jobs:
       # or set SYSTEM_TEST_CORE_GIT_REF to empty, and set SYSTEM_TEST_CORE_IMAGE
       # to pull a pre-compiled image from dockerhub instead
       SYSTEM_TEST_CORE_IMAGE: stellar/stellar-core:20
-      SYSTEM_TEST_CORE_IMAGE_BIN_PATH: /usr/bin/stellar-core 
+      SYSTEM_TEST_CORE_IMAGE_BIN_PATH: /usr/bin/stellar-core
 
       # sets the version of rust toolchain that will be pre-installed in the
       # test runtime environment, tests invoke rustc/cargo
@@ -42,8 +42,8 @@ jobs:
       # option #2, set the version of stellar-sdk used as a ref to a gh repo if
       # a value is set on SYSTEM_TEST_JS_STELLAR_SDK_GH_REPO, it takes
       # precedence over any SYSTEM_TEST_JS_STELLAR_SDK_NPM_VERSION
-      SYSTEM_TEST_JS_STELLAR_SDK_GH_REPO: 
-      SYSTEM_TEST_JS_STELLAR_SDK_GH_REF: 
+      SYSTEM_TEST_JS_STELLAR_SDK_GH_REPO:
+      SYSTEM_TEST_JS_STELLAR_SDK_GH_REF:
 
       # the version of rs-stellar-xdr to use for quickstart
       SYSTEM_TEST_RS_XDR_GIT_REF: v20.0.2
@@ -59,18 +59,18 @@ jobs:
       SYSTEM_TEST_SOROBAN_EXAMPLES_GIT_HASH: "v20.0.0"
       SYSTEM_TEST_SOROBAN_EXAMPLES_GIT_REPO: "https://github.com/stellar/soroban-examples.git"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         name: checkout system-test
         with:
           repository: stellar/system-test
           ref: ${{ env.SYSTEM_TEST_GIT_REF }}
           path: system-test
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         name: checkout soroban-tools
         with:
           repository: stellar/soroban-tools
           path: soroban-tools
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         name: checkout soroban-rpc
         with:
           repository: stellar/soroban-rpc
@@ -81,7 +81,7 @@ jobs:
         run: |
           rm -rf $GITHUB_WORKSPACE/system-test/js-stellar-sdk;
       - if: ${{ env.SYSTEM_TEST_JS_STELLAR_SDK_GH_REPO != ''}}
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: ${{ env.SYSTEM_TEST_JS_STELLAR_SDK_GH_REPO }}
           ref: ${{ env.SYSTEM_TEST_JS_STELLAR_SDK_GH_REF }}

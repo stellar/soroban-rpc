@@ -1,34 +1,36 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
 	"time"
 
 	"github.com/spf13/pflag"
-	"github.com/stellar/go/support/errors"
+
 	"github.com/stellar/go/support/strutils"
 )
 
-// ConfigOptions is a group of ConfigOptions that can be for convenience
+// Options is a group of Options that can be for convenience
 // initialized and set at the same time.
-type ConfigOptions []*ConfigOption
+type Options []*Option
 
 // Validate all the config options.
-func (options ConfigOptions) Validate() error {
-	var missingOptions []errMissingRequiredOption
+func (options Options) Validate() error {
+	var missingOptions []missingRequiredOptionError
 	for _, option := range options {
 		if option.Validate != nil {
 			err := option.Validate(option)
 			if err == nil {
 				continue
 			}
-			if missingOption, ok := err.(errMissingRequiredOption); ok {
-				missingOptions = append(missingOptions, missingOption)
+			var missingOptionErr missingRequiredOptionError
+			if ok := errors.As(err, &missingOptionErr); ok {
+				missingOptions = append(missingOptions, missingOptionErr)
 				continue
 			}
-			return errors.Wrap(err, fmt.Sprintf("Invalid config value for %s", option.Name))
+			return errors.New("Invalid config value for " + option.Name)
 		}
 	}
 	if len(missingOptions) > 0 {
@@ -38,28 +40,36 @@ func (options ConfigOptions) Validate() error {
 			errString += "\n*\t" + missingOpt.strErr
 			errString += "\n \t" + missingOpt.usage
 		}
-		return &errMissingRequiredOption{strErr: errString}
+		return &missingRequiredOptionError{strErr: errString}
 	}
 	return nil
 }
 
-// ConfigOption is a complete description of the configuration of a command line option
-type ConfigOption struct {
-	Name           string                                 // e.g. "database-url"
-	EnvVar         string                                 // e.g. "DATABASE_URL". Defaults to uppercase/underscore representation of name
-	TomlKey        string                                 // e.g. "DATABASE_URL". Defaults to uppercase/underscore representation of name. - to omit from toml
-	Usage          string                                 // Help text
-	DefaultValue   interface{}                            // A default if no option is provided. Omit or set to `nil` if no default
-	ConfigKey      interface{}                            // Pointer to the final key in the linked Config struct
-	CustomSetValue func(*ConfigOption, interface{}) error // Optional function for custom validation/transformation
-	Validate       func(*ConfigOption) error              // Function called after loading all options, to validate the configuration
-	MarshalTOML    func(*ConfigOption) (interface{}, error)
+// Option is a complete description of the configuration of a command line option
+type Option struct {
+	// e.g. "database-url"
+	Name string
+	// e.g. "DATABASE_URL".Defaults to uppercase/underscore representation of name
+	EnvVar string
+	// e.g. "DATABASE_URL". Defaults to uppercase/underscore representation of name. - to omit from toml
+	TomlKey string
+	// Help text
+	Usage string
+	// A default if no option is provided. Omit or set to `nil` if no default
+	DefaultValue interface{}
+	// Pointer to the final key in the linked Config struct
+	ConfigKey interface{}
+	// Optional function for custom validation/transformation
+	CustomSetValue func(*Option, interface{}) error
+	// Function called after loading all options, to validate the configuration
+	Validate    func(*Option) error
+	MarshalTOML func(*Option) (interface{}, error)
 
 	flag *pflag.Flag // The persistent flag that the config option is attached to
 }
 
 // Returns false if this option is omitted in the toml
-func (o ConfigOption) getTomlKey() (string, bool) {
+func (o Option) getTomlKey() (string, bool) {
 	if o.TomlKey == "-" || o.TomlKey == "_" {
 		return "", false
 	}
@@ -73,7 +83,7 @@ func (o ConfigOption) getTomlKey() (string, bool) {
 }
 
 // Returns false if this option is omitted in the env
-func (o ConfigOption) getEnvKey() (string, bool) {
+func (o Option) getEnvKey() (string, bool) {
 	if o.EnvVar == "-" || o.EnvVar == "_" {
 		return "", false
 	}
@@ -84,7 +94,7 @@ func (o ConfigOption) getEnvKey() (string, bool) {
 }
 
 // TODO: See if we can remove CustomSetValue into just SetValue/ParseValue
-func (o *ConfigOption) setValue(i interface{}) (err error) {
+func (o *Option) setValue(i interface{}) (err error) {
 	if o.CustomSetValue != nil {
 		return o.CustomSetValue(o, i)
 	}
@@ -95,11 +105,11 @@ func (o *ConfigOption) setValue(i interface{}) (err error) {
 				return
 			}
 
-			err = errors.Errorf("config option setting error ('%s') %v", o.Name, recoverRes)
+			err = fmt.Errorf("config option setting error ('%s') %v", o.Name, recoverRes)
 		}
 	}()
-	parser := func(option *ConfigOption, i interface{}) error {
-		return errors.Errorf("no parser for flag %s", o.Name)
+	parser := func(_ *Option, _ interface{}) error {
+		return fmt.Errorf("no parser for flag %s", o.Name)
 	}
 	switch o.ConfigKey.(type) {
 	case *bool:
@@ -123,7 +133,7 @@ func (o *ConfigOption) setValue(i interface{}) (err error) {
 	return parser(o, i)
 }
 
-func (o *ConfigOption) marshalTOML() (interface{}, error) {
+func (o *Option) marshalTOML() (interface{}, error) {
 	if o.MarshalTOML != nil {
 		return o.MarshalTOML(o)
 	}

@@ -20,18 +20,8 @@ type LedgerBucket[T any] struct {
 	BucketContent        T
 }
 
-// OneDayOfLedgers is (roughly) a 24 hour window of ledgers.
-const OneDayOfLedgers = 17280
-
-// DefaultEventLedgerRetentionWindow represents the max number of ledgers we
-// would like to keep an incoming event in memory.
-const DefaultEventLedgerRetentionWindow = OneDayOfLedgers
-
 // NewLedgerBucketWindow creates a new LedgerBucketWindow
 func NewLedgerBucketWindow[T any](retentionWindow uint32) *LedgerBucketWindow[T] {
-	if retentionWindow == 0 {
-		retentionWindow = DefaultEventLedgerRetentionWindow
-	}
 	return &LedgerBucketWindow[T]{
 		buckets: make([]LedgerBucket[T], 0, retentionWindow),
 	}
@@ -43,7 +33,12 @@ func (w *LedgerBucketWindow[T]) Append(bucket LedgerBucket[T]) (*LedgerBucket[T]
 	if length > 0 {
 		expectedLedgerSequence := w.buckets[w.start].LedgerSeq + length
 		if expectedLedgerSequence != bucket.LedgerSeq {
-			return &LedgerBucket[T]{}, fmt.Errorf("error appending ledgers: ledgers not contiguous: expected ledger sequence %v but received %v", expectedLedgerSequence, bucket.LedgerSeq)
+			err := fmt.Errorf(
+				"error appending ledgers: ledgers not contiguous: expected ledger sequence %v but received %v",
+				expectedLedgerSequence,
+				bucket.LedgerSeq,
+			)
+			return &LedgerBucket[T]{}, err
 		}
 	}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -14,7 +15,6 @@ import (
 	migrate "github.com/rubenv/sql-migrate"
 
 	"github.com/stellar/go/support/db"
-	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
@@ -63,12 +63,12 @@ func openSQLiteDB(dbFilePath string) (*db.Session, error) {
 	// 3. Use synchronous=NORMAL, which is faster and still safe in WAL mode.
 	session, err := db.Open("sqlite3", fmt.Sprintf("file:%s?_journal_mode=WAL&_wal_autocheckpoint=0&_synchronous=NORMAL", dbFilePath))
 	if err != nil {
-		return nil, errors.Wrap(err, "open failed")
+		return nil, fmt.Errorf("open failed: %w", err)
 	}
 
 	if err = runSQLMigrations(session.DB.DB, "sqlite3"); err != nil {
 		_ = session.Close()
-		return nil, errors.Wrap(err, "could not run SQL migrations")
+		return nil, fmt.Errorf("could not run SQL migrations: %w", err)
 	}
 	return session, nil
 }
@@ -294,7 +294,7 @@ func (w writeTx) Commit(ledgerSeq uint32) error {
 	}
 
 	_, err := sq.Replace(metaTableName).
-		Values(latestLedgerSequenceMetaKey, fmt.Sprintf("%d", ledgerSeq)).
+		Values(latestLedgerSequenceMetaKey, strconv.FormatUint(uint64(ledgerSeq), 10)).
 		RunWith(w.stmtCache).
 		Exec()
 	if err != nil {

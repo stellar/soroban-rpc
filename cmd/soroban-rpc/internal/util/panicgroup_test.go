@@ -7,8 +7,9 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/stellar/go/support/log"
 	"github.com/stretchr/testify/require"
+
+	"github.com/stellar/go/support/log"
 )
 
 func TestTrivialPanicGroup(t *testing.T) {
@@ -34,18 +35,22 @@ func makeTestLogCounter() *TestLogsCounter {
 	out.entry.SetLevel(logrus.DebugLevel)
 	return out
 }
+
 func (te *TestLogsCounter) Entry() *log.Entry {
 	return te.entry
 }
+
 func (te *TestLogsCounter) Levels() []logrus.Level {
 	return []logrus.Level{logrus.PanicLevel, logrus.FatalLevel, logrus.ErrorLevel, logrus.WarnLevel, logrus.InfoLevel, logrus.DebugLevel, logrus.TraceLevel}
 }
+
 func (te *TestLogsCounter) Fire(e *logrus.Entry) error {
 	te.mu.Lock()
 	defer te.mu.Unlock()
 	te.writtenLogEntries[e.Level]++
 	return nil
 }
+
 func (te *TestLogsCounter) GetLevel(i int) int {
 	te.mu.Lock()
 	defer te.mu.Unlock()

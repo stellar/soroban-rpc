@@ -18,20 +18,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/stellar/go/clients/stellarcore"
 	"github.com/stellar/go/keypair"
 	proto "github.com/stellar/go/protocols/stellarcore"
 	supportlog "github.com/stellar/go/support/log"
 	"github.com/stellar/go/txnbuild"
 	"github.com/stellar/go/xdr"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 )
 
 const (
@@ -194,7 +193,7 @@ func (i *Test) spawnContainers() {
 	i.runSuccessfulComposeCommand(upCmd...)
 	if i.runRPCInContainer() {
 		i.rpcContainerLogsCommand = i.getComposeCommand("logs", "--no-log-prefix", "-f", "rpc")
-		writer := testLogWriter{t: i.t, prefix: fmt.Sprintf(`rpc="container" version="%s" `, i.rpcContainerVersion)}
+		writer := newTestLogWriter(i.t, fmt.Sprintf(`rpc="container" version="%s" `, i.rpcContainerVersion))
 		i.rpcContainerLogsCommand.Stdout = writer
 		i.rpcContainerLogsCommand.Stderr = writer
 		require.NoError(i.t, i.rpcContainerLogsCommand.Start())
@@ -210,7 +209,6 @@ func (i *Test) stopContainers() {
 	}
 	downCmd = append(downCmd, "-v")
 	i.runSuccessfulComposeCommand(downCmd...)
-
 }
 
 func (i *Test) GetPorts() TestPorts {
@@ -224,6 +222,7 @@ func (i *Test) runRPCInContainer() bool {
 func (i *Test) GetRPCLient() *Client {
 	return i.rpcClient
 }
+
 func (i *Test) MasterKey() *keypair.Full {
 	return keypair.Root(StandaloneNetworkPassphrase)
 }
@@ -321,8 +320,7 @@ func (vars rpcConfig) toMap() map[string]string {
 		"LOG_LEVEL":                      "debug",
 		"DB_PATH":                        vars.sqlitePath,
 		"INGESTION_TIMEOUT":              "10m",
-		"EVENT_LEDGER_RETENTION_WINDOW":  strconv.Itoa(ledgerbucketwindow.OneDayOfLedgers),
-		"TRANSACTION_RETENTION_WINDOW":   strconv.Itoa(ledgerbucketwindow.OneDayOfLedgers),
+		"HISTORY_RETENTION_WINDOW":       strconv.Itoa(config.OneDayOfLedgers),
 		"CHECKPOINT_FREQUENCY":           strconv.Itoa(checkpointFrequency),
 		"MAX_HEALTHY_LEDGER_LATENCY":     "10s",
 		"PREFLIGHT_ENABLE_DEBUG":         "true",
@@ -378,7 +376,8 @@ func (i *Test) generateCaptiveCoreCfg(tmplContents []byte, captiveCorePort uint1
 	}
 
 	captiveCoreCfgContents := os.Expand(string(tmplContents), mapping)
-	err := os.WriteFile(filepath.Join(i.rpcConfigFilesDir, captiveCoreConfigFilename), []byte(captiveCoreCfgContents), 0666)
+	fileName := filepath.Join(i.rpcConfigFilesDir, captiveCoreConfigFilename)
+	err := os.WriteFile(fileName, []byte(captiveCoreCfgContents), 0o666)
 	require.NoError(i.t, err)
 }
 
@@ -393,16 +392,38 @@ func (i *Test) generateRPCConfigFile(rpcConfig rpcConfig) {
 	for k, v := range rpcConfig.toMap() {
 		cfgFileContents += fmt.Sprintf("%s=%q\n", k, v)
 	}
-	err := os.WriteFile(filepath.Join(i.rpcConfigFilesDir, "soroban-rpc.config"), []byte(cfgFileContents), 0666)
+	err := os.WriteFile(filepath.Join(i.rpcConfigFilesDir, "soroban-rpc.config"), []byte(cfgFileContents), 0o666)
 	require.NoError(i.t, err)
 }
 
-type testLogWriter struct {
-	t      *testing.T
-	prefix string
+func newTestLogWriter(t *testing.T, prefix string) *testLogWriter {
+	tw := &testLogWriter{t: t, prefix: prefix}
+	t.Cleanup(func() {
+		tw.testDoneMx.Lock()
+		tw.testDone = true
+		tw.testDoneMx.Unlock()
+	})
+	return tw
 }
 
-func (tw testLogWriter) Write(p []byte) (n int, err error) {
+type testLogWriter struct {
+	t          *testing.T
+	prefix     string
+	testDoneMx sync.RWMutex
+	testDone   bool
+}
+
+func (tw *testLogWriter) Write(p []byte) (n int, err error) {
+	tw.testDoneMx.RLock()
+	if tw.testDone {
+		// Workaround for https://github.com/stellar/go/issues/5342
+		// and https://github.com/stellar/go/issues/5350, which causes a race condition
+		// in test logging
+		// TODO: remove once the tickets are fixed
+		tw.testDoneMx.RUnlock()
+		return len(p), nil
+	}
+	tw.testDoneMx.RUnlock()
 	all := strings.TrimSpace(string(p))
 	lines := strings.Split(all, "\n")
 	for _, l := range lines {
@@ -420,10 +441,9 @@ func (i *Test) createRPCDaemon(c rpcConfig) *daemon.Daemon {
 	}
 	require.NoError(i.t, cfg.SetValues(lookup))
 	require.NoError(i.t, cfg.Validate())
-	cfg.HistoryArchiveUserAgent = fmt.Sprintf("soroban-rpc/%s", config.Version)
 
 	logger := supportlog.New()
-	logger.SetOutput(testLogWriter{t: i.t, prefix: `rpc="daemon" `})
+	logger.SetOutput(newTestLogWriter(i.t, `rpc="daemon" `))
 	return daemon.MustNew(&cfg, logger)
 }
 

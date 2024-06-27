@@ -52,11 +52,9 @@ func TestConfigLoadDefaults(t *testing.T) {
 }
 
 func TestConfigExtendedUserAgent(t *testing.T) {
-	cfg := Config{
-		HistoryArchiveUserAgent: "Test",
-	}
+	var cfg Config
 	require.NoError(t, cfg.loadDefaults())
-	assert.Equal(t, "Test/123", cfg.ExtendedUserAgent("123"))
+	assert.Equal(t, "soroban-rpc/0.0.0/123", cfg.ExtendedUserAgent("123"))
 }
 
 func TestConfigLoadFlagsDefaultValuesOverrideExisting(t *testing.T) {
