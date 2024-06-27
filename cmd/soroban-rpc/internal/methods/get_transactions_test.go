@@ -7,6 +7,7 @@ import (
 
 	"github.com/creachadair/jrpc2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/go/toid"
 	"github.com/stellar/go/xdr"
@@ -37,12 +38,12 @@ func createTestLedger(sequence uint32) xdr.LedgerCloseMeta {
 }
 
 func TestGetTransactions_DefaultLimit(t *testing.T) {
-	mockDbReader := db.NewMockTransactionStore(NetworkPassphrase)
-	mockLedgerReader := db.NewMockLedgerReader(mockDbReader)
+	mockDBReader := db.NewMockTransactionStore(NetworkPassphrase)
+	mockLedgerReader := db.NewMockLedgerReader(mockDBReader)
 	for i := 1; i <= 10; i++ {
 		meta := createTestLedger(uint32(i))
-		err := mockDbReader.InsertTransactions(meta)
-		assert.NoError(t, err)
+		err := mockDBReader.InsertTransactions(meta)
+		require.NoError(t, err)
 	}
 
 	handler := transactionsRPCHandler{
@@ -57,7 +58,7 @@ func TestGetTransactions_DefaultLimit(t *testing.T) {
 	}
 
 	response, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// assert latest ledger details
 	assert.Equal(t, uint32(10), response.LatestLedger)
@@ -76,7 +77,7 @@ func TestGetTransactions_DefaultLimitExceedsLatestLedger(t *testing.T) {
 	for i := 1; i <= 3; i++ {
 		meta := createTestLedger(uint32(i))
 		err := mockDBReader.InsertTransactions(meta)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 
 	handler := transactionsRPCHandler{
@@ -91,7 +92,7 @@ func TestGetTransactions_DefaultLimitExceedsLatestLedger(t *testing.T) {
 	}
 
 	response, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// assert latest ledger details
 	assert.Equal(t, uint32(3), response.LatestLedger)
@@ -110,7 +111,7 @@ func TestGetTransactions_CustomLimit(t *testing.T) {
 	for i := 1; i <= 10; i++ {
 		meta := createTestLedger(uint32(i))
 		err := mockDBReader.InsertTransactions(meta)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 
 	handler := transactionsRPCHandler{
@@ -128,7 +129,7 @@ func TestGetTransactions_CustomLimit(t *testing.T) {
 	}
 
 	response, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// assert latest ledger details
 	assert.Equal(t, uint32(10), response.LatestLedger)
@@ -149,7 +150,7 @@ func TestGetTransactions_CustomLimitAndCursor(t *testing.T) {
 	for i := 1; i <= 10; i++ {
 		meta := createTestLedger(uint32(i))
 		err := mockDBReader.InsertTransactions(meta)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 
 	handler := transactionsRPCHandler{
@@ -167,7 +168,7 @@ func TestGetTransactions_CustomLimitAndCursor(t *testing.T) {
 	}
 
 	response, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// assert latest ledger details
 	assert.Equal(t, uint32(10), response.LatestLedger)
@@ -184,12 +185,12 @@ func TestGetTransactions_CustomLimitAndCursor(t *testing.T) {
 }
 
 func TestGetTransactions_InvalidStartLedger(t *testing.T) {
-	mockDbReader := db.NewMockTransactionStore(NetworkPassphrase)
-	mockLedgerReader := db.NewMockLedgerReader(mockDbReader)
+	mockDBReader := db.NewMockTransactionStore(NetworkPassphrase)
+	mockLedgerReader := db.NewMockLedgerReader(mockDBReader)
 	for i := 1; i <= 3; i++ {
 		meta := createTestLedger(uint32(i))
-		err := mockDbReader.InsertTransactions(meta)
-		assert.NoError(t, err)
+		err := mockDBReader.InsertTransactions(meta)
+		require.NoError(t, err)
 	}
 
 	handler := transactionsRPCHandler{
@@ -213,16 +214,16 @@ func TestGetTransactions_InvalidStartLedger(t *testing.T) {
 }
 
 func TestGetTransactions_LedgerNotFound(t *testing.T) {
-	mockDbReader := db.NewMockTransactionStore(NetworkPassphrase)
-	mockLedgerReader := db.NewMockLedgerReader(mockDbReader)
+	mockDBReader := db.NewMockTransactionStore(NetworkPassphrase)
+	mockLedgerReader := db.NewMockLedgerReader(mockDBReader)
 	for i := 1; i <= 3; i++ {
 		// Skip creation of ledger 2
 		if i == 2 {
 			continue
 		}
 		meta := createTestLedger(uint32(i))
-		err := mockDbReader.InsertTransactions(meta)
-		assert.NoError(t, err)
+		err := mockDBReader.InsertTransactions(meta)
+		require.NoError(t, err)
 	}
 
 	handler := transactionsRPCHandler{
@@ -243,12 +244,12 @@ func TestGetTransactions_LedgerNotFound(t *testing.T) {
 }
 
 func TestGetTransactions_LimitGreaterThanMaxLimit(t *testing.T) {
-	mockDbReader := db.NewMockTransactionStore(NetworkPassphrase)
-	mockLedgerReader := db.NewMockLedgerReader(mockDbReader)
+	mockDBReader := db.NewMockTransactionStore(NetworkPassphrase)
+	mockLedgerReader := db.NewMockLedgerReader(mockDBReader)
 	for i := 1; i <= 3; i++ {
 		meta := createTestLedger(uint32(i))
-		err := mockDbReader.InsertTransactions(meta)
-		assert.NoError(t, err)
+		err := mockDBReader.InsertTransactions(meta)
+		require.NoError(t, err)
 	}
 
 	handler := transactionsRPCHandler{
@@ -271,12 +272,12 @@ func TestGetTransactions_LimitGreaterThanMaxLimit(t *testing.T) {
 }
 
 func TestGetTransactions_InvalidCursorString(t *testing.T) {
-	mockDbReader := db.NewMockTransactionStore(NetworkPassphrase)
-	mockLedgerReader := db.NewMockLedgerReader(mockDbReader)
+	mockDBReader := db.NewMockTransactionStore(NetworkPassphrase)
+	mockLedgerReader := db.NewMockLedgerReader(mockDBReader)
 	for i := 1; i <= 3; i++ {
 		meta := createTestLedger(uint32(i))
-		err := mockDbReader.InsertTransactions(meta)
-		assert.NoError(t, err)
+		err := mockDBReader.InsertTransactions(meta)
+		require.NoError(t, err)
 	}
 
 	handler := transactionsRPCHandler{
