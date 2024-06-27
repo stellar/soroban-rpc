@@ -13,11 +13,14 @@ import (
 
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/strutils"
-
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
-const defaultHTTPEndpoint = "localhost:8000"
+const (
+	// OneDayOfLedgers is (roughly) a 24 hour window of ledgers.
+	OneDayOfLedgers = 17280
+
+	defaultHTTPEndpoint = "localhost:8000"
+)
 
 // TODO: refactor and remove the linter exceptions
 //
@@ -159,7 +162,7 @@ func (cfg *Config) options() Options {
 					if v == "" || v == "." {
 						cwd, err := os.Getwd()
 						if err != nil {
-							return fmt.Errorf("unable to determine the current directory: %s", err)
+							return fmt.Errorf("unable to determine the current directory: %w", err)
 						}
 						v = cwd
 					}
@@ -168,7 +171,7 @@ func (cfg *Config) options() Options {
 				case nil:
 					cwd, err := os.Getwd()
 					if err != nil {
-						return fmt.Errorf("unable to determine the current directory: %s", err)
+						return fmt.Errorf("unable to determine the current directory: %w", err)
 					}
 					cfg.CaptiveCoreStoragePath = cwd
 					return nil
@@ -213,23 +216,35 @@ func (cfg *Config) options() Options {
 			DefaultValue: uint32(64),
 		},
 		{
-			Name: "event-retention-window",
+			Name: "history-retention-window",
 			Usage: fmt.Sprintf(
-				"configures the event retention window expressed in number of ledgers,"+
+				"configures history retention window for transactions and events, expressed in number of ledgers,"+
 					" the default value is %d which corresponds to about 24 hours of history",
-				ledgerbucketwindow.DefaultEventLedgerRetentionWindow),
-			ConfigKey:    &cfg.EventLedgerRetentionWindow,
-			DefaultValue: uint32(ledgerbucketwindow.DefaultEventLedgerRetentionWindow),
+				OneDayOfLedgers),
+			ConfigKey:    &cfg.HistoryRetentionWindow,
+			DefaultValue: uint32(OneDayOfLedgers),
 			Validate:     positive,
 		},
+		// TODO: remove
+		{
+			Name: "event-retention-window",
+			Usage: fmt.Sprintf(
+				"(Deprecated, overidden by history-retention-window) configures the event retention window expressed in number of ledgers,"+
+					" the default value is %d which corresponds to about 24 hours of history",
+				OneDayOfLedgers),
+			ConfigKey:    &cfg.EventLedgerRetentionWindow,
+			DefaultValue: uint32(OneDayOfLedgers),
+			Validate:     positive,
+		},
+		// TODO: remove
 		{
 			Name: "transaction-retention-window",
 			Usage: fmt.Sprintf(
-				"configures the transaction retention window expressed in number of ledgers,"+
+				"(Deprecated, overidden by history-retention-window) configures the transaction retention window expressed in number of ledgers,"+
 					" the default value is %d which corresponds to about 24 hours of history",
-				ledgerbucketwindow.OneDayOfLedgers),
+				OneDayOfLedgers),
 			ConfigKey:    &cfg.TransactionLedgerRetentionWindow,
-			DefaultValue: uint32(ledgerbucketwindow.OneDayOfLedgers),
+			DefaultValue: uint32(OneDayOfLedgers),
 			Validate:     positive,
 		},
 		{
@@ -504,7 +519,7 @@ func required(option *Option) error {
 		}
 	}
 
-	waysToSet := []string{}
+	var waysToSet []string
 	if option.Name != "" && option.Name != "-" {
 		waysToSet = append(waysToSet, fmt.Sprintf("specify --%s on the command line", option.Name))
 	}

@@ -20,18 +20,8 @@ type LedgerBucket[T any] struct {
 	BucketContent        T
 }
 
-// OneDayOfLedgers is (roughly) a 24 hour window of ledgers.
-const OneDayOfLedgers = 17280
-
-// DefaultEventLedgerRetentionWindow represents the max number of ledgers we
-// would like to keep an incoming event in memory.
-const DefaultEventLedgerRetentionWindow = OneDayOfLedgers
-
 // NewLedgerBucketWindow creates a new LedgerBucketWindow
 func NewLedgerBucketWindow[T any](retentionWindow uint32) *LedgerBucketWindow[T] {
-	if retentionWindow == 0 {
-		retentionWindow = DefaultEventLedgerRetentionWindow
-	}
 	return &LedgerBucketWindow[T]{
 		buckets: make([]LedgerBucket[T], 0, retentionWindow),
 	}
