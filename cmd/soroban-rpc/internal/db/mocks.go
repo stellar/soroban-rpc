@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -12,7 +13,7 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
-type mockTransactionHandler struct {
+type MockTransactionHandler struct {
 	passphrase string
 
 	ledgerRange     ledgerbucketwindow.LedgerRange
@@ -21,8 +22,8 @@ type mockTransactionHandler struct {
 	ledgerSeqToMeta map[uint32]*xdr.LedgerCloseMeta
 }
 
-func NewMockTransactionStore(passphrase string) *mockTransactionHandler {
-	return &mockTransactionHandler{
+func NewMockTransactionStore(passphrase string) *MockTransactionHandler {
+	return &MockTransactionHandler{
 		passphrase:      passphrase,
 		txs:             make(map[string]ingest.LedgerTransaction),
 		txHashToMeta:    make(map[string]*xdr.LedgerCloseMeta),
@@ -30,7 +31,7 @@ func NewMockTransactionStore(passphrase string) *mockTransactionHandler {
 	}
 }
 
-func (txn *mockTransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error {
+func (txn *MockTransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error {
 	txn.ledgerSeqToMeta[lcm.LedgerSequence()] = &lcm
 
 	reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(txn.passphrase, lcm)
@@ -40,7 +41,7 @@ func (txn *mockTransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) e
 
 	for {
 		tx, err := reader.Read()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return err
@@ -65,7 +66,7 @@ func (txn *mockTransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) e
 	return nil
 }
 
-func (txn *mockTransactionHandler) GetTransaction(_ context.Context, hash xdr.Hash) (
+func (txn *MockTransactionHandler) GetTransaction(_ context.Context, hash xdr.Hash) (
 	Transaction, error,
 ) {
 	tx, ok := txn.txs[hash.HexString()]
@@ -76,19 +77,19 @@ func (txn *mockTransactionHandler) GetTransaction(_ context.Context, hash xdr.Ha
 	return itx, err
 }
 
-func (txn *mockTransactionHandler) RegisterMetrics(_, _ prometheus.Observer) {}
+func (txn *MockTransactionHandler) RegisterMetrics(_, _ prometheus.Observer) {}
 
-type mockLedgerReader struct {
-	txn mockTransactionHandler
+type MockLedgerReader struct {
+	txn *MockTransactionHandler
 }
 
-func NewMockLedgerReader(txn *mockTransactionHandler) *mockLedgerReader {
-	return &mockLedgerReader{
-		txn: *txn,
+func NewMockLedgerReader(txn *MockTransactionHandler) *MockLedgerReader {
+	return &MockLedgerReader{
+		txn: txn,
 	}
 }
 
-func (m *mockLedgerReader) GetLedger(_ context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
+func (m *MockLedgerReader) GetLedger(_ context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
 	lcm, ok := m.txn.ledgerSeqToMeta[sequence]
 	if !ok {
 		return xdr.LedgerCloseMeta{}, false, nil
@@ -96,16 +97,16 @@ func (m *mockLedgerReader) GetLedger(_ context.Context, sequence uint32) (xdr.Le
 	return *lcm, true, nil
 }
 
-func (m *mockLedgerReader) StreamAllLedgers(_ context.Context, _ StreamLedgerFn) error {
+func (m *MockLedgerReader) StreamAllLedgers(_ context.Context, _ StreamLedgerFn) error {
 	return nil
 }
 
-func (m *mockLedgerReader) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
-	return ledgerbucketwindow.LedgerRange{}, nil
+func (m *MockLedgerReader) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
+	return m.txn.ledgerRange, nil
 }
 
 var (
-	_ TransactionReader = &mockTransactionHandler{}
-	_ TransactionWriter = &mockTransactionHandler{}
-	_ LedgerReader      = &mockLedgerReader{}
+	_ TransactionReader = &MockTransactionHandler{}
+	_ TransactionWriter = &MockTransactionHandler{}
+	_ LedgerReader      = &MockLedgerReader{}
 )

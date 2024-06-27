@@ -19,7 +19,6 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
 //go:embed sqlmigrations/*.sql
@@ -31,10 +30,6 @@ const (
 	metaTableName               = "metadata"
 	latestLedgerSequenceMetaKey = "LatestLedgerSequence"
 )
-
-type LedgerRangeGetter interface {
-	GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error)
-}
 
 type ReadWriter interface {
 	NewTx(ctx context.Context) (WriteTx, error)

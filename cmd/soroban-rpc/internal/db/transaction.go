@@ -45,8 +45,7 @@ type TransactionWriter interface {
 
 // TransactionReader provides all the public ways to read from the DB.
 type TransactionReader interface {
-	GetTransaction(ctx context.Context, hash xdr.Hash) (Transaction, ledgerbucketwindow.LedgerRange, error)
-	LedgerRangeGetter
+	GetTransaction(ctx context.Context, hash xdr.Hash) (Transaction, error)
 }
 
 type transactionHandler struct {
@@ -139,40 +138,6 @@ func (txn *transactionHandler) trimTransactions(latestLedgerSeq uint32, retentio
 	return err
 }
 
-// GetLedgerRange pulls the min/max ledger sequence numbers from the transactions table.
-func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
-	var ledgerRange ledgerbucketwindow.LedgerRange
-
-	query := sq.Select("lcm.meta").
-		FromSelect(
-			sq.Select("meta").
-				From(ledgerCloseMetaTableName+" as lcm").
-				Where(sq.Expr("lcm.sequence IN (SELECT MIN(ledger_sequence) FROM "+transactionTableName+
-					" UNION ALL SELECT MAX(ledger_sequence) FROM "+transactionTableName+")")),
-			"lcm",
-		)
-
-	var lcms []xdr.LedgerCloseMeta
-	if err := txn.db.Select(ctx, &lcms, query); err != nil {
-		return ledgerRange, fmt.Errorf("couldn't query ledger range: %w", err)
-	} else if len(lcms) < getLedgerRangeMetaArrayCheckValue {
-		// There is almost certainly a row, but we want to avoid a race condition
-		// with ingestion as well as support test cases from an empty DB, so we need
-		// to sanity check that there is in fact a result. Note that no ledgers in
-		// the database isn't an error, it's just an empty range.
-		return ledgerRange, nil
-	}
-
-	lcm1, lcm2 := lcms[0], lcms[1]
-	ledgerRange.FirstLedger.Sequence = lcm1.LedgerSequence()
-	ledgerRange.FirstLedger.CloseTime = lcm1.LedgerCloseTime()
-	ledgerRange.LastLedger.Sequence = lcm2.LedgerSequence()
-	ledgerRange.LastLedger.CloseTime = lcm2.LedgerCloseTime()
-
-	txn.log.Debugf("Database ledger range: [%d, %d]", ledgerRange.FirstLedger.Sequence, ledgerRange.LastLedger.Sequence)
-	return ledgerRange, nil
-}
-
 // GetTransaction conforms to the interface in
 // methods/get_transaction.go#NewGetTransactionHandler so that it can be used
 // directly against the RPC handler.
@@ -180,23 +145,18 @@ func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucket
 // Errors occur if there are issues with the DB connection or the XDR is
 // corrupted somehow. If the transaction is not found, io.EOF is returned.
 func (txn *transactionHandler) GetTransaction(ctx context.Context, hash xdr.Hash) (
-	Transaction, ledgerbucketwindow.LedgerRange, error,
+	Transaction, error,
 ) {
 	start := time.Now()
 	tx := Transaction{}
 
-	ledgerRange, err := txn.GetLedgerRange(ctx)
-	if err != nil && !errors.Is(err, ErrEmptyDB) {
-		return tx, ledgerRange, err
-	}
-
 	lcm, ingestTx, err := txn.getTransactionByHash(ctx, hash)
 	if err != nil {
-		return tx, ledgerRange, err
+		return tx, err
 	}
 	tx, err = ParseTransaction(lcm, ingestTx)
 	if err != nil {
-		return tx, ledgerRange, err
+		return tx, err
 	}
 
 	txn.log.
@@ -204,7 +164,7 @@ func (txn *transactionHandler) GetTransaction(ctx context.Context, hash xdr.Hash
 		WithField("duration", time.Since(start)).
 		Debugf("Fetched and encoded transaction from ledger %d", lcm.LedgerSequence())
 
-	return tx, ledgerRange, nil
+	return tx, nil
 }
 
 // getTransactionByHash actually performs the DB ops to cross-reference a

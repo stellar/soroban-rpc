@@ -20,7 +20,7 @@ const (
 
 // createTestLedger Creates a test ledger with 2 transactions
 func createTestLedger(sequence uint32) xdr.LedgerCloseMeta {
-	sequence = sequence - 100
+	sequence -= 100
 	meta := txMeta(sequence, true)
 	meta.V1.TxProcessing = append(meta.V1.TxProcessing, xdr.TransactionResultMeta{
 		TxApplyProcessing: xdr.TransactionMeta{
@@ -47,7 +47,6 @@ func TestGetTransactions_DefaultLimit(t *testing.T) {
 
 	handler := transactionsRPCHandler{
 		ledgerReader:      mockLedgerReader,
-		dbReader:          mockDbReader,
 		maxLimit:          100,
 		defaultLimit:      10,
 		networkPassphrase: NetworkPassphrase,
@@ -82,7 +81,6 @@ func TestGetTransactions_DefaultLimitExceedsLatestLedger(t *testing.T) {
 
 	handler := transactionsRPCHandler{
 		ledgerReader:      mockLedgerReader,
-		dbReader:          mockDBReader,
 		maxLimit:          100,
 		defaultLimit:      10,
 		networkPassphrase: NetworkPassphrase,
@@ -117,7 +115,6 @@ func TestGetTransactions_CustomLimit(t *testing.T) {
 
 	handler := transactionsRPCHandler{
 		ledgerReader:      mockLedgerReader,
-		dbReader:          mockDBReader,
 		maxLimit:          100,
 		defaultLimit:      10,
 		networkPassphrase: NetworkPassphrase,
@@ -157,7 +154,6 @@ func TestGetTransactions_CustomLimitAndCursor(t *testing.T) {
 
 	handler := transactionsRPCHandler{
 		ledgerReader:      mockLedgerReader,
-		dbReader:          mockDBReader,
 		maxLimit:          100,
 		defaultLimit:      10,
 		networkPassphrase: NetworkPassphrase,
@@ -198,7 +194,6 @@ func TestGetTransactions_InvalidStartLedger(t *testing.T) {
 
 	handler := transactionsRPCHandler{
 		ledgerReader:      mockLedgerReader,
-		dbReader:          mockDbReader,
 		maxLimit:          100,
 		defaultLimit:      10,
 		networkPassphrase: NetworkPassphrase,
@@ -232,7 +227,6 @@ func TestGetTransactions_LedgerNotFound(t *testing.T) {
 
 	handler := transactionsRPCHandler{
 		ledgerReader:      mockLedgerReader,
-		dbReader:          mockDbReader,
 		maxLimit:          100,
 		defaultLimit:      10,
 		networkPassphrase: NetworkPassphrase,
@@ -259,7 +253,6 @@ func TestGetTransactions_LimitGreaterThanMaxLimit(t *testing.T) {
 
 	handler := transactionsRPCHandler{
 		ledgerReader:      mockLedgerReader,
-		dbReader:          mockDbReader,
 		maxLimit:          100,
 		defaultLimit:      10,
 		networkPassphrase: NetworkPassphrase,
@@ -288,7 +281,6 @@ func TestGetTransactions_InvalidCursorString(t *testing.T) {
 
 	handler := transactionsRPCHandler{
 		ledgerReader:      mockLedgerReader,
-		dbReader:          mockDbReader,
 		maxLimit:          100,
 		defaultLimit:      10,
 		networkPassphrase: NetworkPassphrase,
