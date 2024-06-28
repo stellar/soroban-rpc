@@ -19,9 +19,7 @@ import (
 )
 
 const (
-	transactionTableName              = "transactions"
-	firstLedgerToMigrate              = 2
-	getLedgerRangeMetaArrayCheckValue = 2
+	transactionTableName = "transactions"
 )
 
 var ErrNoTransaction = errors.New("no transaction with this hash exists")
@@ -272,7 +270,7 @@ func newTransactionTableMigration(ctx context.Context, logger *log.Entry,
 	retentionWindow uint32, passphrase string,
 ) migrationApplierFactory {
 	return migrationApplierFactoryF(func(db *DB, latestLedger uint32) (MigrationApplier, error) {
-		firstLedgerToMigrate := uint32(firstLedgerToMigrate)
+		firstLedgerToMigrate := uint32(2)
 		writer := &transactionHandler{
 			log:        logger,
 			db:         db,

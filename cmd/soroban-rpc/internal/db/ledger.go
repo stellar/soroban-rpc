@@ -85,7 +85,7 @@ func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.Le
 	var lcms []xdr.LedgerCloseMeta
 	if err := r.db.Select(ctx, &lcms, query); err != nil {
 		return ledgerRange, fmt.Errorf("couldn't query ledger range: %w", err)
-	} else if len(lcms) < getLedgerRangeMetaArrayCheckValue {
+	} else if len(lcms) < 2 {
 		// There is almost certainly a row, but we want to avoid a race condition
 		// with ingestion as well as support test cases from an empty DB, so we need
 		// to sanity check that there is in fact a result. Note that no ledgers in
