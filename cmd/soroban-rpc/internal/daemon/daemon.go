@@ -21,17 +21,14 @@ import (
 	"github.com/stellar/go/ingest/ledgerbackend"
 	supporthttp "github.com/stellar/go/support/http"
 	supportlog "github.com/stellar/go/support/log"
-	"github.com/stellar/go/support/ordered"
 	"github.com/stellar/go/support/storage"
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/feewindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ingest"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/preflight"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/util"
 )
@@ -201,21 +198,12 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 		}, metricsRegistry),
 	}
 
-	feewindows, eventStore := daemon.mustInitializeStorage(cfg)
+	feewindows := daemon.mustInitializeStorage(cfg)
 
 	onIngestionRetry := func(err error, dur time.Duration) {
 		logger.WithError(err).Error("could not run ingestion. Retrying")
 	}
 
-	// Take the larger of (event retention, tx retention) and then the smaller
-	// of (tx retention, default event retention) if event retention wasn't
-	// specified, for some reason...?
-	maxRetentionWindow := ordered.Max(cfg.EventLedgerRetentionWindow, cfg.TransactionLedgerRetentionWindow)
-	if cfg.EventLedgerRetentionWindow <= 0 {
-		maxRetentionWindow = ordered.Min(
-			maxRetentionWindow,
-			ledgerbucketwindow.DefaultEventLedgerRetentionWindow)
-	}
 	ingestService := ingest.NewService(ingest.Config{
 		Logger: logger,
 		DB: db.NewReadWriter(
@@ -223,10 +211,9 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 			dbConn,
 			daemon,
 			maxLedgerEntryWriteBatchSize,
-			maxRetentionWindow,
+			cfg.HistoryRetentionWindow,
 			cfg.NetworkPassphrase,
 		),
-		EventStore:        eventStore,
 		NetworkPassPhrase: cfg.NetworkPassphrase,
 		Archive:           historyArchive,
 		LedgerBackend:     core,
@@ -251,12 +238,12 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 
 	jsonRPCHandler := internal.NewJSONRPCHandler(cfg, internal.HandlerParams{
 		Daemon:            daemon,
-		EventStore:        eventStore,
 		FeeStatWindows:    feewindows,
 		Logger:            logger,
 		LedgerReader:      db.NewLedgerReader(dbConn),
 		LedgerEntryReader: db.NewLedgerEntryReader(dbConn),
 		TransactionReader: db.NewTransactionReader(logger, dbConn, cfg.NetworkPassphrase),
+		EventReader:       db.NewEventReader(logger, dbConn, cfg.NetworkPassphrase),
 		PreflightGetter:   preflightWorkerPool,
 	})
 
@@ -301,13 +288,12 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 }
 
 // mustInitializeStorage initializes the storage using what was on the DB
-func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindows, *events.MemoryStore) {
-	eventStore := events.NewMemoryStore(
-		d,
+func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows {
+	feewindows := feewindow.NewFeeWindows(
+		cfg.ClassicFeeStatsLedgerRetentionWindow,
+		cfg.SorobanFeeStatsLedgerRetentionWindow,
 		cfg.NetworkPassphrase,
-		cfg.EventLedgerRetentionWindow,
 	)
-	feewindows := feewindow.NewFeeWindows(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow, cfg.NetworkPassphrase)
 
 	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
 	defer cancelReadTxMeta()
@@ -317,10 +303,19 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 	if err != nil {
 		d.logger.WithError(err).Fatal("could not build migrations")
 	}
-	// NOTE: We could optimize this to avoid unnecessary ingestion calls
-	//       (the range of txmetas can be larger than the individual store retention windows)
-	//       but it's probably not worth the pain.
-	err = db.NewLedgerReader(d.db).StreamAllLedgers(readTxMetaCtx, func(txmeta xdr.LedgerCloseMeta) error {
+
+	// Merge migrations range and fee stats range to get the applicable range
+	latestLedger, err := db.NewLedgerEntryReader(d.db).GetLatestLedgerSequence(readTxMetaCtx)
+	if err != nil {
+		d.logger.WithError(err).Fatal("failed to get latest ledger sequence: %w", err)
+	}
+
+	maxFeeRetentionWindow := max(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow)
+	ledgerSeqRange := &db.LedgerSeqRange{FirstLedgerSeq: latestLedger - maxFeeRetentionWindow, LastLedgerSeq: latestLedger}
+	applicableRange := dataMigrations.ApplicableRange()
+	ledgerSeqRange = ledgerSeqRange.Merge(applicableRange)
+
+	err = db.NewLedgerReader(d.db).StreamLedgerRange(readTxMetaCtx, ledgerSeqRange.FirstLedgerSeq, ledgerSeqRange.LastLedgerSeq, func(txmeta xdr.LedgerCloseMeta) error {
 		currentSeq = txmeta.LedgerSequence()
 		if initialSeq == 0 {
 			initialSeq = currentSeq
@@ -332,15 +327,12 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 				"seq": currentSeq,
 			}).Debug("still initializing in-memory store")
 		}
-		if err := eventStore.IngestEvents(txmeta); err != nil {
-			d.logger.WithError(err).Fatal("could not initialize event memory store")
-		}
+
 		if err := feewindows.IngestFees(txmeta); err != nil {
 			d.logger.WithError(err).Fatal("could not initialize fee stats")
 		}
-		// TODO: clean up once we remove the in-memory storage.
-		//       (we should only stream over the required range)
-		if r := dataMigrations.ApplicableRange(); r.IsLedgerIncluded(currentSeq) {
+
+		if applicableRange.IsLedgerIncluded(currentSeq) {
 			if err := dataMigrations.Apply(readTxMetaCtx, txmeta); err != nil {
 				d.logger.WithError(err).Fatal("could not run migrations")
 			}
@@ -360,7 +352,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 		}).Info("finished initializing in-memory store")
 	}
 
-	return feewindows, eventStore
+	return feewindows
 }
 
 func (d *Daemon) Run() {

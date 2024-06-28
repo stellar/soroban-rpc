@@ -108,6 +108,7 @@ linters:
     # TODO: ireturn: consider enabling it later on
     - ireturn
     - godot
+    - paralleltest
   presets: [ ]
   fast: false
 

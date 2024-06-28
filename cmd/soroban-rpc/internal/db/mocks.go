@@ -12,7 +12,7 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
-type mockTransactionHandler struct {
+type MockTransactionHandler struct {
 	passphrase string
 
 	ledgerRange     ledgerbucketwindow.LedgerRange
@@ -21,8 +21,8 @@ type mockTransactionHandler struct {
 	ledgerSeqToMeta map[uint32]*xdr.LedgerCloseMeta
 }
 
-func NewMockTransactionStore(passphrase string) *mockTransactionHandler {
-	return &mockTransactionHandler{
+func NewMockTransactionStore(passphrase string) *MockTransactionHandler {
+	return &MockTransactionHandler{
 		passphrase:      passphrase,
 		txs:             make(map[string]ingest.LedgerTransaction),
 		txHashToMeta:    make(map[string]*xdr.LedgerCloseMeta),
@@ -30,7 +30,7 @@ func NewMockTransactionStore(passphrase string) *mockTransactionHandler {
 	}
 }
 
-func (txn *mockTransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error {
+func (txn *MockTransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error {
 	txn.ledgerSeqToMeta[lcm.LedgerSequence()] = &lcm
 
 	reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(txn.passphrase, lcm)
@@ -66,11 +66,11 @@ func (txn *mockTransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) e
 }
 
 // GetLedgerRange pulls the min/max ledger sequence numbers from the database.
-func (txn *mockTransactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
+func (txn *MockTransactionHandler) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
 	return txn.ledgerRange, nil
 }
 
-func (txn *mockTransactionHandler) GetTransaction(ctx context.Context, hash xdr.Hash) (
+func (txn *MockTransactionHandler) GetTransaction(_ context.Context, hash xdr.Hash) (
 	Transaction, ledgerbucketwindow.LedgerRange, error,
 ) {
 	if tx, ok := txn.txs[hash.HexString()]; !ok {
@@ -81,19 +81,19 @@ func (txn *mockTransactionHandler) GetTransaction(ctx context.Context, hash xdr.
 	}
 }
 
-func (txn *mockTransactionHandler) RegisterMetrics(_, _ prometheus.Observer) {}
+func (txn *MockTransactionHandler) RegisterMetrics(_, _ prometheus.Observer) {}
 
-type mockLedgerReader struct {
-	txn mockTransactionHandler
+type MockLedgerReader struct {
+	txn MockTransactionHandler
 }
 
-func NewMockLedgerReader(txn *mockTransactionHandler) *mockLedgerReader {
-	return &mockLedgerReader{
+func NewMockLedgerReader(txn *MockTransactionHandler) *MockLedgerReader {
+	return &MockLedgerReader{
 		txn: *txn,
 	}
 }
 
-func (m *mockLedgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
+func (m *MockLedgerReader) GetLedger(_ context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
 	lcm, ok := m.txn.ledgerSeqToMeta[sequence]
 	if !ok {
 		return xdr.LedgerCloseMeta{}, false, nil
@@ -101,12 +101,16 @@ func (m *mockLedgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.
 	return *lcm, true, nil
 }
 
-func (m *mockLedgerReader) StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error {
+func (m *MockLedgerReader) StreamAllLedgers(_ context.Context, _ StreamLedgerFn) error {
+	return nil
+}
+
+func (m *MockLedgerReader) StreamLedgerRange(_ context.Context, _ uint32, _ uint32, f StreamLedgerFn) error {
 	return nil
 }
 
 var (
-	_ TransactionReader = &mockTransactionHandler{}
-	_ TransactionWriter = &mockTransactionHandler{}
-	_ LedgerReader      = &mockLedgerReader{}
+	_ TransactionReader = &MockTransactionHandler{}
+	_ TransactionWriter = &MockTransactionHandler{}
+	_ LedgerReader      = &MockLedgerReader{}
 )

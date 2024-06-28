@@ -18,7 +18,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/pflag v1.0.5
-	github.com/stellar/go v0.0.0-20240617183518-100dc4fa6043
+	github.com/stellar/go v0.0.0-20240628063057-b589529f102f
 	github.com/stretchr/testify v1.9.0
 )
 

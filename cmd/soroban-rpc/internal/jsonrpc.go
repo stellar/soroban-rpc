@@ -20,7 +20,6 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/feewindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/methods"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/network"
@@ -47,9 +46,9 @@ func (h Handler) Close() {
 }
 
 type HandlerParams struct {
-	EventStore        *events.MemoryStore
 	FeeStatWindows    *feewindow.FeeWindows
 	TransactionReader db.TransactionReader
+	EventReader       db.EventReader
 	LedgerEntryReader db.LedgerEntryReader
 	LedgerReader      db.LedgerReader
 	Logger            *log.Entry
@@ -137,10 +136,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 	}
 
-	// While we transition from in-memory to database-oriented history storage,
-	// the on-disk (transaction) retention window will always be larger than the
-	// in-memory (events) one.
-	retentionWindow := cfg.TransactionLedgerRetentionWindow
+	retentionWindow := cfg.HistoryRetentionWindow
 
 	handlers := []struct {
 		methodName           string
@@ -160,7 +156,13 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		{
 			methodName: "getEvents",
 			underlyingHandler: methods.NewGetEventsHandler(
-				params.EventStore, cfg.MaxEventsLimit, cfg.DefaultEventsLimit),
+				params.Logger,
+				params.EventReader,
+				cfg.MaxEventsLimit,
+				cfg.DefaultEventsLimit,
+				cfg.NetworkPassphrase,
+			),
+
 			longName:             "get_events",
 			queueLimit:           cfg.RequestBacklogGetEventsQueueLimit,
 			requestDurationLimit: cfg.MaxGetEventsExecutionDuration,

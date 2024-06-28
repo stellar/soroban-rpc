@@ -41,6 +41,7 @@ type Config struct {
 	PreflightWorkerQueueSize                       uint
 	PreflightEnableDebug                           bool
 	SQLiteDBPath                                   string
+	HistoryRetentionWindow                         uint32
 	TransactionLedgerRetentionWindow               uint32
 	SorobanFeeStatsLedgerRetentionWindow           uint32
 	ClassicFeeStatsLedgerRetentionWindow           uint32
@@ -114,6 +115,13 @@ func (cfg *Config) SetValues(lookupEnv func(string) (string, bool)) error {
 		}
 	}
 
+	// Set to the maximum as a compromise until we deprecate the transaction/event flags
+	cfg.HistoryRetentionWindow = max(
+		cfg.HistoryRetentionWindow,
+		cfg.EventLedgerRetentionWindow,
+		cfg.TransactionLedgerRetentionWindow,
+	)
+
 	return nil
 }
 
@@ -126,6 +134,7 @@ func (cfg *Config) loadDefaults() error {
 			}
 		}
 	}
+	cfg.HistoryArchiveUserAgent = "soroban-rpc/" + Version
 	return nil
 }
 

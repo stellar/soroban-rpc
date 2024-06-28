@@ -28,7 +28,6 @@ func main() {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
-			cfg.HistoryArchiveUserAgent = "soroban-rpc/" + config.Version
 			daemon.MustNew(&cfg, supportlog.New()).Run()
 		},
 	}

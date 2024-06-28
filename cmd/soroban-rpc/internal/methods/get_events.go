@@ -11,9 +11,11 @@ import (
 
 	"github.com/stellar/go/strkey"
 	"github.com/stellar/go/support/errors"
+	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
 type eventTypeSet map[string]interface{}
@@ -104,7 +106,7 @@ func (g *GetEventsRequest) Valid(maxLimit uint) error {
 	}
 	for i, filter := range g.Filters {
 		if err := filter.Valid(); err != nil {
-			return errors.Wrapf(err, "filter %d invalid", i+1)
+			return fmt.Errorf("filter %d invalid: %w", i+1, err)
 		}
 	}
 
@@ -159,7 +161,7 @@ func (e *EventFilter) Valid() error {
 	}
 	for i, topic := range e.Topics {
 		if err := topic.Valid(); err != nil {
-			return errors.Wrapf(err, "topic %d invalid", i+1)
+			return fmt.Errorf("topic %d invalid: %w", i+1, err)
 		}
 	}
 	return nil
@@ -217,7 +219,7 @@ func (t *TopicFilter) Valid() error {
 	}
 	for i, segment := range *t {
 		if err := segment.Valid(); err != nil {
-			return errors.Wrapf(err, "segment %d invalid", i+1)
+			return fmt.Errorf("segment %d invalid: %w", i+1, err)
 		}
 	}
 	return nil
@@ -293,8 +295,8 @@ func (s *SegmentFilter) UnmarshalJSON(p []byte) error {
 }
 
 type PaginationOptions struct {
-	Cursor *events.Cursor `json:"cursor,omitempty"`
-	Limit  uint           `json:"limit,omitempty"`
+	Cursor *db.Cursor `json:"cursor,omitempty"`
+	Limit  uint       `json:"limit,omitempty"`
 }
 
 type GetEventsResponse struct {
@@ -302,17 +304,36 @@ type GetEventsResponse struct {
 	LatestLedger uint32      `json:"latestLedger"`
 }
 
-type eventScanner interface {
-	Scan(eventRange events.Range, f events.ScanFunction) (uint32, error)
-}
-
 type eventsRPCHandler struct {
-	scanner      eventScanner
-	maxLimit     uint
-	defaultLimit uint
+	dbReader          db.EventReader
+	maxLimit          uint
+	defaultLimit      uint
+	logger            *log.Entry
+	networkPassphrase string
 }
 
-func (h eventsRPCHandler) getEvents(request GetEventsRequest) (GetEventsResponse, error) {
+func combineContractIDs(filters []EventFilter) ([][]byte, error) {
+	contractIDSet := make(map[string]struct{})
+
+	for _, filter := range filters {
+		for _, contractID := range filter.ContractIDs {
+			contractIDSet[contractID] = struct{}{}
+		}
+	}
+
+	contractIDs := make([][]byte, 0, len(contractIDSet))
+	for contractID := range contractIDSet {
+		id, err := strkey.Decode(strkey.VersionByteContract, contractID)
+		if err != nil {
+			return nil, fmt.Errorf("contract ID %v invalid", contractID)
+		}
+
+		contractIDs = append(contractIDs, id)
+	}
+	return contractIDs, nil
+}
+
+func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsRequest) (GetEventsResponse, error) {
 	if err := request.Valid(h.maxLimit); err != nil {
 		return GetEventsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidParams,
@@ -320,7 +341,15 @@ func (h eventsRPCHandler) getEvents(request GetEventsRequest) (GetEventsResponse
 		}
 	}
 
-	start := events.Cursor{Ledger: uint32(request.StartLedger)}
+	ledgerRange, err := h.dbReader.GetLedgerRange(ctx)
+	if err != nil {
+		return GetEventsResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InternalError,
+			Message: err.Error(),
+		}
+	}
+
+	start := db.Cursor{Ledger: request.StartLedger}
 	limit := h.defaultLimit
 	if request.Pagination != nil {
 		if request.Pagination.Cursor != nil {
@@ -333,28 +362,53 @@ func (h eventsRPCHandler) getEvents(request GetEventsRequest) (GetEventsResponse
 			limit = request.Pagination.Limit
 		}
 	}
+	end := db.Cursor{Ledger: request.StartLedger + ledgerbucketwindow.OneDayOfLedgers}
+	cursorRange := db.CursorRange{Start: start, End: end}
+
+	// Check if requested start ledger is within stored ledger range
+	if start.Ledger < ledgerRange.FirstLedger.Sequence || start.Ledger > ledgerRange.LastLedger.Sequence {
+		return GetEventsResponse{}, &jrpc2.Error{
+			Code: jrpc2.InvalidRequest,
+			Message: fmt.Sprintf(
+				"startLedger must be within the ledger range: %d - %d",
+				ledgerRange.FirstLedger.Sequence,
+				ledgerRange.LastLedger.Sequence,
+			),
+		}
+	}
 
 	type entry struct {
-		cursor               events.Cursor
+		cursor               db.Cursor
 		ledgerCloseTimestamp int64
 		event                xdr.DiagnosticEvent
 		txHash               *xdr.Hash
 	}
 	var found []entry
-	latestLedger, err := h.scanner.Scan(
-		events.Range{
-			Start:      start,
-			ClampStart: false,
-			End:        events.MaxCursor,
-			ClampEnd:   true,
-		},
-		func(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCloseTimestamp int64, txHash *xdr.Hash) bool {
-			if request.Matches(event) {
-				found = append(found, entry{cursor, ledgerCloseTimestamp, event, txHash})
-			}
-			return uint(len(found)) < limit
-		},
-	)
+	cursorSet := make(map[string]struct{})
+
+	contractIDs, err := combineContractIDs(request.Filters)
+	if err != nil {
+		return GetEventsResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InvalidParams,
+			Message: err.Error(),
+		}
+	}
+
+	// Scan function to apply filters
+	f := func(event xdr.DiagnosticEvent, cursor db.Cursor, ledgerCloseTimestamp int64, txHash *xdr.Hash) bool {
+		cursorID := cursor.String()
+		if _, exists := cursorSet[cursorID]; exists {
+			return true
+		}
+
+		if request.Matches(event) && cursor.Cmp(start) >= 0 {
+			cursorSet[cursorID] = struct{}{}
+			found = append(found, entry{cursor, ledgerCloseTimestamp, event, txHash})
+		}
+		return uint(len(found)) < limit
+	}
+
+	err = h.dbReader.GetEvents(ctx, cursorRange, contractIDs, f)
 	if err != nil {
 		return GetEventsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidRequest,
@@ -375,13 +429,19 @@ func (h eventsRPCHandler) getEvents(request GetEventsRequest) (GetEventsResponse
 		}
 		results = append(results, info)
 	}
+
 	return GetEventsResponse{
-		LatestLedger: latestLedger,
+		LatestLedger: ledgerRange.LastLedger.Sequence,
 		Events:       results,
 	}, nil
 }
 
-func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerClosedAt string, txHash string) (EventInfo, error) {
+func eventInfoForEvent(
+	event xdr.DiagnosticEvent,
+	cursor db.Cursor,
+	ledgerClosedAt string,
+	txHash string,
+) (EventInfo, error) {
 	v0, ok := event.Event.Body.GetV0()
 	if !ok {
 		return EventInfo{}, errors.New("unknown event version")
@@ -426,13 +486,20 @@ func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCl
 }
 
 // NewGetEventsHandler returns a json rpc handler to fetch and filter events
-func NewGetEventsHandler(eventsStore *events.MemoryStore, maxLimit, defaultLimit uint) jrpc2.Handler {
+func NewGetEventsHandler(logger *log.Entry,
+	dbReader db.EventReader,
+	maxLimit uint,
+	defaultLimit uint,
+	networkPassphrase string,
+) jrpc2.Handler {
 	eventsHandler := eventsRPCHandler{
-		scanner:      eventsStore,
-		maxLimit:     maxLimit,
-		defaultLimit: defaultLimit,
+		dbReader:          dbReader,
+		maxLimit:          maxLimit,
+		defaultLimit:      defaultLimit,
+		logger:            logger,
+		networkPassphrase: networkPassphrase,
 	}
 	return NewHandler(func(ctx context.Context, request GetEventsRequest) (GetEventsResponse, error) {
-		return eventsHandler.getEvents(request)
+		return eventsHandler.getEvents(ctx, request)
 	})
 }
