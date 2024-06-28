@@ -316,8 +316,8 @@ type transactionTableMigration struct {
 
 func (t *transactionTableMigration) ApplicableRange() *LedgerSeqRange {
 	return &LedgerSeqRange{
-		firstLedgerSeq: t.firstLedger,
-		lastLedgerSeq:  t.lastLedger,
+		FirstLedgerSeq: t.firstLedger,
+		LastLedgerSeq:  t.lastLedger,
 	}
 }
 

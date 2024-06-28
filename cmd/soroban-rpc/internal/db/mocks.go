@@ -105,6 +105,10 @@ func (m *MockLedgerReader) StreamAllLedgers(_ context.Context, _ StreamLedgerFn)
 	return nil
 }
 
+func (m *MockLedgerReader) StreamLedgerRange(_ context.Context, _ uint32, _ uint32, f StreamLedgerFn) error {
+	return nil
+}
+
 var (
 	_ TransactionReader = &MockTransactionHandler{}
 	_ TransactionWriter = &MockTransactionHandler{}

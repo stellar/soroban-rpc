@@ -18,6 +18,7 @@ type StreamLedgerFn func(xdr.LedgerCloseMeta) error
 type LedgerReader interface {
 	GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error)
 	StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error
+	StreamLedgerRange(ctx context.Context, startLedger uint32, endLedger uint32, f StreamLedgerFn) error
 }
 
 type LedgerWriter interface {
@@ -35,6 +36,35 @@ func NewLedgerReader(db *DB) LedgerReader {
 // StreamAllLedgers runs f over all the ledgers in the database (until f errors or signals it's done).
 func (r ledgerReader) StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error {
 	sql := sq.Select("meta").From(ledgerCloseMetaTableName).OrderBy("sequence asc")
+	q, err := r.db.Query(ctx, sql)
+	if err != nil {
+		return err
+	}
+	defer q.Close()
+	for q.Next() {
+		var closeMeta xdr.LedgerCloseMeta
+		if err = q.Scan(&closeMeta); err != nil {
+			return err
+		}
+		if err = f(closeMeta); err != nil {
+			return err
+		}
+	}
+	return q.Err()
+}
+
+// StreamLedgerRange runs f over inclusive (startLedger, endLedger) (until f errors or signals it's done).
+func (r ledgerReader) StreamLedgerRange(
+	ctx context.Context,
+	startLedger uint32,
+	endLedger uint32,
+	f StreamLedgerFn,
+) error {
+	sql := sq.Select("meta").From(ledgerCloseMetaTableName).
+		Where(sq.GtOrEq{"sequence": startLedger}).
+		Where(sq.LtOrEq{"sequence": endLedger}).
+		OrderBy("sequence asc")
+
 	q, err := r.db.Query(ctx, sql)
 	if err != nil {
 		return err

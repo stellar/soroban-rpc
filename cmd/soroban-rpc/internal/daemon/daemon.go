@@ -314,10 +314,19 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	if err != nil {
 		d.logger.WithError(err).Fatal("could not build migrations")
 	}
-	// NOTE: We could optimize this to avoid unnecessary ingestion calls
-	//       (the range of txmetas can be larger than the individual store retention windows)
-	//       but it's probably not worth the pain.
-	err = db.NewLedgerReader(d.db).StreamAllLedgers(readTxMetaCtx, func(txmeta xdr.LedgerCloseMeta) error {
+
+	// Merge migrations range and fee stats range to get the applicable range
+	latestLedger, err := db.NewLedgerEntryReader(d.db).GetLatestLedgerSequence(readTxMetaCtx)
+	if err != nil {
+		d.logger.WithError(err).Fatal("failed to get latest ledger sequence: %w", err)
+	}
+
+	maxFeeRetentionWindow := max(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow)
+	ledgerSeqRange := &db.LedgerSeqRange{FirstLedgerSeq: latestLedger - maxFeeRetentionWindow, LastLedgerSeq: latestLedger}
+	applicableRange := dataMigrations.ApplicableRange()
+	ledgerSeqRange = ledgerSeqRange.Merge(applicableRange)
+
+	err = db.NewLedgerReader(d.db).StreamLedgerRange(readTxMetaCtx, ledgerSeqRange.FirstLedgerSeq, ledgerSeqRange.LastLedgerSeq, func(txmeta xdr.LedgerCloseMeta) error {
 		currentSeq = txmeta.LedgerSequence()
 		if initialSeq == 0 {
 			initialSeq = currentSeq
@@ -333,9 +342,8 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 		if err := feewindows.IngestFees(txmeta); err != nil {
 			d.logger.WithError(err).Fatal("could not initialize fee stats")
 		}
-		// TODO: clean up once we remove the in-memory storage.
-		//       (we should only stream over the required range)
-		if r := dataMigrations.ApplicableRange(); r.IsLedgerIncluded(currentSeq) {
+
+		if applicableRange.IsLedgerIncluded(currentSeq) {
 			if err := dataMigrations.Apply(readTxMetaCtx, txmeta); err != nil {
 				d.logger.WithError(err).Fatal("could not run migrations")
 			}

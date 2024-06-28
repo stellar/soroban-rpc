@@ -12,15 +12,15 @@ import (
 )
 
 type LedgerSeqRange struct {
-	firstLedgerSeq uint32
-	lastLedgerSeq  uint32
+	FirstLedgerSeq uint32
+	LastLedgerSeq  uint32
 }
 
 func (mlr *LedgerSeqRange) IsLedgerIncluded(ledgerSeq uint32) bool {
 	if mlr == nil {
 		return false
 	}
-	return ledgerSeq >= mlr.firstLedgerSeq && ledgerSeq <= mlr.lastLedgerSeq
+	return ledgerSeq >= mlr.FirstLedgerSeq && ledgerSeq <= mlr.LastLedgerSeq
 }
 
 func (mlr *LedgerSeqRange) Merge(other *LedgerSeqRange) *LedgerSeqRange {
@@ -33,8 +33,8 @@ func (mlr *LedgerSeqRange) Merge(other *LedgerSeqRange) *LedgerSeqRange {
 	// TODO: using min/max can result in a much larger range than needed,
 	//       as an optimization, we should probably use a sequence of ranges instead.
 	return &LedgerSeqRange{
-		firstLedgerSeq: min(mlr.firstLedgerSeq, other.firstLedgerSeq),
-		lastLedgerSeq:  max(mlr.lastLedgerSeq, other.lastLedgerSeq),
+		FirstLedgerSeq: min(mlr.FirstLedgerSeq, other.FirstLedgerSeq),
+		LastLedgerSeq:  max(mlr.LastLedgerSeq, other.LastLedgerSeq),
 	}
 }
 
@@ -182,12 +182,21 @@ func (g *guardedMigration) Rollback(ctx context.Context) error {
 }
 
 func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, cfg *config.Config) (Migration, error) {
+	var migrations []Migration
+
 	migrationName := "TransactionsTable"
-	factory := newTransactionTableMigration(ctx, logger.WithField("migration", migrationName), cfg.TransactionLedgerRetentionWindow, cfg.NetworkPassphrase)
+	factory := newTransactionTableMigration(
+		ctx,
+		logger.WithField("migration", migrationName),
+		cfg.TransactionLedgerRetentionWindow,
+		cfg.NetworkPassphrase,
+	)
+
 	m1, err := newGuardedDataMigration(ctx, migrationName, factory, db)
 	if err != nil {
 		return nil, fmt.Errorf("creating guarded transaction migration: %w", err)
 	}
+	migrations = append(migrations, m1)
 
 	eventMigrationName := "EventsTable"
 	eventFactory := newEventTableMigration(
@@ -199,6 +208,7 @@ func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, cfg *config
 	if err != nil {
 		return nil, fmt.Errorf("creating guarded transaction migration: %w", err)
 	}
+	migrations = append(migrations, m2)
 
-	return multiMigration{m1, m2}, nil
+	return multiMigration(migrations), nil
 }
