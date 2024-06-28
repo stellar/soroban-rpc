@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
-
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
@@ -75,8 +74,6 @@ func (r ledgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.Ledge
 
 // GetLedgerRange pulls the min/max ledger sequence numbers from the meta table.
 func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
-	var ledgerRange ledgerbucketwindow.LedgerRange
-
 	query := sq.Select("lcm.meta").
 		From(ledgerCloseMetaTableName + " as lcm").
 		Where(sq.Or{
@@ -86,21 +83,24 @@ func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.Le
 
 	var lcms []xdr.LedgerCloseMeta
 	if err := r.db.Select(ctx, &lcms, query); err != nil {
-		return ledgerRange, fmt.Errorf("couldn't query ledger range: %w", err)
-	} else if len(lcms) < 2 { //nolint:mnd
-		// There is almost certainly a row, but we want to avoid a race condition
-		// with ingestion as well as support test cases from an empty DB, so we need
-		// to sanity check that there is in fact a result. Note that no ledgers in
-		// the database isn't an error, it's just an empty range.
-		return ledgerRange, nil
+		return ledgerbucketwindow.LedgerRange{}, fmt.Errorf("couldn't query ledger range: %w", err)
 	}
 
-	lcm1, lcm2 := lcms[0], lcms[1]
-	ledgerRange.FirstLedger.Sequence = lcm1.LedgerSequence()
-	ledgerRange.FirstLedger.CloseTime = lcm1.LedgerCloseTime()
-	ledgerRange.LastLedger.Sequence = lcm2.LedgerSequence()
-	ledgerRange.LastLedger.CloseTime = lcm2.LedgerCloseTime()
-	return ledgerRange, nil
+	// Empty DB
+	if len(lcms) == 0 {
+		return ledgerbucketwindow.LedgerRange{}, nil
+	}
+
+	return ledgerbucketwindow.LedgerRange{
+		FirstLedger: ledgerbucketwindow.LedgerInfo{
+			Sequence:  lcms[0].LedgerSequence(),
+			CloseTime: lcms[0].LedgerCloseTime(),
+		},
+		LastLedger: ledgerbucketwindow.LedgerInfo{
+			Sequence:  lcms[len(lcms)-1].LedgerSequence(),
+			CloseTime: lcms[len(lcms)-1].LedgerCloseTime(),
+		},
+	}, nil
 }
 
 type ledgerWriter struct {

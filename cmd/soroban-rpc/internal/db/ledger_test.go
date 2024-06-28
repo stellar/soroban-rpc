@@ -137,6 +137,34 @@ func TestGetLedgerRange_NonEmptyDB(t *testing.T) {
 	assert.Equal(t, ledgerCloseTime(1337), ledgerRange.LastLedger.CloseTime)
 }
 
+func TestGetLedgerRange_SingleDBRow(t *testing.T) {
+	db := NewTestDB(t)
+	ctx := context.TODO()
+
+	writer := NewReadWriter(logger, db, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+	write, err := writer.NewTx(ctx)
+	require.NoError(t, err)
+
+	lcms := []xdr.LedgerCloseMeta{
+		txMeta(1234, true),
+	}
+
+	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
+	for _, lcm := range lcms {
+		require.NoError(t, ledgerW.InsertLedger(lcm), "ingestion failed for ledger %+v", lcm.V1)
+		require.NoError(t, txW.InsertTransactions(lcm), "ingestion failed for ledger %+v", lcm.V1)
+	}
+	require.NoError(t, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
+
+	reader := NewLedgerReader(db)
+	ledgerRange, err := reader.GetLedgerRange(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, uint32(1334), ledgerRange.FirstLedger.Sequence)
+	assert.Equal(t, ledgerCloseTime(1334), ledgerRange.FirstLedger.CloseTime)
+	assert.Equal(t, uint32(1334), ledgerRange.LastLedger.Sequence)
+	assert.Equal(t, ledgerCloseTime(1334), ledgerRange.LastLedger.CloseTime)
+}
+
 func TestGetLedgerRange_EmptyDB(t *testing.T) {
 	db := NewTestDB(t)
 	ctx := context.TODO()
