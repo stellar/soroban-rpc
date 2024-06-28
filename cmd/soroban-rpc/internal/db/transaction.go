@@ -270,7 +270,7 @@ func newTransactionTableMigration(ctx context.Context, logger *log.Entry,
 	retentionWindow uint32, passphrase string,
 ) migrationApplierFactory {
 	return migrationApplierFactoryF(func(db *DB, latestLedger uint32) (MigrationApplier, error) {
-		firstLedgerToMigrate := uint32(2)
+		firstLedgerToMigrate := uint32(2) //nolint:mnd
 		writer := &transactionHandler{
 			log:        logger,
 			db:         db,
