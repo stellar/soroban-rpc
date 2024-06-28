@@ -188,7 +188,7 @@ func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, cfg *config
 	factory := newTransactionTableMigration(
 		ctx,
 		logger.WithField("migration", migrationName),
-		cfg.TransactionLedgerRetentionWindow,
+		cfg.HistoryRetentionWindow,
 		cfg.NetworkPassphrase,
 	)
 
@@ -201,7 +201,7 @@ func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, cfg *config
 	eventMigrationName := "EventsTable"
 	eventFactory := newEventTableMigration(
 		logger.WithField("migration", eventMigrationName),
-		cfg.EventLedgerRetentionWindow,
+		cfg.HistoryRetentionWindow,
 		cfg.NetworkPassphrase,
 	)
 	m2, err := newGuardedDataMigration(ctx, eventMigrationName, eventFactory, db)

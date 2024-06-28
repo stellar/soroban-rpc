@@ -136,10 +136,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 	}
 
-	// While we transition from in-memory to database-oriented history storage,
-	// the on-disk (transaction) retention window will always be larger than the
-	// in-memory (events) one.
-	retentionWindow := cfg.TransactionLedgerRetentionWindow
+	retentionWindow := cfg.HistoryRetentionWindow
 
 	handlers := []struct {
 		methodName           string
