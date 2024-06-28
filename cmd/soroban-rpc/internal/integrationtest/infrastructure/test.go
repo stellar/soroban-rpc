@@ -398,32 +398,15 @@ func (i *Test) generateRPCConfigFile(rpcConfig rpcConfig) {
 
 func newTestLogWriter(t *testing.T, prefix string) *testLogWriter {
 	tw := &testLogWriter{t: t, prefix: prefix}
-	t.Cleanup(func() {
-		tw.testDoneMx.Lock()
-		tw.testDone = true
-		tw.testDoneMx.Unlock()
-	})
 	return tw
 }
 
 type testLogWriter struct {
-	t          *testing.T
-	prefix     string
-	testDoneMx sync.RWMutex
-	testDone   bool
+	t      *testing.T
+	prefix string
 }
 
 func (tw *testLogWriter) Write(p []byte) (n int, err error) {
-	tw.testDoneMx.RLock()
-	if tw.testDone {
-		// Workaround for https://github.com/stellar/go/issues/5342
-		// and https://github.com/stellar/go/issues/5350, which causes a race condition
-		// in test logging
-		// TODO: remove once the tickets are fixed
-		tw.testDoneMx.RUnlock()
-		return len(p), nil
-	}
-	tw.testDoneMx.RUnlock()
 	all := strings.TrimSpace(string(p))
 	lines := strings.Split(all, "\n")
 	for _, l := range lines {
