@@ -38,6 +38,7 @@ type ReadWriter interface {
 
 type WriteTx interface {
 	TransactionWriter() TransactionWriter
+	EventWriter() EventWriter
 	LedgerEntryWriter() LedgerEntryWriter
 	LedgerWriter() LedgerWriter
 
@@ -250,6 +251,12 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 			stmtCache:  stmtCache,
 			passphrase: rw.passphrase,
 		},
+		eventWriter: eventHandler{
+			log:        rw.log,
+			db:         txSession,
+			stmtCache:  stmtCache,
+			passphrase: rw.passphrase,
+		},
 	}
 	writer.txWriter.RegisterMetrics(
 		rw.metrics.TxIngestDuration,
@@ -266,6 +273,7 @@ type writeTx struct {
 	ledgerEntryWriter     ledgerEntryWriter
 	ledgerWriter          ledgerWriter
 	txWriter              transactionHandler
+	eventWriter           eventHandler
 	ledgerRetentionWindow uint32
 }
 
@@ -279,6 +287,10 @@ func (w writeTx) LedgerWriter() LedgerWriter {
 
 func (w writeTx) TransactionWriter() TransactionWriter {
 	return &w.txWriter
+}
+
+func (w writeTx) EventWriter() EventWriter {
+	return &w.eventWriter
 }
 
 func (w writeTx) Commit(ledgerSeq uint32) error {
