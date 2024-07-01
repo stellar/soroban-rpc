@@ -79,7 +79,7 @@ func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.Le
 		Where(sq.Or{
 			sq.Expr("lcm.sequence = (?)", sq.Select("MIN(sequence)").From(ledgerCloseMetaTableName)),
 			sq.Expr("lcm.sequence = (?)", sq.Select("MAX(sequence)").From(ledgerCloseMetaTableName)),
-		})
+		}).OrderBy("lcm.sequence ASC")
 
 	var lcms []xdr.LedgerCloseMeta
 	if err := r.db.Select(ctx, &lcms, query); err != nil {
