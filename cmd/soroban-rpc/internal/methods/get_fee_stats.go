@@ -58,9 +58,11 @@ type GetFeeStatsResult struct {
 }
 
 // NewGetFeeStatsHandler returns a handler obtaining fee statistics
-func NewGetFeeStatsHandler(windows *feewindow.FeeWindows, reader db.TransactionReader, logger *log.Entry) jrpc2.Handler {
+func NewGetFeeStatsHandler(windows *feewindow.FeeWindows, ledgerReader db.LedgerReader,
+	logger *log.Entry,
+) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context) (GetFeeStatsResult, error) {
-		ledgerInfo, err := reader.GetLedgerRange(ctx)
+		ledgerRange, err := ledgerReader.GetLedgerRange(ctx)
 		if err != nil { // still not fatal
 			logger.WithError(err).
 				Error("could not fetch ledger range")
@@ -69,7 +71,7 @@ func NewGetFeeStatsHandler(windows *feewindow.FeeWindows, reader db.TransactionR
 		result := GetFeeStatsResult{
 			SorobanInclusionFee: convertFeeDistribution(windows.SorobanInclusionFeeWindow.GetFeeDistribution()),
 			InclusionFee:        convertFeeDistribution(windows.ClassicFeeWindow.GetFeeDistribution()),
-			LatestLedger:        ledgerInfo.LastLedger.Sequence,
+			LatestLedger:        ledgerRange.LastLedger.Sequence,
 		}
 		return result, nil
 	})

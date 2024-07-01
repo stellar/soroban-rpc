@@ -5,8 +5,9 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
-
 	"github.com/stellar/go/xdr"
+
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
 const (
@@ -18,6 +19,7 @@ type StreamLedgerFn func(xdr.LedgerCloseMeta) error
 type LedgerReader interface {
 	GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error)
 	StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error
+	GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error)
 }
 
 type LedgerWriter interface {
@@ -65,8 +67,40 @@ func (r ledgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.Ledge
 	case 1:
 		return results[0], true, nil
 	default:
-		return xdr.LedgerCloseMeta{}, false, fmt.Errorf("multiple lcm entries (%d) for sequence %d in table %q", len(results), sequence, ledgerCloseMetaTableName)
+		return xdr.LedgerCloseMeta{}, false, fmt.Errorf("multiple lcm entries (%d) for sequence %d in table %q",
+			len(results), sequence, ledgerCloseMetaTableName)
 	}
+}
+
+// GetLedgerRange pulls the min/max ledger sequence numbers from the meta table.
+func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
+	query := sq.Select("lcm.meta").
+		From(ledgerCloseMetaTableName + " as lcm").
+		Where(sq.Or{
+			sq.Expr("lcm.sequence = (?)", sq.Select("MIN(sequence)").From(ledgerCloseMetaTableName)),
+			sq.Expr("lcm.sequence = (?)", sq.Select("MAX(sequence)").From(ledgerCloseMetaTableName)),
+		}).OrderBy("lcm.sequence ASC")
+
+	var lcms []xdr.LedgerCloseMeta
+	if err := r.db.Select(ctx, &lcms, query); err != nil {
+		return ledgerbucketwindow.LedgerRange{}, fmt.Errorf("couldn't query ledger range: %w", err)
+	}
+
+	// Empty DB
+	if len(lcms) == 0 {
+		return ledgerbucketwindow.LedgerRange{}, nil
+	}
+
+	return ledgerbucketwindow.LedgerRange{
+		FirstLedger: ledgerbucketwindow.LedgerInfo{
+			Sequence:  lcms[0].LedgerSequence(),
+			CloseTime: lcms[0].LedgerCloseTime(),
+		},
+		LastLedger: ledgerbucketwindow.LedgerInfo{
+			Sequence:  lcms[len(lcms)-1].LedgerSequence(),
+			CloseTime: lcms[len(lcms)-1].LedgerCloseTime(),
+		},
+	}, nil
 }
 
 type ledgerWriter struct {

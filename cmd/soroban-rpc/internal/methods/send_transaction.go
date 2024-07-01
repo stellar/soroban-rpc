@@ -49,7 +49,7 @@ type SendTransactionRequest struct {
 func NewSendTransactionHandler(
 	daemon interfaces.Daemon,
 	logger *log.Entry,
-	reader db.TransactionReader,
+	ledgerReader db.LedgerReader,
 	passphrase string,
 ) jrpc2.Handler {
 	submitter := daemon.CoreClient()
@@ -73,7 +73,7 @@ func NewSendTransactionHandler(
 		}
 		txHash := hex.EncodeToString(hash[:])
 
-		ledgerInfo, err := reader.GetLedgerRange(ctx)
+		ledgerInfo, err := ledgerReader.GetLedgerRange(ctx)
 		if err != nil { // still not fatal
 			logger.WithError(err).
 				WithField("tx", request.Transaction).

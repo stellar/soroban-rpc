@@ -23,8 +23,8 @@ func TestTransactionNotFound(t *testing.T) {
 	log.SetLevel(logrus.TraceLevel)
 
 	reader := NewTransactionReader(log, db, passphrase)
-	_, _, err := reader.GetTransaction(context.TODO(), xdr.Hash{})
-	require.Error(t, err, ErrNoTransaction)
+	_, err := reader.GetTransaction(context.TODO(), xdr.Hash{})
+	require.ErrorIs(t, err, ErrNoTransaction)
 }
 
 func TestTransactionFound(t *testing.T) {
@@ -53,16 +53,14 @@ func TestTransactionFound(t *testing.T) {
 
 	// check 404 case
 	reader := NewTransactionReader(log, db, passphrase)
-	_, _, err = reader.GetTransaction(ctx, xdr.Hash{})
-	require.Error(t, err, ErrNoTransaction)
+	_, err = reader.GetTransaction(ctx, xdr.Hash{})
+	require.ErrorIs(t, err, ErrNoTransaction)
 
 	// check all 200 cases
 	for _, lcm := range lcms {
 		h := lcm.TransactionHash(0)
-		tx, lRange, err := reader.GetTransaction(ctx, h)
+		tx, err := reader.GetTransaction(ctx, h)
 		require.NoError(t, err, "failed to find txhash %s in db", hex.EncodeToString(h[:]))
-		assert.EqualValues(t, 1234+100, lRange.FirstLedger.Sequence)
-		assert.EqualValues(t, 1237+100, lRange.LastLedger.Sequence)
 		assert.EqualValues(t, 1, tx.ApplicationOrder)
 
 		expectedEnvelope, err := lcm.TransactionEnvelopes()[0].MarshalBinary()
@@ -82,8 +80,8 @@ func BenchmarkTransactionFetch(b *testing.B) {
 
 	// ingest 100k tx rows
 	lcms := make([]xdr.LedgerCloseMeta, 0, 100_000)
-	for i := uint32(0); i < uint32(cap(lcms)); i++ {
-		lcms = append(lcms, txMeta(1234+i, i%2 == 0))
+	for i := range cap(lcms) {
+		lcms = append(lcms, txMeta(uint32(1234+i), i%2 == 0))
 	}
 
 	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
@@ -102,7 +100,7 @@ func BenchmarkTransactionFetch(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		r := randoms[i]
-		tx, _, err := reader.GetTransaction(ctx, lcms[r].TransactionHash(0))
+		tx, err := reader.GetTransaction(ctx, lcms[r].TransactionHash(0))
 		require.NoError(b, err)
 		assert.Equal(b, r%2 == 0, tx.Successful)
 	}
