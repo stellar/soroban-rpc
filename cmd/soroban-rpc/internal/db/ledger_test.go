@@ -203,8 +203,8 @@ func BenchmarkGetLedgerRange(b *testing.B) {
 	for range b.N {
 		ledgerRange, err := reader.GetLedgerRange(context.TODO())
 		require.NoError(b, err)
-		assert.Equal(b, ledgerRange.FirstLedger.Sequence, lcms[0].LedgerSequence())
-		assert.Equal(b, ledgerRange.LastLedger.Sequence, lcms[len(lcms)-1].LedgerSequence())
+		assert.Equal(b, lcms[0].LedgerSequence(), ledgerRange.FirstLedger.Sequence)
+		assert.Equal(b, lcms[len(lcms)-1].LedgerSequence(), ledgerRange.LastLedger.Sequence)
 	}
 }
 
