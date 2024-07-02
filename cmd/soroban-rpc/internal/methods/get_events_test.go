@@ -568,6 +568,7 @@ func TestGetEvents(t *testing.T) {
 			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
+			ledgerReader: db.NewLedgerReader(dbx),
 		}
 		_, err = handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
@@ -620,6 +621,7 @@ func TestGetEvents(t *testing.T) {
 			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
+			ledgerReader: db.NewLedgerReader(dbx),
 		}
 		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
@@ -698,6 +700,7 @@ func TestGetEvents(t *testing.T) {
 			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
+			ledgerReader: db.NewLedgerReader(dbx),
 		}
 		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
@@ -760,6 +763,7 @@ func TestGetEvents(t *testing.T) {
 			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
+			ledgerReader: db.NewLedgerReader(dbx),
 		}
 		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
@@ -868,6 +872,7 @@ func TestGetEvents(t *testing.T) {
 			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
+			ledgerReader: db.NewLedgerReader(dbx),
 		}
 		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
@@ -955,6 +960,7 @@ func TestGetEvents(t *testing.T) {
 			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
+			ledgerReader: db.NewLedgerReader(dbx),
 		}
 		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
@@ -1018,6 +1024,7 @@ func TestGetEvents(t *testing.T) {
 			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
+			ledgerReader: db.NewLedgerReader(dbx),
 		}
 		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
@@ -1117,6 +1124,7 @@ func TestGetEvents(t *testing.T) {
 			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
+			ledgerReader: db.NewLedgerReader(dbx),
 		}
 		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			Pagination: &PaginationOptions{

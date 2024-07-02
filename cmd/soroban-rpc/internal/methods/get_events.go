@@ -309,11 +309,11 @@ type GetEventsResponse struct {
 }
 
 type eventsRPCHandler struct {
-	dbReader          db.EventReader
-	maxLimit          uint
-	defaultLimit      uint
-	logger            *log.Entry
-	networkPassphrase string
+	dbReader     db.EventReader
+	maxLimit     uint
+	defaultLimit uint
+	logger       *log.Entry
+	ledgerReader db.LedgerReader
 }
 
 func combineContractIDs(filters []EventFilter) ([][]byte, error) {
@@ -345,7 +345,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		}
 	}
 
-	ledgerRange, err := h.dbReader.GetLedgerRange(ctx)
+	ledgerRange, err := h.ledgerReader.GetLedgerRange(ctx)
 	if err != nil {
 		return GetEventsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InternalError,
@@ -496,18 +496,19 @@ func eventInfoForEvent(
 }
 
 // NewGetEventsHandler returns a json rpc handler to fetch and filter events
-func NewGetEventsHandler(logger *log.Entry,
+func NewGetEventsHandler(
+	logger *log.Entry,
 	dbReader db.EventReader,
 	maxLimit uint,
 	defaultLimit uint,
-	networkPassphrase string,
+	ledgerReader db.LedgerReader,
 ) jrpc2.Handler {
 	eventsHandler := eventsRPCHandler{
-		dbReader:          dbReader,
-		maxLimit:          maxLimit,
-		defaultLimit:      defaultLimit,
-		logger:            logger,
-		networkPassphrase: networkPassphrase,
+		dbReader:     dbReader,
+		maxLimit:     maxLimit,
+		defaultLimit: defaultLimit,
+		logger:       logger,
+		ledgerReader: ledgerReader,
 	}
 	return NewHandler(func(ctx context.Context, request GetEventsRequest) (GetEventsResponse, error) {
 		return eventsHandler.getEvents(ctx, request)

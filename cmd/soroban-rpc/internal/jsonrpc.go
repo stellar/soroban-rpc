@@ -165,7 +165,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 				params.EventReader,
 				cfg.MaxEventsLimit,
 				cfg.DefaultEventsLimit,
-				cfg.NetworkPassphrase,
+				params.LedgerReader,
 			),
 
 			longName:             "get_events",
