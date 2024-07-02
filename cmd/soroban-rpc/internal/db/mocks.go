@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -40,7 +41,7 @@ func (txn *MockTransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) e
 
 	for {
 		tx, err := reader.Read()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return err
@@ -65,31 +66,26 @@ func (txn *MockTransactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) e
 	return nil
 }
 
-// GetLedgerRange pulls the min/max ledger sequence numbers from the database.
-func (txn *MockTransactionHandler) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
-	return txn.ledgerRange, nil
-}
-
 func (txn *MockTransactionHandler) GetTransaction(_ context.Context, hash xdr.Hash) (
-	Transaction, ledgerbucketwindow.LedgerRange, error,
+	Transaction, error,
 ) {
-	if tx, ok := txn.txs[hash.HexString()]; !ok {
-		return Transaction{}, txn.ledgerRange, ErrNoTransaction
-	} else {
-		itx, err := ParseTransaction(*txn.txHashToMeta[hash.HexString()], tx)
-		return itx, txn.ledgerRange, err
+	tx, ok := txn.txs[hash.HexString()]
+	if !ok {
+		return Transaction{}, ErrNoTransaction
 	}
+	itx, err := ParseTransaction(*txn.txHashToMeta[hash.HexString()], tx)
+	return itx, err
 }
 
 func (txn *MockTransactionHandler) RegisterMetrics(_, _ prometheus.Observer) {}
 
 type MockLedgerReader struct {
-	txn MockTransactionHandler
+	txn *MockTransactionHandler
 }
 
 func NewMockLedgerReader(txn *MockTransactionHandler) *MockLedgerReader {
 	return &MockLedgerReader{
-		txn: *txn,
+		txn: txn,
 	}
 }
 
@@ -107,6 +103,10 @@ func (m *MockLedgerReader) StreamAllLedgers(_ context.Context, _ StreamLedgerFn)
 
 func (m *MockLedgerReader) StreamLedgerRange(_ context.Context, _ uint32, _ uint32, f StreamLedgerFn) error {
 	return nil
+}
+
+func (m *MockLedgerReader) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
+	return m.txn.ledgerRange, nil
 }
 
 var (
