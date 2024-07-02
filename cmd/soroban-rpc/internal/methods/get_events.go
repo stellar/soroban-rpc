@@ -15,8 +15,9 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
+
+const LedgerScanLimit = 2000
 
 type eventTypeSet map[string]interface{}
 
@@ -82,6 +83,7 @@ type EventInfo struct {
 
 type GetEventsRequest struct {
 	StartLedger uint32             `json:"startLedger,omitempty"`
+	EndLedger   uint32             `json:"endLedger,omitempty"`
 	Filters     []EventFilter      `json:"filters"`
 	Pagination  *PaginationOptions `json:"pagination,omitempty"`
 }
@@ -90,11 +92,13 @@ func (g *GetEventsRequest) Valid(maxLimit uint) error {
 	// Validate start
 	// Validate the paging limit (if it exists)
 	if g.Pagination != nil && g.Pagination.Cursor != nil {
-		if g.StartLedger != 0 {
-			return errors.New("startLedger and cursor cannot both be set")
+		if g.StartLedger != 0 || g.EndLedger != 0 {
+			return errors.New("startLedger/endLedger and cursor cannot both be set")
 		}
 	} else if g.StartLedger <= 0 {
 		return errors.New("startLedger must be positive")
+	} else if g.EndLedger < 0 {
+		return errors.New("endLedger must be positive")
 	}
 	if g.Pagination != nil && g.Pagination.Limit > maxLimit {
 		return fmt.Errorf("limit must not exceed %d", maxLimit)
@@ -362,7 +366,13 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 			limit = request.Pagination.Limit
 		}
 	}
-	end := db.Cursor{Ledger: request.StartLedger + ledgerbucketwindow.OneDayOfLedgers}
+	endLedger := request.StartLedger + LedgerScanLimit
+
+	if request.EndLedger != 0 {
+		endLedger = min(request.EndLedger, endLedger)
+	}
+
+	end := db.Cursor{Ledger: endLedger}
 	cursorRange := db.CursorRange{Start: start, End: end}
 
 	// Check if requested start ledger is within stored ledger range

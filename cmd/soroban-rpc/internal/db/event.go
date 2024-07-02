@@ -94,15 +94,14 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 		}
 
 		query := sq.Insert(eventTableName).
-			Columns("id", "ledger_sequence", "application_order", "contract_id", "event_type")
+			Columns("ledger_sequence", "application_order", "contract_id", "event_type")
 
-		for index, e := range txEvents {
+		for _, e := range txEvents {
 			var contractID []byte
 			if e.Event.ContractId != nil {
 				contractID = e.Event.ContractId[:]
 			}
-			id := Cursor{Ledger: lcm.LedgerSequence(), Tx: tx.Index, Op: 0, Event: uint32(index)}.String()
-			query = query.Values(id, lcm.LedgerSequence(), tx.Index, contractID, int(e.Event.Type))
+			query = query.Values(lcm.LedgerSequence(), tx.Index, contractID, int(e.Event.Type))
 		}
 
 		_, err = query.RunWith(eventHandler.stmtCache).Exec()
@@ -149,18 +148,18 @@ func (eventHandler *eventHandler) GetEvents(
 	start := time.Now()
 
 	var rows []struct {
-		EventCursorID string              `db:"id"`
-		TxIndex       int                 `db:"application_order"`
-		Lcm           xdr.LedgerCloseMeta `db:"meta"`
+		TxIndex int                 `db:"application_order"`
+		Lcm     xdr.LedgerCloseMeta `db:"meta"`
 	}
 
 	rowQ := sq.
-		Select("e.id", "e.application_order", "lcm.meta").
+		Select("e.application_order", "lcm.meta").
 		From(eventTableName + " e").
 		Join(ledgerCloseMetaTableName + " lcm ON (e.ledger_sequence = lcm.sequence)").
-		Where(sq.GtOrEq{"e.id": cursorRange.Start.String()}).
-		Where(sq.Lt{"e.id": cursorRange.End.String()}).
-		OrderBy("e.id ASC")
+		Where(sq.GtOrEq{"e.ledger_sequence": cursorRange.Start.Ledger}).
+		Where(sq.GtOrEq{"e.application_order": cursorRange.Start.Tx}).
+		Where(sq.Lt{"e.ledger_sequence": cursorRange.End.Ledger}).
+		OrderBy("e.ledger_sequence ASC")
 
 	if len(contractIDs) > 0 {
 		rowQ = rowQ.Where(sq.Eq{"e.contract_id": contractIDs})
@@ -173,15 +172,17 @@ func (eventHandler *eventHandler) GetEvents(
 			contractIDs,
 			err)
 	} else if len(rows) < 1 {
-		eventHandler.log.Debugf("No events found for start ledger cursor= %v contractIDs= %v",
+		eventHandler.log.Debugf(
+			"No events found for ledger range: start ledger cursor= %v - end ledger cursor= %v contractIDs= %v",
 			cursorRange.Start.String(),
+			cursorRange.End.String(),
 			contractIDs,
 		)
 		return nil
 	}
 
 	for _, row := range rows {
-		eventCursorID, txIndex, lcm := row.EventCursorID, row.TxIndex, row.Lcm
+		txIndex, lcm := row.TxIndex, row.Lcm
 		reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(eventHandler.passphrase, lcm)
 		if err != nil {
 			return fmt.Errorf("failed to create ledger reader from LCM: %w", err)
@@ -201,7 +202,7 @@ func (eventHandler *eventHandler) GetEvents(
 		diagEvents, diagErr := ledgerTx.GetDiagnosticEvents()
 
 		if diagErr != nil {
-			return fmt.Errorf("db read failed for Event Id %s: %w", eventCursorID, err)
+			return fmt.Errorf("couldn't encode transaction DiagnosticEvents: %w", err)
 		}
 
 		// Find events based on filter passed in function f
