@@ -2,10 +2,10 @@ package interfaces
 
 import (
 	"context"
-	"github.com/stellar/go/ingest/ledgerbackend"
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/stellar/go/ingest/ledgerbackend"
 	proto "github.com/stellar/go/protocols/stellarcore"
 )
 
