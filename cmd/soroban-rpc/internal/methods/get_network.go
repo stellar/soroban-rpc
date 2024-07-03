@@ -29,7 +29,7 @@ func NewGetNetworkHandler(
 	return NewHandler(func(ctx context.Context, request GetNetworkRequest) (GetNetworkResponse, error) {
 		protocolVersion, err := getProtocolVersion(ctx, ledgerEntryReader, ledgerReader)
 		if err != nil {
-			logger.WithError(err).Info("error occurred while fetching protocol version")
+			logger.WithError(err).Error("failed to fetch protocol version")
 		}
 
 		return GetNetworkResponse{
