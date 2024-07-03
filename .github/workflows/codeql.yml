@@ -21,21 +21,27 @@ jobs:
       fail-fast: false
       matrix:
         include:
-        - language: go
-          build-mode: autobuild
-        
+          - language: go
+            build-mode: autobuild
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-go
+        with:
+          go-version: 1.22
+      - run: rustup update
+      - uses: stellar/actions/rust-cache@main
+      - run: make build-libpreflight
 
-    # Initializes the CodeQL tools for scanning.
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v3
-      with:
-        languages: ${{ matrix.language }}
-        build-mode: ${{ matrix.build-mode }}
+      # Initializes the CodeQL tools for scanning.
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
 
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v3
-      with:
-        category: "/language:${{matrix.language}}"
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"

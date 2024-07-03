@@ -5,10 +5,13 @@ import (
 	"testing"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/stellar/go/xdr"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
 const (
@@ -17,24 +20,25 @@ const (
 	expectedLatestLedgerHashBytes       byte   = 42
 )
 
-type ConstantLedgerEntryReader struct {
+type ConstantLedgerEntryReader struct{}
+
+type ConstantLedgerEntryReaderTx struct{}
+
+type ConstantLedgerReader struct{}
+
+func (ledgerReader *ConstantLedgerReader) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
+	return ledgerbucketwindow.LedgerRange{}, nil
 }
 
-type ConstantLedgerEntryReaderTx struct {
-}
-
-type ConstantLedgerReader struct {
-}
-
-func (entryReader *ConstantLedgerEntryReader) GetLatestLedgerSequence(ctx context.Context) (uint32, error) {
+func (entryReader *ConstantLedgerEntryReader) GetLatestLedgerSequence(_ context.Context) (uint32, error) {
 	return expectedLatestLedgerSequence, nil
 }
 
-func (entryReader *ConstantLedgerEntryReader) NewTx(ctx context.Context) (db.LedgerEntryReadTx, error) {
+func (entryReader *ConstantLedgerEntryReader) NewTx(_ context.Context) (db.LedgerEntryReadTx, error) {
 	return ConstantLedgerEntryReaderTx{}, nil
 }
 
-func (entryReader *ConstantLedgerEntryReader) NewCachedTx(ctx context.Context) (db.LedgerEntryReadTx, error) {
+func (entryReader *ConstantLedgerEntryReader) NewCachedTx(_ context.Context) (db.LedgerEntryReadTx, error) {
 	return ConstantLedgerEntryReaderTx{}, nil
 }
 
@@ -42,7 +46,7 @@ func (entryReaderTx ConstantLedgerEntryReaderTx) GetLatestLedgerSequence() (uint
 	return expectedLatestLedgerSequence, nil
 }
 
-func (entryReaderTx ConstantLedgerEntryReaderTx) GetLedgerEntries(keys ...xdr.LedgerKey) ([]db.LedgerKeyAndEntry, error) {
+func (entryReaderTx ConstantLedgerEntryReaderTx) GetLedgerEntries(_ ...xdr.LedgerKey) ([]db.LedgerKeyAndEntry, error) {
 	return nil, nil
 }
 
@@ -50,11 +54,13 @@ func (entryReaderTx ConstantLedgerEntryReaderTx) Done() error {
 	return nil
 }
 
-func (ledgerReader *ConstantLedgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
+func (ledgerReader *ConstantLedgerReader) GetLedger(_ context.Context,
+	sequence uint32,
+) (xdr.LedgerCloseMeta, bool, error) {
 	return createLedger(sequence, expectedLatestLedgerProtocolVersion, expectedLatestLedgerHashBytes), true, nil
 }
 
-func (ledgerReader *ConstantLedgerReader) StreamAllLedgers(ctx context.Context, f db.StreamLedgerFn) error {
+func (ledgerReader *ConstantLedgerReader) StreamAllLedgers(_ context.Context, _ db.StreamLedgerFn) error {
 	return nil
 }
 
@@ -77,7 +83,7 @@ func TestGetLatestLedger(t *testing.T) {
 	getLatestLedgerHandler := NewGetLatestLedgerHandler(&ConstantLedgerEntryReader{}, &ConstantLedgerReader{})
 	latestLedgerRespI, err := getLatestLedgerHandler(context.Background(), &jrpc2.Request{})
 	latestLedgerResp := latestLedgerRespI.(GetLatestLedgerResponse)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	expectedLatestLedgerHashStr := xdr.Hash{expectedLatestLedgerHashBytes}.HexString()
 	assert.Equal(t, expectedLatestLedgerHashStr, latestLedgerResp.Hash)

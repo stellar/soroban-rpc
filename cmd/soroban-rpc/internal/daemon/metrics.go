@@ -2,14 +2,16 @@ package daemon
 
 import (
 	"context"
-	"github.com/stellar/go/ingest/ledgerbackend"
-	supportlog "github.com/stellar/go/support/log"
 	"runtime"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/stellar/go/ingest/ledgerbackend"
+
 	"github.com/stellar/go/clients/stellarcore"
 	proto "github.com/stellar/go/protocols/stellarcore"
+	supportlog "github.com/stellar/go/support/log"
 	"github.com/stellar/go/support/logmetrics"
 	"github.com/stellar/go/xdr"
 
@@ -37,8 +39,8 @@ func (d *Daemon) registerMetrics() {
 		"goversion":       runtime.Version(),
 	}).Inc()
 
-	d.metricsRegistry.MustRegister(prometheus.NewGoCollector())
-	d.metricsRegistry.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+	d.metricsRegistry.MustRegister(collectors.NewGoCollector())
+	d.metricsRegistry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	d.metricsRegistry.MustRegister(buildInfoGauge)
 }
 

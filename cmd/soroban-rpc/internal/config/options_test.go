@@ -15,7 +15,7 @@ func TestAllConfigKeysMustBePointers(t *testing.T) {
 	for _, option := range cfg.options() {
 		kind := reflect.ValueOf(option.ConfigKey).Type().Kind()
 		if kind != reflect.Pointer {
-			t.Errorf("ConfigOption.ConfigKey must be a pointer, got %s for %s", kind, option.Name)
+			t.Errorf("Option.ConfigKey must be a pointer, got %s for %s", kind, option.Name)
 		}
 	}
 }
@@ -33,7 +33,7 @@ func TestAllConfigFieldsMustHaveASingleOption(t *testing.T) {
 	cfgType := cfgValue.Type()
 
 	options := cfg.options()
-	optionsByField := map[uintptr]*ConfigOption{}
+	optionsByField := map[uintptr]*Option{}
 	for _, option := range options {
 		key := uintptr(reflect.ValueOf(option.ConfigKey).UnsafePointer())
 		if existing, ok := optionsByField[key]; ok {
@@ -58,7 +58,7 @@ func TestAllConfigFieldsMustHaveASingleOption(t *testing.T) {
 		// There should be an option which points to this field
 		_, ok := optionsByField[fieldPointer]
 		if !ok {
-			t.Errorf("Missing ConfigOption for field Config.%s", structField.Name)
+			t.Errorf("Missing Option for field Config.%s", structField.Name)
 		}
 	}
 }
@@ -79,7 +79,7 @@ func TestAllOptionsMustHaveAUniqueValidTomlKey(t *testing.T) {
 
 	// Allow us to explicitly exclude any fields on the Config struct, which are
 	// not going to be in the toml. This should be the "Name" field of the
-	// ConfigOption we wish to exclude.
+	// Option we wish to exclude.
 	excluded := map[string]bool{
 		"config-path": true,
 	}
@@ -91,12 +91,12 @@ func TestAllOptionsMustHaveAUniqueValidTomlKey(t *testing.T) {
 		key, ok := option.getTomlKey()
 		if excluded[option.Name] {
 			if ok {
-				t.Errorf("Found unexpected toml key for excluded ConfigOption %s. Does the test need updating?", option.Name)
+				t.Errorf("Found unexpected toml key for excluded Option %s. Does the test need updating?", option.Name)
 			}
 			continue
 		}
 		if !ok {
-			t.Errorf("Missing toml key for ConfigOption %s", option.Name)
+			t.Errorf("Missing toml key for Option %s", option.Name)
 		}
 		if existing, ok := optionsByTomlKey[key]; ok {
 			t.Errorf("Conflicting ConfigOptions %s and %s, have the same toml key: %s", existing, option.Name, key)
@@ -104,6 +104,6 @@ func TestAllOptionsMustHaveAUniqueValidTomlKey(t *testing.T) {
 		optionsByTomlKey[key] = option.Name
 
 		// Ensure the keys are simple valid toml keys
-		assert.True(t, keyRegex.MatchString(key), "Invalid toml key for ConfigOption %s: %s", option.Name, key)
+		assert.True(t, keyRegex.MatchString(key), "Invalid toml key for Option %s: %s", option.Name, key)
 	}
 }

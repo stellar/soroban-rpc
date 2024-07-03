@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/creachadair/jrpc2"
+
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
@@ -19,15 +20,15 @@ type HealthCheckResult struct {
 // NewHealthCheck returns a health check json rpc handler
 func NewHealthCheck(
 	retentionWindow uint32,
-	reader db.TransactionReader,
+	ledgerReader db.LedgerReader,
 	maxHealthyLedgerLatency time.Duration,
 ) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context) (HealthCheckResult, error) {
-		ledgerRange, err := reader.GetLedgerRange(ctx)
+		ledgerRange, err := ledgerReader.GetLedgerRange(ctx)
 		if err != nil || ledgerRange.LastLedger.Sequence < 1 {
 			extra := ""
 			if err != nil {
-				extra = fmt.Sprintf(": %s", err.Error())
+				extra = ": " + err.Error()
 			}
 			return HealthCheckResult{}, jrpc2.Error{
 				Code:    jrpc2.InternalError,

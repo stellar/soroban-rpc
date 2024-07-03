@@ -6,8 +6,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	"github.com/stellar/go/xdr"
 	"github.com/stretchr/testify/require"
+
+	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"

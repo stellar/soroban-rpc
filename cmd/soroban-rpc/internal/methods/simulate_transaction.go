@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/creachadair/jrpc2"
+
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
@@ -76,7 +77,7 @@ func (l *LedgerEntryChangeType) Parse(s string) error {
 	return nil
 }
 
-func (l *LedgerEntryChangeType) UnmarshalJSON(data []byte) (err error) {
+func (l *LedgerEntryChangeType) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err
@@ -131,7 +132,7 @@ func (l *LedgerEntryChange) FromXDRDiff(diff preflight.XDRDiff) error {
 	return nil
 }
 
-// LedgerEntryChange designates a change in a ledger entry. Before and After cannot be be omitted at the same time.
+// LedgerEntryChange designates a change in a ledger entry. Before and After cannot be omitted at the same time.
 // If Before is omitted, it constitutes a creation, if After is omitted, it constitutes a delation.
 type LedgerEntryChange struct {
 	Type   LedgerEntryChangeType `json:"type"`
@@ -153,12 +154,11 @@ type SimulateTransactionResponse struct {
 }
 
 type PreflightGetter interface {
-	GetPreflight(ctx context.Context, params preflight.PreflightGetterParameters) (preflight.Preflight, error)
+	GetPreflight(ctx context.Context, params preflight.GetterParameters) (preflight.Preflight, error)
 }
 
 // NewSimulateTransactionHandler returns a json rpc handler to run preflight simulations
 func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntryReader, ledgerReader db.LedgerReader, daemon interfaces.Daemon, getter PreflightGetter) jrpc2.Handler {
-
 	return NewHandler(func(ctx context.Context, request SimulateTransactionRequest) SimulateTransactionResponse {
 		var txEnvelope xdr.TransactionEnvelope
 		if err := xdr.SafeUnmarshalBase64(request.Transaction, &txEnvelope); err != nil {
@@ -220,17 +220,17 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 			}
 		}
 
-		resource_config := preflight.DefaultResourceConfig()
+		resourceConfig := preflight.DefaultResourceConfig()
 		if request.ResourceConfig != nil {
-			resource_config = *request.ResourceConfig
+			resourceConfig = *request.ResourceConfig
 		}
-		params := preflight.PreflightGetterParameters{
+		params := preflight.GetterParameters{
 			LedgerEntryReadTx: readTx,
 			BucketListSize:    bucketListSize,
 			SourceAccount:     sourceAccount,
 			OperationBody:     op.Body,
 			Footprint:         footprint,
-			ResourceConfig:    resource_config,
+			ResourceConfig:    resourceConfig,
 			ProtocolVersion:   protocolVersion,
 		}
 		result, err := getter.GetPreflight(ctx, params)

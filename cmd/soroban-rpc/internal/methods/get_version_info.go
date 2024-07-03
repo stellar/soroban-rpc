@@ -2,20 +2,24 @@ package methods
 
 import (
 	"context"
+
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
+
 	"github.com/stellar/go/support/log"
+
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
 type GetVersionInfoResponse struct {
-	Version            string `json:"version"`
-	CommitHash         string `json:"commit_hash"`
-	BuildTimestamp     string `json:"build_time_stamp"`
-	CaptiveCoreVersion string `json:"captive_core_version"`
-	ProtocolVersion    uint32 `json:"protocol_version"`
+	Version string `json:"version"`
+	// TODO: to be fixed by https://github.com/stellar/soroban-rpc/pull/164
+	CommitHash         string `json:"commit_hash"`          //nolint:tagliatelle
+	BuildTimestamp     string `json:"build_time_stamp"`     //nolint:tagliatelle
+	CaptiveCoreVersion string `json:"captive_core_version"` //nolint:tagliatelle
+	ProtocolVersion    uint32 `json:"protocol_version"`     //nolint:tagliatelle
 }
 
 func NewGetVersionInfoHandler(
@@ -29,7 +33,7 @@ func NewGetVersionInfoHandler(
 
 	return handler.New(func(ctx context.Context) (GetVersionInfoResponse, error) {
 
-		captiveCoreVersion := core.GetCaptiveCoreVersion()
+		captiveCoreVersion := core.GetCoreVersion()
 		protocolVersion, err := getProtocolVersion(ctx, ledgerEntryReader, ledgerReader)
 
 		if err != nil {

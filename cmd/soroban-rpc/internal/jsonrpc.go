@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/cors"
+
 	"github.com/stellar/go/support/log"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
@@ -25,10 +27,13 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/network"
 )
 
-// maxHTTPRequestSize defines the largest request size that the http handler
-// would be willing to accept before dropping the request. The implementation
-// uses the default MaxBytesHandler to limit the request size.
-const maxHTTPRequestSize = 512 * 1024 // half a megabyte
+const (
+	// maxHTTPRequestSize defines the largest request size that the http handler
+	// would be willing to accept before dropping the request. The implementation
+	// uses the default MaxBytesHandler to limit the request size.
+	maxHTTPRequestSize          = 512 * 1024 // half a megabyte
+	warningThresholdDenominator = 3
+)
 
 // Handler is the HTTP handler which serves the Soroban JSON RPC responses
 type Handler struct {
@@ -66,7 +71,7 @@ func decorateHandlers(daemon interfaces.Daemon, logger *log.Entry, m handler.Map
 	}, []string{"endpoint", "status"})
 	decorated := handler.Map{}
 	for endpoint, h := range m {
-		// create copy of h so it can be used in closure bleow
+		// create copy of h, so it can be used in closure below
 		h := h
 		decorated[endpoint] = handler.New(func(ctx context.Context, r *jrpc2.Request) (interface{}, error) {
 			reqID := strconv.FormatUint(middleware.NextRequestID(), 10)
@@ -79,7 +84,8 @@ func decorateHandlers(daemon interfaces.Daemon, logger *log.Entry, m handler.Map
 			if ok && simulateTransactionResponse.Error != "" {
 				label["status"] = "error"
 			} else if err != nil {
-				if jsonRPCErr, ok := err.(*jrpc2.Error); ok {
+				var jsonRPCErr *jrpc2.Error
+				if errors.As(err, &jsonRPCErr) {
 					prometheusLabelReplacer := strings.NewReplacer(" ", "_", "-", "_", "(", "", ")", "")
 					status := prometheusLabelReplacer.Replace(jsonRPCErr.Code.String())
 					label["status"] = status
@@ -136,10 +142,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 	}
 
-	// While we transition from in-memory to database-oriented history storage,
-	// the on-disk (transaction) retention window will always be larger than the
-	// in-memory (events) one.
-	var retentionWindow = cfg.TransactionLedgerRetentionWindow
+	retentionWindow := cfg.HistoryRetentionWindow
 
 	handlers := []struct {
 		methodName           string
@@ -151,7 +154,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		{
 			methodName: "getHealth",
 			underlyingHandler: methods.NewHealthCheck(
-				retentionWindow, params.TransactionReader, cfg.MaxHealthyLedgerLatency),
+				retentionWindow, params.LedgerReader, cfg.MaxHealthyLedgerLatency),
 			longName:             "get_health",
 			queueLimit:           cfg.RequestBacklogGetHealthQueueLimit,
 			requestDurationLimit: cfg.MaxGetHealthExecutionDuration,
@@ -172,8 +175,9 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 			requestDurationLimit: cfg.MaxGetNetworkExecutionDuration,
 		},
 		{
-			methodName:           "getVersionInfo",
-			underlyingHandler:    methods.NewGetVersionInfoHandler(params.Logger, params.LedgerEntryReader, params.LedgerReader, params.Daemon),
+			methodName: "getVersionInfo",
+			underlyingHandler: methods.NewGetVersionInfoHandler(params.Logger, params.LedgerEntryReader,
+				params.LedgerReader, params.Daemon),
 			longName:             "get_version_info",
 			queueLimit:           cfg.RequestBacklogGetVersionInfoQueueLimit,
 			requestDurationLimit: cfg.MaxGetVersionInfoExecutionDuration,
@@ -201,14 +205,15 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 		{
 			methodName:           "getTransaction",
-			underlyingHandler:    methods.NewGetTransactionHandler(params.Logger, params.TransactionReader),
+			underlyingHandler:    methods.NewGetTransactionHandler(params.Logger, params.TransactionReader, params.LedgerReader),
 			longName:             "get_transaction",
 			queueLimit:           cfg.RequestBacklogGetTransactionQueueLimit,
 			requestDurationLimit: cfg.MaxGetTransactionExecutionDuration,
 		},
 		{
-			methodName:           "getTransactions",
-			underlyingHandler:    methods.NewGetTransactionsHandler(params.Logger, params.LedgerReader, params.TransactionReader, cfg.MaxTransactionsLimit, cfg.DefaultTransactionsLimit, cfg.NetworkPassphrase),
+			methodName: "getTransactions",
+			underlyingHandler: methods.NewGetTransactionsHandler(params.Logger, params.LedgerReader,
+				cfg.MaxTransactionsLimit, cfg.DefaultTransactionsLimit, cfg.NetworkPassphrase),
 			longName:             "get_transactions",
 			queueLimit:           cfg.RequestBacklogGetTransactionsQueueLimit,
 			requestDurationLimit: cfg.MaxGetTransactionsExecutionDuration,
@@ -216,7 +221,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		{
 			methodName: "sendTransaction",
 			underlyingHandler: methods.NewSendTransactionHandler(
-				params.Daemon, params.Logger, params.TransactionReader, cfg.NetworkPassphrase),
+				params.Daemon, params.Logger, params.LedgerReader, cfg.NetworkPassphrase),
 			longName:             "send_transaction",
 			queueLimit:           cfg.RequestBacklogSendTransactionQueueLimit,
 			requestDurationLimit: cfg.MaxSendTransactionExecutionDuration,
@@ -232,7 +237,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 		{
 			methodName:           "getFeeStats",
-			underlyingHandler:    methods.NewGetFeeStatsHandler(params.FeeStatWindows, params.TransactionReader, params.Logger),
+			underlyingHandler:    methods.NewGetFeeStatsHandler(params.FeeStatWindows, params.LedgerReader, params.Logger),
 			longName:             "get_fee_stats",
 			queueLimit:           cfg.RequestBacklogGetFeeStatsTransactionQueueLimit,
 			requestDurationLimit: cfg.MaxGetFeeStatsExecutionDuration,
@@ -256,8 +261,10 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 
 		durationWarnCounterName := handler.longName + "_execution_threshold_warning"
 		durationLimitCounterName := handler.longName + "_execution_threshold_limit"
-		durationWarnCounterHelp := "The metric measures the count of " + handler.methodName + " requests that surpassed the warning threshold for execution time"
-		durationLimitCounterHelp := "The metric measures the count of " + handler.methodName + " requests that surpassed the limit threshold for execution time"
+		durationWarnCounterHelp := "The metric measures the count of " + handler.methodName +
+			" requests that surpassed the warning threshold for execution time"
+		durationLimitCounterHelp := "The metric measures the count of " + handler.methodName +
+			" requests that surpassed the limit threshold for execution time"
 
 		requestDurationWarnCounter := prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: params.Daemon.MetricsNamespace(), Subsystem: "network",
@@ -270,7 +277,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 			Help: durationLimitCounterHelp,
 		})
 		// set the warning threshold to be one third of the limit.
-		requestDurationWarn := handler.requestDurationLimit / 3
+		requestDurationWarn := handler.requestDurationLimit / warningThresholdDenominator
 		durationLimiter := network.MakeJrpcRequestDurationLimiter(
 			queueLimiter.Handle,
 			requestDurationWarn,
@@ -299,14 +306,18 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		params.Logger)
 
 	globalQueueRequestExecutionDurationWarningCounter := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: params.Daemon.MetricsNamespace(), Subsystem: "network", Name: "global_request_execution_duration_threshold_warning",
-		Help: "The metric measures the count of requests that surpassed the warning threshold for execution time",
+		Namespace: params.Daemon.MetricsNamespace(),
+		Subsystem: "network",
+		Name:      "global_request_execution_duration_threshold_warning",
+		Help:      "The metric measures the count of requests that surpassed the warning threshold for execution time",
 	})
 	globalQueueRequestExecutionDurationLimitCounter := prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: params.Daemon.MetricsNamespace(), Subsystem: "network", Name: "global_request_execution_duration_threshold_limit",
-		Help: "The metric measures the count of requests that surpassed the limit threshold for execution time",
+		Namespace: params.Daemon.MetricsNamespace(),
+		Subsystem: "network",
+		Name:      "global_request_execution_duration_threshold_limit",
+		Help:      "The metric measures the count of requests that surpassed the limit threshold for execution time",
 	})
-	var handler http.Handler = network.MakeHTTPRequestDurationLimiter(
+	handler := network.MakeHTTPRequestDurationLimiter(
 		queueLimitedBridge,
 		cfg.RequestExecutionWarningThreshold,
 		cfg.MaxRequestExecutionDuration,

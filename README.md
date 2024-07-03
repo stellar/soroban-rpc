@@ -1,5 +1,5 @@
 # soroban-rpc
-RPC Server for Soroban Contracts.
+RPC Server for Stellar.
 
 
 This repo is home to the Soroban RPC, soon to be renamed Stellar RPC. The RPC provides information that the network currently has in its view. It has the ability to send a transaction to the network, and query the network for the status of previously sent transactions, and is meant to be simple, scalable, and familiar to blockchain developers.

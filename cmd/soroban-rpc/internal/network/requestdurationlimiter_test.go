@@ -8,11 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
 	"github.com/creachadair/jrpc2/jhttp"
+	"github.com/stretchr/testify/require"
 )
 
 type TestServerHandlerWrapper struct {
@@ -54,7 +53,7 @@ func TestHTTPRequestDurationLimiter_Limiting(t *testing.T) {
 			}
 			n, err := res.Write([]byte{1, 2, 3})
 			require.Equal(t, 3, n)
-			require.Nil(t, err)
+			require.NoError(t, err)
 		},
 	}
 	warningCounter := TestingCounter{}
@@ -207,17 +206,18 @@ func TestJRPCRequestDurationLimiter_Limiting(t *testing.T) {
 
 	ch := jhttp.NewChannel("http://"+addr+"/", nil)
 	client := jrpc2.NewClient(ch, nil)
+	defer client.Close()
 
 	var res interface{}
 	req := struct {
 		i int
 	}{1}
 	err := client.CallResult(context.Background(), "method", req, &res)
-	require.NotNil(t, err)
+	require.Error(t, err)
 	jrpcError, ok := err.(*jrpc2.Error)
 	require.True(t, ok)
 	require.Equal(t, ErrRequestExceededProcessingLimitThreshold.Code, jrpcError.Code)
-	require.Equal(t, nil, res)
+	require.Nil(t, res)
 	require.Zero(t, warningCounter.count)
 	require.Equal(t, int64(1), limitCounter.count)
 	require.Equal(t, [7]int{0, 0, 0, 0, 1, 0, 0}, logCounter.writtenLogEntries)
@@ -251,6 +251,7 @@ func TestJRPCRequestDurationLimiter_NoLimiting(t *testing.T) {
 
 	ch := jhttp.NewChannel("http://"+addr+"/", nil)
 	client := jrpc2.NewClient(ch, nil)
+	defer client.Close()
 
 	var res interface{}
 	req := struct {
@@ -292,6 +293,7 @@ func TestJRPCRequestDurationLimiter_NoLimiting_Warn(t *testing.T) {
 
 	ch := jhttp.NewChannel("http://"+addr+"/", nil)
 	client := jrpc2.NewClient(ch, nil)
+	defer client.Close()
 
 	var res interface{}
 	req := struct {

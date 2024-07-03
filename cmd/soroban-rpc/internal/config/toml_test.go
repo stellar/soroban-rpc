@@ -8,9 +8,10 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/stellar/go/network"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/stellar/go/network"
 )
 
 const basicToml = `
@@ -91,7 +92,10 @@ func TestBasicTomlWriting(t *testing.T) {
 	// Note the newline at char 80. This also checks it adds a space after the
 	// comment when outputting multi-line comments, which go-toml does *not* do
 	// by default.
-	assert.Contains(t, out, "# configures the event retention window expressed in number of ledgers, the\n# default value is 17280 which corresponds to about 24 hours of history")
+	assert.Contains(t, out,
+		`# (Deprecated, overidden by history-retention-window) configures the event
+# retention window expressed in number of ledgers, the default value is 17280
+# which corresponds to about 24 hours of history`)
 }
 
 func TestRoundTrip(t *testing.T) {
