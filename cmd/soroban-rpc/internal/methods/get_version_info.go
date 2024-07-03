@@ -28,14 +28,11 @@ func NewGetVersionInfoHandler(
 	ledgerReader db.LedgerReader,
 	daemon interfaces.Daemon,
 ) jrpc2.Handler {
-
 	core := daemon.GetCore()
 
 	return handler.New(func(ctx context.Context) (GetVersionInfoResponse, error) {
-
 		captiveCoreVersion := core.GetCoreVersion()
 		protocolVersion, err := getProtocolVersion(ctx, ledgerEntryReader, ledgerReader)
-
 		if err != nil {
 			logger.WithError(err).Info("error occurred while fetching protocol version")
 		}

@@ -2,8 +2,11 @@ package methods
 
 import (
 	"context"
+
 	"github.com/creachadair/jrpc2"
+
 	"github.com/stellar/go/support/log"
+
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
@@ -23,9 +26,7 @@ func NewGetNetworkHandler(
 	ledgerEntryReader db.LedgerEntryReader,
 	ledgerReader db.LedgerReader,
 ) jrpc2.Handler {
-
 	return NewHandler(func(ctx context.Context, request GetNetworkRequest) (GetNetworkResponse, error) {
-
 		protocolVersion, err := getProtocolVersion(ctx, ledgerEntryReader, ledgerReader)
 		if err != nil {
 			logger.WithError(err).Info("error occurred while fetching protocol version")
