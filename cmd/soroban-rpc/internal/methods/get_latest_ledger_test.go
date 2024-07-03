@@ -64,7 +64,12 @@ func (ledgerReader *ConstantLedgerReader) StreamAllLedgers(_ context.Context, _ 
 	return nil
 }
 
-func (ledgerReader *ConstantLedgerReader) StreamLedgerRange(ctx context.Context, startLedger uint32, endLedger uint32, f db.StreamLedgerFn) error {
+func (ledgerReader *ConstantLedgerReader) StreamLedgerRange(
+	_ context.Context,
+	_ uint32,
+	_ uint32,
+	_ db.StreamLedgerFn,
+) error {
 	return nil
 }
 

@@ -315,30 +315,34 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	applicableRange := dataMigrations.ApplicableRange()
 	ledgerSeqRange = ledgerSeqRange.Merge(applicableRange)
 
-	err = db.NewLedgerReader(d.db).StreamLedgerRange(readTxMetaCtx, ledgerSeqRange.FirstLedgerSeq, ledgerSeqRange.LastLedgerSeq, func(txmeta xdr.LedgerCloseMeta) error {
-		currentSeq = txmeta.LedgerSequence()
-		if initialSeq == 0 {
-			initialSeq = currentSeq
-			d.logger.WithFields(supportlog.F{
-				"seq": currentSeq,
-			}).Info("initializing in-memory store")
-		} else if (currentSeq-initialSeq)%inMemoryInitializationLedgerLogPeriod == 0 {
-			d.logger.WithFields(supportlog.F{
-				"seq": currentSeq,
-			}).Debug("still initializing in-memory store")
-		}
-
-		if err := feewindows.IngestFees(txmeta); err != nil {
-			d.logger.WithError(err).Fatal("could not initialize fee stats")
-		}
-
-		if applicableRange.IsLedgerIncluded(currentSeq) {
-			if err := dataMigrations.Apply(readTxMetaCtx, txmeta); err != nil {
-				d.logger.WithError(err).Fatal("could not run migrations")
+	err = db.NewLedgerReader(d.db).StreamLedgerRange(
+		readTxMetaCtx,
+		ledgerSeqRange.FirstLedgerSeq,
+		ledgerSeqRange.LastLedgerSeq,
+		func(txmeta xdr.LedgerCloseMeta) error {
+			currentSeq = txmeta.LedgerSequence()
+			if initialSeq == 0 {
+				initialSeq = currentSeq
+				d.logger.WithFields(supportlog.F{
+					"seq": currentSeq,
+				}).Info("initializing in-memory store")
+			} else if (currentSeq-initialSeq)%inMemoryInitializationLedgerLogPeriod == 0 {
+				d.logger.WithFields(supportlog.F{
+					"seq": currentSeq,
+				}).Debug("still initializing in-memory store")
 			}
-		}
-		return nil
-	})
+
+			if err := feewindows.IngestFees(txmeta); err != nil {
+				d.logger.WithError(err).Fatal("could not initialize fee stats")
+			}
+
+			if applicableRange.IsLedgerIncluded(currentSeq) {
+				if err := dataMigrations.Apply(readTxMetaCtx, txmeta); err != nil {
+					d.logger.WithError(err).Fatal("could not run migrations")
+				}
+			}
+			return nil
+		})
 	if err != nil {
 		d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
 	}

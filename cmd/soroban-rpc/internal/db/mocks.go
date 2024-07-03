@@ -101,7 +101,7 @@ func (m *MockLedgerReader) StreamAllLedgers(_ context.Context, _ StreamLedgerFn)
 	return nil
 }
 
-func (m *MockLedgerReader) StreamLedgerRange(_ context.Context, _ uint32, _ uint32, f StreamLedgerFn) error {
+func (m *MockLedgerReader) StreamLedgerRange(_ context.Context, _ uint32, _ uint32, _ StreamLedgerFn) error {
 	return nil
 }
 
