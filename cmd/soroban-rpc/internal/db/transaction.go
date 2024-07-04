@@ -111,7 +111,7 @@ func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 	_, err = query.RunWith(txn.stmtCache).Exec()
 
 	L.WithField("duration", time.Since(start)).
-		Infof("Ingested %d transaction lookups", len(transactions))
+		Debugf("Ingested %d transaction lookups", len(transactions))
 
 	return err
 }
