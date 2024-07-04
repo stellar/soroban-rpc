@@ -1,10 +1,10 @@
 name: 'Setup the Go environment'
 description: 'Installs go and restores/saves the build/module cache'
 inputs:
-  git-repo-dirs:
-    description: "Go code git repository directories (for mtime-restoration). Note that this requires cloning the repo's full history"
+  git-dir:
+    description: "Git repository directory (for mtime-restoration). Note that this requires cloning the repo's full history"
     required: false
-    default: '["."]'
+    default: '.'
 runs:
   using: "composite"
   steps:
@@ -23,9 +23,11 @@ runs:
     # recent commit that modified them as mtimes affect the Go test cache.
     # See https://github.com/golang/go/issues/58571 for details
     # Note that this requires checking out the repos with fetch-depth: 0
-    - name: Restore modification time of checkout files
-      uses: chetan/git-restore-mtime-action@075f9bc9d159805603419d50f794bd9f33252ebe
-
+    - if: inputs.git-dir != ''
+      name: Restore modification time of checkout files
+      uses: chetan/git-restore-mtime-action@301991bb840275c304501780b55c4cc0ba7450ba
+      with:
+        working-directory: ${{ inputs.git-dir }}
 
     # KEY_PREFIX must uniquely identify the specific instance of a job executing.
     - shell: bash
