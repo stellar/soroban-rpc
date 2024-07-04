@@ -18,7 +18,9 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
-const transactionTableName = "transactions"
+const (
+	transactionTableName = "transactions"
+)
 
 var ErrNoTransaction = errors.New("no transaction with this hash exists")
 
@@ -41,8 +43,7 @@ type TransactionWriter interface {
 
 // TransactionReader provides all the public ways to read from the DB.
 type TransactionReader interface {
-	GetTransaction(ctx context.Context, hash xdr.Hash) (Transaction, ledgerbucketwindow.LedgerRange, error)
-	GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error)
+	GetTransaction(ctx context.Context, hash xdr.Hash) (Transaction, error)
 }
 
 type transactionHandler struct {
@@ -88,7 +89,7 @@ func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 	}
 
 	transactions := make(map[xdr.Hash]ingest.LedgerTransaction, txCount)
-	for i := 0; i < txCount; i++ {
+	for i := range txCount {
 		tx, err := reader.Read()
 		if err != nil {
 			return fmt.Errorf("failed reading tx %d: %w", i, err)
@@ -110,7 +111,7 @@ func (txn *transactionHandler) InsertTransactions(lcm xdr.LedgerCloseMeta) error
 	_, err = query.RunWith(txn.stmtCache).Exec()
 
 	L.WithField("duration", time.Since(start)).
-		Infof("Ingested %d transaction lookups", len(transactions))
+		Debugf("Ingested %d transaction lookups", len(transactions))
 
 	return err
 }
@@ -135,61 +136,6 @@ func (txn *transactionHandler) trimTransactions(latestLedgerSeq uint32, retentio
 	return err
 }
 
-// GetLedgerRange pulls the min/max ledger sequence numbers from the database.
-func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
-	var ledgerRange ledgerbucketwindow.LedgerRange
-
-	//
-	// We use subqueries alongside a UNION ALL stitch in order to select the min
-	// and max from the ledger table in a single query and get around sqlite's
-	// limitations with parentheses (see https://stackoverflow.com/a/22609948).
-	//
-	newestQ := sq.
-		Select("m1.meta").
-		FromSelect(
-			sq.
-				Select("meta").
-				From(ledgerCloseMetaTableName).
-				OrderBy("sequence ASC").
-				Limit(1),
-			"m1",
-		)
-	sql, args, err := sq.
-		Select("m2.meta").
-		FromSelect(
-			sq.
-				Select("meta").
-				From(ledgerCloseMetaTableName).
-				OrderBy("sequence DESC").
-				Limit(1),
-			"m2",
-		).ToSql()
-	if err != nil {
-		return ledgerRange, fmt.Errorf("couldn't build ledger range query: %w", err)
-	}
-
-	var lcms []xdr.LedgerCloseMeta
-	if err = txn.db.Select(ctx, &lcms, newestQ.Suffix("UNION ALL "+sql, args...)); err != nil {
-		return ledgerRange, fmt.Errorf("couldn't query ledger range: %w", err)
-	} else if len(lcms) < 2 {
-		// There is almost certainly a row, but we want to avoid a race condition
-		// with ingestion as well as support test cases from an empty DB, so we need
-		// to sanity check that there is in fact a result. Note that no ledgers in
-		// the database isn't an error, it's just an empty range.
-		return ledgerRange, nil
-	}
-
-	lcm1, lcm2 := lcms[0], lcms[1]
-	ledgerRange.FirstLedger.Sequence = lcm1.LedgerSequence()
-	ledgerRange.FirstLedger.CloseTime = lcm1.LedgerCloseTime()
-	ledgerRange.LastLedger.Sequence = lcm2.LedgerSequence()
-	ledgerRange.LastLedger.CloseTime = lcm2.LedgerCloseTime()
-
-	txn.log.Debugf("Database ledger range: [%d, %d]",
-		ledgerRange.FirstLedger.Sequence, ledgerRange.LastLedger.Sequence)
-	return ledgerRange, nil
-}
-
 // GetTransaction conforms to the interface in
 // methods/get_transaction.go#NewGetTransactionHandler so that it can be used
 // directly against the RPC handler.
@@ -197,23 +143,18 @@ func (txn *transactionHandler) GetLedgerRange(ctx context.Context) (ledgerbucket
 // Errors occur if there are issues with the DB connection or the XDR is
 // corrupted somehow. If the transaction is not found, io.EOF is returned.
 func (txn *transactionHandler) GetTransaction(ctx context.Context, hash xdr.Hash) (
-	Transaction, ledgerbucketwindow.LedgerRange, error,
+	Transaction, error,
 ) {
 	start := time.Now()
 	tx := Transaction{}
 
-	ledgerRange, err := txn.GetLedgerRange(ctx)
-	if err != nil && err != ErrEmptyDB {
-		return tx, ledgerRange, err
-	}
-
 	lcm, ingestTx, err := txn.getTransactionByHash(ctx, hash)
 	if err != nil {
-		return tx, ledgerRange, err
+		return tx, err
 	}
 	tx, err = ParseTransaction(lcm, ingestTx)
 	if err != nil {
-		return tx, ledgerRange, err
+		return tx, err
 	}
 
 	txn.log.
@@ -221,7 +162,7 @@ func (txn *transactionHandler) GetTransaction(ctx context.Context, hash xdr.Hash
 		WithField("duration", time.Since(start)).
 		Debugf("Fetched and encoded transaction from ledger %d", lcm.LedgerSequence())
 
-	return tx, ledgerRange, nil
+	return tx, nil
 }
 
 // getTransactionByHash actually performs the DB ops to cross-reference a
@@ -321,13 +262,15 @@ func (t *transactionTableMigration) ApplicableRange() *LedgerSeqRange {
 	}
 }
 
-func (t *transactionTableMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error {
+func (t *transactionTableMigration) Apply(_ context.Context, meta xdr.LedgerCloseMeta) error {
 	return t.writer.InsertTransactions(meta)
 }
 
-func newTransactionTableMigration(ctx context.Context, logger *log.Entry, retentionWindow uint32, passphrase string) migrationApplierFactory {
+func newTransactionTableMigration(ctx context.Context, logger *log.Entry,
+	retentionWindow uint32, passphrase string,
+) migrationApplierFactory {
 	return migrationApplierFactoryF(func(db *DB, latestLedger uint32) (MigrationApplier, error) {
-		firstLedgerToMigrate := uint32(2)
+		firstLedgerToMigrate := uint32(2) //nolint:mnd
 		writer := &transactionHandler{
 			log:        logger,
 			db:         db,
@@ -339,9 +282,6 @@ func newTransactionTableMigration(ctx context.Context, logger *log.Entry, retent
 		}
 		// Truncate the table, since it may contain data, causing insert conflicts later on.
 		// (the migration was shipped after the actual transactions table change)
-		// FIXME: this can be simply replaced by an upper limit in the ledgers to migrate
-		//        but ... it can't be done until https://github.com/stellar/soroban-rpc/issues/208
-		//        is addressed
 		_, err := db.Exec(ctx, sq.Delete(transactionTableName))
 		if err != nil {
 			return nil, fmt.Errorf("couldn't delete table %q: %w", transactionTableName, err)

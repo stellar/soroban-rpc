@@ -21,7 +21,6 @@ import (
 	"github.com/stellar/go/ingest/ledgerbackend"
 	supporthttp "github.com/stellar/go/support/http"
 	supportlog "github.com/stellar/go/support/log"
-	"github.com/stellar/go/support/ordered"
 	"github.com/stellar/go/support/storage"
 	"github.com/stellar/go/xdr"
 
@@ -31,7 +30,6 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/feewindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ingest"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/preflight"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/util"
 )
@@ -207,15 +205,6 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 		logger.WithError(err).Error("could not run ingestion. Retrying")
 	}
 
-	// Take the larger of (event retention, tx retention) and then the smaller
-	// of (tx retention, default event retention) if event retention wasn't
-	// specified, for some reason...?
-	maxRetentionWindow := ordered.Max(cfg.EventLedgerRetentionWindow, cfg.TransactionLedgerRetentionWindow)
-	if cfg.EventLedgerRetentionWindow <= 0 {
-		maxRetentionWindow = ordered.Min(
-			maxRetentionWindow,
-			ledgerbucketwindow.DefaultEventLedgerRetentionWindow)
-	}
 	ingestService := ingest.NewService(ingest.Config{
 		Logger: logger,
 		DB: db.NewReadWriter(
@@ -223,7 +212,7 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 			dbConn,
 			daemon,
 			maxLedgerEntryWriteBatchSize,
-			maxRetentionWindow,
+			cfg.HistoryRetentionWindow,
 			cfg.NetworkPassphrase,
 		),
 		EventStore:        eventStore,
@@ -305,9 +294,13 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 	eventStore := events.NewMemoryStore(
 		d,
 		cfg.NetworkPassphrase,
-		cfg.EventLedgerRetentionWindow,
+		cfg.HistoryRetentionWindow,
 	)
-	feewindows := feewindow.NewFeeWindows(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow, cfg.NetworkPassphrase)
+	feewindows := feewindow.NewFeeWindows(
+		cfg.ClassicFeeStatsLedgerRetentionWindow,
+		cfg.SorobanFeeStatsLedgerRetentionWindow,
+		cfg.NetworkPassphrase,
+	)
 
 	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
 	defer cancelReadTxMeta()
@@ -326,7 +319,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 			initialSeq = currentSeq
 			d.logger.WithFields(supportlog.F{
 				"seq": currentSeq,
-			}).Info("initializing in-memory store")
+			}).Info("initializing in-memory store and applying DB data migrations")
 		} else if (currentSeq-initialSeq)%inMemoryInitializationLedgerLogPeriod == 0 {
 			d.logger.WithFields(supportlog.F{
 				"seq": currentSeq,
@@ -357,7 +350,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 	if currentSeq != 0 {
 		d.logger.WithFields(supportlog.F{
 			"seq": currentSeq,
-		}).Info("finished initializing in-memory store")
+		}).Info("finished initializing in-memory store and applying DB data migrations")
 	}
 
 	return feewindows, eventStore
