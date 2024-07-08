@@ -136,7 +136,7 @@ func newGuardedDataMigration(
 		return nil, err
 	}
 	latestLedger, err := NewLedgerEntryReader(db).GetLatestLedgerSequence(ctx)
-	if errors.Is(err, ErrEmptyDB) {
+	if err != nil && !errors.Is(err, ErrEmptyDB) {
 		err = errors.Join(err, migrationDB.Rollback())
 		return nil, fmt.Errorf("failed to get latest ledger sequence: %w", err)
 	}
