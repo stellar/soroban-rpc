@@ -140,7 +140,7 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 		i.sqlitePath = path.Join(i.t.TempDir(), "soroban_rpc.sqlite")
 	}
 
-	if parallel {
+	if parallel && false {
 		t.Parallel()
 	}
 
