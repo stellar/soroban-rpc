@@ -108,6 +108,8 @@ func (h transactionsRPCHandler) initializePagination(request GetTransactionsRequ
 				}
 			}
 			*start = toid.Parse(cursorInt)
+			// increment tx index because, when paginating,
+			// we start with the item right after the cursor
 			start.TransactionOrder++
 		}
 		if request.Pagination.Limit > 0 {
@@ -231,6 +233,8 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 		return GetTransactionsResponse{}, err
 	}
 
+	// Iterate through each ledger and its transactions until limit or end range is reached.
+	// The latest ledger acts as the end ledger range for the request.
 	var txns []TransactionInfo
 	cursor := toid.New(0, 0, 0)
 LedgerLoop:
