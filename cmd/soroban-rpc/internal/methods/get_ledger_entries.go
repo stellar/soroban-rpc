@@ -40,7 +40,7 @@ type GetLedgerEntriesResponse struct {
 const getLedgerEntriesMaxKeys = 200
 
 // NewGetLedgerEntriesHandler returns a JSON RPC handler to retrieve the specified ledger entries from Stellar Core.
-func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntryReader) jrpc2.Handler {
+func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntryReader, ledgerReader db.LedgerReader) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context, request GetLedgerEntriesRequest) (GetLedgerEntriesResponse, error) {
 		if len(request.Keys) > getLedgerEntriesMaxKeys {
 			return GetLedgerEntriesResponse{}, &jrpc2.Error{
@@ -81,11 +81,11 @@ func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEn
 			_ = tx.Done()
 		}()
 
-		latestLedger, err := tx.GetLatestLedgerSequence()
+		ledgerRange, err := ledgerReader.GetLedgerRange(ctx)
 		if err != nil {
 			return GetLedgerEntriesResponse{}, &jrpc2.Error{
 				Code:    jrpc2.InternalError,
-				Message: "could not get latest ledger",
+				Message: fmt.Errorf("could not get ledger range: %w", err).Error(),
 			}
 		}
 
@@ -131,7 +131,7 @@ func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEn
 
 		response := GetLedgerEntriesResponse{
 			Entries:      ledgerEntryResults,
-			LatestLedger: latestLedger,
+			LatestLedger: ledgerRange.LastLedger.Sequence,
 		}
 		return response, nil
 	})
