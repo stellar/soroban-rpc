@@ -37,6 +37,40 @@ var contractCostParams = func() *xdr.ContractCostParams {
 	return &result
 }()
 
+var mockTxMeta = xdr.LedgerCloseMeta{
+	V: 1,
+	V1: &xdr.LedgerCloseMetaV1{
+		LedgerHeader: xdr.LedgerHeaderHistoryEntry{
+			Header: xdr.LedgerHeader{
+				ScpValue: xdr.StellarValue{
+					CloseTime: xdr.TimePoint(2),
+				},
+				LedgerSeq: xdr.Uint32(2),
+			},
+		},
+		TxSet: xdr.GeneralizedTransactionSet{
+			V: 1,
+			V1TxSet: &xdr.TransactionSetV1{
+				PreviousLedgerHash: xdr.Hash{1},
+				Phases: []xdr.TransactionPhase{
+					{
+						V: 0,
+						V0Components: &[]xdr.TxSetComponent{
+							{
+								Type: xdr.TxSetComponentTypeTxsetCompTxsMaybeDiscountedFee,
+								TxsMaybeDiscountedFee: &xdr.TxSetComponentTxsMaybeDiscountedFee{
+									BaseFee: nil,
+									Txs:     []xdr.TransactionEnvelope{},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
 var mockLedgerEntriesWithoutTTLs = []xdr.LedgerEntry{
 	{
 		LastModifiedLedgerSeq: 1,
@@ -340,6 +374,11 @@ func getPreflightParameters(t testing.TB, dbConfig *preflightParametersDBConfig)
 		ledgerEntryReadTx, err = newInMemoryLedgerEntryReadTx(mockLedgerEntries)
 		require.NoError(t, err)
 	}
+	mockDBReader := db.NewMockTransactionStore("passphrase")
+	ledgerReader := db.NewMockLedgerReader(mockDBReader)
+	err := mockDBReader.InsertTransactions(mockTxMeta)
+	require.NoError(t, err)
+
 	argSymbol := xdr.ScSymbol("world")
 	params := Parameters{
 		EnableDebug:   true,
@@ -368,6 +407,7 @@ func getPreflightParameters(t testing.TB, dbConfig *preflightParametersDBConfig)
 		},
 		NetworkPassphrase: "foo",
 		LedgerEntryReadTx: ledgerEntryReadTx,
+		LedgerReader:      ledgerReader,
 		BucketListSize:    200,
 		// TODO: test with multiple protocol versions
 		ProtocolVersion: 20,
