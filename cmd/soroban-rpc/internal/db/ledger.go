@@ -94,12 +94,16 @@ func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.Le
 
 	return ledgerbucketwindow.LedgerRange{
 		FirstLedger: ledgerbucketwindow.LedgerInfo{
-			Sequence:  lcms[0].LedgerSequence(),
-			CloseTime: lcms[0].LedgerCloseTime(),
+			Sequence:        lcms[0].LedgerSequence(),
+			CloseTime:       lcms[0].LedgerCloseTime(),
+			Hash:            lcms[0].LedgerHash(),
+			ProtocolVersion: lcms[0].ProtocolVersion(),
 		},
 		LastLedger: ledgerbucketwindow.LedgerInfo{
-			Sequence:  lcms[len(lcms)-1].LedgerSequence(),
-			CloseTime: lcms[len(lcms)-1].LedgerCloseTime(),
+			Sequence:        lcms[len(lcms)-1].LedgerSequence(),
+			CloseTime:       lcms[len(lcms)-1].LedgerCloseTime(),
+			Hash:            lcms[len(lcms)-1].LedgerHash(),
+			ProtocolVersion: lcms[len(lcms)-1].ProtocolVersion(),
 		},
 	}, nil
 }

@@ -2,6 +2,8 @@ package ledgerbucketwindow
 
 import (
 	"fmt"
+
+	"github.com/stellar/go/xdr"
 )
 
 // LedgerBucketWindow is a sequence of buckets associated to a ledger window.
@@ -64,8 +66,10 @@ func (w *LedgerBucketWindow[T]) Len() uint32 {
 }
 
 type LedgerInfo struct {
-	Sequence  uint32
-	CloseTime int64
+	Sequence        uint32
+	CloseTime       int64
+	Hash            xdr.Hash
+	ProtocolVersion uint32
 }
 
 type LedgerRange struct {

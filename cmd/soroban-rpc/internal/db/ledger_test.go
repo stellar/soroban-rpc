@@ -133,8 +133,13 @@ func TestGetLedgerRange_NonEmptyDB(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint32(1334), ledgerRange.FirstLedger.Sequence)
 	assert.Equal(t, ledgerCloseTime(1334), ledgerRange.FirstLedger.CloseTime)
+	assert.Equal(t, lcms[0].LedgerHash(), ledgerRange.FirstLedger.Hash)
+	assert.Equal(t, lcms[0].ProtocolVersion(), ledgerRange.FirstLedger.ProtocolVersion)
+
 	assert.Equal(t, uint32(1337), ledgerRange.LastLedger.Sequence)
 	assert.Equal(t, ledgerCloseTime(1337), ledgerRange.LastLedger.CloseTime)
+	assert.Equal(t, lcms[len(lcms)-1].LedgerHash(), ledgerRange.FirstLedger.Hash)
+	assert.Equal(t, lcms[len(lcms)-1].ProtocolVersion(), ledgerRange.FirstLedger.ProtocolVersion)
 }
 
 func TestGetLedgerRange_SingleDBRow(t *testing.T) {
@@ -161,8 +166,13 @@ func TestGetLedgerRange_SingleDBRow(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint32(1334), ledgerRange.FirstLedger.Sequence)
 	assert.Equal(t, ledgerCloseTime(1334), ledgerRange.FirstLedger.CloseTime)
+	assert.Equal(t, lcms[0].LedgerHash(), ledgerRange.FirstLedger.Hash)
+	assert.Equal(t, lcms[0].ProtocolVersion(), ledgerRange.FirstLedger.ProtocolVersion)
+
 	assert.Equal(t, uint32(1334), ledgerRange.LastLedger.Sequence)
 	assert.Equal(t, ledgerCloseTime(1334), ledgerRange.LastLedger.CloseTime)
+	assert.Equal(t, lcms[0].LedgerHash(), ledgerRange.FirstLedger.Hash)
+	assert.Equal(t, lcms[0].ProtocolVersion(), ledgerRange.FirstLedger.ProtocolVersion)
 }
 
 func TestGetLedgerRange_EmptyDB(t *testing.T) {
@@ -174,8 +184,13 @@ func TestGetLedgerRange_EmptyDB(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint32(0), ledgerRange.FirstLedger.Sequence)
 	assert.Equal(t, int64(0), ledgerRange.FirstLedger.CloseTime)
+	assert.Equal(t, xdr.Hash{}, ledgerRange.FirstLedger.Hash)
+	assert.Equal(t, uint32(0), ledgerRange.FirstLedger.ProtocolVersion)
+
 	assert.Equal(t, uint32(0), ledgerRange.LastLedger.Sequence)
 	assert.Equal(t, int64(0), ledgerRange.LastLedger.CloseTime)
+	assert.Equal(t, xdr.Hash{}, ledgerRange.FirstLedger.Hash)
+	assert.Equal(t, uint32(0), ledgerRange.FirstLedger.ProtocolVersion)
 }
 
 func BenchmarkGetLedgerRange(b *testing.B) {
