@@ -2,6 +2,7 @@ package methods
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/creachadair/jrpc2"
 
@@ -18,39 +19,21 @@ type GetLatestLedgerResponse struct {
 }
 
 // NewGetLatestLedgerHandler returns a JSON RPC handler to retrieve the latest ledger entry from Stellar core.
-func NewGetLatestLedgerHandler(ledgerEntryReader db.LedgerEntryReader, ledgerReader db.LedgerReader) jrpc2.Handler {
+func NewGetLatestLedgerHandler(ledgerReader db.LedgerReader) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context) (GetLatestLedgerResponse, error) {
-		tx, err := ledgerEntryReader.NewTx(ctx)
+		ledgerRange, err := ledgerReader.GetLedgerRange(ctx)
 		if err != nil {
 			return GetLatestLedgerResponse{}, &jrpc2.Error{
 				Code:    jrpc2.InternalError,
-				Message: "could not create read transaction",
+				Message: fmt.Errorf("could not get ledger range: %w", err).Error(),
 			}
 		}
-		defer func() {
-			_ = tx.Done()
-		}()
-
-		latestSequence, err := tx.GetLatestLedgerSequence()
-		if err != nil {
-			return GetLatestLedgerResponse{}, &jrpc2.Error{
-				Code:    jrpc2.InternalError,
-				Message: "could not get latest ledger sequence",
-			}
-		}
-
-		latestLedger, found, err := ledgerReader.GetLedger(ctx, latestSequence)
-		if (err != nil) || (!found) {
-			return GetLatestLedgerResponse{}, &jrpc2.Error{
-				Code:    jrpc2.InternalError,
-				Message: "could not get latest ledger",
-			}
-		}
+		latestLedger := ledgerRange.LastLedger
 
 		response := GetLatestLedgerResponse{
-			Hash:            latestLedger.LedgerHash().HexString(),
-			ProtocolVersion: latestLedger.ProtocolVersion(),
-			Sequence:        latestSequence,
+			Hash:            latestLedger.Hash.HexString(),
+			ProtocolVersion: latestLedger.ProtocolVersion,
+			Sequence:        latestLedger.Sequence,
 		}
 		return response, nil
 	})

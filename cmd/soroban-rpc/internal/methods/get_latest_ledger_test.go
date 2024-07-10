@@ -26,10 +26,6 @@ type ConstantLedgerEntryReaderTx struct{}
 
 type ConstantLedgerReader struct{}
 
-func (ledgerReader *ConstantLedgerReader) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
-	return ledgerbucketwindow.LedgerRange{}, nil
-}
-
 func (entryReader *ConstantLedgerEntryReader) GetLatestLedgerSequence(_ context.Context) (uint32, error) {
 	return expectedLatestLedgerSequence, nil
 }
@@ -60,6 +56,17 @@ func (ledgerReader *ConstantLedgerReader) GetLedger(_ context.Context,
 	return createLedger(sequence, expectedLatestLedgerProtocolVersion, expectedLatestLedgerHashBytes), true, nil
 }
 
+func (ledgerReader *ConstantLedgerReader) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
+	return ledgerbucketwindow.LedgerRange{
+		LastLedger: ledgerbucketwindow.LedgerInfo{
+			Sequence:        expectedLatestLedgerSequence,
+			CloseTime:       ledgerCloseTime(expectedLatestLedgerSequence),
+			Hash:            xdr.Hash{expectedLatestLedgerHashBytes},
+			ProtocolVersion: expectedLatestLedgerProtocolVersion,
+		},
+	}, nil
+}
+
 func (ledgerReader *ConstantLedgerReader) StreamAllLedgers(_ context.Context, _ db.StreamLedgerFn) error {
 	return nil
 }
@@ -80,7 +87,7 @@ func createLedger(ledgerSequence uint32, protocolVersion uint32, hash byte) xdr.
 }
 
 func TestGetLatestLedger(t *testing.T) {
-	getLatestLedgerHandler := NewGetLatestLedgerHandler(&ConstantLedgerEntryReader{}, &ConstantLedgerReader{})
+	getLatestLedgerHandler := NewGetLatestLedgerHandler(&ConstantLedgerReader{})
 	latestLedgerRespI, err := getLatestLedgerHandler(context.Background(), &jrpc2.Request{})
 	latestLedgerResp := latestLedgerRespI.(GetLatestLedgerResponse)
 	require.NoError(t, err)

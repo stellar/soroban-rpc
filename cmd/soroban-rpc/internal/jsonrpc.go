@@ -184,7 +184,7 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		},
 		{
 			methodName:           "getLatestLedger",
-			underlyingHandler:    methods.NewGetLatestLedgerHandler(params.LedgerEntryReader, params.LedgerReader),
+			underlyingHandler:    methods.NewGetLatestLedgerHandler(params.LedgerReader),
 			longName:             "get_latest_ledger",
 			queueLimit:           cfg.RequestBacklogGetLatestLedgerQueueLimit,
 			requestDurationLimit: cfg.MaxGetLatestLedgerExecutionDuration,
