@@ -163,6 +163,7 @@ func (pwp *WorkerPool) GetPreflight(ctx context.Context, params GetterParameters
 		OpBody:            params.OperationBody,
 		NetworkPassphrase: pwp.networkPassphrase,
 		LedgerEntryReadTx: &wrappedTx,
+		LedgerReader:      params.LedgerReader,
 		BucketListSize:    params.BucketListSize,
 		Footprint:         params.Footprint,
 		ResourceConfig:    params.ResourceConfig,

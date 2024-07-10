@@ -89,6 +89,7 @@ func DefaultResourceConfig() ResourceConfig {
 
 type GetterParameters struct {
 	LedgerEntryReadTx db.LedgerEntryReadTx
+	LedgerReader      db.LedgerReader
 	BucketListSize    uint64
 	SourceAccount     xdr.AccountId
 	OperationBody     xdr.OperationBody
@@ -104,6 +105,7 @@ type Parameters struct {
 	Footprint         xdr.LedgerFootprint
 	NetworkPassphrase string
 	LedgerEntryReadTx db.LedgerEntryReadTx
+	LedgerReader      db.LedgerReader
 	BucketListSize    uint64
 	ResourceConfig    ResourceConfig
 	EnableDebug       bool
@@ -159,19 +161,19 @@ func GoXDRDiffVector(xdrDiffVector C.xdr_diff_vector_t) []XDRDiff {
 	return result
 }
 
-func GetPreflight(_ context.Context, params Parameters) (Preflight, error) {
+func GetPreflight(ctx context.Context, params Parameters) (Preflight, error) {
 	switch params.OpBody.Type {
 	case xdr.OperationTypeInvokeHostFunction:
-		return getInvokeHostFunctionPreflight(params)
+		return getInvokeHostFunctionPreflight(ctx, params)
 	case xdr.OperationTypeExtendFootprintTtl, xdr.OperationTypeRestoreFootprint:
-		return getFootprintTTLPreflight(params)
+		return getFootprintTTLPreflight(ctx, params)
 	default:
 		return Preflight{}, fmt.Errorf("unsupported operation type: %s", params.OpBody.Type.String())
 	}
 }
 
-func getLedgerInfo(params Parameters) (C.ledger_info_t, error) {
-	simulationLedgerSeq, err := getSimulationLedgerSeq(params.LedgerEntryReadTx)
+func getLedgerInfo(ctx context.Context, params Parameters) (C.ledger_info_t, error) {
+	simulationLedgerSeq, err := getSimulationLedgerSeq(ctx, params.LedgerReader)
 	if err != nil {
 		return C.ledger_info_t{}, err
 	}
@@ -187,7 +189,7 @@ func getLedgerInfo(params Parameters) (C.ledger_info_t, error) {
 	return ledgerInfo, nil
 }
 
-func getFootprintTTLPreflight(params Parameters) (Preflight, error) {
+func getFootprintTTLPreflight(ctx context.Context, params Parameters) (Preflight, error) {
 	opBodyXDR, err := params.OpBody.MarshalBinary()
 	if err != nil {
 		return Preflight{}, err
@@ -201,7 +203,7 @@ func getFootprintTTLPreflight(params Parameters) (Preflight, error) {
 	handle := cgo.NewHandle(snapshotSourceHandle{params.LedgerEntryReadTx, params.Logger})
 	defer handle.Delete()
 
-	ledgerInfo, err := getLedgerInfo(params)
+	ledgerInfo, err := getLedgerInfo(ctx, params)
 	if err != nil {
 		return Preflight{}, err
 	}
@@ -219,19 +221,19 @@ func getFootprintTTLPreflight(params Parameters) (Preflight, error) {
 	return GoPreflight(res), nil
 }
 
-func getSimulationLedgerSeq(readTx db.LedgerEntryReadTx) (uint32, error) {
-	latestLedger, err := readTx.GetLatestLedgerSequence()
+func getSimulationLedgerSeq(ctx context.Context, reader db.LedgerReader) (uint32, error) {
+	ledgerRange, err := reader.GetLedgerRange(ctx)
 	if err != nil {
 		return 0, err
 	}
 	// It's of utmost importance to simulate the transactions like we were on the next ledger.
 	// Otherwise, users would need to wait for an extra ledger to close in order to observe the effects of the latest ledger
 	// transaction submission.
-	sequenceNumber := latestLedger + 1
+	sequenceNumber := ledgerRange.LastLedger.Sequence + 1
 	return sequenceNumber, nil
 }
 
-func getInvokeHostFunctionPreflight(params Parameters) (Preflight, error) {
+func getInvokeHostFunctionPreflight(ctx context.Context, params Parameters) (Preflight, error) {
 	invokeHostFunctionXDR, err := params.OpBody.MustInvokeHostFunctionOp().MarshalBinary()
 	if err != nil {
 		return Preflight{}, err
@@ -242,7 +244,7 @@ func getInvokeHostFunctionPreflight(params Parameters) (Preflight, error) {
 		return Preflight{}, err
 	}
 	sourceAccountCXDR := CXDR(sourceAccountXDR)
-	ledgerInfo, err := getLedgerInfo(params)
+	ledgerInfo, err := getLedgerInfo(ctx, params)
 	if err != nil {
 		return Preflight{}, err
 	}
