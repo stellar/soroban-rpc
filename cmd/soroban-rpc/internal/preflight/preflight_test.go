@@ -49,24 +49,8 @@ var mockTxMeta = xdr.LedgerCloseMeta{
 			},
 		},
 		TxSet: xdr.GeneralizedTransactionSet{
-			V: 1,
-			V1TxSet: &xdr.TransactionSetV1{
-				PreviousLedgerHash: xdr.Hash{1},
-				Phases: []xdr.TransactionPhase{
-					{
-						V: 0,
-						V0Components: &[]xdr.TxSetComponent{
-							{
-								Type: xdr.TxSetComponentTypeTxsetCompTxsMaybeDiscountedFee,
-								TxsMaybeDiscountedFee: &xdr.TxSetComponentTxsMaybeDiscountedFee{
-									BaseFee: nil,
-									Txs:     []xdr.TransactionEnvelope{},
-								},
-							},
-						},
-					},
-				},
-			},
+			V:       1,
+			V1TxSet: &xdr.TransactionSetV1{},
 		},
 	},
 }
