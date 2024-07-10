@@ -207,12 +207,7 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 		defer func() {
 			_ = readTx.Done()
 		}()
-		//latestLedger, err := readTx.GetLatestLedgerSequence()
-		//if err != nil {
-		//	return SimulateTransactionResponse{
-		//		Error: err.Error(),
-		//	}
-		//}
+
 		ledgerRange, err := ledgerReader.GetLedgerRange(ctx)
 		if err != nil {
 			return SimulateTransactionResponse{
@@ -234,6 +229,7 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 		}
 		params := preflight.GetterParameters{
 			LedgerEntryReadTx: readTx,
+			LedgerReader:      ledgerReader,
 			BucketListSize:    bucketListSize,
 			SourceAccount:     sourceAccount,
 			OperationBody:     op.Body,
