@@ -207,13 +207,21 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 		defer func() {
 			_ = readTx.Done()
 		}()
-		latestLedger, err := readTx.GetLatestLedgerSequence()
+		//latestLedger, err := readTx.GetLatestLedgerSequence()
+		//if err != nil {
+		//	return SimulateTransactionResponse{
+		//		Error: err.Error(),
+		//	}
+		//}
+		ledgerRange, err := ledgerReader.GetLedgerRange(ctx)
 		if err != nil {
 			return SimulateTransactionResponse{
 				Error: err.Error(),
 			}
 		}
-		bucketListSize, protocolVersion, err := getBucketListSizeAndProtocolVersion(ctx, ledgerReader, latestLedger)
+
+		bucketListSize, protocolVersion, err := getBucketListSizeAndProtocolVersion(ctx, ledgerReader,
+			ledgerRange.LastLedger.Sequence)
 		if err != nil {
 			return SimulateTransactionResponse{
 				Error: err.Error(),
@@ -237,7 +245,7 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 		if err != nil {
 			return SimulateTransactionResponse{
 				Error:        err.Error(),
-				LatestLedger: latestLedger,
+				LatestLedger: ledgerRange.LastLedger.Sequence,
 			}
 		}
 
@@ -271,7 +279,7 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 				CPUInstructions: result.CPUInstructions,
 				MemoryBytes:     result.MemoryBytes,
 			},
-			LatestLedger:    latestLedger,
+			LatestLedger:    ledgerRange.LastLedger.Sequence,
 			RestorePreamble: restorePreamble,
 			StateChanges:    stateChanges,
 		}
