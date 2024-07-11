@@ -13,6 +13,9 @@ version = "=21.1.0"
 [workspace.dependencies.soroban-simulation]
 version = "=21.1.0"
 
+[workspace.dependencies.stellar-xdr]
+path = "../rs-xdr"
+
 [workspace.dependencies]
 base64 = "0.22.0"
 sha2 = "0.10.7"

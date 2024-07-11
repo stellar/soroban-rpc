@@ -581,6 +581,7 @@ dependencies = [
  "sha2",
  "soroban-env-host",
  "soroban-simulation",
+ "stellar-xdr 21.1.0",
 ]
 
 [[package]]
@@ -784,7 +785,7 @@ dependencies = [
  "soroban-env-macros",
  "soroban-wasmi",
  "static_assertions",
- "stellar-xdr",
+ "stellar-xdr 21.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmparser",
 ]
 
@@ -832,7 +833,7 @@ dependencies = [
  "quote",
  "serde",
  "serde_json",
- "stellar-xdr",
+ "stellar-xdr 21.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "syn",
 ]
 
@@ -893,6 +894,16 @@ dependencies = [
  "base32",
  "crate-git-revision",
  "thiserror",
+]
+
+[[package]]
+name = "stellar-xdr"
+version = "21.1.0"
+dependencies = [
+ "crate-git-revision",
+ "escape-bytes",
+ "hex",
+ "stellar-strkey",
 ]
 
 [[package]]

@@ -4,9 +4,11 @@ extern crate libc;
 extern crate sha2;
 extern crate soroban_env_host;
 extern crate soroban_simulation;
+extern crate stellar_xdr;
 
 use anyhow::{anyhow, bail, Result};
 use sha2::{Digest, Sha256};
+
 use soroban_env_host::storage::EntryWithLiveUntil;
 use soroban_env_host::xdr::{
     AccountId, ExtendFootprintTtlOp, Hash, InvokeHostFunctionOp, LedgerEntry, LedgerEntryData,
@@ -20,6 +22,8 @@ use soroban_simulation::simulation::{
     SimulationAdjustmentConfig,
 };
 use soroban_simulation::{AutoRestoringSnapshotSource, NetworkConfig, SnapshotSourceWithArchive};
+use stellar_xdr::curr::{self, WriteXdr as CurrWriteXdr};
+
 use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::ffi::{CStr, CString};
@@ -27,6 +31,7 @@ use std::panic;
 use std::ptr::null_mut;
 use std::rc::Rc;
 use std::{mem, slice};
+use std::str::FromStr;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -670,18 +675,22 @@ fn extract_error_string<T>(simulation_result: &Result<T>, go_storage: &GoLedgerS
 
 #[no_mangle]
 pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut libc::c_char {
-    let cmd = stellar_xdr::Cmd{
-        r#type: typename,
-        input: stellar_xdr::InputFormat::SingleBase64,
-        output: stellar_xdr::OutputFormat::Json,
-    };
+    let type_str = from_c_string(typename);
+    let the_type = curr::TypeVariant::from_str(&type_str).unwrap();
 
-    // TODO: Make the `xdr` string behave like a file so it can be read?
-    let xdr_struct = stellar_xdr::r#type::read_xdr_base64_to_end(r#type, &mut xdr)?;
+    unsafe {
+        let xdr_bytearray = Vec::from_raw_parts(xdr.xdr, xdr.len, xdr.len);
+        let limits = curr::Limits {
+            depth: 16,
+            len: xdr.len
+        };
+        let mut limited_array = curr::Limited::new(xdr_bytearray.as_slice(), limits.clone());
+        let t = curr::Type::read_xdr(the_type, &mut limited_array).unwrap();
 
-     // caller doesn't need to bother
-    free_c_xdr(xdr);
-    free_c_string(typename);
+        // caller doesn't need to bother
+       free_c_xdr(xdr);
+       free_c_string(typename);
 
-    return string_to_c(cmd.json_out(xdr_struct));
+       string_to_c(base64::encode(t.to_xdr(limits).unwrap()))
+    }
 }
