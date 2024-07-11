@@ -296,7 +296,11 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 		cfg.NetworkPassphrase,
 		cfg.HistoryRetentionWindow,
 	)
-	feewindows := feewindow.NewFeeWindows(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow, cfg.NetworkPassphrase)
+	feewindows := feewindow.NewFeeWindows(
+		cfg.ClassicFeeStatsLedgerRetentionWindow,
+		cfg.SorobanFeeStatsLedgerRetentionWindow,
+		cfg.NetworkPassphrase,
+	)
 
 	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
 	defer cancelReadTxMeta()
@@ -315,7 +319,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 			initialSeq = currentSeq
 			d.logger.WithFields(supportlog.F{
 				"seq": currentSeq,
-			}).Info("initializing in-memory store")
+			}).Info("initializing in-memory store and applying DB data migrations")
 		} else if (currentSeq-initialSeq)%inMemoryInitializationLedgerLogPeriod == 0 {
 			d.logger.WithFields(supportlog.F{
 				"seq": currentSeq,
@@ -346,7 +350,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 	if currentSeq != 0 {
 		d.logger.WithFields(supportlog.F{
 			"seq": currentSeq,
-		}).Info("finished initializing in-memory store")
+		}).Info("finished initializing in-memory store and applying DB data migrations")
 	}
 
 	return feewindows, eventStore
