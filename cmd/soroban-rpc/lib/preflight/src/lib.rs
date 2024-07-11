@@ -674,6 +674,7 @@ fn extract_error_string<T>(simulation_result: &Result<T>, go_storage: &GoLedgerS
 }
 
 #[no_mangle]
+#[allow(deprecated)] // TODO: use proper version of base64::encode
 pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut libc::c_char {
     let type_str = from_c_string(typename);
     let the_type = curr::TypeVariant::from_str(&type_str).unwrap();
@@ -686,10 +687,6 @@ pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut li
         };
         let mut limited_array = curr::Limited::new(xdr_bytearray.as_slice(), limits.clone());
         let t = curr::Type::read_xdr(the_type, &mut limited_array).unwrap();
-
-        // caller doesn't need to bother
-       free_c_xdr(xdr);
-       free_c_string(typename);
 
        string_to_c(base64::encode(t.to_xdr(limits).unwrap()))
     }

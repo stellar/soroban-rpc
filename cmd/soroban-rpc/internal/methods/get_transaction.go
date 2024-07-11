@@ -13,6 +13,7 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/preflight"
 )
 
 const (
@@ -160,5 +161,16 @@ func NewGetTransactionHandler(logger *log.Entry, getter db.TransactionReader) jr
 func transactionToJSON(tx db.Transaction) (
 	string, string, string, []string,
 ) {
-	return "", "", "", []string{""}
+	txResult := xdr.TransactionResult{}
+	txResult.UnmarshalBinary(tx.Result)
+
+	txResultStr, err := preflight.XdrToJson(tx.Result)
+	if err != nil {
+		panic(err)
+	}
+
+	return txResultStr,
+		"",
+		"",
+		[]string{""}
 }
