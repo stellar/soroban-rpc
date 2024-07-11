@@ -65,7 +65,8 @@ type GetTransactionResponse struct {
 }
 
 type GetTransactionRequest struct {
-	Hash string `json:"hash"`
+	Hash   string `json:"hash"`
+	Format string `json:"xdr_format,omitempty"`
 }
 
 func GetTransaction(
@@ -74,6 +75,18 @@ func GetTransaction(
 	reader db.TransactionReader,
 	request GetTransactionRequest,
 ) (GetTransactionResponse, error) {
+	// parse XDR format expectations
+	if request.Format != "" {
+		if request.Format != "xdr" || request.Format != "json" {
+			return GetTransactionResponse{}, &jrpc2.Error{
+				Code: jrpc2.InvalidParams,
+				Message: fmt.Sprintf(
+					"expected 'xdr' or 'json' for optional format, got %s",
+					request.Format),
+			}
+		}
+	}
+
 	// parse hash
 	if hex.DecodedLen(len(request.Hash)) != len(xdr.Hash{}) {
 		return GetTransactionResponse{}, &jrpc2.Error{
@@ -117,10 +130,18 @@ func GetTransaction(
 	response.Ledger = tx.Ledger.Sequence
 	response.LedgerCloseTime = tx.Ledger.CloseTime
 
-	response.ResultXdr = base64.StdEncoding.EncodeToString(tx.Result)
-	response.EnvelopeXdr = base64.StdEncoding.EncodeToString(tx.Envelope)
-	response.ResultMetaXdr = base64.StdEncoding.EncodeToString(tx.Meta)
-	response.DiagnosticEventsXDR = base64EncodeSlice(tx.Events)
+	if request.Format == "json" {
+		result, envelope, meta, diagEvents := transactionToJSON(tx)
+		response.ResultXdr = result
+		response.EnvelopeXdr = envelope
+		response.ResultMetaXdr = meta
+		response.DiagnosticEventsXDR = diagEvents
+	} else {
+		response.ResultXdr = base64.StdEncoding.EncodeToString(tx.Result)
+		response.EnvelopeXdr = base64.StdEncoding.EncodeToString(tx.Envelope)
+		response.ResultMetaXdr = base64.StdEncoding.EncodeToString(tx.Meta)
+		response.DiagnosticEventsXDR = base64EncodeSlice(tx.Events)
+	}
 
 	response.Status = TransactionStatusFailed
 	if tx.Successful {
@@ -134,4 +155,10 @@ func NewGetTransactionHandler(logger *log.Entry, getter db.TransactionReader) jr
 	return NewHandler(func(ctx context.Context, request GetTransactionRequest) (GetTransactionResponse, error) {
 		return GetTransaction(ctx, logger, getter, request)
 	})
+}
+
+func transactionToJSON(tx db.Transaction) (
+	string, string, string, []string,
+) {
+	return "", "", "", []string{""}
 }
