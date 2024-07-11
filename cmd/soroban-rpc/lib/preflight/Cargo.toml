@@ -14,5 +14,6 @@ sha2 = { workspace = true }
 # when soroban rpc is configured to run with --preflight-enable-debug
 soroban-env-host = { workspace = true, features = ["recording_mode", "testutils", "unstable-next-api"]}
 soroban-simulation = { workspace = true }
+stellar-xdr = { workspace = true }
 anyhow = { workspace = true }
 rand = { workspace = true }

@@ -667,3 +667,21 @@ fn extract_error_string<T>(simulation_result: &Result<T>, go_storage: &GoLedgerS
         }
     }
 }
+
+#[no_mangle]
+pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut libc::c_char {
+    let cmd = stellar_xdr::Cmd{
+        r#type: typename,
+        input: stellar_xdr::InputFormat::SingleBase64,
+        output: stellar_xdr::OutputFormat::Json,
+    };
+
+    // TODO: Make the `xdr` string behave like a file so it can be read?
+    let xdr_struct = stellar_xdr::r#type::read_xdr_base64_to_end(r#type, &mut xdr)?;
+
+     // caller doesn't need to bother
+    free_c_xdr(xdr);
+    free_c_string(typename);
+
+    return string_to_c(cmd.json_out(xdr_struct));
+}
