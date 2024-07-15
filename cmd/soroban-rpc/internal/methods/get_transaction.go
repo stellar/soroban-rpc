@@ -132,7 +132,13 @@ func GetTransaction(
 	response.LedgerCloseTime = tx.Ledger.CloseTime
 
 	if request.Format == "json" {
-		result, envelope, meta, diagEvents := transactionToJSON(tx)
+		result, envelope, meta, diagEvents, convErr := transactionToJSON(tx)
+		if convErr != nil {
+			return response, &jrpc2.Error{
+				Code:    jrpc2.InternalError,
+				Message: convErr.Error(),
+			}
+		}
 		response.ResultXdr = result
 		response.EnvelopeXdr = envelope
 		response.ResultMetaXdr = meta
@@ -159,18 +165,19 @@ func NewGetTransactionHandler(logger *log.Entry, getter db.TransactionReader) jr
 }
 
 func transactionToJSON(tx db.Transaction) (
-	string, string, string, []string,
+	string, string, string, []string, error,
 ) {
 	txResult := xdr.TransactionResult{}
 	txResult.UnmarshalBinary(tx.Result)
 
 	txResultStr, err := preflight.XdrToJson(tx.Result)
 	if err != nil {
-		panic(err)
+		return "", "", "", []string{}, err
 	}
 
 	return txResultStr,
 		"",
 		"",
-		[]string{""}
+		[]string{""},
+		nil
 }
