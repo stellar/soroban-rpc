@@ -87,7 +87,6 @@ type GetTransactionsResponse struct {
 
 type transactionsRPCHandler struct {
 	ledgerReader      db.LedgerReader
-	dbReader          db.TransactionReader
 	maxLimit          uint
 	defaultLimit      uint
 	logger            *log.Entry
@@ -97,7 +96,7 @@ type transactionsRPCHandler struct {
 // getTransactionsByLedgerSequence fetches transactions between the start and end ledgers, inclusive of both.
 // The number of ledgers returned can be tuned using the pagination options - cursor and limit.
 func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Context, request GetTransactionsRequest) (GetTransactionsResponse, error) {
-	ledgerRange, err := h.dbReader.GetLedgerRange(ctx)
+	ledgerRange, err := h.ledgerReader.GetLedgerRange(ctx)
 	if err != nil {
 		return GetTransactionsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InternalError,
@@ -139,7 +138,7 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 	// Iterate through each ledger and its transactions until limit or end range is reached.
 	// The latest ledger acts as the end ledger range for the request.
 	var txns []TransactionInfo
-	var cursor *toid.ID
+	cursor := toid.New(0, 0, 0)
 LedgerLoop:
 	for ledgerSeq := start.LedgerSequence; ledgerSeq <= int32(ledgerRange.LastLedger.Sequence); ledgerSeq++ {
 		// Get ledger close meta from db
@@ -172,7 +171,7 @@ LedgerLoop:
 			if ierr := reader.Seek(startTxIdx - 1); ierr != nil && ierr != io.EOF {
 				return GetTransactionsResponse{}, &jrpc2.Error{
 					Code:    jrpc2.InternalError,
-					Message: err.Error(),
+					Message: ierr.Error(),
 				}
 			}
 		}
@@ -184,7 +183,7 @@ LedgerLoop:
 
 			ingestTx, err := reader.Read()
 			if err != nil {
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					// No more transactions to read. Start from next ledger
 					break
 				}
@@ -234,17 +233,16 @@ LedgerLoop:
 	}, nil
 }
 
-func NewGetTransactionsHandler(logger *log.Entry, ledgerReader db.LedgerReader, dbReader db.TransactionReader, maxLimit, defaultLimit uint, networkPassphrase string) jrpc2.Handler {
+func NewGetTransactionsHandler(logger *log.Entry, ledgerReader db.LedgerReader, maxLimit,
+	defaultLimit uint, networkPassphrase string,
+) jrpc2.Handler {
 	transactionsHandler := transactionsRPCHandler{
 		ledgerReader:      ledgerReader,
-		dbReader:          dbReader,
 		maxLimit:          maxLimit,
 		defaultLimit:      defaultLimit,
 		logger:            logger,
 		networkPassphrase: networkPassphrase,
 	}
 
-	return handler.New(func(context context.Context, request GetTransactionsRequest) (GetTransactionsResponse, error) {
-		return transactionsHandler.getTransactionsByLedgerSequence(context, request)
-	})
+	return handler.New(transactionsHandler.getTransactionsByLedgerSequence)
 }

@@ -194,14 +194,14 @@ impl CPreflightResult {
     }
 
     fn new_from_transaction_data(
-        transaction_data: &Option<SorobanTransactionData>,
-        restore_preamble: &Option<RestoreOpSimulationResult>,
+        transaction_data: Option<&SorobanTransactionData>,
+        restore_preamble: Option<&RestoreOpSimulationResult>,
         error: String,
     ) -> Self {
-        let min_fee = transaction_data.as_ref().map_or(0, |d| d.resource_fee);
+        let min_fee = transaction_data.map_or(0, |d| d.resource_fee);
         let mut result = Self {
             error: string_to_c(error),
-            transaction_data: option_xdr_to_c(transaction_data.as_ref()),
+            transaction_data: option_xdr_to_c(transaction_data),
             min_fee,
             ..Default::default()
         };
@@ -366,10 +366,10 @@ fn preflight_extend_ttl_op(
         Err(e) => (None, Err(e)),
     };
 
-    let error_str = extract_error_string(&maybe_restore_result, go_storage.as_ref());
+    let error_str = extract_error_string(&maybe_restore_result, go_storage);
     Ok(CPreflightResult::new_from_transaction_data(
-        &maybe_transaction_data,
-        &maybe_restore_result.unwrap_or(None),
+        maybe_transaction_data.as_ref(),
+        maybe_restore_result.ok().flatten().as_ref(),
         error_str,
     ))
 }
@@ -389,10 +389,8 @@ fn preflight_restore_op(
     );
     let error_str = extract_error_string(&simulation_result, go_storage.as_ref());
     CPreflightResult::new_from_transaction_data(
-        &simulation_result
-            .map(|r| Some(r.transaction_data))
-            .unwrap_or(None),
-        &None,
+        simulation_result.ok().map(|r| r.transaction_data).as_ref(),
+        None,
         error_str,
     )
 }
@@ -660,10 +658,9 @@ impl SnapshotSourceWithArchive for GoLedgerStorage {
 fn extract_error_string<T>(simulation_result: &Result<T>, go_storage: &GoLedgerStorage) -> String {
     match simulation_result {
         Ok(_) => String::new(),
-        Err(e) =>
-        // Override any simulation result with a storage error (if any). Simulation does not propagate the storage
-        // errors, but these provide more exact information on the root cause.
-        {
+        Err(e) => {
+            // Override any simulation result with a storage error (if any). Simulation does not propagate the storage
+            // errors, but these provide more exact information on the root cause.
             if let Some(e) = go_storage.internal_error.borrow().as_ref() {
                 format!("{e:?}")
             } else {

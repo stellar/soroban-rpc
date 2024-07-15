@@ -74,6 +74,7 @@ func GetTransaction(
 	ctx context.Context,
 	log *log.Entry,
 	reader db.TransactionReader,
+	ledgerReader db.LedgerReader,
 	request GetTransactionRequest,
 ) (GetTransactionResponse, error) {
 	// parse XDR format expectations
@@ -105,7 +106,15 @@ func GetTransaction(
 		}
 	}
 
-	tx, storeRange, err := reader.GetTransaction(ctx, txHash)
+	storeRange, err := ledgerReader.GetLedgerRange(ctx)
+	if err != nil {
+		return GetTransactionResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InternalError,
+			Message: fmt.Sprintf("unable to get ledger range: %v", err),
+		}
+	}
+
+	tx, err := reader.GetTransaction(ctx, txHash)
 
 	response := GetTransactionResponse{
 		LatestLedger:          storeRange.LastLedger.Sequence,
@@ -158,9 +167,11 @@ func GetTransaction(
 }
 
 // NewGetTransactionHandler returns a get transaction json rpc handler
-func NewGetTransactionHandler(logger *log.Entry, getter db.TransactionReader) jrpc2.Handler {
+func NewGetTransactionHandler(logger *log.Entry, getter db.TransactionReader,
+	ledgerReader db.LedgerReader,
+) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context, request GetTransactionRequest) (GetTransactionResponse, error) {
-		return GetTransaction(ctx, logger, getter, request)
+		return GetTransaction(ctx, logger, getter, ledgerReader, request)
 	})
 }
 
