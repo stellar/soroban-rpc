@@ -5,8 +5,6 @@ import (
 
 	"github.com/creachadair/jrpc2"
 
-	"github.com/stellar/go/support/log"
-
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
@@ -20,7 +18,6 @@ type GetNetworkResponse struct {
 
 // NewGetNetworkHandler returns a json rpc handler to for the getNetwork method
 func NewGetNetworkHandler(
-	logger *log.Entry,
 	networkPassphrase string,
 	friendbotURL string,
 	ledgerEntryReader db.LedgerEntryReader,
@@ -29,7 +26,10 @@ func NewGetNetworkHandler(
 	return NewHandler(func(ctx context.Context, request GetNetworkRequest) (GetNetworkResponse, error) {
 		protocolVersion, err := getProtocolVersion(ctx, ledgerEntryReader, ledgerReader)
 		if err != nil {
-			logger.WithError(err).Error("failed to fetch protocol version")
+			return GetNetworkResponse{}, &jrpc2.Error{
+				Code:    jrpc2.InternalError,
+				Message: err.Error(),
+			}
 		}
 
 		return GetNetworkResponse{

@@ -170,7 +170,6 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 		{
 			methodName: "getNetwork",
 			underlyingHandler: methods.NewGetNetworkHandler(
-				params.Logger,
 				cfg.NetworkPassphrase,
 				cfg.FriendbotURL,
 				params.LedgerEntryReader,
