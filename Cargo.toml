@@ -14,7 +14,7 @@ version = "=21.1.0"
 version = "=21.1.0"
 
 [workspace.dependencies.stellar-xdr]
-path = "../rs-xdr"
+version = "=21.1.0"
 
 [workspace.dependencies]
 base64 = "0.22.0"

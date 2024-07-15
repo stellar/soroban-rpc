@@ -42,8 +42,10 @@ func XdrToJson(xdr interface{}) (string, error) {
 
 			C.free(unsafe.Pointer(b))
 			FreeGoXDR(goRawXdr)
+			goStr := C.GoString(result)
+			C.free(unsafe.Pointer(result))
 
-			return C.GoString(result), nil
+			return goStr, nil
 		}
 	}
 
