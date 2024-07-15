@@ -581,7 +581,6 @@ dependencies = [
  "sha2",
  "soroban-env-host",
  "soroban-simulation",
- "stellar-xdr",
 ]
 
 [[package]]

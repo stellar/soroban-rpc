@@ -4,16 +4,16 @@ extern crate libc;
 extern crate sha2;
 extern crate soroban_env_host;
 extern crate soroban_simulation;
-extern crate stellar_xdr;
 
 use anyhow::{anyhow, bail, Result};
 use sha2::{Digest, Sha256};
 
 use soroban_env_host::storage::EntryWithLiveUntil;
 use soroban_env_host::xdr::{
+    self,
     AccountId, ExtendFootprintTtlOp, Hash, InvokeHostFunctionOp, LedgerEntry, LedgerEntryData,
-    LedgerFootprint, LedgerKey, LedgerKeyTtl, OperationBody, ReadXdr, ScErrorCode, ScErrorType,
-    SorobanTransactionData, TtlEntry, WriteXdr,
+    LedgerFootprint, LedgerKey, LedgerKeyTtl, OperationBody, ScErrorCode, ScErrorType,
+    SorobanTransactionData, TtlEntry, ReadXdr, WriteXdr,
 };
 use soroban_env_host::{HostError, LedgerInfo, DEFAULT_XDR_RW_LIMITS};
 use soroban_simulation::simulation::{
@@ -22,7 +22,6 @@ use soroban_simulation::simulation::{
     SimulationAdjustmentConfig,
 };
 use soroban_simulation::{AutoRestoringSnapshotSource, NetworkConfig, SnapshotSourceWithArchive};
-use stellar_xdr::curr::{self, WriteXdr as CurrWriteXdr};
 
 use std::cell::RefCell;
 use std::convert::TryFrom;
@@ -674,16 +673,16 @@ fn extract_error_string<T>(simulation_result: &Result<T>, go_storage: &GoLedgerS
 #[allow(deprecated)] // TODO: use proper version of base64::encode
 pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut libc::c_char {
     let type_str = from_c_string(typename);
-    let the_type = curr::TypeVariant::from_str(&type_str).unwrap();
+    let the_type = xdr::TypeVariant::from_str(&type_str).unwrap();
 
     unsafe {
         let xdr_bytearray = Vec::from_raw_parts(xdr.xdr, xdr.len, xdr.len);
-        let limits = curr::Limits {
+        let limits = xdr::Limits {
             depth: 16,
             len: xdr.len
         };
-        let mut limited_array = curr::Limited::new(xdr_bytearray.as_slice(), limits.clone());
-        let t = curr::Type::read_xdr(the_type, &mut limited_array).unwrap();
+        let mut limited_array = xdr::Limited::new(xdr_bytearray.as_slice(), limits.clone());
+        let t = xdr::Type::read_xdr(the_type, &mut limited_array).unwrap();
 
        string_to_c(base64::encode(t.to_xdr(limits).unwrap()))
     }

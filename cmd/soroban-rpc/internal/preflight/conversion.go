@@ -30,7 +30,7 @@ func XdrToJson(xdr interface{}) (string, error) {
 		rawXdr, err := encodableXdr.MarshalBinary()
 		if err != nil {
 			return "", errors.Wrapf(err,
-				"failed to marshal XDR type %s", xdrTypeName)
+				"failed to marshal XDR type '%s'", xdrTypeName)
 		}
 
 		// scoped just to show alloc/free mirroring:
@@ -50,5 +50,5 @@ func XdrToJson(xdr interface{}) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("expected XDR type, got %s", xdrTypeName)
+	return "", fmt.Errorf("expected XDR type, got '%s'", xdrTypeName)
 }

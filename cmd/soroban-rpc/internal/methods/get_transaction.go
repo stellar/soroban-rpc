@@ -79,7 +79,7 @@ func GetTransaction(
 ) (GetTransactionResponse, error) {
 	// parse XDR format expectations
 	if request.Format != "" {
-		if request.Format != "xdr" || request.Format != "json" {
+		if request.Format != "xdr" && request.Format != "json" {
 			return GetTransactionResponse{}, &jrpc2.Error{
 				Code: jrpc2.InvalidParams,
 				Message: fmt.Sprintf(
