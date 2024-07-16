@@ -13,7 +13,7 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/preflight"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
 
 const (
@@ -188,24 +188,24 @@ func transactionToJSON(tx db.Transaction) (
 	diagEvents []map[string]interface{},
 	err error,
 ) {
-	result, err = preflight.XdrToJson(xdr.TransactionResult{}, tx.Result)
+	result, err = xdr2json.Convert(xdr.TransactionResult{}, tx.Result)
 	if err != nil {
 		return
 	}
 
-	envelope, err = preflight.XdrToJson(xdr.TransactionEnvelope{}, tx.Envelope)
+	envelope, err = xdr2json.Convert(xdr.TransactionEnvelope{}, tx.Envelope)
 	if err != nil {
 		return
 	}
 
-	resultMeta, err = preflight.XdrToJson(xdr.TransactionMeta{}, tx.Meta)
+	resultMeta, err = xdr2json.Convert(xdr.TransactionMeta{}, tx.Meta)
 	if err != nil {
 		return
 	}
 
 	diagEvents = make([]map[string]interface{}, len(tx.Events))
 	for i, event := range tx.Events {
-		diagEvents[i], err = preflight.XdrToJson(xdr.DiagnosticEvent{}, event)
+		diagEvents[i], err = xdr2json.Convert(xdr.DiagnosticEvent{}, event)
 		if err != nil {
 			return
 		}

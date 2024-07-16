@@ -43,7 +43,6 @@ Cargo.lock: Cargo.toml
 install: build-libpreflight
 	go install -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} ./...
 
-
 build: build-libpreflight
 	go build -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} ./...
 
