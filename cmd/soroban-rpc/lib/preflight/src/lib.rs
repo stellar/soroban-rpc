@@ -678,9 +678,7 @@ pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut li
     let the_type = match xdr::TypeVariant::from_str(&type_str) {
         Ok(t) => t,
         Err(e) => {
-            println!("An error occurred matching XDR type '{type_str}': {e}");
-            // TODO: Proper error handling? Probably catching the panic unwinds.
-            return string_to_c("{}".to_string());
+            return string_to_c(format!(r#"{{ "error": "{}", "type": "{}" }}"#, e, type_str));
         }
     };
 
@@ -690,10 +688,12 @@ pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut li
     let t = match xdr::Type::read_xdr_to_end(the_type, &mut buffer) {
         Ok(t) => t,
         Err(e) => {
-            println!("An error occurred reading XDR type '{type_str}': {e}");
-            return string_to_c("{}".to_string());
+            return string_to_c(format!(r#"{{ "error": "{}", "type": "{}" }}"#, e, type_str));
         }
     };
 
-    string_to_c(serde_json::to_string(&t).unwrap())
+    string_to_c(match serde_json::to_string(&t) { 
+        Ok(s) => s,
+        Err(e) => format!(r#"{{ "error": "{}" }}"#, e),
+    })
 }
