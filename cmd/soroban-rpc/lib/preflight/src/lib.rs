@@ -4,7 +4,6 @@ extern crate libc;
 extern crate sha2;
 extern crate soroban_env_host;
 extern crate soroban_simulation;
-extern crate serde;
 extern crate serde_json;
 
 use anyhow::{anyhow, bail, Result};
@@ -23,8 +22,6 @@ use soroban_simulation::simulation::{
     SimulationAdjustmentConfig,
 };
 use soroban_simulation::{AutoRestoringSnapshotSource, NetworkConfig, SnapshotSourceWithArchive};
-
-use serde::Serialize;
 
 use std::cell::RefCell;
 use std::convert::TryFrom;
@@ -672,11 +669,10 @@ fn extract_error_string<T>(simulation_result: &Result<T>, go_storage: &GoLedgerS
     }
 }
 
-#[no_mangle]
-#[allow(deprecated)]
 // xdr_to_json takes in a string name of an XDR type in the Stellar Protocol
 // (i.e. from the stellar_xdr crate) as well as a raw byte structure and returns a
 // JSONified string of said structure.
+#[no_mangle]
 pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut libc::c_char {
     let type_str = from_c_string(typename);
     let the_type = xdr::TypeVariant::from_str(&type_str).unwrap();

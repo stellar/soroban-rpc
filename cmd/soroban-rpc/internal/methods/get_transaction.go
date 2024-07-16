@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -51,7 +52,7 @@ type GetTransactionResponse struct {
 	// EnvelopeXdr is the TransactionEnvelope XDR value.
 	EnvelopeXdr string `json:"envelopeXdr,omitempty"`
 	// ResultXdr is the TransactionResult XDR value.
-	ResultXdr string `json:"resultXdr,omitempty"`
+	ResultXdr interface{} `json:"resultXdr,omitempty"`
 	// ResultMetaXdr is the TransactionMeta XDR value.
 	ResultMetaXdr string `json:"resultMetaXdr,omitempty"`
 
@@ -148,7 +149,16 @@ func GetTransaction(
 				Message: convErr.Error(),
 			}
 		}
-		response.ResultXdr = result
+
+		var resultXdr map[string]interface{}
+		if jsonErr := json.Unmarshal([]byte(result), &resultXdr); jsonErr != nil {
+			return response, &jrpc2.Error{
+				Code:    jrpc2.InternalError,
+				Message: jsonErr.Error(),
+			}
+		}
+
+		response.ResultXdr = resultXdr
 		response.EnvelopeXdr = envelope
 		response.ResultMetaXdr = meta
 		response.DiagnosticEventsXDR = diagEvents
