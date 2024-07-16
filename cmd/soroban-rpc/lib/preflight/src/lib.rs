@@ -4,16 +4,17 @@ extern crate libc;
 extern crate sha2;
 extern crate soroban_env_host;
 extern crate soroban_simulation;
+extern crate serde;
+extern crate serde_json;
 
 use anyhow::{anyhow, bail, Result};
 use sha2::{Digest, Sha256};
 
 use soroban_env_host::storage::EntryWithLiveUntil;
 use soroban_env_host::xdr::{
-    self,
-    AccountId, ExtendFootprintTtlOp, Hash, InvokeHostFunctionOp, LedgerEntry, LedgerEntryData,
-    LedgerFootprint, LedgerKey, LedgerKeyTtl, OperationBody, ScErrorCode, ScErrorType,
-    SorobanTransactionData, TtlEntry, ReadXdr, WriteXdr,
+    self, AccountId, ExtendFootprintTtlOp, Hash, InvokeHostFunctionOp, LedgerEntry,
+    LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyTtl, OperationBody, ReadXdr, ScErrorCode,
+    ScErrorType, SorobanTransactionData, TtlEntry, WriteXdr,
 };
 use soroban_env_host::{HostError, LedgerInfo, DEFAULT_XDR_RW_LIMITS};
 use soroban_simulation::simulation::{
@@ -23,14 +24,16 @@ use soroban_simulation::simulation::{
 };
 use soroban_simulation::{AutoRestoringSnapshotSource, NetworkConfig, SnapshotSourceWithArchive};
 
+use serde::Serialize;
+
 use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::ffi::{CStr, CString};
 use std::panic;
 use std::ptr::null_mut;
 use std::rc::Rc;
-use std::{mem, slice};
 use std::str::FromStr;
+use std::{mem, slice};
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -670,20 +673,20 @@ fn extract_error_string<T>(simulation_result: &Result<T>, go_storage: &GoLedgerS
 }
 
 #[no_mangle]
-#[allow(deprecated)] // TODO: use proper version of base64::encode
+#[allow(deprecated)]
+// xdr_to_json takes in a string name of an XDR type in the Stellar Protocol
+// (i.e. from the stellar_xdr crate) as well as a raw byte structure and returns a
+// JSONified string of said structure.
 pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut libc::c_char {
     let type_str = from_c_string(typename);
     let the_type = xdr::TypeVariant::from_str(&type_str).unwrap();
 
-    unsafe {
-        let xdr_bytearray = Vec::from_raw_parts(xdr.xdr, xdr.len, xdr.len);
-        let limits = xdr::Limits {
-            depth: 16,
-            len: xdr.len
-        };
-        let mut limited_array = xdr::Limited::new(xdr_bytearray.as_slice(), limits.clone());
-        let t = xdr::Type::read_xdr(the_type, &mut limited_array).unwrap();
+    let xdr_bytearray = from_c_xdr(xdr);
+    let mut buffer = xdr::Limited::new(
+        xdr_bytearray.as_slice(),
+        DEFAULT_XDR_RW_LIMITS.clone());
 
-       string_to_c(base64::encode(t.to_xdr(limits).unwrap()))
-    }
+    let t = xdr::Type::read_xdr_to_end(the_type, &mut buffer).unwrap();
+
+    string_to_c(serde_json::to_string(&t).unwrap())
 }

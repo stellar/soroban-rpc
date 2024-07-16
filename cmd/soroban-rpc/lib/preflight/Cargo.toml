@@ -15,4 +15,6 @@ sha2 = { workspace = true }
 soroban-env-host = { workspace = true, features = ["recording_mode", "testutils", "unstable-next-api"]}
 soroban-simulation = { workspace = true }
 anyhow = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
 rand = { workspace = true }

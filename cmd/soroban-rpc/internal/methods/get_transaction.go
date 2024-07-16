@@ -181,7 +181,7 @@ func transactionToJSON(tx db.Transaction) (
 	txResult := xdr.TransactionResult{}
 	txResult.UnmarshalBinary(tx.Result)
 
-	txResultStr, err := preflight.XdrToJson(tx.Result)
+	txResultStr, err := preflight.XdrToJson(txResult)
 	if err != nil {
 		return "", "", "", []string{}, err
 	}

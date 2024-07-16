@@ -578,6 +578,8 @@ dependencies = [
  "base64 0.22.0",
  "libc",
  "rand",
+ "serde",
+ "serde_json",
  "sha2",
  "soroban-env-host",
  "soroban-simulation",

@@ -1,4 +1,4 @@
 char* xdr_to_json(
     const char* const typename, 
-    xdr_t* xdr
+    xdr_t xdr
 );

@@ -34,15 +34,14 @@ func XdrToJson(xdr interface{}) (string, error) {
 		}
 
 		// scoped just to show alloc/free mirroring:
-		// type, xdr, and return value
+		// type and return value strings
 		{
 			goRawXdr := CXDR(rawXdr)
 			b := C.CString(xdrTypeName)
 
-			result := C.xdr_to_json(b, &goRawXdr)
+			result := C.xdr_to_json(b, goRawXdr)
 
 			C.free(unsafe.Pointer(b))
-			FreeGoXDR(goRawXdr)
 			goStr := C.GoString(result)
 			C.free(unsafe.Pointer(result))
 
