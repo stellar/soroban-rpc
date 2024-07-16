@@ -16,6 +16,7 @@ import "C"
 
 import (
 	"encoding"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"unsafe"
@@ -23,31 +24,46 @@ import (
 	"github.com/pkg/errors"
 )
 
-func XdrToJson(xdr interface{}) (string, error) {
+func XdrToJson(xdr interface{}, field []byte) (map[string]interface{}, error) {
 	xdrTypeName := reflect.TypeOf(xdr).Name()
+	goStr := XdrToString(xdrTypeName, field)
 
-	if encodableXdr, ok := xdr.(encoding.BinaryMarshaler); ok {
-		rawXdr, err := encodableXdr.MarshalBinary()
-		if err != nil {
-			return "", errors.Wrapf(err,
-				"failed to marshal XDR type '%s'", xdrTypeName)
-		}
-
-		// scoped just to show alloc/free mirroring:
-		// type and return value strings
-		{
-			goRawXdr := CXDR(rawXdr)
-			b := C.CString(xdrTypeName)
-
-			result := C.xdr_to_json(b, goRawXdr)
-
-			C.free(unsafe.Pointer(b))
-			goStr := C.GoString(result)
-			C.free(unsafe.Pointer(result))
-
-			return goStr, nil
-		}
+	var result map[string]interface{}
+	err := json.Unmarshal([]byte(goStr), &result)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to decode as '%s'", xdrTypeName)
 	}
 
-	return "", fmt.Errorf("expected XDR type, got '%s'", xdrTypeName)
+	return result, nil
+}
+
+func AnyXdrToString(xdr interface{}) (string, error) {
+	xdrTypeName := reflect.TypeOf(xdr).Name()
+	if cerealXdr, ok := xdr.(encoding.BinaryMarshaler); !ok {
+		data, err := cerealXdr.MarshalBinary()
+		if err != nil {
+			return "", errors.Wrapf(err, "")
+		}
+
+		return XdrToString(xdrTypeName, data), nil
+	}
+
+	return "", fmt.Errorf("expected serializable XDR, got '%s': %+v", xdrTypeName, xdr)
+}
+
+func XdrToString(xdrTypeName string, field []byte) string {
+	var goStr string
+	// scope just added to show matching alloc/frees
+	{
+		goRawXdr := CXDR(field)
+		b := C.CString(xdrTypeName)
+
+		result := C.xdr_to_json(b, goRawXdr)
+		C.free(unsafe.Pointer(b))
+
+		goStr = C.GoString(result)
+		C.free(unsafe.Pointer(result))
+	}
+
+	return goStr
 }

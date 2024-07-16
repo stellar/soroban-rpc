@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -50,11 +49,14 @@ type GetTransactionResponse struct {
 	// FeeBump indicates whether the transaction is a feebump transaction
 	FeeBump bool `json:"feeBump,omitempty"`
 	// EnvelopeXdr is the TransactionEnvelope XDR value.
-	EnvelopeXdr string `json:"envelopeXdr,omitempty"`
+	EnvelopeXdr string                 `json:"envelopeXdr,omitempty"`
+	Envelope    map[string]interface{} `json:"envelope,omitempty"`
 	// ResultXdr is the TransactionResult XDR value.
-	ResultXdr interface{} `json:"resultXdr,omitempty"`
+	ResultXdr string                 `json:"resultXdr,omitempty"`
+	Result    map[string]interface{} `json:"result,omitempty"`
 	// ResultMetaXdr is the TransactionMeta XDR value.
-	ResultMetaXdr string `json:"resultMetaXdr,omitempty"`
+	ResultMetaXdr string                 `json:"resultMetaXdr,omitempty"`
+	ResultMeta    map[string]interface{} `json:"resultMeta,omitempty"`
 
 	// Ledger is the sequence of the ledger which included the transaction.
 	Ledger uint32 `json:"ledger,omitempty"`
@@ -63,7 +65,8 @@ type GetTransactionResponse struct {
 
 	// DiagnosticEventsXDR is present only if Status is equal to TransactionFailed.
 	// DiagnosticEventsXDR is a base64-encoded slice of xdr.DiagnosticEvent
-	DiagnosticEventsXDR []string `json:"diagnosticEventsXdr,omitempty"`
+	DiagnosticEventsXDR []string                 `json:"diagnosticEventsXdr,omitempty"`
+	DiagnosticEvents    []map[string]interface{} `json:"diagnosticEvents,omitempty"`
 }
 
 type GetTransactionRequest struct {
@@ -150,18 +153,10 @@ func GetTransaction(
 			}
 		}
 
-		var resultXdr map[string]interface{}
-		if jsonErr := json.Unmarshal([]byte(result), &resultXdr); jsonErr != nil {
-			return response, &jrpc2.Error{
-				Code:    jrpc2.InternalError,
-				Message: jsonErr.Error(),
-			}
-		}
-
-		response.ResultXdr = resultXdr
-		response.EnvelopeXdr = envelope
-		response.ResultMetaXdr = meta
-		response.DiagnosticEventsXDR = diagEvents
+		response.Result = result
+		response.Envelope = envelope
+		response.ResultMeta = meta
+		response.DiagnosticEvents = diagEvents
 	} else {
 		response.ResultXdr = base64.StdEncoding.EncodeToString(tx.Result)
 		response.EnvelopeXdr = base64.StdEncoding.EncodeToString(tx.Envelope)
@@ -177,6 +172,7 @@ func GetTransaction(
 }
 
 // NewGetTransactionHandler returns a get transaction json rpc handler
+
 func NewGetTransactionHandler(logger *log.Entry, getter db.TransactionReader,
 	ledgerReader db.LedgerReader,
 ) jrpc2.Handler {
@@ -186,19 +182,34 @@ func NewGetTransactionHandler(logger *log.Entry, getter db.TransactionReader,
 }
 
 func transactionToJSON(tx db.Transaction) (
-	string, string, string, []string, error,
+	result map[string]interface{},
+	envelope map[string]interface{},
+	resultMeta map[string]interface{},
+	diagEvents []map[string]interface{},
+	err error,
 ) {
-	txResult := xdr.TransactionResult{}
-	txResult.UnmarshalBinary(tx.Result)
-
-	txResultStr, err := preflight.XdrToJson(txResult)
+	result, err = preflight.XdrToJson(xdr.TransactionResult{}, tx.Result)
 	if err != nil {
-		return "", "", "", []string{}, err
+		return
 	}
 
-	return txResultStr,
-		"",
-		"",
-		[]string{""},
-		nil
+	envelope, err = preflight.XdrToJson(xdr.TransactionEnvelope{}, tx.Envelope)
+	if err != nil {
+		return
+	}
+
+	resultMeta, err = preflight.XdrToJson(xdr.TransactionMeta{}, tx.Meta)
+	if err != nil {
+		return
+	}
+
+	diagEvents = make([]map[string]interface{}, len(tx.Events))
+	for i, event := range tx.Events {
+		diagEvents[i], err = preflight.XdrToJson(xdr.DiagnosticEvent{}, event)
+		if err != nil {
+			return
+		}
+	}
+
+	return
 }

@@ -1,10 +1,10 @@
 extern crate anyhow;
 extern crate base64;
 extern crate libc;
+extern crate serde_json;
 extern crate sha2;
 extern crate soroban_env_host;
 extern crate soroban_simulation;
-extern crate serde_json;
 
 use anyhow::{anyhow, bail, Result};
 use sha2::{Digest, Sha256};
@@ -675,14 +675,25 @@ fn extract_error_string<T>(simulation_result: &Result<T>, go_storage: &GoLedgerS
 #[no_mangle]
 pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut libc::c_char {
     let type_str = from_c_string(typename);
-    let the_type = xdr::TypeVariant::from_str(&type_str).unwrap();
+    let the_type = match xdr::TypeVariant::from_str(&type_str) {
+        Ok(t) => t,
+        Err(e) => {
+            println!("An error occurred matching XDR type '{type_str}': {e}");
+            // TODO: Proper error handling? Probably catching the panic unwinds.
+            return string_to_c("{}".to_string());
+        }
+    };
 
     let xdr_bytearray = from_c_xdr(xdr);
-    let mut buffer = xdr::Limited::new(
-        xdr_bytearray.as_slice(),
-        DEFAULT_XDR_RW_LIMITS.clone());
+    let mut buffer = xdr::Limited::new(xdr_bytearray.as_slice(), DEFAULT_XDR_RW_LIMITS.clone());
 
-    let t = xdr::Type::read_xdr_to_end(the_type, &mut buffer).unwrap();
+    let t = match xdr::Type::read_xdr_to_end(the_type, &mut buffer) {
+        Ok(t) => t,
+        Err(e) => {
+            println!("An error occurred reading XDR type '{type_str}': {e}");
+            return string_to_c("{}".to_string());
+        }
+    };
 
     string_to_c(serde_json::to_string(&t).unwrap())
 }
