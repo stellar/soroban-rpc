@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/creachadair/jrpc2"
 
@@ -69,9 +70,14 @@ type GetTransactionResponse struct {
 	DiagnosticEvents    []map[string]interface{} `json:"diagnosticEvents,omitempty"`
 }
 
+const (
+	XdrFormatBase64 = "base64"
+	XdrFormatJSON   = "json"
+)
+
 type GetTransactionRequest struct {
 	Hash   string `json:"hash"`
-	Format string `json:"xdr_format,omitempty"`
+	Format string `json:"xdrFormat,omitempty"`
 }
 
 func GetTransaction(
@@ -82,14 +88,20 @@ func GetTransaction(
 	request GetTransactionRequest,
 ) (GetTransactionResponse, error) {
 	// parse XDR format expectations
-	if request.Format != "" {
-		if request.Format != "xdr" && request.Format != "json" {
-			return GetTransactionResponse{}, &jrpc2.Error{
-				Code: jrpc2.InvalidParams,
-				Message: fmt.Sprintf(
-					"expected 'xdr' or 'json' for optional format, got %s",
-					request.Format),
-			}
+	switch request.Format {
+	case "":
+		fallthrough
+	case XdrFormatJSON:
+		fallthrough
+	case XdrFormatBase64:
+		break
+	default:
+		return GetTransactionResponse{}, &jrpc2.Error{
+			Code: jrpc2.InvalidParams,
+			Message: fmt.Sprintf(
+				"expected %s for 'xdr_format', got %s",
+				strings.Join([]string{XdrFormatBase64, XdrFormatJSON}, ", "),
+				request.Format),
 		}
 	}
 
@@ -144,7 +156,8 @@ func GetTransaction(
 	response.Ledger = tx.Ledger.Sequence
 	response.LedgerCloseTime = tx.Ledger.CloseTime
 
-	if request.Format == "json" {
+	switch request.Format {
+	case "json":
 		result, envelope, meta, diagEvents, convErr := transactionToJSON(tx)
 		if convErr != nil {
 			return response, &jrpc2.Error{
@@ -157,7 +170,8 @@ func GetTransaction(
 		response.Envelope = envelope
 		response.ResultMeta = meta
 		response.DiagnosticEvents = diagEvents
-	} else {
+
+	default:
 		response.ResultXdr = base64.StdEncoding.EncodeToString(tx.Result)
 		response.EnvelopeXdr = base64.StdEncoding.EncodeToString(tx.Envelope)
 		response.ResultMetaXdr = base64.StdEncoding.EncodeToString(tx.Meta)
@@ -182,34 +196,38 @@ func NewGetTransactionHandler(logger *log.Entry, getter db.TransactionReader,
 }
 
 func transactionToJSON(tx db.Transaction) (
-	result map[string]interface{},
-	envelope map[string]interface{},
-	resultMeta map[string]interface{},
-	diagEvents []map[string]interface{},
-	err error,
+	map[string]interface{},
+	map[string]interface{},
+	map[string]interface{},
+	[]map[string]interface{},
+	error,
 ) {
+	var err error
+	var result, envelope, resultMeta map[string]interface{}
+	var diagEvents []map[string]interface{}
+
 	result, err = xdr2json.Convert(xdr.TransactionResult{}, tx.Result)
 	if err != nil {
-		return
+		return result, envelope, resultMeta, diagEvents, err
 	}
 
 	envelope, err = xdr2json.Convert(xdr.TransactionEnvelope{}, tx.Envelope)
 	if err != nil {
-		return
+		return result, envelope, resultMeta, diagEvents, err
 	}
 
 	resultMeta, err = xdr2json.Convert(xdr.TransactionMeta{}, tx.Meta)
 	if err != nil {
-		return
+		return result, envelope, resultMeta, diagEvents, err
 	}
 
 	diagEvents = make([]map[string]interface{}, len(tx.Events))
 	for i, event := range tx.Events {
 		diagEvents[i], err = xdr2json.Convert(xdr.DiagnosticEvent{}, event)
 		if err != nil {
-			return
+			return result, envelope, resultMeta, diagEvents, err
 		}
 	}
 
-	return
+	return result, envelope, resultMeta, diagEvents, nil
 }

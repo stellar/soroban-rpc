@@ -678,7 +678,7 @@ pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut li
     let the_type = match xdr::TypeVariant::from_str(&type_str) {
         Ok(t) => t,
         Err(e) => {
-            return string_to_c(format!(r#"{{ "error": "{}", "type": "{}" }}"#, e, type_str));
+            return string_to_c(format!(r#"{{ "error": "{e}", "type": "{type_str}" }}"#));
         }
     };
 
@@ -688,12 +688,12 @@ pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut li
     let t = match xdr::Type::read_xdr_to_end(the_type, &mut buffer) {
         Ok(t) => t,
         Err(e) => {
-            return string_to_c(format!(r#"{{ "error": "{}", "type": "{}" }}"#, e, type_str));
+            return string_to_c(format!(r#"{{ "error": "{e}", "type": "{type_str}" }}"#));
         }
     };
 
-    string_to_c(match serde_json::to_string(&t) { 
+    string_to_c(match serde_json::to_string(&t) {
         Ok(s) => s,
-        Err(e) => format!(r#"{{ "error": "{}" }}"#, e),
+        Err(e) => format!(r#"{{ "error": "{e}" }}"#),
     })
 }
