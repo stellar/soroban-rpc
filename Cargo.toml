@@ -8,10 +8,10 @@ members = [
 rust-version = "1.74.0"
 
 [workspace.dependencies.soroban-env-host]
-version = "=21.1.0"
+version = "=21.2.0"
 
 [workspace.dependencies.soroban-simulation]
-version = "=21.1.0"
+version = "=21.2.0"
 
 [workspace.dependencies]
 base64 = "0.22.0"
