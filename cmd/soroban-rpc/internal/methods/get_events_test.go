@@ -1169,6 +1169,88 @@ func TestGetEvents(t *testing.T) {
 	})
 }
 
+func BenchmarkGetEvents(b *testing.B) {
+	now := time.Now().UTC()
+	counter := xdr.ScSymbol("COUNTER")
+	requestedCounter := xdr.ScSymbol("REQUESTED")
+	dbx := newTestDB(b)
+	ctx := context.TODO()
+	log := log.DefaultLogger
+	log.SetLevel(logrus.TraceLevel)
+
+	writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+	write, err := writer.NewTx(ctx)
+	require.NoError(b, err)
+	ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+	store := db.NewEventReader(log, dbx, passphrase)
+
+	contractID := xdr.Hash([32]byte{})
+
+	txMeta := []xdr.TransactionMeta{
+		transactionMetaWithEvents(
+			contractEvent(
+				contractID,
+				xdr.ScVec{
+					xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
+				},
+				xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
+			),
+			systemEvent(
+				contractID,
+				xdr.ScVec{
+					xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
+				},
+				xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
+			),
+			diagnosticEvent(
+				contractID,
+				xdr.ScVec{
+					xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
+				},
+				xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
+			),
+		),
+	}
+	for i := 1; i < 100000; i++ {
+		ledgerCloseMeta := ledgerCloseMetaWithEvents(uint32(i), now.Unix(), txMeta...)
+		require.NoError(b, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+		require.NoError(b, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
+	}
+	require.NoError(b, write.Commit(1))
+
+	handler := eventsRPCHandler{
+		dbReader:     store,
+		maxLimit:     10000,
+		defaultLimit: 100,
+		ledgerReader: db.NewLedgerReader(dbx),
+	}
+
+	request := GetEventsRequest{
+		StartLedger: 1,
+		Filters: []EventFilter{
+			{
+				ContractIDs: []string{strkey.MustEncode(strkey.VersionByteContract, contractID[:])},
+				Topics: []TopicFilter{
+					[]SegmentFilter{
+						{scval: &xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &requestedCounter}},
+					},
+				},
+			},
+		},
+	}
+
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_, err := handler.getEvents(ctx, request)
+			if err != nil {
+				b.Errorf("getEvents failed: %v", err)
+			}
+		}
+	})
+}
+
 func ledgerCloseMetaWithEvents(sequence uint32, closeTimestamp int64, txMeta ...xdr.TransactionMeta) xdr.LedgerCloseMeta {
 	var txProcessing []xdr.TransactionResultMeta
 	var phases []xdr.TransactionPhase

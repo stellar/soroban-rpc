@@ -17,7 +17,8 @@ import (
 
 const (
 	// OneDayOfLedgers is (roughly) a 24 hour window of ledgers.
-	OneDayOfLedgers = 17280
+	OneDayOfLedgers   = 17280
+	SevenDayOfLedgers = OneDayOfLedgers * 7
 
 	defaultHTTPEndpoint = "localhost:8000"
 )
@@ -233,7 +234,7 @@ func (cfg *Config) options() Options {
 					" the default value is %d which corresponds to about 24 hours of history",
 				OneDayOfLedgers),
 			ConfigKey:    &cfg.EventLedgerRetentionWindow,
-			DefaultValue: uint32(OneDayOfLedgers),
+			DefaultValue: uint32(SevenDayOfLedgers),
 			Validate:     positive,
 		},
 		// TODO: remove
