@@ -32,6 +32,8 @@ func Convert(xdr interface{}, field []byte) (map[string]interface{}, error) {
 	err := json.Unmarshal([]byte(goStr), &result)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to decode as '%s'", xdrTypeName)
+	} else if jsonErr, ok := result["error"]; ok {
+		return nil, fmt.Errorf("error during conversion: %+v", jsonErr)
 	}
 
 	return result, nil
