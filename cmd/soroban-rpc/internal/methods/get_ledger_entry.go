@@ -48,14 +48,10 @@ func NewGetLedgerEntryHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntr
 			}
 		}
 
-		switch request.Format {
-		case "":
-		case "xdr":
-		case "json":
-		default:
+		if err := xdr2json.IsValidConversion(request.Format); err != nil {
 			return GetLedgerEntryResponse{}, &jrpc2.Error{
 				Code:    jrpc2.InvalidParams,
-				Message: errInvalidFormat.Error(),
+				Message: err.Error(),
 			}
 		}
 
@@ -111,7 +107,7 @@ func NewGetLedgerEntryHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntr
 		switch request.Format {
 		case "":
 			fallthrough
-		case XdrFormatBase64:
+		case xdr2json.FormatBase64:
 			if response.XDR, err = xdr.MarshalBase64(ledgerEntry.Data); err != nil {
 				logger.WithError(err).WithField("request", request).
 					Info("could not serialize ledger entry data")
@@ -120,7 +116,7 @@ func NewGetLedgerEntryHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntr
 					Message: "could not serialize ledger entry data",
 				}
 			}
-		case XdrFormatJSON:
+		case xdr2json.FormatJSON:
 			response.EntryData, err = xdr2json.ConvertAny(ledgerEntry.Data)
 			logger.WithError(err).WithField("request", request).
 				Info("could not JSONify ledger entry data")

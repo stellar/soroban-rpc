@@ -51,15 +51,7 @@ func (req GetTransactionsRequest) isValid(maxLimit uint, ledgerRange ledgerbucke
 		return fmt.Errorf("limit must not exceed %d", maxLimit)
 	}
 
-	switch req.Format {
-	case XdrFormatBase64:
-	case XdrFormatJSON:
-	case "":
-	default:
-		return errInvalidFormat
-	}
-
-	return nil
+	return xdr2json.IsValidConversion(req.Format)
 }
 
 type TransactionInfo struct {

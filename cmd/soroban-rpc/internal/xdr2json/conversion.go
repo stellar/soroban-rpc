@@ -20,12 +20,24 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 	"unsafe"
 
 	"github.com/pkg/errors"
+
 	"github.com/stellar/go/xdr"
+
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
+
+const (
+	FormatBase64 = "base64"
+	FormatJSON   = "json"
+)
+
+var errInvalidFormat = fmt.Errorf(
+	"expected %s for optional 'xdrFormat'",
+	strings.Join([]string{FormatBase64, FormatJSON}, ", "))
 
 func Convert(xdr interface{}, field []byte) (map[string]interface{}, error) {
 	xdrTypeName := reflect.TypeOf(xdr).Name()
@@ -127,4 +139,15 @@ func TransactionToJSON(tx db.Transaction) (
 	}
 
 	return result, envelope, resultMeta, diagEvents, nil
+}
+
+func IsValidConversion(format string) error {
+	switch format {
+	case "":
+	case FormatJSON:
+	case FormatBase64:
+	default:
+		return errInvalidFormat
+	}
+	return nil
 }

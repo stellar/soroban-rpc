@@ -44,14 +44,10 @@ const getLedgerEntriesMaxKeys = 200
 // NewGetLedgerEntriesHandler returns a JSON RPC handler to retrieve the specified ledger entries from Stellar Core.
 func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntryReader) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context, request GetLedgerEntriesRequest) (GetLedgerEntriesResponse, error) {
-		switch request.Format {
-		case "":
-		case XdrFormatJSON:
-		case XdrFormatBase64:
-		default:
+		if err := xdr2json.IsValidConversion(request.Format); err != nil {
 			return GetLedgerEntriesResponse{}, &jrpc2.Error{
 				Code:    jrpc2.InvalidParams,
-				Message: errInvalidFormat.Error(),
+				Message: err.Error(),
 			}
 		}
 
@@ -117,7 +113,7 @@ func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEn
 			switch request.Format {
 			case "":
 				fallthrough
-			case XdrFormatBase64:
+			case xdr2json.FormatBase64:
 				keyXDR, err := xdr.MarshalBase64(ledgerKeyAndEntry.Key)
 				if err != nil {
 					logger.WithError(err).WithField("request", request).
@@ -145,7 +141,8 @@ func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEn
 					LiveUntilLedgerSeq: ledgerKeyAndEntry.LiveUntilLedgerSeq,
 				})
 
-			case XdrFormatJSON:
+			// TODO
+			case xdr2json.FormatJSON:
 				_, err := xdr2json.ConvertAny(ledgerKeyAndEntry.Key)
 				if err != nil {
 

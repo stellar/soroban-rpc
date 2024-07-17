@@ -69,11 +69,6 @@ type GetTransactionResponse struct {
 	DiagnosticEvents    []map[string]interface{} `json:"diagnosticEvents,omitempty"`
 }
 
-const (
-	XdrFormatBase64 = "base64"
-	XdrFormatJSON   = "json"
-)
-
 type GetTransactionRequest struct {
 	Hash   string `json:"hash"`
 	Format string `json:"xdrFormat,omitempty"`
@@ -86,15 +81,10 @@ func GetTransaction(
 	ledgerReader db.LedgerReader,
 	request GetTransactionRequest,
 ) (GetTransactionResponse, error) {
-	// parse XDR format expectations
-	switch request.Format {
-	case "":
-	case XdrFormatJSON:
-	case XdrFormatBase64:
-	default:
+	if err := xdr2json.IsValidConversion(request.Format); err != nil {
 		return GetTransactionResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidParams,
-			Message: errInvalidFormat.Error(),
+			Message: err.Error(),
 		}
 	}
 

@@ -1,9 +1,6 @@
 package methods
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
 )
@@ -18,7 +15,3 @@ func NewHandler(fn any) jrpc2.Handler {
 	fi.AllowArray(false)
 	return fi.Wrap()
 }
-
-var errInvalidFormat = fmt.Errorf(
-	"expected %s for 'xdrFormat'",
-	strings.Join([]string{XdrFormatBase64, XdrFormatJSON}, ", "))

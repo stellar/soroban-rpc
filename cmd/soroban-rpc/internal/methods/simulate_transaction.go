@@ -16,11 +16,13 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/preflight"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
 
 type SimulateTransactionRequest struct {
 	Transaction    string                    `json:"transaction"`
 	ResourceConfig *preflight.ResourceConfig `json:"resourceConfig,omitempty"`
+	Format         string                    `json:"xdrFormat,omitempty"`
 }
 
 type SimulateTransactionCost struct {
@@ -160,6 +162,10 @@ type PreflightGetter interface {
 // NewSimulateTransactionHandler returns a json rpc handler to run preflight simulations
 func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntryReader, ledgerReader db.LedgerReader, daemon interfaces.Daemon, getter PreflightGetter) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context, request SimulateTransactionRequest) SimulateTransactionResponse {
+		if err := xdr2json.IsValidConversion(request.Format); err != nil {
+			return SimulateTransactionResponse{Error: err.Error()}
+		}
+
 		var txEnvelope xdr.TransactionEnvelope
 		if err := xdr.SafeUnmarshalBase64(request.Transaction, &txEnvelope); err != nil {
 			logger.WithError(err).WithField("request", request).
