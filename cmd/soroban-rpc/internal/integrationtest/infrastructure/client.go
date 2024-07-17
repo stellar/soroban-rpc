@@ -96,11 +96,11 @@ func SendSuccessfulTransaction(t *testing.T, client *Client, kp *keypair.Full, t
 	response := getTransaction(t, client, expectedHashHex)
 	if !assert.Equal(t, methods.TransactionStatusSuccess, response.Status) {
 		var txResult xdr.TransactionResult
-		assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultXdr, &txResult))
+		assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultXDR, &txResult))
 		t.Logf("error: %#v\n", txResult)
 
 		var txMeta xdr.TransactionMeta
-		assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultMetaXdr, &txMeta))
+		assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultMetaXDR, &txMeta))
 
 		if txMeta.V == 3 && txMeta.V3.SorobanMeta != nil {
 			if len(txMeta.V3.SorobanMeta.Events) > 0 {
@@ -119,7 +119,7 @@ func SendSuccessfulTransaction(t *testing.T, client *Client, kp *keypair.Full, t
 		}
 	}
 
-	require.NotNil(t, response.ResultXdr)
+	require.NotNil(t, response.ResultXDR)
 	assert.Greater(t, response.Ledger, result.LatestLedger)
 	assert.Greater(t, response.LedgerCloseTime, result.LatestLedgerCloseTime)
 	assert.GreaterOrEqual(t, response.LatestLedger, response.Ledger)

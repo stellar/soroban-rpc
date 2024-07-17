@@ -30,7 +30,7 @@ func TestSendTransactionSucceedsWithResults(t *testing.T) {
 
 	// Check the result is what we expect
 	var transactionResult xdr.TransactionResult
-	assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultXdr, &transactionResult))
+	assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultXDR, &transactionResult))
 	opResults, ok := transactionResult.OperationResults()
 	assert.True(t, ok)
 	invokeHostFunctionResult, ok := opResults[0].MustTr().GetInvokeHostFunctionResult()
@@ -39,10 +39,10 @@ func TestSendTransactionSucceedsWithResults(t *testing.T) {
 	contractHashBytes := xdr.ScBytes(contractHash[:])
 	expectedScVal := xdr.ScVal{Type: xdr.ScValTypeScvBytes, Bytes: &contractHashBytes}
 	var transactionMeta xdr.TransactionMeta
-	assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultMetaXdr, &transactionMeta))
+	assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultMetaXDR, &transactionMeta))
 	assert.True(t, expectedScVal.Equals(transactionMeta.V3.SorobanMeta.ReturnValue))
 	var resultXdr xdr.TransactionResult
-	assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultXdr, &resultXdr))
+	assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultXDR, &resultXdr))
 	expectedResult := xdr.TransactionResult{
 		FeeCharged: resultXdr.FeeCharged,
 		Result: xdr.TransactionResultResult{
@@ -182,7 +182,7 @@ func TestSendTransactionFailedInLedger(t *testing.T) {
 	response := test.GetTransaction(expectedHashHex)
 	assert.Equal(t, methods.TransactionStatusFailed, response.Status)
 	var transactionResult xdr.TransactionResult
-	assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultXdr, &transactionResult))
+	assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultXDR, &transactionResult))
 	assert.Equal(t, xdr.TransactionResultCodeTxFailed, transactionResult.Result.Code)
 	assert.Greater(t, response.Ledger, result.LatestLedger)
 	assert.Greater(t, response.LedgerCloseTime, result.LatestLedgerCloseTime)

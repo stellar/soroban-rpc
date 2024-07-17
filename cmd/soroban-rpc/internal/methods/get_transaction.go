@@ -48,15 +48,15 @@ type GetTransactionResponse struct {
 	ApplicationOrder int32 `json:"applicationOrder,omitempty"`
 	// FeeBump indicates whether the transaction is a feebump transaction
 	FeeBump bool `json:"feeBump,omitempty"`
-	// EnvelopeXdr is the TransactionEnvelope XDR value.
-	EnvelopeXdr string                 `json:"envelopeXdr,omitempty"`
-	Envelope    map[string]interface{} `json:"envelope,omitempty"`
-	// ResultXdr is the TransactionResult XDR value.
-	ResultXdr string                 `json:"resultXdr,omitempty"`
-	Result    map[string]interface{} `json:"result,omitempty"`
-	// ResultMetaXdr is the TransactionMeta XDR value.
-	ResultMetaXdr string                 `json:"resultMetaXdr,omitempty"`
-	ResultMeta    map[string]interface{} `json:"resultMeta,omitempty"`
+	// EnvelopeXDR is the TransactionEnvelope XDR value.
+	EnvelopeXDR  string                 `json:"envelopeXdr,omitempty"`
+	EnvelopeJSON map[string]interface{} `json:"envelopeJson,omitempty"`
+	// ResultXDR is the TransactionResult XDR value.
+	ResultXDR  string                 `json:"resultXdr,omitempty"`
+	ResultJSON map[string]interface{} `json:"resultJson,omitempty"`
+	// ResultMetaXDR is the TransactionMeta XDR value.
+	ResultMetaXDR  string                 `json:"resultMetaXdr,omitempty"`
+	ResultMetaJSON map[string]interface{} `json:"resultMetaJson,omitempty"`
 
 	// Ledger is the sequence of the ledger which included the transaction.
 	Ledger uint32 `json:"ledger,omitempty"`
@@ -65,8 +65,8 @@ type GetTransactionResponse struct {
 
 	// DiagnosticEventsXDR is present only if Status is equal to TransactionFailed.
 	// DiagnosticEventsXDR is a base64-encoded slice of xdr.DiagnosticEvent
-	DiagnosticEventsXDR []string                 `json:"diagnosticEventsXdr,omitempty"`
-	DiagnosticEvents    []map[string]interface{} `json:"diagnosticEvents,omitempty"`
+	DiagnosticEventsXDR  []string                 `json:"diagnosticEventsXdr,omitempty"`
+	DiagnosticEventsJSON []map[string]interface{} `json:"diagnosticEventsJson,omitempty"`
 }
 
 type GetTransactionRequest struct {
@@ -149,15 +149,15 @@ func GetTransaction(
 			}
 		}
 
-		response.Result = result
-		response.Envelope = envelope
-		response.ResultMeta = meta
-		response.DiagnosticEvents = diagEvents
+		response.ResultJSON = result
+		response.EnvelopeJSON = envelope
+		response.ResultMetaJSON = meta
+		response.DiagnosticEventsJSON = diagEvents
 
 	default:
-		response.ResultXdr = base64.StdEncoding.EncodeToString(tx.Result)
-		response.EnvelopeXdr = base64.StdEncoding.EncodeToString(tx.Envelope)
-		response.ResultMetaXdr = base64.StdEncoding.EncodeToString(tx.Meta)
+		response.ResultXDR = base64.StdEncoding.EncodeToString(tx.Result)
+		response.EnvelopeXDR = base64.StdEncoding.EncodeToString(tx.Envelope)
+		response.ResultMetaXDR = base64.StdEncoding.EncodeToString(tx.Meta)
 		response.DiagnosticEventsXDR = base64EncodeSlice(tx.Events)
 	}
 

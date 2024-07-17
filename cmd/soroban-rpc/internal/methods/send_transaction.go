@@ -20,10 +20,14 @@ type SendTransactionResponse struct {
 	// ErrorResultXDR is present only if Status is equal to proto.TXStatusError.
 	// ErrorResultXDR is a TransactionResult xdr string which contains details on why
 	// the transaction could not be accepted by stellar-core.
-	ErrorResultXDR string `json:"errorResultXdr,omitempty"`
+	ErrorResultXDR  string                 `json:"errorResultXdr,omitempty"`
+	ErrorResultJSON map[string]interface{} `json:"errorResultJson,omitempty"`
+
 	// DiagnosticEventsXDR is present only if Status is equal to proto.TXStatusError.
 	// DiagnosticEventsXDR is a base64-encoded slice of xdr.DiagnosticEvent
-	DiagnosticEventsXDR []string `json:"diagnosticEventsXdr,omitempty"`
+	DiagnosticEventsXDR  []string                 `json:"diagnosticEventsXdr,omitempty"`
+	DiagnosticEventsJSON []map[string]interface{} `json:"diagnosticEventsJson,omitempty"`
+
 	// Status represents the status of the transaction submission returned by stellar-core.
 	// Status can be one of: proto.TXStatusPending, proto.TXStatusDuplicate,
 	// proto.TXStatusTryAgainLater, or proto.TXStatusError.

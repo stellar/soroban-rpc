@@ -80,6 +80,6 @@ func TestGetLedgerEntrySucceeds(t *testing.T) {
 	assert.Greater(t, result.LatestLedger, uint32(0))
 	assert.GreaterOrEqual(t, result.LatestLedger, result.LastModifiedLedger)
 	var entry xdr.LedgerEntryData
-	assert.NoError(t, xdr.SafeUnmarshalBase64(result.XDR, &entry))
+	assert.NoError(t, xdr.SafeUnmarshalBase64(result.EntryXDR, &entry))
 	assert.Equal(t, infrastructure.GetHelloWorldContract(), entry.MustContractCode().Code)
 }

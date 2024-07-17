@@ -66,16 +66,21 @@ func (e eventTypeSet) matches(event xdr.ContractEvent) bool {
 }
 
 type EventInfo struct {
-	EventType                string   `json:"type"`
-	Ledger                   int32    `json:"ledger"`
-	LedgerClosedAt           string   `json:"ledgerClosedAt"`
-	ContractID               string   `json:"contractId"`
-	ID                       string   `json:"id"`
-	PagingToken              string   `json:"pagingToken"`
-	Topic                    []string `json:"topic"`
-	Value                    string   `json:"value"`
-	InSuccessfulContractCall bool     `json:"inSuccessfulContractCall"`
-	TransactionHash          string   `json:"txHash"`
+	EventType                string `json:"type"`
+	Ledger                   int32  `json:"ledger"`
+	LedgerClosedAt           string `json:"ledgerClosedAt"`
+	ContractID               string `json:"contractId"`
+	ID                       string `json:"id"`
+	PagingToken              string `json:"pagingToken"`
+	InSuccessfulContractCall bool   `json:"inSuccessfulContractCall"`
+	TransactionHash          string `json:"txHash"`
+
+	// TopicXDR is a base64-encoded list of ScVals
+	TopicXDR  []string                 `json:"topic,omitempty"`
+	TopicJSON []map[string]interface{} `json:"topicJson,omitempty"`
+	// ValueXDR is a base64-encoded ScVal
+	ValueXDR  string `json:"value,omitempty"`
+	ValueJSON string `json:"valueJson,omitempty"`
 }
 
 type GetEventsRequest struct {
@@ -414,8 +419,8 @@ func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCl
 		LedgerClosedAt:           ledgerClosedAt,
 		ID:                       cursor.String(),
 		PagingToken:              cursor.String(),
-		Topic:                    topic,
-		Value:                    data,
+		TopicXDR:                 topic,
+		ValueXDR:                 data,
 		InSuccessfulContractCall: event.InSuccessfulContractCall,
 		TransactionHash:          txHash,
 	}

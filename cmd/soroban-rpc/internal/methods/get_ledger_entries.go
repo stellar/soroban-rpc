@@ -23,11 +23,11 @@ type GetLedgerEntriesRequest struct {
 
 type LedgerEntryResult struct {
 	// Original request key matching this LedgerEntryResult.
-	Key     string                 `json:"key,omitempty"`
+	KeyXDR  string                 `json:"key,omitempty"`
 	KeyJSON map[string]interface{} `json:"keyJson,omitempty"`
 	// Ledger entry data encoded in base 64.
-	XDR      string                 `json:"xdr,omitempty"`
-	DataJSON map[string]interface{} `json:"xdrJson,omitempty"`
+	DataXDR  string                 `json:"xdr,omitempty"`
+	DataJSON map[string]interface{} `json:"dataJson,omitempty"`
 	// Last modified ledger for this entry.
 	LastModifiedLedger uint32 `json:"lastModifiedLedgerSeq"`
 	// The ledger sequence until the entry is live, available for entries that have associated ttl ledger entries.
@@ -137,8 +137,8 @@ func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEn
 				}
 
 				ledgerEntryResults = append(ledgerEntryResults, LedgerEntryResult{
-					Key:                keyXDR,
-					XDR:                entryXDR,
+					KeyXDR:             keyXDR,
+					DataXDR:            entryXDR,
 					LastModifiedLedger: uint32(ledgerKeyAndEntry.Entry.LastModifiedLedgerSeq),
 					LiveUntilLedgerSeq: ledgerKeyAndEntry.LiveUntilLedgerSeq,
 				})

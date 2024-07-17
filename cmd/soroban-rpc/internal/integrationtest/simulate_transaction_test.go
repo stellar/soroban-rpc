@@ -386,7 +386,7 @@ func TestSimulateTransactionExtendAndRestoreFootprint(t *testing.T) {
 	assert.NoError(t, err)
 
 	var entry xdr.LedgerEntryData
-	assert.NoError(t, xdr.SafeUnmarshalBase64(getLedgerEntryResult.XDR, &entry))
+	assert.NoError(t, xdr.SafeUnmarshalBase64(getLedgerEntryResult.EntryXDR, &entry))
 	assert.Equal(t, xdr.LedgerEntryTypeContractData, entry.Type)
 	require.NotNil(t, getLedgerEntryResult.LiveUntilLedgerSeq)
 
@@ -410,7 +410,7 @@ func TestSimulateTransactionExtendAndRestoreFootprint(t *testing.T) {
 
 	err = client.CallResult(context.Background(), "getLedgerEntry", getLedgerEntryrequest, &getLedgerEntryResult)
 	assert.NoError(t, err)
-	assert.NoError(t, xdr.SafeUnmarshalBase64(getLedgerEntryResult.XDR, &entry))
+	assert.NoError(t, xdr.SafeUnmarshalBase64(getLedgerEntryResult.EntryXDR, &entry))
 	assert.Equal(t, xdr.LedgerEntryTypeContractData, entry.Type)
 	require.NotNil(t, getLedgerEntryResult.LiveUntilLedgerSeq)
 	newLiveUntilSeq := *getLedgerEntryResult.LiveUntilLedgerSeq
@@ -502,7 +502,7 @@ func waitUntilLedgerEntryTTL(t *testing.T, client *infrastructure.Client, ledger
 		err := client.CallResult(context.Background(), "getLedgerEntries", request, &result)
 		require.NoError(t, err)
 		require.NotEmpty(t, result.Entries)
-		require.NoError(t, xdr.SafeUnmarshalBase64(result.Entries[0].XDR, &entry))
+		require.NoError(t, xdr.SafeUnmarshalBase64(result.Entries[0].DataXDR, &entry))
 		require.NotEqual(t, xdr.LedgerEntryTypeTtl, entry.Type)
 		liveUntilLedgerSeq := xdr.Uint32(*result.Entries[0].LiveUntilLedgerSeq)
 		// See https://soroban.stellar.org/docs/fundamentals-and-concepts/state-expiration#expiration-ledger

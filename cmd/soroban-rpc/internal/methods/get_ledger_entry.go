@@ -23,8 +23,8 @@ type GetLedgerEntryRequest struct {
 // Deprecated. Use GetLedgerEntriesResponse instead.
 // TODO(https://github.com/stellar/soroban-tools/issues/374) remove after getLedgerEntries is deployed.
 type GetLedgerEntryResponse struct {
-	XDR       string                 `json:"xdr"`
-	EntryData map[string]interface{} `json:"entryData,omitempty"`
+	EntryXDR  string                 `json:"xdr"`
+	EntryJSON map[string]interface{} `json:"entryJson"`
 
 	LastModifiedLedger uint32 `json:"lastModifiedLedgerSeq"`
 	LatestLedger       uint32 `json:"latestLedger"`
@@ -108,7 +108,7 @@ func NewGetLedgerEntryHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntr
 		case "":
 			fallthrough
 		case xdr2json.FormatBase64:
-			if response.XDR, err = xdr.MarshalBase64(ledgerEntry.Data); err != nil {
+			if response.EntryXDR, err = xdr.MarshalBase64(ledgerEntry.Data); err != nil {
 				logger.WithError(err).WithField("request", request).
 					Info("could not serialize ledger entry data")
 				return GetLedgerEntryResponse{}, &jrpc2.Error{
@@ -117,7 +117,7 @@ func NewGetLedgerEntryHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntr
 				}
 			}
 		case xdr2json.FormatJSON:
-			response.EntryData, err = xdr2json.ConvertAny(ledgerEntry.Data)
+			response.EntryJSON, err = xdr2json.ConvertAny(ledgerEntry.Data)
 			logger.WithError(err).WithField("request", request).
 				Info("could not JSONify ledger entry data")
 			return GetLedgerEntryResponse{}, &jrpc2.Error{

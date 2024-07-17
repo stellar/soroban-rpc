@@ -62,19 +62,19 @@ type TransactionInfo struct {
 	ApplicationOrder int32 `json:"applicationOrder"`
 	// FeeBump indicates whether the transaction is a feebump transaction
 	FeeBump bool `json:"feeBump"`
-	// EnvelopeXdr is the TransactionEnvelope XDR value.
-	EnvelopeXdr string                 `json:"envelopeXdr"`
-	Envelope    map[string]interface{} `json:"envelope"`
-	// ResultXdr is the TransactionResult XDR value.
-	ResultXdr string                 `json:"resultXdr"`
-	Result    map[string]interface{} `json:"result"`
-	// ResultMetaXdr is the TransactionMeta XDR value.
-	ResultMetaXdr string                 `json:"resultMetaXdr"`
-	ResultMeta    map[string]interface{} `json:"resultMeta"`
+	// EnvelopeXDR is the TransactionEnvelope XDR value.
+	EnvelopeXDR  string                 `json:"envelopeXdr"`
+	EnvelopeJSON map[string]interface{} `json:"envelopeJson"`
+	// ResultXDR is the TransactionResult XDR value.
+	ResultXDR  string                 `json:"resultXdr"`
+	ResultJSON map[string]interface{} `json:"resultJson"`
+	// ResultMetaXDR is the TransactionMeta XDR value.
+	ResultMetaXDR  string                 `json:"resultMetaXdr"`
+	ResultMetaJSON map[string]interface{} `json:"resultMetaJson"`
 	// DiagnosticEventsXDR is present only if transaction was not successful.
 	// DiagnosticEventsXDR is a base64-encoded slice of xdr.DiagnosticEvent
-	DiagnosticEventsXDR []string                 `json:"diagnosticEventsXdr,omitempty"`
-	DiagnosticEvents    []map[string]interface{} `json:"diagnosticEvents,omitempty"`
+	DiagnosticEventsXDR  []string                 `json:"diagnosticEventsXdr,omitempty"`
+	DiagnosticEventsJSON []map[string]interface{} `json:"diagnosticEventsJson,omitempty"`
 	// Ledger is the sequence of the ledger which included the transaction.
 	Ledger uint32 `json:"ledger"`
 	// LedgerCloseTime is the unix timestamp of when the transaction was included in the ledger.
@@ -224,15 +224,15 @@ LedgerLoop:
 					}
 				}
 
-				txInfo.Result = result
-				txInfo.ResultMeta = envelope
-				txInfo.Envelope = meta
-				txInfo.DiagnosticEvents = diagEvents
+				txInfo.ResultJSON = result
+				txInfo.ResultMetaJSON = envelope
+				txInfo.EnvelopeJSON = meta
+				txInfo.DiagnosticEventsJSON = diagEvents
 
 			default:
-				txInfo.ResultXdr = base64.StdEncoding.EncodeToString(tx.Result)
-				txInfo.ResultMetaXdr = base64.StdEncoding.EncodeToString(tx.Meta)
-				txInfo.EnvelopeXdr = base64.StdEncoding.EncodeToString(tx.Envelope)
+				txInfo.ResultXDR = base64.StdEncoding.EncodeToString(tx.Result)
+				txInfo.ResultMetaXDR = base64.StdEncoding.EncodeToString(tx.Meta)
+				txInfo.EnvelopeXDR = base64.StdEncoding.EncodeToString(tx.Envelope)
 				txInfo.DiagnosticEventsXDR = base64EncodeSlice(tx.Events)
 			}
 
