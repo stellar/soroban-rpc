@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
 
 // TransactionsPaginationOptions defines the available options for paginating through transactions.
@@ -29,6 +31,7 @@ type TransactionsPaginationOptions struct {
 type GetTransactionsRequest struct {
 	StartLedger uint32                         `json:"startLedger"`
 	Pagination  *TransactionsPaginationOptions `json:"pagination,omitempty"`
+	Format      string                         `json:"xdrFormat,omitempty"`
 }
 
 // isValid checks the validity of the request parameters.
@@ -49,6 +52,17 @@ func (req GetTransactionsRequest) isValid(maxLimit uint, ledgerRange ledgerbucke
 		return fmt.Errorf("limit must not exceed %d", maxLimit)
 	}
 
+	switch req.Format {
+	case XdrFormatBase64:
+	case XdrFormatJSON:
+	case "":
+	default:
+		return fmt.Errorf(
+			"expected %s for 'xdr_format', got %s",
+			strings.Join([]string{XdrFormatBase64, XdrFormatJSON}, ", "),
+			req.Format)
+	}
+
 	return nil
 }
 
@@ -61,14 +75,18 @@ type TransactionInfo struct {
 	// FeeBump indicates whether the transaction is a feebump transaction
 	FeeBump bool `json:"feeBump"`
 	// EnvelopeXdr is the TransactionEnvelope XDR value.
-	EnvelopeXdr string `json:"envelopeXdr"`
+	EnvelopeXdr string                 `json:"envelopeXdr"`
+	Envelope    map[string]interface{} `json:"envelope"`
 	// ResultXdr is the TransactionResult XDR value.
-	ResultXdr string `json:"resultXdr"`
+	ResultXdr string                 `json:"resultXdr"`
+	Result    map[string]interface{} `json:"result"`
 	// ResultMetaXdr is the TransactionMeta XDR value.
-	ResultMetaXdr string `json:"resultMetaXdr"`
+	ResultMetaXdr string                 `json:"resultMetaXdr"`
+	ResultMeta    map[string]interface{} `json:"resultMeta"`
 	// DiagnosticEventsXDR is present only if transaction was not successful.
 	// DiagnosticEventsXDR is a base64-encoded slice of xdr.DiagnosticEvent
-	DiagnosticEventsXDR []string `json:"diagnosticEventsXdr,omitempty"`
+	DiagnosticEventsXDR []string                 `json:"diagnosticEventsXdr,omitempty"`
+	DiagnosticEvents    []map[string]interface{} `json:"diagnosticEvents,omitempty"`
 	// Ledger is the sequence of the ledger which included the transaction.
 	Ledger uint32 `json:"ledger"`
 	// LedgerCloseTime is the unix timestamp of when the transaction was included in the ledger.
@@ -202,15 +220,34 @@ LedgerLoop:
 			}
 
 			txInfo := TransactionInfo{
-				ApplicationOrder:    tx.ApplicationOrder,
-				FeeBump:             tx.FeeBump,
-				ResultXdr:           base64.StdEncoding.EncodeToString(tx.Result),
-				ResultMetaXdr:       base64.StdEncoding.EncodeToString(tx.Meta),
-				EnvelopeXdr:         base64.StdEncoding.EncodeToString(tx.Envelope),
-				DiagnosticEventsXDR: base64EncodeSlice(tx.Events),
-				Ledger:              tx.Ledger.Sequence,
-				LedgerCloseTime:     tx.Ledger.CloseTime,
+				ApplicationOrder: tx.ApplicationOrder,
+				FeeBump:          tx.FeeBump,
+				Ledger:           tx.Ledger.Sequence,
+				LedgerCloseTime:  tx.Ledger.CloseTime,
 			}
+
+			switch request.Format {
+			case "json":
+				result, envelope, meta, diagEvents, convErr := xdr2json.TransactionToJSON(tx)
+				if convErr != nil {
+					return GetTransactionsResponse{}, &jrpc2.Error{
+						Code:    jrpc2.InternalError,
+						Message: convErr.Error(),
+					}
+				}
+
+				txInfo.Result = result
+				txInfo.ResultMeta = envelope
+				txInfo.Envelope = meta
+				txInfo.DiagnosticEvents = diagEvents
+
+			default:
+				txInfo.ResultXdr = base64.StdEncoding.EncodeToString(tx.Result)
+				txInfo.ResultMetaXdr = base64.StdEncoding.EncodeToString(tx.Meta)
+				txInfo.EnvelopeXdr = base64.StdEncoding.EncodeToString(tx.Envelope)
+				txInfo.DiagnosticEventsXDR = base64EncodeSlice(tx.Events)
+			}
+
 			txInfo.Status = TransactionStatusFailed
 			if tx.Successful {
 				txInfo.Status = TransactionStatusSuccess

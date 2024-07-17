@@ -1,16 +1,17 @@
+//nolint:lll
 package xdr2json
 
 /*
-// See preflight.go for explanations:
+// See preflight.go for add'l explanations:
 
 #include <stdlib.h>
 #include "../../lib/xdrjson.h"
 
 #cgo windows,amd64 LDFLAGS: -L${SRCDIR}/../../../../target/x86_64-pc-windows-gnu/release-with-panic-unwind/ -lpreflight -lntdll -static -lws2_32 -lbcrypt -luserenv
-#cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../../../target/x86_64-apple-darwin/release-with-panic-unwind/ -lpreflight -ldl -lm
-#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../../../target/aarch64-apple-darwin/release-with-panic-unwind/ -lpreflight -ldl -lm
-#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/../../../../target/x86_64-unknown-linux-gnu/release-with-panic-unwind/ -lpreflight -ldl -lm
-#cgo linux,arm64 LDFLAGS: -L${SRCDIR}/../../../../target/aarch64-unknown-linux-gnu/release-with-panic-unwind/ -lpreflight -ldl -lm
+#cgo darwin,amd64  LDFLAGS: -L${SRCDIR}/../../../../target/x86_64-apple-darwin/release-with-panic-unwind/ -lpreflight -ldl -lm
+#cgo darwin,arm64  LDFLAGS: -L${SRCDIR}/../../../../target/aarch64-apple-darwin/release-with-panic-unwind/ -lpreflight -ldl -lm
+#cgo linux,amd64   LDFLAGS: -L${SRCDIR}/../../../../target/x86_64-unknown-linux-gnu/release-with-panic-unwind/ -lpreflight -ldl -lm
+#cgo linux,arm64   LDFLAGS: -L${SRCDIR}/../../../../target/aarch64-unknown-linux-gnu/release-with-panic-unwind/ -lpreflight -ldl -lm
 */
 import "C"
 
@@ -22,6 +23,8 @@ import (
 	"unsafe"
 
 	"github.com/pkg/errors"
+	"github.com/stellar/go/xdr"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
 func Convert(xdr interface{}, field []byte) (map[string]interface{}, error) {
@@ -75,4 +78,41 @@ func CXDR(xdr []byte) C.xdr_t {
 		xdr: (*C.uchar)(C.CBytes(xdr)),
 		len: C.size_t(len(xdr)),
 	}
+}
+
+func TransactionToJSON(tx db.Transaction) (
+	map[string]interface{},
+	map[string]interface{},
+	map[string]interface{},
+	[]map[string]interface{},
+	error,
+) {
+	var err error
+	var result, envelope, resultMeta map[string]interface{}
+	var diagEvents []map[string]interface{}
+
+	result, err = Convert(xdr.TransactionResult{}, tx.Result)
+	if err != nil {
+		return result, envelope, resultMeta, diagEvents, err
+	}
+
+	envelope, err = Convert(xdr.TransactionEnvelope{}, tx.Envelope)
+	if err != nil {
+		return result, envelope, resultMeta, diagEvents, err
+	}
+
+	resultMeta, err = Convert(xdr.TransactionMeta{}, tx.Meta)
+	if err != nil {
+		return result, envelope, resultMeta, diagEvents, err
+	}
+
+	diagEvents = make([]map[string]interface{}, len(tx.Events))
+	for i, event := range tx.Events {
+		diagEvents[i], err = Convert(xdr.DiagnosticEvent{}, event)
+		if err != nil {
+			return result, envelope, resultMeta, diagEvents, err
+		}
+	}
+
+	return result, envelope, resultMeta, diagEvents, nil
 }

@@ -90,11 +90,8 @@ func GetTransaction(
 	// parse XDR format expectations
 	switch request.Format {
 	case "":
-		fallthrough
 	case XdrFormatJSON:
-		fallthrough
 	case XdrFormatBase64:
-		break
 	default:
 		return GetTransactionResponse{}, &jrpc2.Error{
 			Code: jrpc2.InvalidParams,
@@ -158,7 +155,7 @@ func GetTransaction(
 
 	switch request.Format {
 	case "json":
-		result, envelope, meta, diagEvents, convErr := transactionToJSON(tx)
+		result, envelope, meta, diagEvents, convErr := xdr2json.TransactionToJSON(tx)
 		if convErr != nil {
 			return response, &jrpc2.Error{
 				Code:    jrpc2.InternalError,
@@ -193,41 +190,4 @@ func NewGetTransactionHandler(logger *log.Entry, getter db.TransactionReader,
 	return NewHandler(func(ctx context.Context, request GetTransactionRequest) (GetTransactionResponse, error) {
 		return GetTransaction(ctx, logger, getter, ledgerReader, request)
 	})
-}
-
-func transactionToJSON(tx db.Transaction) (
-	map[string]interface{},
-	map[string]interface{},
-	map[string]interface{},
-	[]map[string]interface{},
-	error,
-) {
-	var err error
-	var result, envelope, resultMeta map[string]interface{}
-	var diagEvents []map[string]interface{}
-
-	result, err = xdr2json.Convert(xdr.TransactionResult{}, tx.Result)
-	if err != nil {
-		return result, envelope, resultMeta, diagEvents, err
-	}
-
-	envelope, err = xdr2json.Convert(xdr.TransactionEnvelope{}, tx.Envelope)
-	if err != nil {
-		return result, envelope, resultMeta, diagEvents, err
-	}
-
-	resultMeta, err = xdr2json.Convert(xdr.TransactionMeta{}, tx.Meta)
-	if err != nil {
-		return result, envelope, resultMeta, diagEvents, err
-	}
-
-	diagEvents = make([]map[string]interface{}, len(tx.Events))
-	for i, event := range tx.Events {
-		diagEvents[i], err = xdr2json.Convert(xdr.DiagnosticEvent{}, event)
-		if err != nil {
-			return result, envelope, resultMeta, diagEvents, err
-		}
-	}
-
-	return result, envelope, resultMeta, diagEvents, nil
 }
