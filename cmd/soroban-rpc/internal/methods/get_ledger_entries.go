@@ -24,10 +24,10 @@ type GetLedgerEntriesRequest struct {
 type LedgerEntryResult struct {
 	// Original request key matching this LedgerEntryResult.
 	Key     string                 `json:"key,omitempty"`
-	KeyJson map[string]interface{} `json:"keyJson,omitempty"`
+	KeyJSON map[string]interface{} `json:"keyJson,omitempty"`
 	// Ledger entry data encoded in base 64.
 	XDR      string                 `json:"xdr,omitempty"`
-	DataJson map[string]interface{} `json:"xdrJson,omitempty"`
+	DataJSON map[string]interface{} `json:"xdrJson,omitempty"`
 	// Last modified ledger for this entry.
 	LastModifiedLedger uint32 `json:"lastModifiedLedgerSeq"`
 	// The ledger sequence until the entry is live, available for entries that have associated ttl ledger entries.
@@ -144,14 +144,14 @@ func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEn
 				})
 
 			case xdr2json.FormatJSON:
-				keyJson, err := xdr2json.ConvertAny(ledgerKeyAndEntry.Key)
+				keyJs, err := xdr2json.ConvertAny(ledgerKeyAndEntry.Key)
 				if err != nil {
 					return GetLedgerEntriesResponse{}, &jrpc2.Error{
 						Code:    jrpc2.InternalError,
 						Message: err.Error(),
 					}
 				}
-				entryJson, err := xdr2json.ConvertAny(ledgerKeyAndEntry.Entry.Data)
+				entryJs, err := xdr2json.ConvertAny(ledgerKeyAndEntry.Entry.Data)
 				if err != nil {
 					return GetLedgerEntriesResponse{}, &jrpc2.Error{
 						Code:    jrpc2.InternalError,
@@ -160,8 +160,8 @@ func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEn
 				}
 
 				ledgerEntryResults = append(ledgerEntryResults, LedgerEntryResult{
-					KeyJson:            keyJson,
-					DataJson:           entryJson,
+					KeyJSON:            keyJs,
+					DataJSON:           entryJs,
 					LastModifiedLedger: uint32(ledgerKeyAndEntry.Entry.LastModifiedLedgerSeq),
 					LiveUntilLedgerSeq: ledgerKeyAndEntry.LiveUntilLedgerSeq,
 				})
