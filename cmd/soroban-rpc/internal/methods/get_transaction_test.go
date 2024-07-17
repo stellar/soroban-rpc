@@ -36,7 +36,8 @@ func TestGetTransaction(t *testing.T) {
 	require.Equal(t, GetTransactionResponse{
 		TransactionInfo: TransactionInfo{
 			Status: TransactionStatusNotFound,
-		}}, tx)
+		},
+	}, tx)
 
 	meta := txMeta(1, true)
 	require.NoError(t, store.InsertTransactions(meta))
