@@ -39,12 +39,24 @@ var errInvalidFormat = fmt.Errorf(
 	"expected %s for optional 'xdrFormat'",
 	strings.Join([]string{FormatBase64, FormatJSON}, ", "))
 
+// Convert takes an XDR object (`xdr`) and its serialized bytes (`field`)
+// and returns the JSON-formatted serialization of that object.
+//
+// The `xdr` object does not need to actually be initialized/valid:
+// we only use it to determine the name of the structure. We could just
+// accept a string, but that would make mistakes likelier than passing the
+// structure itself (by reference).
 func Convert(xdr interface{}, field []byte) (map[string]interface{}, error) {
 	xdrTypeName := reflect.TypeOf(xdr).Name()
 	goStr := convertStr(xdrTypeName, field)
 	return jsonify(goStr)
 }
 
+// ConvertAny takes a valid XDR object (`xdr`) and returns a
+// JSON-formatted serialization of that object.
+//
+// Unlike `Convert`, the value here needs to be valid and
+// serializable.
 func ConvertAny(xdr interface{}) (map[string]interface{}, error) {
 	jsonStr, err := convertAnyStr(xdr)
 	if err != nil {
@@ -97,6 +109,7 @@ func jsonify(s string) (map[string]interface{}, error) {
 	return result, nil
 }
 
+// CXDR is ripped directly from preflight.go.
 func CXDR(xdr []byte) C.xdr_t {
 	return C.xdr_t{
 		xdr: (*C.uchar)(C.CBytes(xdr)),

@@ -140,7 +140,7 @@ func GetTransaction(
 	response.LedgerCloseTime = tx.Ledger.CloseTime
 
 	switch request.Format {
-	case "json":
+	case xdr2json.FormatJSON:
 		result, envelope, meta, diagEvents, convErr := xdr2json.TransactionToJSON(tx)
 		if convErr != nil {
 			return response, &jrpc2.Error{

@@ -215,7 +215,7 @@ LedgerLoop:
 			}
 
 			switch request.Format {
-			case "json":
+			case xdr2json.FormatJSON:
 				result, envelope, meta, diagEvents, convErr := xdr2json.TransactionToJSON(tx)
 				if convErr != nil {
 					return GetTransactionsResponse{}, &jrpc2.Error{
