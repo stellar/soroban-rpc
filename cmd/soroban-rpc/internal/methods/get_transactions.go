@@ -72,7 +72,7 @@ type TransactionInfo struct {
 	// Ledger is the sequence of the ledger which included the transaction.
 	Ledger uint32 `json:"ledger"`
 	// LedgerCloseTime is the unix timestamp of when the transaction was included in the ledger.
-	LedgerCloseTime int64 `json:"createdAt"`
+	LedgerCloseTime int64 `json:"createdAt,string"`
 }
 
 // GetTransactionsResponse encapsulates the response structure for getTransactions queries.
