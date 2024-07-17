@@ -10,18 +10,22 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
 
 // Deprecated. Use GetLedgerEntriesRequest instead.
 // TODO(https://github.com/stellar/soroban-tools/issues/374) remove after getLedgerEntries is deployed.
 type GetLedgerEntryRequest struct {
-	Key string `json:"key"`
+	Key    string `json:"key"`
+	Format string `json:"xdrFormat"`
 }
 
 // Deprecated. Use GetLedgerEntriesResponse instead.
 // TODO(https://github.com/stellar/soroban-tools/issues/374) remove after getLedgerEntries is deployed.
 type GetLedgerEntryResponse struct {
-	XDR                string `json:"xdr"`
+	XDR       string                 `json:"xdr"`
+	EntryData map[string]interface{} `json:"entryData,omitempty"`
+
 	LastModifiedLedger uint32 `json:"lastModifiedLedgerSeq"`
 	LatestLedger       uint32 `json:"latestLedger"`
 	// The ledger sequence until the entry is live, available for entries that have associated ttl ledger entries.
@@ -41,6 +45,17 @@ func NewGetLedgerEntryHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntr
 			return GetLedgerEntryResponse{}, &jrpc2.Error{
 				Code:    jrpc2.InvalidParams,
 				Message: "cannot unmarshal key value",
+			}
+		}
+
+		switch request.Format {
+		case "":
+		case "xdr":
+		case "json":
+		default:
+			return GetLedgerEntryResponse{}, &jrpc2.Error{
+				Code:    jrpc2.InvalidParams,
+				Message: errInvalidFormat.Error(),
 			}
 		}
 
@@ -92,9 +107,23 @@ func NewGetLedgerEntryHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntr
 			LatestLedger:       latestLedger,
 			LiveUntilLedgerSeq: liveUntilLedgerSeq,
 		}
-		if response.XDR, err = xdr.MarshalBase64(ledgerEntry.Data); err != nil {
+
+		switch request.Format {
+		case "":
+			fallthrough
+		case XdrFormatBase64:
+			if response.XDR, err = xdr.MarshalBase64(ledgerEntry.Data); err != nil {
+				logger.WithError(err).WithField("request", request).
+					Info("could not serialize ledger entry data")
+				return GetLedgerEntryResponse{}, &jrpc2.Error{
+					Code:    jrpc2.InternalError,
+					Message: "could not serialize ledger entry data",
+				}
+			}
+		case XdrFormatJSON:
+			response.EntryData, err = xdr2json.ConvertAny(ledgerEntry.Data)
 			logger.WithError(err).WithField("request", request).
-				Info("could not serialize ledger entry data")
+				Info("could not JSONify ledger entry data")
 			return GetLedgerEntryResponse{}, &jrpc2.Error{
 				Code:    jrpc2.InternalError,
 				Message: "could not serialize ledger entry data",

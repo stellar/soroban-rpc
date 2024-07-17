@@ -10,13 +10,15 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
 
 //nolint:gochecknoglobals
 var ErrLedgerTTLEntriesCannotBeQueriedDirectly = "ledger ttl entries cannot be queried directly"
 
 type GetLedgerEntriesRequest struct {
-	Keys []string `json:"keys"`
+	Keys   []string `json:"keys"`
+	Format string   `json:"xdrFormat,omitempty"`
 }
 
 type LedgerEntryResult struct {
@@ -42,6 +44,17 @@ const getLedgerEntriesMaxKeys = 200
 // NewGetLedgerEntriesHandler returns a JSON RPC handler to retrieve the specified ledger entries from Stellar Core.
 func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntryReader) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context, request GetLedgerEntriesRequest) (GetLedgerEntriesResponse, error) {
+		switch request.Format {
+		case "":
+		case XdrFormatJSON:
+		case XdrFormatBase64:
+		default:
+			return GetLedgerEntriesResponse{}, &jrpc2.Error{
+				Code:    jrpc2.InvalidParams,
+				Message: errInvalidFormat.Error(),
+			}
+		}
+
 		if len(request.Keys) > getLedgerEntriesMaxKeys {
 			return GetLedgerEntriesResponse{}, &jrpc2.Error{
 				Code:    jrpc2.InvalidParams,
@@ -101,32 +114,47 @@ func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEn
 		}
 
 		for _, ledgerKeyAndEntry := range ledgerKeysAndEntries {
-			keyXDR, err := xdr.MarshalBase64(ledgerKeyAndEntry.Key)
-			if err != nil {
-				logger.WithError(err).WithField("request", request).
-					Infof("could not serialize ledger key %v", ledgerKeyAndEntry.Key)
-				return GetLedgerEntriesResponse{}, &jrpc2.Error{
-					Code:    jrpc2.InternalError,
-					Message: fmt.Sprintf("could not serialize ledger key %v", ledgerKeyAndEntry.Key),
+			switch request.Format {
+			case "":
+				fallthrough
+			case XdrFormatBase64:
+				keyXDR, err := xdr.MarshalBase64(ledgerKeyAndEntry.Key)
+				if err != nil {
+					logger.WithError(err).WithField("request", request).
+						Infof("could not serialize ledger key %v", ledgerKeyAndEntry.Key)
+					return GetLedgerEntriesResponse{}, &jrpc2.Error{
+						Code:    jrpc2.InternalError,
+						Message: fmt.Sprintf("could not serialize ledger key %v", ledgerKeyAndEntry.Key),
+					}
+				}
+
+				entryXDR, err := xdr.MarshalBase64(ledgerKeyAndEntry.Entry.Data)
+				if err != nil {
+					logger.WithError(err).WithField("request", request).
+						Infof("could not serialize ledger entry data for ledger entry %v", ledgerKeyAndEntry.Entry)
+					return GetLedgerEntriesResponse{}, &jrpc2.Error{
+						Code:    jrpc2.InternalError,
+						Message: fmt.Sprintf("could not serialize ledger entry data for ledger entry %v", ledgerKeyAndEntry.Entry),
+					}
+				}
+
+				ledgerEntryResults = append(ledgerEntryResults, LedgerEntryResult{
+					Key:                keyXDR,
+					XDR:                entryXDR,
+					LastModifiedLedger: uint32(ledgerKeyAndEntry.Entry.LastModifiedLedgerSeq),
+					LiveUntilLedgerSeq: ledgerKeyAndEntry.LiveUntilLedgerSeq,
+				})
+
+			case XdrFormatJSON:
+				_, err := xdr2json.ConvertAny(ledgerKeyAndEntry.Key)
+				if err != nil {
+
+				}
+				_, err = xdr2json.ConvertAny(ledgerKeyAndEntry.Entry.Data)
+				if err != nil {
+
 				}
 			}
-
-			entryXDR, err := xdr.MarshalBase64(ledgerKeyAndEntry.Entry.Data)
-			if err != nil {
-				logger.WithError(err).WithField("request", request).
-					Infof("could not serialize ledger entry data for ledger entry %v", ledgerKeyAndEntry.Entry)
-				return GetLedgerEntriesResponse{}, &jrpc2.Error{
-					Code:    jrpc2.InternalError,
-					Message: fmt.Sprintf("could not serialize ledger entry data for ledger entry %v", ledgerKeyAndEntry.Entry),
-				}
-			}
-
-			ledgerEntryResults = append(ledgerEntryResults, LedgerEntryResult{
-				Key:                keyXDR,
-				XDR:                entryXDR,
-				LastModifiedLedger: uint32(ledgerKeyAndEntry.Entry.LastModifiedLedgerSeq),
-				LiveUntilLedgerSeq: ledgerKeyAndEntry.LiveUntilLedgerSeq,
-			})
 		}
 
 		response := GetLedgerEntriesResponse{

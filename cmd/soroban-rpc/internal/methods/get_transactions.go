@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"strings"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
@@ -57,10 +56,7 @@ func (req GetTransactionsRequest) isValid(maxLimit uint, ledgerRange ledgerbucke
 	case XdrFormatJSON:
 	case "":
 	default:
-		return fmt.Errorf(
-			"expected %s for 'xdr_format', got %s",
-			strings.Join([]string{XdrFormatBase64, XdrFormatJSON}, ", "),
-			req.Format)
+		return errInvalidFormat
 	}
 
 	return nil

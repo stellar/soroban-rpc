@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/creachadair/jrpc2"
 
@@ -94,11 +93,8 @@ func GetTransaction(
 	case XdrFormatBase64:
 	default:
 		return GetTransactionResponse{}, &jrpc2.Error{
-			Code: jrpc2.InvalidParams,
-			Message: fmt.Sprintf(
-				"expected %s for 'xdr_format', got %s",
-				strings.Join([]string{XdrFormatBase64, XdrFormatJSON}, ", "),
-				request.Format),
+			Code:    jrpc2.InvalidParams,
+			Message: errInvalidFormat.Error(),
 		}
 	}
 
