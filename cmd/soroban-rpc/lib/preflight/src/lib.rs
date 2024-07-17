@@ -672,6 +672,10 @@ fn extract_error_string<T>(simulation_result: &Result<T>, go_storage: &GoLedgerS
 // xdr_to_json takes in a string name of an XDR type in the Stellar Protocol
 // (i.e. from the stellar_xdr crate) as well as a raw byte structure and returns a
 // JSONified string of said structure.
+//
+// On error, it will return a string with a JSON structure and an "error" key containing
+// the error message from Rust as well as a "type" key for the XDR type that it
+// attempted to decode from the given buffer (this should match `typename`).
 #[no_mangle]
 pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut libc::c_char {
     let type_str = from_c_string(typename);
@@ -694,6 +698,6 @@ pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut li
 
     string_to_c(match serde_json::to_string(&t) {
         Ok(s) => s,
-        Err(e) => format!(r#"{{ "error": "{e}" }}"#),
+        Err(e) => format!(r#"{{ "error": "{e}", "type": "{type_str}" }}"#),
     })
 }
