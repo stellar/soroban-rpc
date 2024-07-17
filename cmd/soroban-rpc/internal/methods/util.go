@@ -2,7 +2,6 @@ package methods
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
@@ -13,16 +12,7 @@ func getProtocolVersion(
 	ledgerEntryReader db.LedgerEntryReader,
 	ledgerReader db.LedgerReader,
 ) (uint32, error) {
-	readTx, err := ledgerEntryReader.NewCachedTx(ctx)
-	if err != nil {
-		return 0, err
-	}
-	defer func() {
-		doneErr := readTx.Done()
-		err = errors.Join(err, doneErr)
-	}()
-
-	latestLedger, err := readTx.GetLatestLedgerSequence()
+	latestLedger, err := ledgerEntryReader.GetLatestLedgerSequence(ctx)
 	if err != nil {
 		return 0, err
 	}
