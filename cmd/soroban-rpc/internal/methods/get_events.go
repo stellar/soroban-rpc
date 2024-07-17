@@ -14,6 +14,7 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
 
 type eventTypeSet map[string]interface{}
@@ -78,15 +79,17 @@ type EventInfo struct {
 	// TopicXDR is a base64-encoded list of ScVals
 	TopicXDR  []string                 `json:"topic,omitempty"`
 	TopicJSON []map[string]interface{} `json:"topicJson,omitempty"`
+
 	// ValueXDR is a base64-encoded ScVal
-	ValueXDR  string `json:"value,omitempty"`
-	ValueJSON string `json:"valueJson,omitempty"`
+	ValueXDR  string                 `json:"value,omitempty"`
+	ValueJSON map[string]interface{} `json:"valueJson,omitempty"`
 }
 
 type GetEventsRequest struct {
 	StartLedger uint32             `json:"startLedger,omitempty"`
 	Filters     []EventFilter      `json:"filters"`
 	Pagination  *PaginationOptions `json:"pagination,omitempty"`
+	Format      string             `json:"xdrFormat,omitempty"`
 }
 
 func (g *GetEventsRequest) Valid(maxLimit uint) error {
@@ -374,6 +377,7 @@ func (h eventsRPCHandler) getEvents(request GetEventsRequest) (GetEventsResponse
 			entry.cursor,
 			time.Unix(entry.ledgerCloseTimestamp, 0).UTC().Format(time.RFC3339),
 			entry.txHash.HexString(),
+			request.Format,
 		)
 		if err != nil {
 			return GetEventsResponse{}, errors.Wrap(err, "could not parse event")
@@ -386,7 +390,7 @@ func (h eventsRPCHandler) getEvents(request GetEventsRequest) (GetEventsResponse
 	}, nil
 }
 
-func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerClosedAt string, txHash string) (EventInfo, error) {
+func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerClosedAt, txHash, format string) (EventInfo, error) {
 	v0, ok := event.Event.Body.GetV0()
 	if !ok {
 		return EventInfo{}, errors.New("unknown event version")
@@ -397,35 +401,62 @@ func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCl
 		return EventInfo{}, fmt.Errorf("unknown XDR ContractEventType type: %d", event.Event.Type)
 	}
 
-	// base64-xdr encode the topic
-	topic := make([]string, 0, 4)
-	for _, segment := range v0.Topics {
-		seg, err := xdr.MarshalBase64(segment)
-		if err != nil {
-			return EventInfo{}, err
-		}
-		topic = append(topic, seg)
-	}
-
-	// base64-xdr encode the data
-	data, err := xdr.MarshalBase64(v0.Data)
-	if err != nil {
-		return EventInfo{}, err
-	}
-
 	info := EventInfo{
 		EventType:                eventType,
 		Ledger:                   int32(cursor.Ledger),
 		LedgerClosedAt:           ledgerClosedAt,
 		ID:                       cursor.String(),
 		PagingToken:              cursor.String(),
-		TopicXDR:                 topic,
-		ValueXDR:                 data,
 		InSuccessfulContractCall: event.InSuccessfulContractCall,
 		TransactionHash:          txHash,
 	}
+
+	switch format {
+	case "":
+		fallthrough
+	case xdr2json.FormatBase64:
+		// base64-xdr encode the topic
+		topic := make([]string, 0, 4)
+		for _, segment := range v0.Topics {
+			seg, err := xdr.MarshalBase64(segment)
+			if err != nil {
+				return EventInfo{}, err
+			}
+			topic = append(topic, seg)
+		}
+
+		// base64-xdr encode the data
+		data, err := xdr.MarshalBase64(v0.Data)
+		if err != nil {
+			return EventInfo{}, err
+		}
+
+		info.TopicXDR = topic
+		info.ValueXDR = data
+
+	case xdr2json.FormatJSON:
+		topics := make([]map[string]interface{}, 0, 4)
+		for _, topic := range v0.Topics {
+			topicJs, err := xdr2json.ConvertAny(topic)
+			if err != nil {
+				return EventInfo{}, err
+			}
+
+			topics = append(topics, topicJs)
+		}
+		info.TopicJSON = topics
+
+		dataJs, err := xdr2json.ConvertAny(v0.Data)
+		if err != nil {
+			return EventInfo{}, err
+		}
+		info.ValueJSON = dataJs
+	}
+
 	if event.Event.ContractId != nil {
-		info.ContractID = strkey.MustEncode(strkey.VersionByteContract, (*event.Event.ContractId)[:])
+		info.ContractID = strkey.MustEncode(
+			strkey.VersionByteContract,
+			(*event.Event.ContractId)[:])
 	}
 	return info, nil
 }
