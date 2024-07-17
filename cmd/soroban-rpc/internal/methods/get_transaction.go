@@ -29,8 +29,6 @@ const (
 
 // GetTransactionResponse is the response for the Soroban-RPC getTransaction() endpoint
 type GetTransactionResponse struct {
-	// Status is one of: TransactionSuccess, TransactionNotFound, or TransactionFailed.
-	Status string `json:"status"`
 	// LatestLedger is the latest ledger stored in Soroban-RPC.
 	LatestLedger uint32 `json:"latestLedger"`
 	// LatestLedgerCloseTime is the unix timestamp of when the latest ledger was closed.
@@ -41,27 +39,7 @@ type GetTransactionResponse struct {
 	OldestLedgerCloseTime int64 `json:"oldestLedgerCloseTime,string"`
 
 	// The fields below are only present if Status is not TransactionNotFound.
-
-	// ApplicationOrder is the index of the transaction among all the transactions
-	// for that ledger.
-	ApplicationOrder int32 `json:"applicationOrder,omitempty"`
-	// FeeBump indicates whether the transaction is a feebump transaction
-	FeeBump bool `json:"feeBump,omitempty"`
-	// EnvelopeXdr is the TransactionEnvelope XDR value.
-	EnvelopeXdr string `json:"envelopeXdr,omitempty"`
-	// ResultXdr is the TransactionResult XDR value.
-	ResultXdr string `json:"resultXdr,omitempty"`
-	// ResultMetaXdr is the TransactionMeta XDR value.
-	ResultMetaXdr string `json:"resultMetaXdr,omitempty"`
-
-	// Ledger is the sequence of the ledger which included the transaction.
-	Ledger uint32 `json:"ledger,omitempty"`
-	// LedgerCloseTime is the unix timestamp of when the transaction was included in the ledger.
-	LedgerCloseTime int64 `json:"createdAt,string,omitempty"`
-
-	// DiagnosticEventsXDR is present only if Status is equal to TransactionFailed.
-	// DiagnosticEventsXDR is a base64-encoded slice of xdr.DiagnosticEvent
-	DiagnosticEventsXDR []string `json:"diagnosticEventsXdr,omitempty"`
+	TransactionInfo
 }
 
 type GetTransactionRequest struct {
