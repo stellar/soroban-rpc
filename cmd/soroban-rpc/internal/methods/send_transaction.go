@@ -8,11 +8,13 @@ import (
 
 	"github.com/stellar/go/network"
 	proto "github.com/stellar/go/protocols/stellarcore"
+	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
 
 // SendTransactionResponse represents the transaction submission response returned Soroban-RPC
@@ -47,6 +49,7 @@ type SendTransactionResponse struct {
 type SendTransactionRequest struct {
 	// Transaction is the base64 encoded transaction envelope.
 	Transaction string `json:"transaction"`
+	Format      string `json:"xdrFormat,omitempty"`
 }
 
 // NewSendTransactionHandler returns a submit transaction json rpc handler
@@ -58,6 +61,13 @@ func NewSendTransactionHandler(
 ) jrpc2.Handler {
 	submitter := daemon.CoreClient()
 	return NewHandler(func(ctx context.Context, request SendTransactionRequest) (SendTransactionResponse, error) {
+		if err := xdr2json.IsValidConversion(request.Format); err != nil {
+			return SendTransactionResponse{}, &jrpc2.Error{
+				Code:    jrpc2.InvalidParams,
+				Message: err.Error(),
+			}
+		}
+
 		var envelope xdr.TransactionEnvelope
 		err := xdr.SafeUnmarshalBase64(request.Transaction, &envelope)
 		if err != nil {
@@ -108,22 +118,82 @@ func NewSendTransactionHandler(
 
 		switch resp.Status {
 		case proto.TXStatusError:
-			events, err := proto.DiagnosticEventsToSlice(resp.DiagnosticEvents)
-			if err != nil {
-				logger.WithField("tx", request.Transaction).Error("Cannot decode diagnostic events:", err)
-				return SendTransactionResponse{}, &jrpc2.Error{
-					Code:    jrpc2.InternalError,
-					Message: "could not decode diagnostic events",
-				}
-			}
-			return SendTransactionResponse{
-				ErrorResultXDR:        resp.Error,
-				DiagnosticEventsXDR:   events,
+			errorResp := SendTransactionResponse{
 				Status:                resp.Status,
 				Hash:                  txHash,
 				LatestLedger:          latestLedgerInfo.Sequence,
 				LatestLedgerCloseTime: latestLedgerInfo.CloseTime,
-			}, nil
+			}
+
+			switch request.Format {
+			case "":
+				fallthrough
+			case xdr2json.FormatBase64:
+				events, err := proto.DiagnosticEventsToSlice(resp.DiagnosticEvents)
+				if err != nil {
+					logger.WithField("tx", request.Transaction).Error("Cannot decode diagnostic events:", err)
+					return SendTransactionResponse{}, &jrpc2.Error{
+						Code:    jrpc2.InternalError,
+						Message: "could not decode diagnostic events",
+					}
+				}
+
+				errorResp.ErrorResultXDR = resp.Error
+				errorResp.DiagnosticEventsXDR = events
+
+			case xdr2json.FormatJSON:
+				errResult := xdr.TransactionResult{}
+				err = xdr.SafeUnmarshalBase64(resp.Error, &errResult)
+				if err != nil {
+					logger.WithField("tx", request.Transaction).
+						WithError(err).Error("Cannot decode error result")
+
+					return SendTransactionResponse{}, &jrpc2.Error{
+						Code:    jrpc2.InternalError,
+						Message: errors.Wrap(err, "couldn't decode error").Error(),
+					}
+				}
+
+				errorResp.ErrorResultJSON, err = xdr2json.ConvertAny(errResult)
+				if err != nil {
+					logger.WithField("tx", request.Transaction).
+						WithError(err).Error("Cannot JSONify error result")
+
+					return SendTransactionResponse{}, &jrpc2.Error{
+						Code:    jrpc2.InternalError,
+						Message: errors.Wrap(err, "couldn't serialize error").Error(),
+					}
+				}
+
+				diagEvents := xdr.DiagnosticEvents{}
+				err = xdr.SafeUnmarshalBase64(resp.DiagnosticEvents, &diagEvents)
+				if err != nil {
+					logger.WithField("tx", request.Transaction).
+						WithError(err).Error("Cannot decode events")
+
+					return SendTransactionResponse{}, &jrpc2.Error{
+						Code:    jrpc2.InternalError,
+						Message: errors.Wrap(err, "couldn't decode events").Error(),
+					}
+				}
+
+				errorResp.DiagnosticEventsJSON = make([]map[string]interface{}, len(diagEvents))
+				for i, event := range diagEvents {
+					errorResp.DiagnosticEventsJSON[i], err = xdr2json.ConvertAny(event)
+					if err != nil {
+						logger.WithField("tx", request.Transaction).
+							WithError(err).Errorf("Cannot decode event %d: %+v", i+1, event)
+
+						return SendTransactionResponse{}, &jrpc2.Error{
+							Code:    jrpc2.InternalError,
+							Message: errors.Wrapf(err, "couldn't decode event #%d", i+1).Error(),
+						}
+					}
+				}
+			}
+
+			return errorResp, nil
+
 		case proto.TXStatusPending, proto.TXStatusDuplicate, proto.TXStatusTryAgainLater:
 			return SendTransactionResponse{
 				Status:                resp.Status,
@@ -131,6 +201,7 @@ func NewSendTransactionHandler(
 				LatestLedger:          latestLedgerInfo.Sequence,
 				LatestLedgerCloseTime: latestLedgerInfo.CloseTime,
 			}, nil
+
 		default:
 			logger.WithField("status", resp.Status).
 				WithField("tx", request.Transaction).Error("Unrecognized stellar-core status response")

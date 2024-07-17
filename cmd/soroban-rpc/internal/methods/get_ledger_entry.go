@@ -38,6 +38,13 @@ type GetLedgerEntryResponse struct {
 // TODO(https://github.com/stellar/soroban-tools/issues/374) remove after getLedgerEntries is deployed.
 func NewGetLedgerEntryHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntryReader) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context, request GetLedgerEntryRequest) (GetLedgerEntryResponse, error) {
+		if err := xdr2json.IsValidConversion(request.Format); err != nil {
+			return GetLedgerEntryResponse{}, &jrpc2.Error{
+				Code:    jrpc2.InvalidParams,
+				Message: err.Error(),
+			}
+		}
+
 		var key xdr.LedgerKey
 		if err := xdr.SafeUnmarshalBase64(request.Key, &key); err != nil {
 			logger.WithError(err).WithField("request", request).
@@ -45,13 +52,6 @@ func NewGetLedgerEntryHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntr
 			return GetLedgerEntryResponse{}, &jrpc2.Error{
 				Code:    jrpc2.InvalidParams,
 				Message: "cannot unmarshal key value",
-			}
-		}
-
-		if err := xdr2json.IsValidConversion(request.Format); err != nil {
-			return GetLedgerEntryResponse{}, &jrpc2.Error{
-				Code:    jrpc2.InvalidParams,
-				Message: err.Error(),
 			}
 		}
 
