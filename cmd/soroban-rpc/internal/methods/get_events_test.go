@@ -1211,7 +1211,7 @@ func BenchmarkGetEvents(b *testing.B) {
 			),
 		),
 	}
-	for i := 1; i < 100000; i++ {
+	for i := 1; i < 1000000; i++ {
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(uint32(i), now.Unix(), txMeta...)
 		require.NoError(b, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
 		require.NoError(b, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
@@ -1241,14 +1241,13 @@ func BenchmarkGetEvents(b *testing.B) {
 
 	b.ResetTimer()
 
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			_, err := handler.getEvents(ctx, request)
-			if err != nil {
-				b.Errorf("getEvents failed: %v", err)
-			}
+	for i := 0; i < b.N; i++ {
+		_, err := handler.getEvents(ctx, request)
+		if err != nil {
+			b.Errorf("getEvents failed: %v", err)
 		}
-	})
+	}
+
 }
 
 func ledgerCloseMetaWithEvents(sequence uint32, closeTimestamp int64, txMeta ...xdr.TransactionMeta) xdr.LedgerCloseMeta {
