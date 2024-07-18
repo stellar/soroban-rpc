@@ -168,8 +168,13 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 			requestDurationLimit: cfg.MaxGetEventsExecutionDuration,
 		},
 		{
-			methodName:           "getNetwork",
-			underlyingHandler:    methods.NewGetNetworkHandler(params.Daemon, cfg.NetworkPassphrase, cfg.FriendbotURL),
+			methodName: "getNetwork",
+			underlyingHandler: methods.NewGetNetworkHandler(
+				cfg.NetworkPassphrase,
+				cfg.FriendbotURL,
+				params.LedgerEntryReader,
+				params.LedgerReader,
+			),
 			longName:             "get_network",
 			queueLimit:           cfg.RequestBacklogGetNetworkQueueLimit,
 			requestDurationLimit: cfg.MaxGetNetworkExecutionDuration,
