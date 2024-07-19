@@ -453,7 +453,7 @@ func TestSimulateTransactionExtendAndRestoreFootprint(t *testing.T) {
 			&txnbuild.RestoreFootprint{},
 		),
 		methods.SimulateTransactionResponse{
-			TransactionData: simulationResult.RestorePreamble.TransactionData,
+			TransactionData: simulationResult.RestorePreamble.TransactionDataXDR,
 			MinResourceFee:  simulationResult.RestorePreamble.MinResourceFee,
 		},
 	)

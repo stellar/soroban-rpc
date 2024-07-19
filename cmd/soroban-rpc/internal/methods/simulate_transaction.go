@@ -40,8 +40,11 @@ type SimulateHostFunctionResult struct {
 }
 
 type RestorePreamble struct {
-	TransactionData string `json:"transactionData"` // SorobanTransactionData XDR in base64
-	MinResourceFee  int64  `json:"minResourceFee,string"`
+	// TransactionDataXDR is an xdr.SorobanTransactionData in base64
+	TransactionDataXDR  string                 `json:"transactionData,omitempty"`
+	TransactionDataJSON map[string]interface{} `json:"transactionDataJson,omitempty"`
+
+	MinResourceFee int64 `json:"minResourceFee,string"`
 }
 type LedgerEntryChangeType int
 
@@ -253,14 +256,6 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 		var results []SimulateHostFunctionResult
 		if len(result.Result) != 0 {
 			switch request.Format {
-			case "":
-				fallthrough
-			case xdr2json.FormatBase64:
-				results = append(results, SimulateHostFunctionResult{
-					ReturnValueXDR: base64.StdEncoding.EncodeToString(result.Result),
-					AuthXDR:        base64EncodeSlice(result.Auth),
-				})
-
 			case xdr2json.FormatJSON:
 				rvJs, err := xdr2json.Convert(xdr.ScVal{}, result.Result)
 				if err != nil {
@@ -288,14 +283,40 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 					ReturnValueJSON: rvJs,
 					AuthJSON:        auths,
 				})
+
+			default:
+				results = append(results, SimulateHostFunctionResult{
+					ReturnValueXDR: base64.StdEncoding.EncodeToString(result.Result),
+					AuthXDR:        base64EncodeSlice(result.Auth),
+				})
 			}
 
 		}
 		var restorePreamble *RestorePreamble = nil
 		if len(result.PreRestoreTransactionData) != 0 {
-			restorePreamble = &RestorePreamble{
-				TransactionData: base64.StdEncoding.EncodeToString(result.PreRestoreTransactionData),
-				MinResourceFee:  result.PreRestoreMinFee,
+			switch request.Format {
+			case xdr2json.FormatJSON:
+				txDataJs, err := xdr2json.Convert(
+					xdr.SorobanTransactionData{},
+					result.PreRestoreTransactionData)
+
+				if err != nil {
+					return SimulateTransactionResponse{
+						Error:        err.Error(),
+						LatestLedger: latestLedger,
+					}
+				}
+
+				restorePreamble = &RestorePreamble{
+					TransactionDataJSON: txDataJs,
+					MinResourceFee:      result.PreRestoreMinFee,
+				}
+
+			default:
+				restorePreamble = &RestorePreamble{
+					TransactionDataXDR: base64.StdEncoding.EncodeToString(result.PreRestoreTransactionData),
+					MinResourceFee:     result.PreRestoreMinFee,
+				}
 			}
 		}
 
