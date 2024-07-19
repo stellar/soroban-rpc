@@ -71,7 +71,7 @@ func TestSimulateTransactionSucceeds(t *testing.T) {
 	// Then decode and check the result xdr, separately so we get a decent diff if it fails.
 	assert.Len(t, result.Results, 1)
 	var resultXdr xdr.ScVal
-	err = xdr.SafeUnmarshalBase64(result.Results[0].XDR, &resultXdr)
+	err = xdr.SafeUnmarshalBase64(result.Results[0].ReturnValueXDR, &resultXdr)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedXdr, resultXdr)
 
@@ -130,11 +130,11 @@ func TestSimulateTransactionWithAuth(t *testing.T) {
 	client := test.GetRPCLient()
 	response := infrastructure.SimulateTransactionFromTxParams(t, client, deployContractParams)
 	require.NotEmpty(t, response.Results)
-	require.Len(t, response.Results[0].Auth, 1)
+	require.Len(t, response.Results[0].AuthXDR, 1)
 	require.Empty(t, deployContractOp.Auth)
 
 	var auth xdr.SorobanAuthorizationEntry
-	assert.NoError(t, xdr.SafeUnmarshalBase64(response.Results[0].Auth[0], &auth))
+	assert.NoError(t, xdr.SafeUnmarshalBase64(response.Results[0].AuthXDR[0], &auth))
 	require.Equal(t, auth.Credentials.Type, xdr.SorobanCredentialsTypeSorobanCredentialsSourceAccount)
 	deployContractOp.Auth = append(deployContractOp.Auth, auth)
 	deployContractParams.Operations = []txnbuild.Operation{deployContractOp}
@@ -193,7 +193,7 @@ func TestSimulateInvokeContractTransactionSucceeds(t *testing.T) {
 	// check the result
 	assert.Len(t, response.Results, 1)
 	var obtainedResult xdr.ScVal
-	err = xdr.SafeUnmarshalBase64(response.Results[0].XDR, &obtainedResult)
+	err = xdr.SafeUnmarshalBase64(response.Results[0].ReturnValueXDR, &obtainedResult)
 	assert.NoError(t, err)
 	assert.Equal(t, xdr.ScValTypeScvAddress, obtainedResult.Type)
 	require.NotNil(t, obtainedResult.Address)
@@ -225,9 +225,9 @@ func TestSimulateInvokeContractTransactionSucceeds(t *testing.T) {
 	assert.NotZero(t, obtainedTransactionData.Resources.WriteBytes)
 
 	// check the auth
-	assert.Len(t, response.Results[0].Auth, 1)
+	assert.Len(t, response.Results[0].AuthXDR, 1)
 	var obtainedAuth xdr.SorobanAuthorizationEntry
-	err = xdr.SafeUnmarshalBase64(response.Results[0].Auth[0], &obtainedAuth)
+	err = xdr.SafeUnmarshalBase64(response.Results[0].AuthXDR[0], &obtainedAuth)
 	assert.NoError(t, err)
 	assert.Equal(t, obtainedAuth.Credentials.Type, xdr.SorobanCredentialsTypeSorobanCredentialsAddress)
 	assert.Equal(t, obtainedAuth.Credentials.Address.Signature.Type, xdr.ScValTypeScvVoid)
@@ -564,7 +564,7 @@ func TestSimulateInvokePrng_u64_in_range(t *testing.T) {
 	// check the result
 	require.Len(t, response.Results, 1)
 	var obtainedResult xdr.ScVal
-	err = xdr.SafeUnmarshalBase64(response.Results[0].XDR, &obtainedResult)
+	err = xdr.SafeUnmarshalBase64(response.Results[0].ReturnValueXDR, &obtainedResult)
 	require.NoError(t, err)
 	require.Equal(t, xdr.ScValTypeScvU64, obtainedResult.Type)
 	require.LessOrEqual(t, uint64(*obtainedResult.U64), uint64(high))
@@ -612,7 +612,7 @@ func TestSimulateSystemEvent(t *testing.T) {
 	// check the result
 	require.Len(t, response.Results, 1)
 	var obtainedResult xdr.ScVal
-	err = xdr.SafeUnmarshalBase64(response.Results[0].XDR, &obtainedResult)
+	err = xdr.SafeUnmarshalBase64(response.Results[0].ReturnValueXDR, &obtainedResult)
 	require.NoError(t, err)
 
 	var transactionData xdr.SorobanTransactionData

@@ -159,7 +159,7 @@ func PreflightTransactionParamsLocally(t *testing.T, params txnbuild.Transaction
 			SorobanData: &transactionData,
 		}
 		var auth []xdr.SorobanAuthorizationEntry
-		for _, b64 := range response.Results[0].Auth {
+		for _, b64 := range response.Results[0].AuthXDR {
 			var a xdr.SorobanAuthorizationEntry
 			err := xdr.SafeUnmarshalBase64(b64, &a)
 			require.NoError(t, err)

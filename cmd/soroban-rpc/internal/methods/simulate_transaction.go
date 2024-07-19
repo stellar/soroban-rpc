@@ -32,8 +32,11 @@ type SimulateTransactionCost struct {
 
 // SimulateHostFunctionResult contains the simulation result of each HostFunction within the single InvokeHostFunctionOp allowed in a Transaction
 type SimulateHostFunctionResult struct {
-	Auth []string `json:"auth"`
-	XDR  string   `json:"xdr"`
+	AuthXDR  []string                 `json:"auth,omitempty"`
+	AuthJSON []map[string]interface{} `json:"authJson,omitempty"`
+
+	ReturnValueXDR  string                 `json:"xdr,omitempty"`
+	ReturnValueJSON map[string]interface{} `json:"returnValueJson,omitempty"`
 }
 
 type RestorePreamble struct {
@@ -249,10 +252,44 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 
 		var results []SimulateHostFunctionResult
 		if len(result.Result) != 0 {
-			results = append(results, SimulateHostFunctionResult{
-				XDR:  base64.StdEncoding.EncodeToString(result.Result),
-				Auth: base64EncodeSlice(result.Auth),
-			})
+			switch request.Format {
+			case "":
+				fallthrough
+			case xdr2json.FormatBase64:
+				results = append(results, SimulateHostFunctionResult{
+					ReturnValueXDR: base64.StdEncoding.EncodeToString(result.Result),
+					AuthXDR:        base64EncodeSlice(result.Auth),
+				})
+
+			case xdr2json.FormatJSON:
+				rvJs, err := xdr2json.Convert(xdr.ScVal{}, result.Result)
+				if err != nil {
+					return SimulateTransactionResponse{
+						Error:        err.Error(),
+						LatestLedger: latestLedger,
+					}
+				}
+
+				auths := make([]map[string]interface{}, len(result.Auth))
+				for i, auth := range result.Auth {
+					auths[i], err = xdr2json.Convert(
+						xdr.SorobanAuthorizationEntry{},
+						auth)
+
+					if err != nil {
+						return SimulateTransactionResponse{
+							Error:        err.Error(),
+							LatestLedger: latestLedger,
+						}
+					}
+				}
+
+				results = append(results, SimulateHostFunctionResult{
+					ReturnValueJSON: rvJs,
+					AuthJSON:        auths,
+				})
+			}
+
 		}
 		var restorePreamble *RestorePreamble = nil
 		if len(result.PreRestoreTransactionData) != 0 {
