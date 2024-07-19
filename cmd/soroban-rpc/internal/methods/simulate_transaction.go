@@ -329,7 +329,11 @@ func base64EncodeSlice(in [][]byte) []string {
 	return result
 }
 
-func getBucketListSizeAndProtocolVersion(ctx context.Context, ledgerReader db.LedgerReader, latestLedger uint32) (uint64, uint32, error) {
+func getBucketListSizeAndProtocolVersion(
+	ctx context.Context,
+	ledgerReader db.LedgerReader,
+	latestLedger uint32,
+) (uint64, uint32, error) {
 	// obtain bucket size
 	closeMeta, ok, err := ledgerReader.GetLedger(ctx, latestLedger)
 	if err != nil {
