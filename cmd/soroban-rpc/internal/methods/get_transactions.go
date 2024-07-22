@@ -237,7 +237,6 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 	// The latest ledger acts as the end ledger range for the request.
 	var txns []TransactionInfo
 	cursor := toid.New(0, 0, 0)
-LedgerLoop:
 	for ledgerSeq := start.LedgerSequence; ledgerSeq <= int32(ledgerRange.LastLedger.Sequence); ledgerSeq++ {
 		ledger, err := h.fetchLedgerData(ctx, uint32(ledgerSeq))
 		if err != nil {
@@ -250,7 +249,7 @@ LedgerLoop:
 		}
 
 		if len(txns) >= int(limit) {
-			break LedgerLoop
+			break
 		}
 	}
 
