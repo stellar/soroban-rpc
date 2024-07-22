@@ -130,7 +130,7 @@ func (h transactionsRPCHandler) fetchLedgerData(ctx context.Context, ledgerSeq u
 	} else if !found {
 		return ledger, &jrpc2.Error{
 			Code:    jrpc2.InvalidParams,
-			Message: fmt.Sprintf("ledger close meta not found: %d", ledgerSeq),
+			Message: fmt.Sprintf("database does not contain metadata for ledger %d", ledgerSeq),
 		}
 	}
 	return ledger, nil
