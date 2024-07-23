@@ -136,7 +136,8 @@ func (h transactionsRPCHandler) fetchLedgerData(ctx context.Context, ledgerSeq u
 	return ledger, nil
 }
 
-// processTransactionsInLedger cycles through all the transactions in a ledger.
+// processTransactionsInLedger cycles through all the transactions in a ledger, extracts the transaction info
+// and builds the list of transactions.
 func (h transactionsRPCHandler) processTransactionsInLedger(ledger xdr.LedgerCloseMeta, start *toid.ID,
 	txns *[]TransactionInfo, limit uint,
 ) (*toid.ID, error) {
