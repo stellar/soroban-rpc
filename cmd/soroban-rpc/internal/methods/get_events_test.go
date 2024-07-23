@@ -1169,55 +1169,56 @@ func TestGetEvents(t *testing.T) {
 	})
 }
 
+// TODO:Clean up once benchmarking is done !!
 func BenchmarkGetEvents(b *testing.B) {
-	now := time.Now().UTC()
-	counter := xdr.ScSymbol("COUNTER")
+	// now := time.Now().UTC()
+	// counter := xdr.ScSymbol("COUNTER")
 	requestedCounter := xdr.ScSymbol("REQUESTED")
 	dbx := newTestDB(b)
 	ctx := context.TODO()
 	log := log.DefaultLogger
 	log.SetLevel(logrus.TraceLevel)
 
-	writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
-	write, err := writer.NewTx(ctx)
-	require.NoError(b, err)
-	ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+	// writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+	// write, err := writer.NewTx(ctx)
+	// require.NoError(b, err)
+	// ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
 	store := db.NewEventReader(log, dbx, passphrase)
 
-	contractID := xdr.Hash([32]byte{})
+	// contractID := xdr.Hash([32]byte{1, 2, 3})
 
-	txMeta := []xdr.TransactionMeta{
-		transactionMetaWithEvents(
-			contractEvent(
-				contractID,
-				xdr.ScVec{
+	/*	txMeta := []xdr.TransactionMeta{
+			transactionMetaWithEvents(
+				contractEvent(
+					contractID,
+					xdr.ScVec{
+						xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
+					},
 					xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
-				},
-				xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
-			),
-			systemEvent(
-				contractID,
-				xdr.ScVec{
+				),
+				systemEvent(
+					contractID,
+					xdr.ScVec{
+						xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
+					},
 					xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
-				},
-				xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
-			),
-			diagnosticEvent(
-				contractID,
-				xdr.ScVec{
+				),
+				diagnosticEvent(
+					contractID,
+					xdr.ScVec{
+						xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
+					},
 					xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
-				},
-				xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
+				),
 			),
-		),
-	}
-	for i := 1; i < 1000000; i++ {
-		ledgerCloseMeta := ledgerCloseMetaWithEvents(uint32(i), now.Unix(), txMeta...)
-		require.NoError(b, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
-		require.NoError(b, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
-	}
-	require.NoError(b, write.Commit(1))
-
+		}
+		for i := 1; i < 1000000; i++ {
+			ledgerCloseMeta := ledgerCloseMetaWithEvents(uint32(i), now.Unix(), txMeta...)
+			require.NoError(b, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+			require.NoError(b, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
+		}
+		require.NoError(b, write.Commit(1))
+	*/
 	handler := eventsRPCHandler{
 		dbReader:     store,
 		maxLimit:     10000,
@@ -1229,7 +1230,8 @@ func BenchmarkGetEvents(b *testing.B) {
 		StartLedger: 1,
 		Filters: []EventFilter{
 			{
-				ContractIDs: []string{strkey.MustEncode(strkey.VersionByteContract, contractID[:])},
+				// ContractIDs: []string{"CCVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKUD2U"},
+				EventType: map[string]interface{}{EventTypeSystem: nil},
 				Topics: []TopicFilter{
 					[]SegmentFilter{
 						{scval: &xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &requestedCounter}},
@@ -1240,6 +1242,7 @@ func BenchmarkGetEvents(b *testing.B) {
 	}
 
 	b.ResetTimer()
+	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
 		_, err := handler.getEvents(ctx, request)
@@ -1247,7 +1250,6 @@ func BenchmarkGetEvents(b *testing.B) {
 			b.Errorf("getEvents failed: %v", err)
 		}
 	}
-
 }
 
 func ledgerCloseMetaWithEvents(sequence uint32, closeTimestamp int64, txMeta ...xdr.TransactionMeta) xdr.LedgerCloseMeta {

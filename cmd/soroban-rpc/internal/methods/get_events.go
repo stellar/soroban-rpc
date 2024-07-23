@@ -17,7 +17,7 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
-const LedgerScanLimit = 2000
+const LedgerScanLimit = 4000
 
 type eventTypeSet map[string]interface{}
 
@@ -425,7 +425,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		}
 	}
 
-	results := []EventInfo{}
+	results := make([]EventInfo, 0, len(found))
 	for _, entry := range found {
 		info, err := eventInfoForEvent(
 			entry.event,

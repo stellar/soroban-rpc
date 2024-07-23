@@ -170,7 +170,8 @@ func (eventHandler *eventHandler) GetEvents(
 			err)
 	} else if len(rows) < 1 {
 		eventHandler.log.Debugf(
-			"No events found for ledger range: start ledger cursor= %v - end ledger cursor= %v contractIDs= %v",
+			"No events found for ledger range: duration= %v start ledger cursor= %v - end ledger cursor= %v contractIDs= %v",
+			time.Since(start),
 			cursorRange.Start.String(),
 			cursorRange.End.String(),
 			contractIDs,
