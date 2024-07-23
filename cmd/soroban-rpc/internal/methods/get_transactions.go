@@ -141,10 +141,9 @@ func (h transactionsRPCHandler) fetchLedgerData(ctx context.Context, ledgerSeq u
 func (h transactionsRPCHandler) processTransactionsInLedger(ledger xdr.LedgerCloseMeta, start *toid.ID,
 	txns *[]TransactionInfo, limit uint,
 ) (*toid.ID, error) {
-	cursor := toid.New(0, 0, 0)
 	reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(h.networkPassphrase, ledger)
 	if err != nil {
-		return cursor, &jrpc2.Error{
+		return nil, &jrpc2.Error{
 			Code:    jrpc2.InternalError,
 			Message: err.Error(),
 		}
@@ -155,7 +154,7 @@ func (h transactionsRPCHandler) processTransactionsInLedger(ledger xdr.LedgerClo
 	if int32(ledgerSeq) == start.LedgerSequence {
 		startTxIdx = int(start.TransactionOrder)
 		if ierr := reader.Seek(startTxIdx - 1); ierr != nil && !errors.Is(ierr, io.EOF) {
-			return cursor, &jrpc2.Error{
+			return nil, &jrpc2.Error{
 				Code:    jrpc2.InternalError,
 				Message: ierr.Error(),
 			}
@@ -163,14 +162,16 @@ func (h transactionsRPCHandler) processTransactionsInLedger(ledger xdr.LedgerClo
 	}
 
 	txCount := ledger.CountTransactions()
+	cursor := toid.New(int32(ledgerSeq), 0, 1)
 	for i := startTxIdx; i <= txCount; i++ {
-		cursor = toid.New(int32(ledger.LedgerSequence()), int32(i), 1)
+		cursor.TransactionOrder = int32(i)
+
 		ingestTx, err := reader.Read()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return cursor, &jrpc2.Error{
+			return nil, &jrpc2.Error{
 				Code:    jrpc2.InvalidParams,
 				Message: err.Error(),
 			}
@@ -178,7 +179,7 @@ func (h transactionsRPCHandler) processTransactionsInLedger(ledger xdr.LedgerClo
 
 		tx, err := db.ParseTransaction(ledger, ingestTx)
 		if err != nil {
-			return cursor, &jrpc2.Error{
+			return nil, &jrpc2.Error{
 				Code:    jrpc2.InternalError,
 				Message: err.Error(),
 			}
