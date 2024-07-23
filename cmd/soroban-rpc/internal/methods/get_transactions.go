@@ -140,10 +140,10 @@ func (h transactionsRPCHandler) fetchLedgerData(ctx context.Context, ledgerSeq u
 // and builds the list of transactions.
 func (h transactionsRPCHandler) processTransactionsInLedger(ledger xdr.LedgerCloseMeta, start *toid.ID,
 	txns *[]TransactionInfo, limit uint,
-) (*toid.ID, error) {
+) (*toid.ID, bool, error) {
 	reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(h.networkPassphrase, ledger)
 	if err != nil {
-		return nil, &jrpc2.Error{
+		return nil, false, &jrpc2.Error{
 			Code:    jrpc2.InternalError,
 			Message: err.Error(),
 		}
@@ -154,7 +154,7 @@ func (h transactionsRPCHandler) processTransactionsInLedger(ledger xdr.LedgerClo
 	if int32(ledgerSeq) == start.LedgerSequence {
 		startTxIdx = int(start.TransactionOrder)
 		if ierr := reader.Seek(startTxIdx - 1); ierr != nil && !errors.Is(ierr, io.EOF) {
-			return nil, &jrpc2.Error{
+			return nil, false, &jrpc2.Error{
 				Code:    jrpc2.InternalError,
 				Message: ierr.Error(),
 			}
@@ -171,7 +171,7 @@ func (h transactionsRPCHandler) processTransactionsInLedger(ledger xdr.LedgerClo
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return nil, &jrpc2.Error{
+			return nil, false, &jrpc2.Error{
 				Code:    jrpc2.InvalidParams,
 				Message: err.Error(),
 			}
@@ -179,7 +179,7 @@ func (h transactionsRPCHandler) processTransactionsInLedger(ledger xdr.LedgerClo
 
 		tx, err := db.ParseTransaction(ledger, ingestTx)
 		if err != nil {
-			return nil, &jrpc2.Error{
+			return nil, false, &jrpc2.Error{
 				Code:    jrpc2.InternalError,
 				Message: err.Error(),
 			}
@@ -202,11 +202,11 @@ func (h transactionsRPCHandler) processTransactionsInLedger(ledger xdr.LedgerClo
 
 		*txns = append(*txns, txInfo)
 		if len(*txns) >= int(limit) {
-			break
+			return cursor, true, nil
 		}
 	}
 
-	return cursor, nil
+	return cursor, false, nil
 }
 
 // getTransactionsByLedgerSequence fetches transactions between the start and end ledgers, inclusive of both.
@@ -238,6 +238,7 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 	// Iterate through each ledger and its transactions until limit or end range is reached.
 	// The latest ledger acts as the end ledger range for the request.
 	var txns []TransactionInfo
+	done := false
 	cursor := toid.New(0, 0, 0)
 	for ledgerSeq := start.LedgerSequence; ledgerSeq <= int32(ledgerRange.LastLedger.Sequence); ledgerSeq++ {
 		ledger, err := h.fetchLedgerData(ctx, uint32(ledgerSeq))
@@ -245,12 +246,11 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 			return GetTransactionsResponse{}, err
 		}
 
-		cursor, err = h.processTransactionsInLedger(ledger, start, &txns, limit)
+		cursor, done, err = h.processTransactionsInLedger(ledger, start, &txns, limit)
 		if err != nil {
 			return GetTransactionsResponse{}, err
 		}
-
-		if len(txns) >= int(limit) {
+		if done {
 			break
 		}
 	}
