@@ -9,6 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
 	"github.com/stellar/go/clients/stellarcore"
+	"github.com/stellar/go/ingest/ledgerbackend"
 	proto "github.com/stellar/go/protocols/stellarcore"
 	supportlog "github.com/stellar/go/support/log"
 	"github.com/stellar/go/support/logmetrics"
@@ -104,6 +105,10 @@ func (c *CoreClientWithMetrics) SubmitTransaction(ctx context.Context, envelopeB
 
 func (d *Daemon) CoreClient() interfaces.CoreClient {
 	return d.coreClient
+}
+
+func (d *Daemon) GetCore() *ledgerbackend.CaptiveStellarCore {
+	return d.core
 }
 
 func (d *Daemon) Logger() *supportlog.Entry {

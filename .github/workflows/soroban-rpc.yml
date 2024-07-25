@@ -9,6 +9,10 @@ on:
     branches: [ main, release/** ]
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_protected == 'true' && github.sha || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: Unit tests
@@ -100,10 +104,10 @@ jobs:
       SOROBAN_RPC_INTEGRATION_TESTS_ENABLED: true
       SOROBAN_RPC_INTEGRATION_TESTS_CORE_MAX_SUPPORTED_PROTOCOL: ${{ matrix.protocol-version }}
       SOROBAN_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN: /usr/bin/stellar-core
-      PROTOCOL_20_CORE_DEBIAN_PKG_VERSION: 21.0.1-1897.dfd3dbff1.focal
-      PROTOCOL_20_CORE_DOCKER_IMG: stellar/unsafe-stellar-core:21.0.1-1897.dfd3dbff1.focal
-      PROTOCOL_21_CORE_DEBIAN_PKG_VERSION: 21.0.1-1897.dfd3dbff1.focal
-      PROTOCOL_21_CORE_DOCKER_IMG: stellar/unsafe-stellar-core:21.0.1-1897.dfd3dbff1.focal
+      PROTOCOL_20_CORE_DEBIAN_PKG_VERSION: 21.1.0-1909.rc1.b3aeb14cc.focal
+      PROTOCOL_20_CORE_DOCKER_IMG: stellar/stellar-core:21.1.0-1909.rc1.b3aeb14cc.focal
+      PROTOCOL_21_CORE_DEBIAN_PKG_VERSION: 21.1.0-1909.rc1.b3aeb14cc.focal
+      PROTOCOL_21_CORE_DOCKER_IMG: stellar/stellar-core:21.1.0-1909.rc1.b3aeb14cc.focal
     steps:
       - uses: actions/checkout@v4
         with:
