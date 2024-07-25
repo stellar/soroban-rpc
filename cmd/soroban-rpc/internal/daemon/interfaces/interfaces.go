@@ -5,6 +5,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/stellar/go/ingest/ledgerbackend"
 	proto "github.com/stellar/go/protocols/stellarcore"
 )
 
@@ -15,6 +16,7 @@ type Daemon interface {
 	MetricsRegistry() *prometheus.Registry
 	MetricsNamespace() string
 	CoreClient() CoreClient
+	GetCore() *ledgerbackend.CaptiveStellarCore
 }
 
 type CoreClient interface {

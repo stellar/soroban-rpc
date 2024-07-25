@@ -122,11 +122,9 @@ func (cfg *Config) options() Options {
 				case nil:
 					return nil
 				case string:
-					return fmt.Errorf(
-						"could not parse %s: %w",
-						option.Name,
-						cfg.LogFormat.UnmarshalText([]byte(v)),
-					)
+					if err := cfg.LogFormat.UnmarshalText([]byte(v)); err != nil {
+						return fmt.Errorf("could not parse %s: %w", option.Name, err)
+					}
 				case LogFormat:
 					cfg.LogFormat = v
 				case *LogFormat:

@@ -353,7 +353,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	if currentSeq != 0 {
 		d.logger.WithFields(supportlog.F{
 			"seq": currentSeq,
-		}).Info("finished initializing in-memory store")
+		}).Info("finished initializing in-memory store and applying DB data migrations")
 	}
 
 	return feewindows
