@@ -95,14 +95,14 @@ type transactionsRPCHandler struct {
 }
 
 // initializePagination sets the pagination limit and cursor
-func (h transactionsRPCHandler) initializePagination(request GetTransactionsRequest) (*toid.ID, uint, error) {
+func (h transactionsRPCHandler) initializePagination(request GetTransactionsRequest) (toid.ID, uint, error) {
 	start := toid.New(int32(request.StartLedger), 1, 1)
 	limit := h.defaultLimit
 	if request.Pagination != nil {
 		if request.Pagination.Cursor != "" {
 			cursorInt, err := strconv.ParseInt(request.Pagination.Cursor, 10, 64)
 			if err != nil {
-				return &toid.ID{}, 0, &jrpc2.Error{
+				return toid.ID{}, 0, &jrpc2.Error{
 					Code:    jrpc2.InvalidParams,
 					Message: err.Error(),
 				}
@@ -116,7 +116,7 @@ func (h transactionsRPCHandler) initializePagination(request GetTransactionsRequ
 			limit = request.Pagination.Limit
 		}
 	}
-	return start, limit, nil
+	return *start, limit, nil
 }
 
 // fetchLedgerData calls the meta table to fetch the corresponding ledger data.
@@ -138,7 +138,7 @@ func (h transactionsRPCHandler) fetchLedgerData(ctx context.Context, ledgerSeq u
 
 // processTransactionsInLedger cycles through all the transactions in a ledger, extracts the transaction info
 // and builds the list of transactions.
-func (h transactionsRPCHandler) processTransactionsInLedger(ledger xdr.LedgerCloseMeta, start *toid.ID,
+func (h transactionsRPCHandler) processTransactionsInLedger(ledger xdr.LedgerCloseMeta, start toid.ID,
 	txns *[]TransactionInfo, limit uint,
 ) (*toid.ID, bool, error) {
 	reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(h.networkPassphrase, ledger)
