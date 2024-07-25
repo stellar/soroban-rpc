@@ -337,6 +337,10 @@ func (s *Service) ingestLedgerCloseMeta(tx db.WriteTx, ledgerCloseMeta xdr.Ledge
 		With(prometheus.Labels{"type": "transactions"}).
 		Observe(time.Since(startTime).Seconds())
 
+	if err := tx.EventWriter().InsertEvents(ledgerCloseMeta); err != nil {
+		return err
+	}
+
 	if err := s.eventStore.IngestEvents(ledgerCloseMeta); err != nil {
 		return err
 	}

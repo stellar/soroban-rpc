@@ -81,6 +81,7 @@ func TestIngestion(t *testing.T) {
 	mockLedgerEntryWriter := &MockLedgerEntryWriter{}
 	mockLedgerWriter := &MockLedgerWriter{}
 	mockTxWriter := &MockTransactionWriter{}
+	mockEventWriter := &MockEventWriter{}
 	ctx := context.Background()
 	mockDB.On("NewTx", ctx).Return(mockTx, nil).Once()
 	mockTx.On("Commit", sequence).Return(nil).Once()
@@ -88,6 +89,7 @@ func TestIngestion(t *testing.T) {
 	mockTx.On("LedgerEntryWriter").Return(mockLedgerEntryWriter).Twice()
 	mockTx.On("LedgerWriter").Return(mockLedgerWriter).Once()
 	mockTx.On("TransactionWriter").Return(mockTxWriter).Once()
+	mockTx.On("EventWriter").Return(mockEventWriter).Once()
 
 	src := xdr.MustAddress("GBXGQJWVLWOYHFLVTKWV5FGHA3LNYY2JQKM7OAJAUEQFU6LPCSEFVXON")
 	firstTx := xdr.TransactionEnvelope{
@@ -254,6 +256,7 @@ func TestIngestion(t *testing.T) {
 		Return(nil).Once()
 	mockLedgerWriter.On("InsertLedger", ledger).Return(nil).Once()
 	mockTxWriter.On("InsertTransactions", ledger).Return(nil).Once()
+	mockEventWriter.On("InsertEvents", ledger).Return(nil).Once()
 	assert.NoError(t, service.ingest(ctx, sequence))
 
 	mockDB.AssertExpectations(t)
