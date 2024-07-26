@@ -89,7 +89,7 @@ func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.Le
 
 	// Empty DB
 	if len(lcms) == 0 {
-		return ledgerbucketwindow.LedgerRange{}, nil
+		return ledgerbucketwindow.LedgerRange{}, ErrEmptyDB
 	}
 
 	return ledgerbucketwindow.LedgerRange{

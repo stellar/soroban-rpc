@@ -133,28 +133,33 @@ func getMetaValue(ctx context.Context, q db.SessionInterface, key string) (strin
 	return results[0], nil
 }
 
-func getLatestLedgerSequence(ctx context.Context, q db.SessionInterface, cache *dbCache) (uint32, error) {
-	latestLedgerStr, err := getMetaValue(ctx, q, latestLedgerSequenceMetaKey)
+func getLatestLedgerSequence(ctx context.Context, _ db.SessionInterface, ledgerReader LedgerReader, _ *dbCache) (uint32, error) {
+	//latestLedgerStr, err := getMetaValue(ctx, q, latestLedgerSequenceMetaKey)
+	//if err != nil {
+	//	return 0, err
+	//}
+	//latestLedger, err := strconv.ParseUint(latestLedgerStr, 10, 32)
+	//if err != nil {
+	//	return 0, err
+	//}
+	//result := uint32(latestLedger)
+	//
+	//// Add missing ledger sequence to the top cache.
+	//// Otherwise, the write-through cache won't get updated until the first ingestion commit
+	//cache.Lock()
+	//if cache.latestLedgerSeq == 0 {
+	//	// Only update the cache if the value is missing (0), otherwise
+	//	// we may end up overwriting the entry with an older version
+	//	cache.latestLedgerSeq = result
+	//}
+	//cache.Unlock()
+	//
+	//return result, nil
+	ledgerRange, err := ledgerReader.GetLedgerRange(ctx)
 	if err != nil {
 		return 0, err
 	}
-	latestLedger, err := strconv.ParseUint(latestLedgerStr, 10, 32)
-	if err != nil {
-		return 0, err
-	}
-	result := uint32(latestLedger)
-
-	// Add missing ledger sequence to the top cache.
-	// Otherwise, the write-through cache won't get updated until the first ingestion commit
-	cache.Lock()
-	if cache.latestLedgerSeq == 0 {
-		// Only update the cache if the value is missing (0), otherwise
-		// we may end up overwriting the entry with an older version
-		cache.latestLedgerSeq = result
-	}
-	cache.Unlock()
-
-	return result, nil
+	return ledgerRange.LastLedger.Sequence, nil
 }
 
 type ReadWriterMetrics struct {
@@ -215,7 +220,7 @@ func NewReadWriter(
 }
 
 func (rw *readWriter) GetLatestLedgerSequence(ctx context.Context) (uint32, error) {
-	return getLatestLedgerSequence(ctx, rw.db, rw.db.cache)
+	return getLatestLedgerSequence(ctx, rw.db, NewLedgerReader(rw.db), rw.db.cache)
 }
 
 func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {

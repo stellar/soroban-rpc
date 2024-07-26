@@ -140,6 +140,7 @@ type ledgerEntryReadTx struct {
 	stmtCache              *sq.StmtCache
 	latestLedgerSeqCache   uint32
 	ledgerEntryCacheReadTx *transactionalCacheReadTx
+	ledgerReader           LedgerReader
 	tx                     db.SessionInterface
 	buffer                 *xdr.EncodingBuffer
 }
@@ -148,7 +149,7 @@ func (l *ledgerEntryReadTx) GetLatestLedgerSequence() (uint32, error) {
 	if l.latestLedgerSeqCache != 0 {
 		return l.latestLedgerSeqCache, nil
 	}
-	latestLedgerSeq, err := getLatestLedgerSequence(context.Background(), l.tx, l.globalCache)
+	latestLedgerSeq, err := getLatestLedgerSequence(context.Background(), l.tx, l.ledgerReader, l.globalCache)
 	if err == nil {
 		l.latestLedgerSeqCache = latestLedgerSeq
 	}
@@ -341,7 +342,7 @@ func NewLedgerEntryReader(db *DB) LedgerEntryReader {
 }
 
 func (r ledgerEntryReader) GetLatestLedgerSequence(ctx context.Context) (uint32, error) {
-	return getLatestLedgerSequence(ctx, r.db, r.db.cache)
+	return getLatestLedgerSequence(ctx, r.db, NewLedgerReader(r.db), r.db.cache)
 }
 
 // NewCachedTx() caches all accessed ledger entries and select statements. If many ledger entries are accessed, it will grow without bounds.
@@ -364,6 +365,7 @@ func (r ledgerEntryReader) NewCachedTx(ctx context.Context) (LedgerEntryReadTx, 
 		stmtCache:              sq.NewStmtCache(txSession.GetTx()),
 		latestLedgerSeqCache:   r.db.cache.latestLedgerSeq,
 		ledgerEntryCacheReadTx: &cacheReadTx,
+		ledgerReader:           NewLedgerReader(r.db),
 		tx:                     txSession,
 		buffer:                 xdr.NewEncodingBuffer(),
 	}, nil
@@ -380,6 +382,7 @@ func (r ledgerEntryReader) NewTx(ctx context.Context) (LedgerEntryReadTx, error)
 		globalCache:          r.db.cache,
 		latestLedgerSeqCache: r.db.cache.latestLedgerSeq,
 		tx:                   txSession,
+		ledgerReader:         NewLedgerReader(r.db),
 		buffer:               xdr.NewEncodingBuffer(),
 	}, nil
 }
