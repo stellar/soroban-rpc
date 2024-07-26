@@ -39,25 +39,25 @@ var errInvalidFormat = fmt.Errorf(
 	"expected %s for optional 'xdrFormat'",
 	strings.Join([]string{FormatBase64, FormatJSON}, ", "))
 
-// Convert takes an XDR object (`xdr`) and its serialized bytes (`field`)
+// ConvertBytes takes an XDR object (`xdr`) and its serialized bytes (`field`)
 // and returns the JSON-formatted serialization of that object.
 //
 // The `xdr` object does not need to actually be initialized/valid:
 // we only use it to determine the name of the structure. We could just
 // accept a string, but that would make mistakes likelier than passing the
 // structure itself (by reference).
-func Convert(xdr interface{}, field []byte) (map[string]interface{}, error) {
+func ConvertBytes(xdr interface{}, field []byte) (map[string]interface{}, error) {
 	xdrTypeName := reflect.TypeOf(xdr).Name()
 	goStr := convertStr(xdrTypeName, field)
 	return jsonify(goStr)
 }
 
-// ConvertAny takes a valid XDR object (`xdr`) and returns a
+// ConvertInterface takes a valid XDR object (`xdr`) and returns a
 // JSON-formatted serialization of that object.
 //
 // Unlike `Convert`, the value here needs to be valid and
 // serializable.
-func ConvertAny(xdr interface{}) (map[string]interface{}, error) {
+func ConvertInterface(xdr interface{}) (map[string]interface{}, error) {
 	jsonStr, err := convertAnyStr(xdr)
 	if err != nil {
 		return nil, err
@@ -109,7 +109,7 @@ func jsonify(s string) (map[string]interface{}, error) {
 	return result, nil
 }
 
-// CXDR is ripped directly from preflight.go.
+// CXDR is ripped directly from preflight.go to avoid a dependency.
 func CXDR(xdr []byte) C.xdr_t {
 	return C.xdr_t{
 		xdr: (*C.uchar)(C.CBytes(xdr)),
@@ -128,24 +128,24 @@ func TransactionToJSON(tx db.Transaction) (
 	var result, envelope, resultMeta map[string]interface{}
 	var diagEvents []map[string]interface{}
 
-	result, err = Convert(xdr.TransactionResult{}, tx.Result)
+	result, err = ConvertBytes(xdr.TransactionResult{}, tx.Result)
 	if err != nil {
 		return result, envelope, resultMeta, diagEvents, err
 	}
 
-	envelope, err = Convert(xdr.TransactionEnvelope{}, tx.Envelope)
+	envelope, err = ConvertBytes(xdr.TransactionEnvelope{}, tx.Envelope)
 	if err != nil {
 		return result, envelope, resultMeta, diagEvents, err
 	}
 
-	resultMeta, err = Convert(xdr.TransactionMeta{}, tx.Meta)
+	resultMeta, err = ConvertBytes(xdr.TransactionMeta{}, tx.Meta)
 	if err != nil {
 		return result, envelope, resultMeta, diagEvents, err
 	}
 
 	diagEvents = make([]map[string]interface{}, len(tx.Events))
 	for i, event := range tx.Events {
-		diagEvents[i], err = Convert(xdr.DiagnosticEvent{}, event)
+		diagEvents[i], err = ConvertBytes(xdr.DiagnosticEvent{}, event)
 		if err != nil {
 			return result, envelope, resultMeta, diagEvents, err
 		}

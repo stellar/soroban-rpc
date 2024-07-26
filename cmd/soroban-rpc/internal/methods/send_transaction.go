@@ -154,7 +154,7 @@ func NewSendTransactionHandler(
 					}
 				}
 
-				errorResp.ErrorResultJSON, err = xdr2json.ConvertAny(errResult)
+				errorResp.ErrorResultJSON, err = xdr2json.ConvertInterface(errResult)
 				if err != nil {
 					logger.WithField("tx", request.Transaction).
 						WithError(err).Error("Cannot JSONify error result")
@@ -179,7 +179,7 @@ func NewSendTransactionHandler(
 
 				errorResp.DiagnosticEventsJSON = make([]map[string]interface{}, len(diagEvents))
 				for i, event := range diagEvents {
-					errorResp.DiagnosticEventsJSON[i], err = xdr2json.ConvertAny(event)
+					errorResp.DiagnosticEventsJSON[i], err = xdr2json.ConvertInterface(event)
 					if err != nil {
 						logger.WithField("tx", request.Transaction).
 							WithError(err).Errorf("Cannot decode event %d: %+v", i+1, event)

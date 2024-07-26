@@ -117,7 +117,7 @@ func NewGetLedgerEntryHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntr
 				}
 			}
 		case xdr2json.FormatJSON:
-			response.EntryJSON, err = xdr2json.ConvertAny(ledgerEntry.Data)
+			response.EntryJSON, err = xdr2json.ConvertInterface(ledgerEntry.Data)
 			logger.WithError(err).WithField("request", request).
 				Info("could not JSONify ledger entry data")
 			return GetLedgerEntryResponse{}, &jrpc2.Error{

@@ -257,7 +257,7 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 		if len(result.Result) != 0 {
 			switch request.Format {
 			case xdr2json.FormatJSON:
-				rvJs, err := xdr2json.Convert(xdr.ScVal{}, result.Result)
+				rvJs, err := xdr2json.ConvertBytes(xdr.ScVal{}, result.Result)
 				if err != nil {
 					return SimulateTransactionResponse{
 						Error:        err.Error(),
@@ -267,7 +267,7 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 
 				auths := make([]map[string]interface{}, len(result.Auth))
 				for i, auth := range result.Auth {
-					auths[i], err = xdr2json.Convert(
+					auths[i], err = xdr2json.ConvertBytes(
 						xdr.SorobanAuthorizationEntry{},
 						auth)
 
@@ -296,7 +296,7 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 		if len(result.PreRestoreTransactionData) != 0 {
 			switch request.Format {
 			case xdr2json.FormatJSON:
-				txDataJs, err := xdr2json.Convert(
+				txDataJs, err := xdr2json.ConvertBytes(
 					xdr.SorobanTransactionData{},
 					result.PreRestoreTransactionData)
 

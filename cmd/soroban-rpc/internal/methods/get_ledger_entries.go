@@ -144,14 +144,14 @@ func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEn
 				})
 
 			case xdr2json.FormatJSON:
-				keyJs, err := xdr2json.ConvertAny(ledgerKeyAndEntry.Key)
+				keyJs, err := xdr2json.ConvertInterface(ledgerKeyAndEntry.Key)
 				if err != nil {
 					return GetLedgerEntriesResponse{}, &jrpc2.Error{
 						Code:    jrpc2.InternalError,
 						Message: err.Error(),
 					}
 				}
-				entryJs, err := xdr2json.ConvertAny(ledgerKeyAndEntry.Entry.Data)
+				entryJs, err := xdr2json.ConvertInterface(ledgerKeyAndEntry.Entry.Data)
 				if err != nil {
 					return GetLedgerEntriesResponse{}, &jrpc2.Error{
 						Code:    jrpc2.InternalError,

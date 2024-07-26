@@ -437,7 +437,7 @@ func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCl
 	case xdr2json.FormatJSON:
 		topics := make([]map[string]interface{}, 0, 4)
 		for _, topic := range v0.Topics {
-			topicJs, err := xdr2json.ConvertAny(topic)
+			topicJs, err := xdr2json.ConvertInterface(topic)
 			if err != nil {
 				return EventInfo{}, err
 			}
@@ -446,7 +446,7 @@ func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCl
 		}
 		info.TopicJSON = topics
 
-		dataJs, err := xdr2json.ConvertAny(v0.Data)
+		dataJs, err := xdr2json.ConvertInterface(v0.Data)
 		if err != nil {
 			return EventInfo{}, err
 		}

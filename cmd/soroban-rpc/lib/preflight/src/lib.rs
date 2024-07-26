@@ -30,7 +30,7 @@ use std::panic;
 use std::ptr::null_mut;
 use std::rc::Rc;
 use std::str::FromStr;
-use std::{mem, slice};
+use std::{fmt, mem, slice};
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -669,6 +669,21 @@ fn extract_error_string<T>(simulation_result: &Result<T>, go_storage: &GoLedgerS
     }
 }
 
+#[derive(Debug, Clone)]
+struct XdrConversionError {
+    error: String,
+    xdr_type: String,
+}
+
+impl fmt::Display for XdrConversionError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let type_str = &self.xdr_type;
+        let e = &self.error;
+        write!(f, r#"{{ "error": "{e}", "type": "{type_str}" }}"#)
+    }
+}
+
+
 // xdr_to_json takes in a string name of an XDR type in the Stellar Protocol
 // (i.e. from the stellar_xdr crate) as well as a raw byte structure and returns a
 // JSONified string of said structure.
@@ -682,7 +697,10 @@ pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut li
     let the_type = match xdr::TypeVariant::from_str(&type_str) {
         Ok(t) => t,
         Err(e) => {
-            return string_to_c(format!(r#"{{ "error": "{e}", "type": "{type_str}" }}"#));
+            return string_to_c(XdrConversionError{
+                error: e.to_string(),
+                xdr_type: type_str
+            }.to_string());
         }
     };
 
@@ -692,12 +710,18 @@ pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut li
     let t = match xdr::Type::read_xdr_to_end(the_type, &mut buffer) {
         Ok(t) => t,
         Err(e) => {
-            return string_to_c(format!(r#"{{ "error": "{e}", "type": "{type_str}" }}"#));
+            return string_to_c(XdrConversionError{
+                error: e.to_string(),
+                xdr_type: type_str
+            }.to_string());
         }
     };
 
     string_to_c(match serde_json::to_string(&t) {
         Ok(s) => s,
-        Err(e) => format!(r#"{{ "error": "{e}", "type": "{type_str}" }}"#),
+        Err(e) => XdrConversionError{
+            error: e.to_string(),
+            xdr_type: type_str
+        }.to_string(),
     })
 }
