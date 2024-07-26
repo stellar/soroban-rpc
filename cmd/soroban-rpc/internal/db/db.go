@@ -27,8 +27,7 @@ var sqlMigrations embed.FS
 var ErrEmptyDB = errors.New("DB is empty")
 
 const (
-	metaTableName               = "metadata"
-	latestLedgerSequenceMetaKey = "LatestLedgerSequence"
+	metaTableName = "metadata"
 )
 
 type ReadWriter interface {
@@ -128,38 +127,29 @@ func getMetaValue(ctx context.Context, q db.SessionInterface, key string) (strin
 	case 1:
 		// expected length on an initialized DB
 	default:
-		return "", fmt.Errorf("multiple entries (%d) for key %q in table %q", len(results), latestLedgerSequenceMetaKey, metaTableName)
+		return "", fmt.Errorf("multiple entries (%d) for key %q in table %q", len(results), key, metaTableName)
 	}
 	return results[0], nil
 }
 
-func getLatestLedgerSequence(ctx context.Context, _ db.SessionInterface, ledgerReader LedgerReader, _ *dbCache) (uint32, error) {
-	//latestLedgerStr, err := getMetaValue(ctx, q, latestLedgerSequenceMetaKey)
-	//if err != nil {
-	//	return 0, err
-	//}
-	//latestLedger, err := strconv.ParseUint(latestLedgerStr, 10, 32)
-	//if err != nil {
-	//	return 0, err
-	//}
-	//result := uint32(latestLedger)
-	//
-	//// Add missing ledger sequence to the top cache.
-	//// Otherwise, the write-through cache won't get updated until the first ingestion commit
-	//cache.Lock()
-	//if cache.latestLedgerSeq == 0 {
-	//	// Only update the cache if the value is missing (0), otherwise
-	//	// we may end up overwriting the entry with an older version
-	//	cache.latestLedgerSeq = result
-	//}
-	//cache.Unlock()
-	//
-	//return result, nil
+func getLatestLedgerSequence(ctx context.Context, _ db.SessionInterface, ledgerReader LedgerReader, cache *dbCache) (uint32, error) {
 	ledgerRange, err := ledgerReader.GetLedgerRange(ctx)
 	if err != nil {
 		return 0, err
 	}
-	return ledgerRange.LastLedger.Sequence, nil
+	result := ledgerRange.LastLedger.Sequence
+
+	// Add missing ledger sequence to the top cache.
+	// Otherwise, the write-through cache won't get updated until the first ingestion commit
+	cache.Lock()
+	if cache.latestLedgerSeq == 0 {
+		// Only update the cache if the value is missing (0), otherwise
+		// we may end up overwriting the entry with an older version
+		cache.latestLedgerSeq = result
+	}
+	cache.Unlock()
+
+	return result, nil
 }
 
 type ReadWriterMetrics struct {
@@ -298,21 +288,13 @@ func (w writeTx) Commit(ledgerSeq uint32) error {
 		return err
 	}
 
-	_, err := sq.Replace(metaTableName).
-		Values(latestLedgerSequenceMetaKey, strconv.FormatUint(uint64(ledgerSeq), 10)).
-		RunWith(w.stmtCache).
-		Exec()
-	if err != nil {
-		return err
-	}
-
 	// We need to make the cache update atomic with the transaction commit.
 	// Otherwise, the cache can be made inconsistent if a write transaction finishes
 	// in between, updating the cache in the wrong order.
 	commitAndUpdateCache := func() error {
 		w.globalCache.Lock()
 		defer w.globalCache.Unlock()
-		if err = w.tx.Commit(); err != nil {
+		if err := w.tx.Commit(); err != nil {
 			return err
 		}
 		w.globalCache.latestLedgerSeq = ledgerSeq
