@@ -683,7 +683,6 @@ impl fmt::Display for XdrConversionError {
     }
 }
 
-
 // xdr_to_json takes in a string name of an XDR type in the Stellar Protocol
 // (i.e. from the stellar_xdr crate) as well as a raw byte structure and returns a
 // JSONified string of said structure.
@@ -697,10 +696,13 @@ pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut li
     let the_type = match xdr::TypeVariant::from_str(&type_str) {
         Ok(t) => t,
         Err(e) => {
-            return string_to_c(XdrConversionError{
-                error: e.to_string(),
-                xdr_type: type_str
-            }.to_string());
+            return string_to_c(
+                XdrConversionError {
+                    error: e.to_string(),
+                    xdr_type: type_str,
+                }
+                .to_string(),
+            );
         }
     };
 
@@ -710,18 +712,22 @@ pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut li
     let t = match xdr::Type::read_xdr_to_end(the_type, &mut buffer) {
         Ok(t) => t,
         Err(e) => {
-            return string_to_c(XdrConversionError{
-                error: e.to_string(),
-                xdr_type: type_str
-            }.to_string());
+            return string_to_c(
+                XdrConversionError {
+                    error: e.to_string(),
+                    xdr_type: type_str,
+                }
+                .to_string(),
+            );
         }
     };
 
     string_to_c(match serde_json::to_string(&t) {
         Ok(s) => s,
-        Err(e) => XdrConversionError{
+        Err(e) => XdrConversionError {
             error: e.to_string(),
-            xdr_type: type_str
-        }.to_string(),
+            xdr_type: type_str,
+        }
+        .to_string(),
     })
 }
