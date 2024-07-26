@@ -14,6 +14,7 @@ import (
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/toid"
+	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
@@ -99,9 +100,146 @@ type transactionsRPCHandler struct {
 	networkPassphrase string
 }
 
+// initializePagination sets the pagination limit and cursor
+func (h transactionsRPCHandler) initializePagination(request GetTransactionsRequest) (toid.ID, uint, error) {
+	start := toid.New(int32(request.StartLedger), 1, 1)
+	limit := h.defaultLimit
+	if request.Pagination != nil {
+		if request.Pagination.Cursor != "" {
+			cursorInt, err := strconv.ParseInt(request.Pagination.Cursor, 10, 64)
+			if err != nil {
+				return toid.ID{}, 0, &jrpc2.Error{
+					Code:    jrpc2.InvalidParams,
+					Message: err.Error(),
+				}
+			}
+			*start = toid.Parse(cursorInt)
+			// increment tx index because, when paginating,
+			// we start with the item right after the cursor
+			start.TransactionOrder++
+		}
+		if request.Pagination.Limit > 0 {
+			limit = request.Pagination.Limit
+		}
+	}
+	return *start, limit, nil
+}
+
+// fetchLedgerData calls the meta table to fetch the corresponding ledger data.
+func (h transactionsRPCHandler) fetchLedgerData(ctx context.Context, ledgerSeq uint32) (xdr.LedgerCloseMeta, error) {
+	ledger, found, err := h.ledgerReader.GetLedger(ctx, ledgerSeq)
+	if err != nil {
+		return ledger, &jrpc2.Error{
+			Code:    jrpc2.InternalError,
+			Message: err.Error(),
+		}
+	} else if !found {
+		return ledger, &jrpc2.Error{
+			Code:    jrpc2.InvalidParams,
+			Message: fmt.Sprintf("database does not contain metadata for ledger: %d", ledgerSeq),
+		}
+	}
+	return ledger, nil
+}
+
+// processTransactionsInLedger cycles through all the transactions in a ledger, extracts the transaction info
+// and builds the list of transactions.
+func (h transactionsRPCHandler) processTransactionsInLedger(
+	ledger xdr.LedgerCloseMeta, start toid.ID,
+	txns *[]TransactionInfo, limit uint,
+	format string,
+) (*toid.ID, bool, error) {
+	reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(h.networkPassphrase, ledger)
+	if err != nil {
+		return nil, false, &jrpc2.Error{
+			Code:    jrpc2.InternalError,
+			Message: err.Error(),
+		}
+	}
+
+	startTxIdx := 1
+	ledgerSeq := ledger.LedgerSequence()
+	if int32(ledgerSeq) == start.LedgerSequence {
+		startTxIdx = int(start.TransactionOrder)
+		if ierr := reader.Seek(startTxIdx - 1); ierr != nil && !errors.Is(ierr, io.EOF) {
+			return nil, false, &jrpc2.Error{
+				Code:    jrpc2.InternalError,
+				Message: ierr.Error(),
+			}
+		}
+	}
+
+	txCount := ledger.CountTransactions()
+	cursor := toid.New(int32(ledgerSeq), 0, 1)
+	for i := startTxIdx; i <= txCount; i++ {
+		cursor.TransactionOrder = int32(i)
+
+		ingestTx, err := reader.Read()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, false, &jrpc2.Error{
+				Code:    jrpc2.InvalidParams,
+				Message: err.Error(),
+			}
+		}
+
+		tx, err := db.ParseTransaction(ledger, ingestTx)
+		if err != nil {
+			return nil, false, &jrpc2.Error{
+				Code:    jrpc2.InternalError,
+				Message: err.Error(),
+			}
+		}
+
+		txInfo := TransactionInfo{
+			ApplicationOrder: tx.ApplicationOrder,
+			FeeBump:          tx.FeeBump,
+			Ledger:           tx.Ledger.Sequence,
+			LedgerCloseTime:  tx.Ledger.CloseTime,
+		}
+
+		switch format {
+		case xdr2json.FormatJSON:
+			result, envelope, meta, diagEvents, convErr := xdr2json.TransactionToJSON(tx)
+			if convErr != nil {
+				return nil, false, &jrpc2.Error{
+					Code:    jrpc2.InternalError,
+					Message: convErr.Error(),
+				}
+			}
+			txInfo.ResultJSON = result
+			txInfo.ResultMetaJSON = envelope
+			txInfo.EnvelopeJSON = meta
+			txInfo.DiagnosticEventsJSON = diagEvents
+
+		default:
+			txInfo.ResultXDR = base64.StdEncoding.EncodeToString(tx.Result)
+			txInfo.ResultMetaXDR = base64.StdEncoding.EncodeToString(tx.Meta)
+			txInfo.EnvelopeXDR = base64.StdEncoding.EncodeToString(tx.Envelope)
+			txInfo.DiagnosticEventsXDR = base64EncodeSlice(tx.Events)
+		}
+
+		txInfo.Status = TransactionStatusFailed
+		if tx.Successful {
+			txInfo.Status = TransactionStatusSuccess
+		}
+
+		*txns = append(*txns, txInfo)
+		if len(*txns) >= int(limit) {
+			return cursor, true, nil
+		}
+	}
+
+	return cursor, false, nil
+}
+
 // getTransactionsByLedgerSequence fetches transactions between the start and end ledgers, inclusive of both.
 // The number of ledgers returned can be tuned using the pagination options - cursor and limit.
-func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Context, request GetTransactionsRequest) (GetTransactionsResponse, error) {
+func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Context,
+	request GetTransactionsRequest,
+) (GetTransactionsResponse, error) {
 	ledgerRange, err := h.ledgerReader.GetLedgerRange(ctx)
 	if err != nil {
 		return GetTransactionsResponse{}, &jrpc2.Error{
@@ -118,133 +256,28 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 		}
 	}
 
-	// Move start to pagination cursor
-	start := toid.New(int32(request.StartLedger), 1, 1)
-	limit := h.defaultLimit
-	if request.Pagination != nil {
-		if request.Pagination.Cursor != "" {
-			cursorInt, err := strconv.ParseInt(request.Pagination.Cursor, 10, 64)
-			if err != nil {
-				return GetTransactionsResponse{}, &jrpc2.Error{
-					Code:    jrpc2.InvalidParams,
-					Message: err.Error(),
-				}
-			}
-
-			*start = toid.Parse(cursorInt)
-			// increment tx index because, when paginating,
-			// we start with the item right after the cursor
-			start.TransactionOrder++
-		}
-		if request.Pagination.Limit > 0 {
-			limit = request.Pagination.Limit
-		}
+	start, limit, err := h.initializePagination(request)
+	if err != nil {
+		return GetTransactionsResponse{}, err
 	}
 
 	// Iterate through each ledger and its transactions until limit or end range is reached.
 	// The latest ledger acts as the end ledger range for the request.
 	var txns []TransactionInfo
+	var done bool
 	cursor := toid.New(0, 0, 0)
-LedgerLoop:
 	for ledgerSeq := start.LedgerSequence; ledgerSeq <= int32(ledgerRange.LastLedger.Sequence); ledgerSeq++ {
-		// Get ledger close meta from db
-		ledger, found, err := h.ledgerReader.GetLedger(ctx, uint32(ledgerSeq))
+		ledger, err := h.fetchLedgerData(ctx, uint32(ledgerSeq))
 		if err != nil {
-			return GetTransactionsResponse{}, &jrpc2.Error{
-				Code:    jrpc2.InternalError,
-				Message: err.Error(),
-			}
-		} else if !found {
-			return GetTransactionsResponse{}, &jrpc2.Error{
-				Code:    jrpc2.InvalidParams,
-				Message: fmt.Sprintf("ledger close meta not found: %d", ledgerSeq),
-			}
+			return GetTransactionsResponse{}, err
 		}
 
-		// Initialize tx reader.
-		reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(h.networkPassphrase, ledger)
+		cursor, done, err = h.processTransactionsInLedger(ledger, start, &txns, limit)
 		if err != nil {
-			return GetTransactionsResponse{}, &jrpc2.Error{
-				Code:    jrpc2.InternalError,
-				Message: err.Error(),
-			}
+			return GetTransactionsResponse{}, err
 		}
-
-		// Move the reader to specific tx idx
-		startTxIdx := 1
-		if ledgerSeq == start.LedgerSequence {
-			startTxIdx = int(start.TransactionOrder)
-			if ierr := reader.Seek(startTxIdx - 1); ierr != nil && ierr != io.EOF {
-				return GetTransactionsResponse{}, &jrpc2.Error{
-					Code:    jrpc2.InternalError,
-					Message: ierr.Error(),
-				}
-			}
-		}
-
-		// Decode transaction info from ledger meta
-		txCount := ledger.CountTransactions()
-		for i := startTxIdx; i <= txCount; i++ {
-			cursor = toid.New(int32(ledger.LedgerSequence()), int32(i), 1)
-
-			ingestTx, err := reader.Read()
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					// No more transactions to read. Start from next ledger
-					break
-				}
-				return GetTransactionsResponse{}, &jrpc2.Error{
-					Code:    jrpc2.InvalidParams,
-					Message: err.Error(),
-				}
-			}
-
-			tx, err := db.ParseTransaction(ledger, ingestTx)
-			if err != nil {
-				return GetTransactionsResponse{}, &jrpc2.Error{
-					Code:    jrpc2.InternalError,
-					Message: err.Error(),
-				}
-			}
-
-			txInfo := TransactionInfo{
-				ApplicationOrder: tx.ApplicationOrder,
-				FeeBump:          tx.FeeBump,
-				Ledger:           tx.Ledger.Sequence,
-				LedgerCloseTime:  tx.Ledger.CloseTime,
-			}
-
-			switch request.Format {
-			case xdr2json.FormatJSON:
-				result, envelope, meta, diagEvents, convErr := xdr2json.TransactionToJSON(tx)
-				if convErr != nil {
-					return GetTransactionsResponse{}, &jrpc2.Error{
-						Code:    jrpc2.InternalError,
-						Message: convErr.Error(),
-					}
-				}
-
-				txInfo.ResultJSON = result
-				txInfo.ResultMetaJSON = envelope
-				txInfo.EnvelopeJSON = meta
-				txInfo.DiagnosticEventsJSON = diagEvents
-
-			default:
-				txInfo.ResultXDR = base64.StdEncoding.EncodeToString(tx.Result)
-				txInfo.ResultMetaXDR = base64.StdEncoding.EncodeToString(tx.Meta)
-				txInfo.EnvelopeXDR = base64.StdEncoding.EncodeToString(tx.Envelope)
-				txInfo.DiagnosticEventsXDR = base64EncodeSlice(tx.Events)
-			}
-
-			txInfo.Status = TransactionStatusFailed
-			if tx.Successful {
-				txInfo.Status = TransactionStatusSuccess
-			}
-
-			txns = append(txns, txInfo)
-			if len(txns) >= int(limit) {
-				break LedgerLoop
-			}
+		if done {
+			break
 		}
 	}
 
