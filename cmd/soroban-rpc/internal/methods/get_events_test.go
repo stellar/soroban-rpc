@@ -1171,54 +1171,48 @@ func TestGetEvents(t *testing.T) {
 
 // TODO:Clean up once benchmarking is done !!
 func BenchmarkGetEvents(b *testing.B) {
-	// now := time.Now().UTC()
-	// counter := xdr.ScSymbol("COUNTER")
+	now := time.Now().UTC()
+	counter := xdr.ScSymbol("COUNTER")
 	requestedCounter := xdr.ScSymbol("REQUESTED")
 	dbx := newTestDB(b)
 	ctx := context.TODO()
 	log := log.DefaultLogger
 	log.SetLevel(logrus.TraceLevel)
+	contractID := xdr.Hash([32]byte{})
 
-	// writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
-	// write, err := writer.NewTx(ctx)
-	// require.NoError(b, err)
-	// ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+	writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+	write, err := writer.NewTx(ctx)
+	require.NoError(b, err)
+	ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
 	store := db.NewEventReader(log, dbx, passphrase)
 
-	// contractID := xdr.Hash([32]byte{1, 2, 3})
+	// create 25 contract events
+	var events []xdr.ContractEvent
+	for i := 0; i < 25; i++ {
 
-	/*	txMeta := []xdr.TransactionMeta{
-			transactionMetaWithEvents(
-				contractEvent(
-					contractID,
-					xdr.ScVec{
-						xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
-					},
-					xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
-				),
-				systemEvent(
-					contractID,
-					xdr.ScVec{
-						xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
-					},
-					xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
-				),
-				diagnosticEvent(
-					contractID,
-					xdr.ScVec{
-						xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
-					},
-					xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
-				),
-			),
-		}
-		for i := 1; i < 1000000; i++ {
-			ledgerCloseMeta := ledgerCloseMetaWithEvents(uint32(i), now.Unix(), txMeta...)
-			require.NoError(b, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
-			require.NoError(b, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
-		}
-		require.NoError(b, write.Commit(1))
-	*/
+		contractEvent := contractEvent(
+			contractID,
+			xdr.ScVec{
+				xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
+			},
+			xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
+		)
+		events = append(events, contractEvent)
+	}
+
+	txMeta := []xdr.TransactionMeta{
+		transactionMetaWithEvents(
+			events...,
+		),
+	}
+
+	for i := 1; i < 121000; i++ {
+		ledgerCloseMeta := ledgerCloseMetaWithEvents(uint32(i), now.Unix(), txMeta...)
+		require.NoError(b, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+		require.NoError(b, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
+	}
+	require.NoError(b, write.Commit(1))
+
 	handler := eventsRPCHandler{
 		dbReader:     store,
 		maxLimit:     10000,

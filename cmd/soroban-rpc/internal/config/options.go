@@ -232,7 +232,7 @@ func (cfg *Config) options() Options {
 					" the default value is %d which corresponds to about 24 hours of history",
 				OneDayOfLedgers),
 			ConfigKey:    &cfg.EventLedgerRetentionWindow,
-			DefaultValue: uint32(SevenDayOfLedgers),
+			DefaultValue: uint32(OneDayOfLedgers),
 			Validate:     positive,
 		},
 		// TODO: remove

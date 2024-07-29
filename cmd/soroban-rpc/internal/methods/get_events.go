@@ -10,6 +10,7 @@ import (
 	"github.com/creachadair/jrpc2"
 
 	"github.com/stellar/go/strkey"
+	"github.com/stellar/go/support/collections/set"
 	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
@@ -17,7 +18,12 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
-const LedgerScanLimit = 4000
+const (
+	LedgerScanLimit     = 4000
+	maxContractIDsLimit = 5
+	maxTopicsLimit      = 5
+	maxFiltersLimit     = 5
+)
 
 type eventTypeSet map[string]interface{}
 
@@ -104,7 +110,7 @@ func (g *GetEventsRequest) Valid(maxLimit uint) error {
 	}
 
 	// Validate filters
-	if len(g.Filters) > 5 {
+	if len(g.Filters) > maxFiltersLimit {
 		return errors.New("maximum 5 filters per request")
 	}
 	for i, filter := range g.Filters {
@@ -150,10 +156,10 @@ func (e *EventFilter) Valid() error {
 	if err := e.EventType.valid(); err != nil {
 		return errors.Wrap(err, "filter type invalid")
 	}
-	if len(e.ContractIDs) > 5 {
+	if len(e.ContractIDs) > maxContractIDsLimit {
 		return errors.New("maximum 5 contract IDs per filter")
 	}
-	if len(e.Topics) > 5 {
+	if len(e.Topics) > maxTopicsLimit {
 		return errors.New("maximum 5 topics per filter")
 	}
 	for i, id := range e.ContractIDs {
@@ -316,11 +322,11 @@ type eventsRPCHandler struct {
 }
 
 func combineContractIDs(filters []EventFilter) ([][]byte, error) {
-	contractIDSet := make(map[string]struct{})
+	contractIDSet := set.NewSet[string](maxFiltersLimit * maxContractIDsLimit)
 
 	for _, filter := range filters {
 		for _, contractID := range filter.ContractIDs {
-			contractIDSet[contractID] = struct{}{}
+			contractIDSet.Add(contractID)
 		}
 	}
 
@@ -328,7 +334,7 @@ func combineContractIDs(filters []EventFilter) ([][]byte, error) {
 	for contractID := range contractIDSet {
 		id, err := strkey.Decode(strkey.VersionByteContract, contractID)
 		if err != nil {
-			return nil, fmt.Errorf("contract ID %v invalid", contractID)
+			return nil, fmt.Errorf("invalid contract ID %v: ", contractID)
 		}
 
 		contractIDs = append(contractIDs, id)
@@ -392,8 +398,8 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		event                xdr.DiagnosticEvent
 		txHash               *xdr.Hash
 	}
-	var found []entry
-	cursorSet := make(map[string]struct{})
+	found := make([]entry, 0, limit)
+	cursorSet := set.NewSet[string](int(limit))
 
 	contractIDs, err := combineContractIDs(request.Filters)
 	if err != nil {
@@ -411,7 +417,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		}
 
 		if request.Matches(event) && cursor.Cmp(start) >= 0 {
-			cursorSet[cursorID] = struct{}{}
+			cursorSet.Add(cursorID)
 			found = append(found, entry{cursor, ledgerCloseTimestamp, event, txHash})
 		}
 		return uint(len(found)) < limit
