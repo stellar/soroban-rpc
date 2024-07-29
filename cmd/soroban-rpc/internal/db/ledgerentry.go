@@ -149,7 +149,7 @@ func (l *ledgerEntryReadTx) GetLatestLedgerSequence() (uint32, error) {
 	if l.latestLedgerSeqCache != 0 {
 		return l.latestLedgerSeqCache, nil
 	}
-	latestLedgerSeq, err := getLatestLedgerSequence(context.Background(), l.tx, l.ledgerReader, l.globalCache)
+	latestLedgerSeq, err := getLatestLedgerSequence(context.Background(), l.ledgerReader, l.globalCache)
 	if err == nil {
 		l.latestLedgerSeqCache = latestLedgerSeq
 	}
@@ -342,7 +342,7 @@ func NewLedgerEntryReader(db *DB) LedgerEntryReader {
 }
 
 func (r ledgerEntryReader) GetLatestLedgerSequence(ctx context.Context) (uint32, error) {
-	return getLatestLedgerSequence(ctx, r.db, NewLedgerReader(r.db), r.db.cache)
+	return getLatestLedgerSequence(ctx, NewLedgerReader(r.db), r.db.cache)
 }
 
 // NewCachedTx() caches all accessed ledger entries and select statements. If many ledger entries are accessed, it will grow without bounds.
