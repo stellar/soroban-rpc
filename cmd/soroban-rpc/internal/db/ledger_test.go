@@ -171,7 +171,7 @@ func TestGetLedgerRange_EmptyDB(t *testing.T) {
 
 	reader := NewLedgerReader(db)
 	ledgerRange, err := reader.GetLedgerRange(ctx)
-	require.NoError(t, err)
+	assert.Equal(t, ErrEmptyDB, err)
 	assert.Equal(t, uint32(0), ledgerRange.FirstLedger.Sequence)
 	assert.Equal(t, int64(0), ledgerRange.FirstLedger.CloseTime)
 	assert.Equal(t, uint32(0), ledgerRange.LastLedger.Sequence)
