@@ -294,6 +294,24 @@ func (m inMemoryLedgerEntryReadTx) Done() error {
 	return nil
 }
 
+func createLedger(ledgerSequence uint32) xdr.LedgerCloseMeta {
+	return xdr.LedgerCloseMeta{
+		V: 1,
+		V1: &xdr.LedgerCloseMetaV1{
+			LedgerHeader: xdr.LedgerHeaderHistoryEntry{
+				Hash: xdr.Hash{},
+				Header: xdr.LedgerHeader{
+					LedgerSeq: xdr.Uint32(ledgerSequence),
+				},
+			},
+			TxSet: xdr.GeneralizedTransactionSet{
+				V:       1,
+				V1TxSet: &xdr.TransactionSetV1{},
+			},
+		},
+	}
+}
+
 func getDB(t testing.TB, restartDB bool) *db.DB {
 	dbPath := path.Join(t.TempDir(), "soroban_rpc.sqlite")
 	dbInstance, err := db.OpenSQLiteDB(dbPath)
@@ -308,6 +326,7 @@ func getDB(t testing.TB, restartDB bool) *db.DB {
 		err := tx.LedgerEntryWriter().UpsertLedgerEntry(e)
 		require.NoError(t, err)
 	}
+	require.NoError(t, tx.LedgerWriter().InsertLedger(createLedger(2)))
 	require.NoError(t, tx.Commit(2))
 
 	if restartDB {
