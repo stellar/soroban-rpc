@@ -11,6 +11,7 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/preflight"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
 
 func TestLedgerEntryChange(t *testing.T) {
@@ -35,6 +36,11 @@ func TestLedgerEntryChange(t *testing.T) {
 	keyXDR, err := key.MarshalBinary()
 	require.NoError(t, err)
 	keyB64 := base64.StdEncoding.EncodeToString(keyXDR)
+
+	keyJs, err := xdr2json.ConvertInterface(key)
+	require.NoError(t, err)
+	entryJs, err := xdr2json.ConvertInterface(entry)
+	require.NoError(t, err)
 
 	for _, test := range []struct {
 		name           string
@@ -91,5 +97,17 @@ func TestLedgerEntryChange(t *testing.T) {
 		var change2 LedgerEntryChange
 		require.NoError(t, json.Unmarshal(changeJSON, &change2))
 		assert.Equal(t, change, change2, test.name)
+
+		// test JSON output
+		var changeJs LedgerEntryChange
+		require.NoError(t, changeJs.FromXDRDiff(test.input, xdr2json.FormatJSON), test.name)
+
+		assert.Equal(t, keyJs, changeJs.KeyJSON)
+		if changeJs.AfterJSON != nil {
+			assert.Equal(t, entryJs, changeJs.AfterJSON)
+		}
+		if changeJs.BeforeJSON != nil {
+			assert.Equal(t, entryJs, changeJs.BeforeJSON)
+		}
 	}
 }
