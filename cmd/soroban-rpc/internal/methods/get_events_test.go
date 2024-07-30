@@ -763,6 +763,10 @@ func TestGetEvents(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		//
+		// Test that JSON conversion will work correctly
+		//
+
 		expected[0].TopicXDR = nil
 		expected[0].ValueXDR = ""
 

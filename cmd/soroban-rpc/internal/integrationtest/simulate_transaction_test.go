@@ -60,7 +60,7 @@ func TestSimulateTransactionSucceeds(t *testing.T) {
 
 	// First, decode and compare the transaction data so we get a decent diff if it fails.
 	var transactionData xdr.SorobanTransactionData
-	err := xdr.SafeUnmarshalBase64(result.TransactionData, &transactionData)
+	err := xdr.SafeUnmarshalBase64(result.TransactionDataXDR, &transactionData)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedTransactionData.Resources.Footprint, transactionData.Resources.Footprint)
 	assert.InDelta(t, uint32(expectedTransactionData.Resources.Instructions), uint32(transactionData.Resources.Instructions), 3200000)
@@ -77,17 +77,17 @@ func TestSimulateTransactionSucceeds(t *testing.T) {
 
 	// Check state diff
 	assert.Len(t, result.StateChanges, 1)
-	assert.Nil(t, result.StateChanges[0].Before)
-	assert.NotNil(t, result.StateChanges[0].After)
+	assert.Nil(t, result.StateChanges[0].BeforeXDR)
+	assert.NotNil(t, result.StateChanges[0].AfterXDR)
 	assert.Equal(t, methods.LedgerEntryChangeTypeCreated, result.StateChanges[0].Type)
 	var after xdr.LedgerEntry
-	assert.NoError(t, xdr.SafeUnmarshalBase64(*result.StateChanges[0].After, &after))
+	assert.NoError(t, xdr.SafeUnmarshalBase64(*result.StateChanges[0].AfterXDR, &after))
 	assert.Equal(t, xdr.LedgerEntryTypeContractCode, after.Data.Type)
 	entryKey, err := after.LedgerKey()
 	assert.NoError(t, err)
 	entryKeyB64, err := xdr.MarshalBase64(entryKey)
 	assert.NoError(t, err)
-	assert.Equal(t, entryKeyB64, result.StateChanges[0].Key)
+	assert.Equal(t, entryKeyB64, result.StateChanges[0].KeyXDR)
 
 	// test operation which does not have a source account
 	params = infrastructure.CreateTransactionParams(test.MasterAccount(),
@@ -201,7 +201,7 @@ func TestSimulateInvokeContractTransactionSucceeds(t *testing.T) {
 
 	// check the footprint
 	var obtainedTransactionData xdr.SorobanTransactionData
-	err = xdr.SafeUnmarshalBase64(response.TransactionData, &obtainedTransactionData)
+	err = xdr.SafeUnmarshalBase64(response.TransactionDataXDR, &obtainedTransactionData)
 	obtainedFootprint := obtainedTransactionData.Resources.Footprint
 	assert.NoError(t, err)
 	assert.Len(t, obtainedFootprint.ReadWrite, 1)
@@ -249,9 +249,9 @@ func TestSimulateInvokeContractTransactionSucceeds(t *testing.T) {
 
 	// check the events. There will be 2 debug events and the event emitted by the "auth" function
 	// which is the one we are going to check.
-	assert.Len(t, response.Events, 3)
+	assert.Len(t, response.EventsXDR, 3)
 	var event xdr.DiagnosticEvent
-	err = xdr.SafeUnmarshalBase64(response.Events[1], &event)
+	err = xdr.SafeUnmarshalBase64(response.EventsXDR[1], &event)
 	assert.NoError(t, err)
 	assert.True(t, event.InSuccessfulContractCall)
 	assert.NotNil(t, event.Event.ContractId)
@@ -293,9 +293,9 @@ func TestSimulateTransactionError(t *testing.T) {
 	result := infrastructure.SimulateTransactionFromTxParams(t, client, params)
 	assert.Greater(t, result.LatestLedger, uint32(0))
 	assert.Contains(t, result.Error, "MissingValue")
-	require.GreaterOrEqual(t, len(result.Events), 1)
+	require.GreaterOrEqual(t, len(result.EventsXDR), 1)
 	var event xdr.DiagnosticEvent
-	require.NoError(t, xdr.SafeUnmarshalBase64(result.Events[0], &event))
+	require.NoError(t, xdr.SafeUnmarshalBase64(result.EventsXDR[0], &event))
 }
 
 func TestSimulateTransactionMultipleOperations(t *testing.T) {
@@ -453,8 +453,8 @@ func TestSimulateTransactionExtendAndRestoreFootprint(t *testing.T) {
 			&txnbuild.RestoreFootprint{},
 		),
 		methods.SimulateTransactionResponse{
-			TransactionData: simulationResult.RestorePreamble.TransactionDataXDR,
-			MinResourceFee:  simulationResult.RestorePreamble.MinResourceFee,
+			TransactionDataXDR: simulationResult.RestorePreamble.TransactionDataXDR,
+			MinResourceFee:     simulationResult.RestorePreamble.MinResourceFee,
 		},
 	)
 	tx, err := txnbuild.NewTransaction(params)
@@ -616,7 +616,7 @@ func TestSimulateSystemEvent(t *testing.T) {
 	require.NoError(t, err)
 
 	var transactionData xdr.SorobanTransactionData
-	err = xdr.SafeUnmarshalBase64(response.TransactionData, &transactionData)
+	err = xdr.SafeUnmarshalBase64(response.TransactionDataXDR, &transactionData)
 	require.NoError(t, err)
 	assert.InDelta(t, 6856, uint32(transactionData.Resources.ReadBytes), 200)
 
@@ -626,5 +626,5 @@ func TestSimulateSystemEvent(t *testing.T) {
 	// in the test.
 	assert.InDelta(t, 70668, int64(transactionData.ResourceFee), 20000)
 	assert.InDelta(t, 104, uint32(transactionData.Resources.WriteBytes), 15)
-	require.GreaterOrEqual(t, len(response.Events), 3)
+	require.GreaterOrEqual(t, len(response.EventsXDR), 3)
 }

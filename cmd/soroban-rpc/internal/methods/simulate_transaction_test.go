@@ -48,10 +48,10 @@ func TestLedgerEntryChange(t *testing.T) {
 				After:  entryXDR,
 			},
 			expectedOutput: LedgerEntryChange{
-				Type:   LedgerEntryChangeTypeCreated,
-				Key:    keyB64,
-				Before: nil,
-				After:  &entryB64,
+				Type:      LedgerEntryChangeTypeCreated,
+				KeyXDR:    keyB64,
+				BeforeXDR: nil,
+				AfterXDR:  &entryB64,
 			},
 		},
 		{
@@ -61,10 +61,10 @@ func TestLedgerEntryChange(t *testing.T) {
 				After:  nil,
 			},
 			expectedOutput: LedgerEntryChange{
-				Type:   LedgerEntryChangeTypeDeleted,
-				Key:    keyB64,
-				Before: &entryB64,
-				After:  nil,
+				Type:      LedgerEntryChangeTypeDeleted,
+				KeyXDR:    keyB64,
+				BeforeXDR: &entryB64,
+				AfterXDR:  nil,
 			},
 		},
 		{
@@ -74,10 +74,10 @@ func TestLedgerEntryChange(t *testing.T) {
 				After:  entryXDR,
 			},
 			expectedOutput: LedgerEntryChange{
-				Type:   LedgerEntryChangeTypeUpdated,
-				Key:    keyB64,
-				Before: &entryB64,
-				After:  &entryB64,
+				Type:      LedgerEntryChangeTypeUpdated,
+				KeyXDR:    keyB64,
+				BeforeXDR: &entryB64,
+				AfterXDR:  &entryB64,
 			},
 		},
 	} {

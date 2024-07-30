@@ -147,7 +147,7 @@ func PreflightTransactionParamsLocally(t *testing.T, params txnbuild.Transaction
 		t.Log(response.Error)
 	}
 	var transactionData xdr.SorobanTransactionData
-	err := xdr.SafeUnmarshalBase64(response.TransactionData, &transactionData)
+	err := xdr.SafeUnmarshalBase64(response.TransactionDataXDR, &transactionData)
 	require.NoError(t, err)
 
 	op := params.Operations[0]
