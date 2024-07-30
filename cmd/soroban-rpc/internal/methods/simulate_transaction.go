@@ -312,17 +312,11 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 					}
 				}
 
-				auths := make([]map[string]interface{}, len(result.Auth))
-				for i, auth := range result.Auth {
-					auths[i], err = xdr2json.ConvertBytes(
-						xdr.SorobanAuthorizationEntry{},
-						auth)
-
-					if err != nil {
-						return SimulateTransactionResponse{
-							Error:        err.Error(),
-							LatestLedger: latestLedger,
-						}
+				auths, err := jsonifySlice(xdr.SorobanAuthorizationEntry{}, result.Auth)
+				if err != nil {
+					return SimulateTransactionResponse{
+						Error:        err.Error(),
+						LatestLedger: latestLedger,
 					}
 				}
 
@@ -397,14 +391,11 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 				}
 			}
 
-			simResp.EventsJSON = make([]map[string]interface{}, len(result.Events))
-			for i, event := range result.Events {
-				simResp.EventsJSON[i], err = xdr2json.ConvertBytes(xdr.DiagnosticEvent{}, event)
-				if err != nil {
-					return SimulateTransactionResponse{
-						Error:        err.Error(),
-						LatestLedger: latestLedger,
-					}
+			simResp.EventsJSON, err = jsonifySlice(xdr.DiagnosticEvent{}, result.Events)
+			if err != nil {
+				return SimulateTransactionResponse{
+					Error:        err.Error(),
+					LatestLedger: latestLedger,
 				}
 			}
 
@@ -423,6 +414,20 @@ func base64EncodeSlice(in [][]byte) []string {
 		result[i] = base64.StdEncoding.EncodeToString(v)
 	}
 	return result
+}
+
+func jsonifySlice(xdr interface{}, values [][]byte) ([]map[string]interface{}, error) {
+	result := make([]map[string]interface{}, len(values))
+	var err error
+
+	for i, value := range values {
+		result[i], err = xdr2json.ConvertBytes(xdr, value)
+		if err != nil {
+			return result, err
+		}
+	}
+
+	return result, nil
 }
 
 func getBucketListSizeAndProtocolVersion(

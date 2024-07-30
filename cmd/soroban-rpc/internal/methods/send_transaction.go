@@ -126,21 +126,6 @@ func NewSendTransactionHandler(
 			}
 
 			switch request.Format {
-			case "":
-				fallthrough
-			case xdr2json.FormatBase64:
-				events, err := proto.DiagnosticEventsToSlice(resp.DiagnosticEvents)
-				if err != nil {
-					logger.WithField("tx", request.Transaction).Error("Cannot decode diagnostic events:", err)
-					return SendTransactionResponse{}, &jrpc2.Error{
-						Code:    jrpc2.InternalError,
-						Message: "could not decode diagnostic events",
-					}
-				}
-
-				errorResp.ErrorResultXDR = resp.Error
-				errorResp.DiagnosticEventsXDR = events
-
 			case xdr2json.FormatJSON:
 				errResult := xdr.TransactionResult{}
 				err = xdr.SafeUnmarshalBase64(resp.Error, &errResult)
@@ -190,6 +175,19 @@ func NewSendTransactionHandler(
 						}
 					}
 				}
+
+			default:
+				events, err := proto.DiagnosticEventsToSlice(resp.DiagnosticEvents)
+				if err != nil {
+					logger.WithField("tx", request.Transaction).Error("Cannot decode diagnostic events:", err)
+					return SendTransactionResponse{}, &jrpc2.Error{
+						Code:    jrpc2.InternalError,
+						Message: "could not decode diagnostic events",
+					}
+				}
+
+				errorResp.ErrorResultXDR = resp.Error
+				errorResp.DiagnosticEventsXDR = events
 			}
 
 			return errorResp, nil

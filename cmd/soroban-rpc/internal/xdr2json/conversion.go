@@ -121,37 +121,27 @@ func TransactionToJSON(tx db.Transaction) (
 	map[string]interface{},
 	map[string]interface{},
 	map[string]interface{},
-	[]map[string]interface{},
 	error,
 ) {
 	var err error
 	var result, envelope, resultMeta map[string]interface{}
-	var diagEvents []map[string]interface{}
 
 	result, err = ConvertBytes(xdr.TransactionResult{}, tx.Result)
 	if err != nil {
-		return result, envelope, resultMeta, diagEvents, err
+		return result, envelope, resultMeta, err
 	}
 
 	envelope, err = ConvertBytes(xdr.TransactionEnvelope{}, tx.Envelope)
 	if err != nil {
-		return result, envelope, resultMeta, diagEvents, err
+		return result, envelope, resultMeta, err
 	}
 
 	resultMeta, err = ConvertBytes(xdr.TransactionMeta{}, tx.Meta)
 	if err != nil {
-		return result, envelope, resultMeta, diagEvents, err
+		return result, envelope, resultMeta, err
 	}
 
-	diagEvents = make([]map[string]interface{}, len(tx.Events))
-	for i, event := range tx.Events {
-		diagEvents[i], err = ConvertBytes(xdr.DiagnosticEvent{}, event)
-		if err != nil {
-			return result, envelope, resultMeta, diagEvents, err
-		}
-	}
-
-	return result, envelope, resultMeta, diagEvents, nil
+	return result, envelope, resultMeta, nil
 }
 
 func IsValidConversion(format string) error {

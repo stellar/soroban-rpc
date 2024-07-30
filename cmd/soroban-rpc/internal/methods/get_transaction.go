@@ -141,7 +141,14 @@ func GetTransaction(
 
 	switch request.Format {
 	case xdr2json.FormatJSON:
-		result, envelope, meta, diagEvents, convErr := xdr2json.TransactionToJSON(tx)
+		result, envelope, meta, convErr := xdr2json.TransactionToJSON(tx)
+		if convErr != nil {
+			return response, &jrpc2.Error{
+				Code:    jrpc2.InternalError,
+				Message: convErr.Error(),
+			}
+		}
+		diagEvents, convErr := jsonifySlice(xdr.DiagnosticEvent{}, tx.Events)
 		if convErr != nil {
 			return response, &jrpc2.Error{
 				Code:    jrpc2.InternalError,

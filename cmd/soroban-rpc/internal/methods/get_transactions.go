@@ -202,13 +202,22 @@ func (h transactionsRPCHandler) processTransactionsInLedger(
 
 		switch format {
 		case xdr2json.FormatJSON:
-			result, envelope, meta, diagEvents, convErr := xdr2json.TransactionToJSON(tx)
+			result, envelope, meta, convErr := xdr2json.TransactionToJSON(tx)
 			if convErr != nil {
 				return nil, false, &jrpc2.Error{
 					Code:    jrpc2.InternalError,
 					Message: convErr.Error(),
 				}
 			}
+
+			diagEvents, convErr := jsonifySlice(xdr.DiagnosticEvent{}, tx.Events)
+			if convErr != nil {
+				return nil, false, &jrpc2.Error{
+					Code:    jrpc2.InternalError,
+					Message: convErr.Error(),
+				}
+			}
+
 			txInfo.ResultJSON = result
 			txInfo.ResultMetaJSON = envelope
 			txInfo.EnvelopeJSON = meta

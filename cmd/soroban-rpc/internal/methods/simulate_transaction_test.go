@@ -82,7 +82,7 @@ func TestLedgerEntryChange(t *testing.T) {
 		},
 	} {
 		var change LedgerEntryChange
-		require.NoError(t, change.FromXDRDiff(test.input), test.name)
+		require.NoError(t, change.FromXDRDiff(test.input, ""), test.name)
 		assert.Equal(t, test.expectedOutput, change)
 
 		// test json roundtrip
