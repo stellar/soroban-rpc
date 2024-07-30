@@ -113,9 +113,30 @@ func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEn
 
 		for _, ledgerKeyAndEntry := range ledgerKeysAndEntries {
 			switch request.Format {
-			case "":
-				fallthrough
-			case xdr2json.FormatBase64:
+			case xdr2json.FormatJSON:
+				keyJs, err := xdr2json.ConvertInterface(ledgerKeyAndEntry.Key)
+				if err != nil {
+					return GetLedgerEntriesResponse{}, &jrpc2.Error{
+						Code:    jrpc2.InternalError,
+						Message: err.Error(),
+					}
+				}
+				entryJs, err := xdr2json.ConvertInterface(ledgerKeyAndEntry.Entry.Data)
+				if err != nil {
+					return GetLedgerEntriesResponse{}, &jrpc2.Error{
+						Code:    jrpc2.InternalError,
+						Message: err.Error(),
+					}
+				}
+
+				ledgerEntryResults = append(ledgerEntryResults, LedgerEntryResult{
+					KeyJSON:            keyJs,
+					DataJSON:           entryJs,
+					LastModifiedLedger: uint32(ledgerKeyAndEntry.Entry.LastModifiedLedgerSeq),
+					LiveUntilLedgerSeq: ledgerKeyAndEntry.LiveUntilLedgerSeq,
+				})
+
+			default:
 				keyXDR, err := xdr.MarshalBase64(ledgerKeyAndEntry.Key)
 				if err != nil {
 					logger.WithError(err).WithField("request", request).
@@ -139,29 +160,6 @@ func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEn
 				ledgerEntryResults = append(ledgerEntryResults, LedgerEntryResult{
 					KeyXDR:             keyXDR,
 					DataXDR:            entryXDR,
-					LastModifiedLedger: uint32(ledgerKeyAndEntry.Entry.LastModifiedLedgerSeq),
-					LiveUntilLedgerSeq: ledgerKeyAndEntry.LiveUntilLedgerSeq,
-				})
-
-			case xdr2json.FormatJSON:
-				keyJs, err := xdr2json.ConvertInterface(ledgerKeyAndEntry.Key)
-				if err != nil {
-					return GetLedgerEntriesResponse{}, &jrpc2.Error{
-						Code:    jrpc2.InternalError,
-						Message: err.Error(),
-					}
-				}
-				entryJs, err := xdr2json.ConvertInterface(ledgerKeyAndEntry.Entry.Data)
-				if err != nil {
-					return GetLedgerEntriesResponse{}, &jrpc2.Error{
-						Code:    jrpc2.InternalError,
-						Message: err.Error(),
-					}
-				}
-
-				ledgerEntryResults = append(ledgerEntryResults, LedgerEntryResult{
-					KeyJSON:            keyJs,
-					DataJSON:           entryJs,
 					LastModifiedLedger: uint32(ledgerKeyAndEntry.Entry.LastModifiedLedgerSeq),
 					LiveUntilLedgerSeq: ledgerKeyAndEntry.LiveUntilLedgerSeq,
 				})
