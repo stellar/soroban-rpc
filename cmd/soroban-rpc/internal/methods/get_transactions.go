@@ -64,14 +64,14 @@ type TransactionInfo struct {
 	// FeeBump indicates whether the transaction is a feebump transaction
 	FeeBump bool `json:"feeBump"`
 	// EnvelopeXDR is the TransactionEnvelope XDR value.
-	EnvelopeXDR  string                 `json:"envelopeXdr"`
-	EnvelopeJSON map[string]interface{} `json:"envelopeJson"`
+	EnvelopeXDR  string                 `json:"envelopeXdr,omitempty"`
+	EnvelopeJSON map[string]interface{} `json:"envelopeJson,omitempty"`
 	// ResultXDR is the TransactionResult XDR value.
-	ResultXDR  string                 `json:"resultXdr"`
-	ResultJSON map[string]interface{} `json:"resultJson"`
+	ResultXDR  string                 `json:"resultXdr,omitempty"`
+	ResultJSON map[string]interface{} `json:"resultJson,omitempty"`
 	// ResultMetaXDR is the TransactionMeta XDR value.
-	ResultMetaXDR  string                 `json:"resultMetaXdr"`
-	ResultMetaJSON map[string]interface{} `json:"resultMetaJson"`
+	ResultMetaXDR  string                 `json:"resultMetaXdr,omitempty"`
+	ResultMetaJSON map[string]interface{} `json:"resultMetaJson,omitempty"`
 	// DiagnosticEventsXDR is present only if transaction was not successful.
 	// DiagnosticEventsXDR is a base64-encoded slice of xdr.DiagnosticEvent
 	DiagnosticEventsXDR  []string                 `json:"diagnosticEventsXdr,omitempty"`
@@ -272,7 +272,7 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 			return GetTransactionsResponse{}, err
 		}
 
-		cursor, done, err = h.processTransactionsInLedger(ledger, start, &txns, limit)
+		cursor, done, err = h.processTransactionsInLedger(ledger, start, &txns, limit, request.Format)
 		if err != nil {
 			return GetTransactionsResponse{}, err
 		}

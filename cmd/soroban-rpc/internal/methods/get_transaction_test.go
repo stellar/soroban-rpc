@@ -3,6 +3,7 @@ package methods
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -13,6 +14,7 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
 
 func TestGetTransaction(t *testing.T) {
@@ -289,4 +291,52 @@ func txMetaWithEvents(acctSeq uint32, successful bool) xdr.LedgerCloseMeta {
 	}
 
 	return meta
+}
+
+func TestGetTransaction_JSONFormat(t *testing.T) {
+	mockDBReader := db.NewMockTransactionStore(NetworkPassphrase)
+	mockLedgerReader := db.NewMockLedgerReader(mockDBReader)
+	var lookupHash string
+	var lookupEnv xdr.TransactionEnvelope
+	for i := 1; i <= 3; i++ {
+		meta := createTestLedger(uint32(i))
+		err := mockDBReader.InsertTransactions(meta)
+		require.NoError(t, err)
+
+		if lookupHash == "" {
+			lookupEnv = meta.TransactionEnvelopes()[0]
+			rawHash, hashErr := network.HashTransactionInEnvelope(lookupEnv, "passphrase")
+			require.NoError(t, hashErr)
+			lookupHash = hex.EncodeToString(rawHash[:])
+		}
+	}
+
+	request := GetTransactionRequest{
+		Format: xdr2json.FormatJSON,
+		Hash:   lookupHash,
+	}
+
+	txResp, err := GetTransaction(context.TODO(), nil, mockDBReader, mockLedgerReader, request)
+	require.NoError(t, err)
+
+	// Do a marshalling round-trip on a transaction so we can check that the
+	// fields are encoded correctly as JSON.
+	jsBytes, err := json.Marshal(txResp)
+	require.NoError(t, err)
+
+	var tx map[string]interface{}
+	require.NoError(t, json.Unmarshal(jsBytes, &tx))
+
+	require.Nilf(t, tx["envelopeXdr"], "field: 'envelopeXdr'")
+	require.NotNilf(t, tx["envelopeJson"], "field: 'envelopeJson'")
+	require.Nilf(t, tx["resultXdr"], "field: 'resultXdr'")
+	require.NotNilf(t, tx["resultJson"], "field: 'resultJson'")
+	require.Nilf(t, tx["resultMetaXdr"], "field: 'resultMetaXdr'")
+	require.NotNilf(t, tx["resultMetaJson"], "field: 'resultMetaJson'")
+
+	// Do a deep validation on the format
+
+	envMap, err := xdr2json.ConvertInterface(lookupEnv)
+	require.NoError(t, err)
+	require.Equal(t, envMap, tx["envelopeJson"])
 }

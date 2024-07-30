@@ -48,17 +48,17 @@ var errInvalidFormat = fmt.Errorf(
 // structure itself (by reference).
 func ConvertBytes(xdr interface{}, field []byte) (map[string]interface{}, error) {
 	xdrTypeName := reflect.TypeOf(xdr).Name()
-	goStr := convertStr(xdrTypeName, field)
+	goStr := convertAnyBytes(xdrTypeName, field)
 	return jsonify(goStr)
 }
 
 // ConvertInterface takes a valid XDR object (`xdr`) and returns a
 // JSON-formatted serialization of that object.
 //
-// Unlike `Convert`, the value here needs to be valid and
+// Unlike `ConvertBytes`, the value here needs to be valid and
 // serializable.
 func ConvertInterface(xdr interface{}) (map[string]interface{}, error) {
-	jsonStr, err := convertAnyStr(xdr)
+	jsonStr, err := convertAnyInterface(xdr)
 	if err != nil {
 		return nil, err
 	}
@@ -66,21 +66,21 @@ func ConvertInterface(xdr interface{}) (map[string]interface{}, error) {
 	return jsonify(jsonStr)
 }
 
-func convertAnyStr(xdr interface{}) (string, error) {
+func convertAnyInterface(xdr interface{}) (string, error) {
 	xdrTypeName := reflect.TypeOf(xdr).Name()
-	if cerealXdr, ok := xdr.(encoding.BinaryMarshaler); !ok {
+	if cerealXdr, ok := xdr.(encoding.BinaryMarshaler); ok {
 		data, err := cerealXdr.MarshalBinary()
 		if err != nil {
 			return "", errors.Wrapf(err, "failed to serialize XDR type '%s'", xdrTypeName)
 		}
 
-		return convertStr(xdrTypeName, data), nil
+		return convertAnyBytes(xdrTypeName, data), nil
 	}
 
 	return "", fmt.Errorf("expected serializable XDR, got '%s': %+v", xdrTypeName, xdr)
 }
 
-func convertStr(xdrTypeName string, field []byte) string {
+func convertAnyBytes(xdrTypeName string, field []byte) string {
 	var goStr string
 	// scope just added to show matching alloc/frees
 	{

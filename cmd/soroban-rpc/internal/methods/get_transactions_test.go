@@ -2,6 +2,7 @@ package methods
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
 
 const (
@@ -296,4 +298,45 @@ func TestGetTransactions_InvalidCursorString(t *testing.T) {
 	_, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
 	expectedErr := fmt.Errorf("[%d] strconv.ParseInt: parsing \"abc\": invalid syntax", jrpc2.InvalidParams)
 	assert.Equal(t, expectedErr.Error(), err.Error())
+}
+
+func TestGetTransactions_JSONFormat(t *testing.T) {
+	mockDBReader := db.NewMockTransactionStore(NetworkPassphrase)
+	mockLedgerReader := db.NewMockLedgerReader(mockDBReader)
+	for i := 1; i <= 3; i++ {
+		meta := createTestLedger(uint32(i))
+		err := mockDBReader.InsertTransactions(meta)
+		require.NoError(t, err)
+	}
+
+	handler := transactionsRPCHandler{
+		ledgerReader:      mockLedgerReader,
+		maxLimit:          100,
+		defaultLimit:      10,
+		networkPassphrase: NetworkPassphrase,
+	}
+
+	request := GetTransactionsRequest{
+		Format:      xdr2json.FormatJSON,
+		StartLedger: 1,
+	}
+
+	js, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
+	require.NoError(t, err)
+
+	// Do a marshalling round-trip on a transaction so we can check that the
+	// fields are encoded correctly as JSON.
+	txResp := js.Transactions[0]
+	jsBytes, err := json.Marshal(txResp)
+	require.NoError(t, err)
+
+	var tx map[string]interface{}
+	require.NoError(t, json.Unmarshal(jsBytes, &tx))
+
+	require.Nilf(t, tx["envelopeXdr"], "field: 'envelopeXdr'")
+	require.NotNilf(t, tx["envelopeJson"], "field: 'envelopeJson'")
+	require.Nilf(t, tx["resultXdr"], "field: 'resultXdr'")
+	require.NotNilf(t, tx["resultJson"], "field: 'resultJson'")
+	require.Nilf(t, tx["resultMetaXdr"], "field: 'resultMetaXdr'")
+	require.NotNilf(t, tx["resultMetaJson"], "field: 'resultMetaJson'")
 }
