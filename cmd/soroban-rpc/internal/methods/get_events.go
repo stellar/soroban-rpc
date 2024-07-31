@@ -413,13 +413,13 @@ func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCl
 
 	switch format {
 	case xdr2json.FormatJSON:
-		topics := make([]json.RawMessage, 4)
-		for i, topic := range v0.Topics {
-			var err error
-			topics[i], err = xdr2json.ConvertInterface(topic)
+		topics := make([]json.RawMessage, 0, 4)
+		for _, topic := range v0.Topics {
+			topic, err := xdr2json.ConvertInterface(topic)
 			if err != nil {
 				return EventInfo{}, err
 			}
+			topics = append(topics, topic)
 		}
 		info.TopicJSON = topics
 
