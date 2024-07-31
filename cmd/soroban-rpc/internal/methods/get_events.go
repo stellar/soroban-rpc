@@ -390,7 +390,11 @@ func (h eventsRPCHandler) getEvents(request GetEventsRequest) (GetEventsResponse
 	}, nil
 }
 
-func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerClosedAt, txHash, format string) (EventInfo, error) {
+func eventInfoForEvent(
+	event xdr.DiagnosticEvent,
+	cursor events.Cursor,
+	ledgerClosedAt, txHash, format string,
+) (EventInfo, error) {
 	v0, ok := event.Event.Body.GetV0()
 	if !ok {
 		return EventInfo{}, errors.New("unknown event version")

@@ -343,8 +343,8 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 					AuthXDR:        base64EncodeSlice(result.Auth),
 				})
 			}
-
 		}
+
 		var restorePreamble *RestorePreamble = nil
 		if len(result.PreRestoreTransactionData) != 0 {
 			switch request.Format {
@@ -352,7 +352,6 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 				txDataJs, err := xdr2json.ConvertBytes(
 					xdr.SorobanTransactionData{},
 					result.PreRestoreTransactionData)
-
 				if err != nil {
 					return SimulateTransactionResponse{
 						Error:        err.Error(),
