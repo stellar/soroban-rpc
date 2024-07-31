@@ -721,7 +721,7 @@ pub extern "C" fn free_conversion_result(ptr: *mut ConversionResult) {
     unsafe {
         free_c_string((*ptr).json);
         free_c_string((*ptr).error);
-        let _ = Box::from_raw(ptr);
+        drop(Box::from_raw(ptr));
     }
 }
 
