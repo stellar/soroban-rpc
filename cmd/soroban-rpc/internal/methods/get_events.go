@@ -412,9 +412,24 @@ func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCl
 	}
 
 	switch format {
-	case "":
-		fallthrough
-	case xdr2json.FormatBase64:
+	case xdr2json.FormatJSON:
+		topics := make([]json.RawMessage, 4)
+		for i, topic := range v0.Topics {
+			var err error
+			topics[i], err = xdr2json.ConvertInterface(topic)
+			if err != nil {
+				return EventInfo{}, err
+			}
+		}
+		info.TopicJSON = topics
+
+		dataJs, err := xdr2json.ConvertInterface(v0.Data)
+		if err != nil {
+			return EventInfo{}, err
+		}
+		info.ValueJSON = dataJs
+
+	default:
 		// base64-xdr encode the topic
 		topic := make([]string, 0, 4)
 		for _, segment := range v0.Topics {
@@ -433,24 +448,6 @@ func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCl
 
 		info.TopicXDR = topic
 		info.ValueXDR = data
-
-	case xdr2json.FormatJSON:
-		topics := make([]json.RawMessage, 0, 4)
-		for _, topic := range v0.Topics {
-			topicJs, err := xdr2json.ConvertInterface(topic)
-			if err != nil {
-				return EventInfo{}, err
-			}
-
-			topics = append(topics, topicJs)
-		}
-		info.TopicJSON = topics
-
-		dataJs, err := xdr2json.ConvertInterface(v0.Data)
-		if err != nil {
-			return EventInfo{}, err
-		}
-		info.ValueJSON = dataJs
 	}
 
 	if event.Event.ContractId != nil {

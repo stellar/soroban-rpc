@@ -725,6 +725,9 @@ pub extern "C" fn free_conversion_result(ptr: *mut ConversionResult) {
     }
 }
 
+// catch_json_to_xdr_panic is modeled after catch_preflight_panic(). It will always
+// return valid JSON in the result's `json` field and an error string in `error`
+// if a panic occurs.
 fn catch_json_to_xdr_panic(
     op: Box<dyn Fn() -> Result<RustConversionResult>>,
 ) -> RustConversionResult {
@@ -736,17 +739,17 @@ fn catch_json_to_xdr_panic(
     match res {
         Err(panic) => match panic.downcast::<String>() {
             Ok(panic_msg) => RustConversionResult {
-                json: String::new(),
+                json: "{}".to_string(),
                 error: format!("xdr_to_json() failed: {panic_msg}"),
             },
             Err(_) => RustConversionResult {
-                json: String::new(),
+                json: "{}".to_string(),
                 error: "xdr_to_json() failed: unknown cause".to_string(),
             },
         },
         // See https://docs.rs/anyhow/latest/anyhow/struct.Error.html#display-representations
         Ok(r) => r.unwrap_or_else(|e| RustConversionResult {
-            json: String::new(),
+            json: "{}".to_string(),
             error: format!("{e:?}"),
         }),
     }

@@ -41,7 +41,8 @@ var errInvalidFormat = fmt.Errorf(
 // ConvertBytes takes an XDR object (`xdr`) and its serialized bytes (`field`)
 // and returns the raw JSON-formatted serialization of that object.
 // It can be unmarshalled to a proper JSON structure, but the raw bytes are
-// returned to avoid unnecessary round-trips.
+// returned to avoid unnecessary round-trips. If there is an
+// error, it returns an empty JSON object.
 //
 // The `xdr` object does not need to actually be initialized/valid:
 // we only use it to determine the name of the structure. We could just
@@ -53,7 +54,8 @@ func ConvertBytes(xdr interface{}, field []byte) ([]byte, error) {
 }
 
 // ConvertInterface takes a valid XDR object (`xdr`) and returns
-// the raw JSON-formatted serialization of that object.
+// the raw JSON-formatted serialization of that object. If there is an
+// error, it returns an empty JSON object.
 //
 // Unlike `ConvertBytes`, the value here needs to be valid and
 // serializable.
@@ -62,13 +64,13 @@ func ConvertInterface(xdr interface{}) (json.RawMessage, error) {
 	if cerealXdr, ok := xdr.(encoding.BinaryMarshaler); ok {
 		data, err := cerealXdr.MarshalBinary()
 		if err != nil {
-			return []byte(""), errors.Wrapf(err, "failed to serialize XDR type '%s'", xdrTypeName)
+			return []byte("{}"), errors.Wrapf(err, "failed to serialize XDR type '%s'", xdrTypeName)
 		}
 
 		return convertAnyBytes(xdrTypeName, data)
 	}
 
-	return []byte(""), fmt.Errorf("expected serializable XDR, got '%s': %+v", xdrTypeName, xdr)
+	return []byte("{}"), fmt.Errorf("expected serializable XDR, got '%s': %+v", xdrTypeName, xdr)
 }
 
 func convertAnyBytes(xdrTypeName string, field []byte) (json.RawMessage, error) {
