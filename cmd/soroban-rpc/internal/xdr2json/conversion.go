@@ -3,10 +3,9 @@ package xdr2json
 
 /*
 // See preflight.go for add'l explanations:
-
+// Note: no blank lines allowed.
 #include <stdlib.h>
 #include "../../lib/xdrjson.h"
-
 #cgo windows,amd64 LDFLAGS: -L${SRCDIR}/../../../../target/x86_64-pc-windows-gnu/release-with-panic-unwind/ -lpreflight -lntdll -static -lws2_32 -lbcrypt -luserenv
 #cgo darwin,amd64  LDFLAGS: -L${SRCDIR}/../../../../target/x86_64-apple-darwin/release-with-panic-unwind/ -lpreflight -ldl -lm
 #cgo darwin,arm64  LDFLAGS: -L${SRCDIR}/../../../../target/aarch64-apple-darwin/release-with-panic-unwind/ -lpreflight -ldl -lm
@@ -40,48 +39,40 @@ var errInvalidFormat = fmt.Errorf(
 	strings.Join([]string{FormatBase64, FormatJSON}, ", "))
 
 // ConvertBytes takes an XDR object (`xdr`) and its serialized bytes (`field`)
-// and returns the JSON-formatted serialization of that object.
+// and returns the raw JSON-formatted serialization of that object.
+// It can be unmarshalled to a proper JSON structure, but the raw bytes are
+// returned to avoid unnecessary round-trips.
 //
 // The `xdr` object does not need to actually be initialized/valid:
 // we only use it to determine the name of the structure. We could just
 // accept a string, but that would make mistakes likelier than passing the
 // structure itself (by reference).
-func ConvertBytes(xdr interface{}, field []byte) (map[string]interface{}, error) {
+func ConvertBytes(xdr interface{}, field []byte) ([]byte, error) {
 	xdrTypeName := reflect.TypeOf(xdr).Name()
-	goStr := convertAnyBytes(xdrTypeName, field)
-	return jsonify(goStr)
+	return convertAnyBytes(xdrTypeName, field)
 }
 
-// ConvertInterface takes a valid XDR object (`xdr`) and returns a
-// JSON-formatted serialization of that object.
+// ConvertInterface takes a valid XDR object (`xdr`) and returns
+// the raw JSON-formatted serialization of that object.
 //
 // Unlike `ConvertBytes`, the value here needs to be valid and
 // serializable.
-func ConvertInterface(xdr interface{}) (map[string]interface{}, error) {
-	jsonStr, err := convertAnyInterface(xdr)
-	if err != nil {
-		return nil, err
-	}
-
-	return jsonify(jsonStr)
-}
-
-func convertAnyInterface(xdr interface{}) (string, error) {
+func ConvertInterface(xdr interface{}) (json.RawMessage, error) {
 	xdrTypeName := reflect.TypeOf(xdr).Name()
 	if cerealXdr, ok := xdr.(encoding.BinaryMarshaler); ok {
 		data, err := cerealXdr.MarshalBinary()
 		if err != nil {
-			return "", errors.Wrapf(err, "failed to serialize XDR type '%s'", xdrTypeName)
+			return []byte(""), errors.Wrapf(err, "failed to serialize XDR type '%s'", xdrTypeName)
 		}
 
-		return convertAnyBytes(xdrTypeName, data), nil
+		return convertAnyBytes(xdrTypeName, data)
 	}
 
-	return "", fmt.Errorf("expected serializable XDR, got '%s': %+v", xdrTypeName, xdr)
+	return []byte(""), fmt.Errorf("expected serializable XDR, got '%s': %+v", xdrTypeName, xdr)
 }
 
-func convertAnyBytes(xdrTypeName string, field []byte) string {
-	var goStr string
+func convertAnyBytes(xdrTypeName string, field []byte) (json.RawMessage, error) {
+	var jsonStr, errStr string
 	// scope just added to show matching alloc/frees
 	{
 		goRawXdr := CXDR(field)
@@ -90,23 +81,17 @@ func convertAnyBytes(xdrTypeName string, field []byte) string {
 		result := C.xdr_to_json(b, goRawXdr)
 		C.free(unsafe.Pointer(b))
 
-		goStr = C.GoString(result)
-		C.free(unsafe.Pointer(result))
+		jsonStr = C.GoString(result.json)
+		errStr = C.GoString(result.error)
+
+		C.free_conversion_result(result)
 	}
 
-	return goStr
-}
-
-func jsonify(s string) (map[string]interface{}, error) {
-	var result map[string]interface{}
-	err := json.Unmarshal([]byte(s), &result)
-	if err != nil {
-		return nil, err
-	} else if jsonErr, ok := result["error"]; ok {
-		return nil, fmt.Errorf("error during conversion: %+v", jsonErr)
+	if errStr != "" {
+		return []byte(jsonStr), errors.New(errStr)
 	}
 
-	return result, nil
+	return []byte(jsonStr), nil
 }
 
 // CXDR is ripped directly from preflight.go to avoid a dependency.
@@ -118,13 +103,13 @@ func CXDR(xdr []byte) C.xdr_t {
 }
 
 func TransactionToJSON(tx db.Transaction) (
-	map[string]interface{},
-	map[string]interface{},
-	map[string]interface{},
+	[]byte,
+	[]byte,
+	[]byte,
 	error,
 ) {
 	var err error
-	var result, envelope, resultMeta map[string]interface{}
+	var result, resultMeta, envelope []byte
 
 	result, err = ConvertBytes(xdr.TransactionResult{}, tx.Result)
 	if err != nil {

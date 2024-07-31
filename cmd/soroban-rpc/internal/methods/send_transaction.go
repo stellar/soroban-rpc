@@ -3,6 +3,7 @@ package methods
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 
 	"github.com/creachadair/jrpc2"
 
@@ -22,13 +23,13 @@ type SendTransactionResponse struct {
 	// ErrorResultXDR is present only if Status is equal to proto.TXStatusError.
 	// ErrorResultXDR is a TransactionResult xdr string which contains details on why
 	// the transaction could not be accepted by stellar-core.
-	ErrorResultXDR  string                 `json:"errorResultXdr,omitempty"`
-	ErrorResultJSON map[string]interface{} `json:"errorResultJson,omitempty"`
+	ErrorResultXDR  string          `json:"errorResultXdr,omitempty"`
+	ErrorResultJSON json.RawMessage `json:"errorResultJson,omitempty"`
 
 	// DiagnosticEventsXDR is present only if Status is equal to proto.TXStatusError.
 	// DiagnosticEventsXDR is a base64-encoded slice of xdr.DiagnosticEvent
-	DiagnosticEventsXDR  []string                 `json:"diagnosticEventsXdr,omitempty"`
-	DiagnosticEventsJSON []map[string]interface{} `json:"diagnosticEventsJson,omitempty"`
+	DiagnosticEventsXDR  []string          `json:"diagnosticEventsXdr,omitempty"`
+	DiagnosticEventsJSON []json.RawMessage `json:"diagnosticEventsJson,omitempty"`
 
 	// Status represents the status of the transaction submission returned by stellar-core.
 	// Status can be one of: proto.TXStatusPending, proto.TXStatusDuplicate,
@@ -162,7 +163,7 @@ func NewSendTransactionHandler(
 					}
 				}
 
-				errorResp.DiagnosticEventsJSON = make([]map[string]interface{}, len(diagEvents))
+				errorResp.DiagnosticEventsJSON = make([]json.RawMessage, len(diagEvents))
 				for i, event := range diagEvents {
 					errorResp.DiagnosticEventsJSON[i], err = xdr2json.ConvertInterface(event)
 					if err != nil {

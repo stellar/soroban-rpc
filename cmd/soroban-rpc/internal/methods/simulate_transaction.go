@@ -32,17 +32,17 @@ type SimulateTransactionCost struct {
 
 // SimulateHostFunctionResult contains the simulation result of each HostFunction within the single InvokeHostFunctionOp allowed in a Transaction
 type SimulateHostFunctionResult struct {
-	AuthXDR  []string                 `json:"auth,omitempty"`
-	AuthJSON []map[string]interface{} `json:"authJson,omitempty"`
+	AuthXDR  []string          `json:"auth,omitempty"`
+	AuthJSON []json.RawMessage `json:"authJson,omitempty"`
 
-	ReturnValueXDR  string                 `json:"xdr,omitempty"`
-	ReturnValueJSON map[string]interface{} `json:"returnValueJson,omitempty"`
+	ReturnValueXDR  string          `json:"xdr,omitempty"`
+	ReturnValueJSON json.RawMessage `json:"returnValueJson,omitempty"`
 }
 
 type RestorePreamble struct {
 	// TransactionDataXDR is an xdr.SorobanTransactionData in base64
-	TransactionDataXDR  string                 `json:"transactionData,omitempty"`
-	TransactionDataJSON map[string]interface{} `json:"transactionDataJson,omitempty"`
+	TransactionDataXDR  string          `json:"transactionData,omitempty"`
+	TransactionDataJSON json.RawMessage `json:"transactionDataJson,omitempty"`
 
 	MinResourceFee int64 `json:"minResourceFee,string"`
 }
@@ -181,24 +181,24 @@ func (l *LedgerEntryChange) FromXDRDiff(diff preflight.XDRDiff, format string) e
 type LedgerEntryChange struct {
 	Type LedgerEntryChangeType `json:"type"`
 
-	KeyXDR  string                 `json:"key,omitempty"` // LedgerEntryKey in base64
-	KeyJSON map[string]interface{} `json:"keyJson,omitempty"`
+	KeyXDR  string          `json:"key,omitempty"` // LedgerEntryKey in base64
+	KeyJSON json.RawMessage `json:"keyJson,omitempty"`
 
-	BeforeXDR  *string                `json:"before"` // LedgerEntry XDR in base64
-	BeforeJSON map[string]interface{} `json:"beforeJson,omitempty"`
+	BeforeXDR  *string         `json:"before"` // LedgerEntry XDR in base64
+	BeforeJSON json.RawMessage `json:"beforeJson,omitempty"`
 
-	AfterXDR  *string                `json:"after"` // LedgerEntry XDR in base64
-	AfterJSON map[string]interface{} `json:"afterJson,omitempty"`
+	AfterXDR  *string         `json:"after"` // LedgerEntry XDR in base64
+	AfterJSON json.RawMessage `json:"afterJson,omitempty"`
 }
 
 type SimulateTransactionResponse struct {
 	Error string `json:"error,omitempty"`
 
-	TransactionDataXDR  string                 `json:"transactionData,omitempty"` // SorobanTransactionData XDR in base64
-	TransactionDataJSON map[string]interface{} `json:"transactionDataJson,omitempty"`
+	TransactionDataXDR  string          `json:"transactionData,omitempty"` // SorobanTransactionData XDR in base64
+	TransactionDataJSON json.RawMessage `json:"transactionDataJson,omitempty"`
 
-	EventsXDR  []string                 `json:"events,omitempty"` // DiagnosticEvent XDR in base64
-	EventsJSON []map[string]interface{} `json:"eventsJson,omitempty"`
+	EventsXDR  []string          `json:"events,omitempty"` // DiagnosticEvent XDR in base64
+	EventsJSON []json.RawMessage `json:"eventsJson,omitempty"`
 
 	MinResourceFee  int64                        `json:"minResourceFee,string,omitempty"`
 	Results         []SimulateHostFunctionResult `json:"results,omitempty"`         // an array of the individual host function call results
@@ -416,8 +416,8 @@ func base64EncodeSlice(in [][]byte) []string {
 	return result
 }
 
-func jsonifySlice(xdr interface{}, values [][]byte) ([]map[string]interface{}, error) {
-	result := make([]map[string]interface{}, len(values))
+func jsonifySlice(xdr interface{}, values [][]byte) ([]json.RawMessage, error) {
+	result := make([]json.RawMessage, len(values))
 	var err error
 
 	for i, value := range values {

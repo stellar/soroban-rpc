@@ -2,6 +2,7 @@ package methods
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/creachadair/jrpc2"
@@ -23,8 +24,8 @@ type GetLedgerEntryRequest struct {
 // Deprecated. Use GetLedgerEntriesResponse instead.
 // TODO(https://github.com/stellar/soroban-tools/issues/374) remove after getLedgerEntries is deployed.
 type GetLedgerEntryResponse struct {
-	EntryXDR  string                 `json:"xdr"`
-	EntryJSON map[string]interface{} `json:"entryJson"`
+	EntryXDR  string          `json:"xdr"`
+	EntryJSON json.RawMessage `json:"entryJson"`
 
 	LastModifiedLedger uint32 `json:"lastModifiedLedgerSeq"`
 	LatestLedger       uint32 `json:"latestLedger"`

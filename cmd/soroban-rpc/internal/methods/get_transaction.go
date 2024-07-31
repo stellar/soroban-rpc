@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -49,14 +50,14 @@ type GetTransactionResponse struct {
 	// FeeBump indicates whether the transaction is a feebump transaction
 	FeeBump bool `json:"feeBump,omitempty"`
 	// EnvelopeXDR is the TransactionEnvelope XDR value.
-	EnvelopeXDR  string                 `json:"envelopeXdr,omitempty"`
-	EnvelopeJSON map[string]interface{} `json:"envelopeJson,omitempty"`
+	EnvelopeXDR  string          `json:"envelopeXdr,omitempty"`
+	EnvelopeJSON json.RawMessage `json:"envelopeJson,omitempty"`
 	// ResultXDR is the TransactionResult XDR value.
-	ResultXDR  string                 `json:"resultXdr,omitempty"`
-	ResultJSON map[string]interface{} `json:"resultJson,omitempty"`
+	ResultXDR  string          `json:"resultXdr,omitempty"`
+	ResultJSON json.RawMessage `json:"resultJson,omitempty"`
 	// ResultMetaXDR is the TransactionMeta XDR value.
-	ResultMetaXDR  string                 `json:"resultMetaXdr,omitempty"`
-	ResultMetaJSON map[string]interface{} `json:"resultMetaJson,omitempty"`
+	ResultMetaXDR  string          `json:"resultMetaXdr,omitempty"`
+	ResultMetaJSON json.RawMessage `json:"resultMetaJson,omitempty"`
 
 	// Ledger is the sequence of the ledger which included the transaction.
 	Ledger uint32 `json:"ledger,omitempty"`
@@ -65,8 +66,8 @@ type GetTransactionResponse struct {
 
 	// DiagnosticEventsXDR is present only if Status is equal to TransactionFailed.
 	// DiagnosticEventsXDR is a base64-encoded slice of xdr.DiagnosticEvent
-	DiagnosticEventsXDR  []string                 `json:"diagnosticEventsXdr,omitempty"`
-	DiagnosticEventsJSON []map[string]interface{} `json:"diagnosticEventsJson,omitempty"`
+	DiagnosticEventsXDR  []string          `json:"diagnosticEventsXdr,omitempty"`
+	DiagnosticEventsJSON []json.RawMessage `json:"diagnosticEventsJson,omitempty"`
 }
 
 type GetTransactionRequest struct {

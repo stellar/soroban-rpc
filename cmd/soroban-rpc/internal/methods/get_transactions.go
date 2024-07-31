@@ -3,6 +3,7 @@ package methods
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -64,18 +65,18 @@ type TransactionInfo struct {
 	// FeeBump indicates whether the transaction is a feebump transaction
 	FeeBump bool `json:"feeBump"`
 	// EnvelopeXDR is the TransactionEnvelope XDR value.
-	EnvelopeXDR  string                 `json:"envelopeXdr,omitempty"`
-	EnvelopeJSON map[string]interface{} `json:"envelopeJson,omitempty"`
+	EnvelopeXDR  string          `json:"envelopeXdr,omitempty"`
+	EnvelopeJSON json.RawMessage `json:"envelopeJson,omitempty"`
 	// ResultXDR is the TransactionResult XDR value.
-	ResultXDR  string                 `json:"resultXdr,omitempty"`
-	ResultJSON map[string]interface{} `json:"resultJson,omitempty"`
+	ResultXDR  string          `json:"resultXdr,omitempty"`
+	ResultJSON json.RawMessage `json:"resultJson,omitempty"`
 	// ResultMetaXDR is the TransactionMeta XDR value.
-	ResultMetaXDR  string                 `json:"resultMetaXdr,omitempty"`
-	ResultMetaJSON map[string]interface{} `json:"resultMetaJson,omitempty"`
+	ResultMetaXDR  string          `json:"resultMetaXdr,omitempty"`
+	ResultMetaJSON json.RawMessage `json:"resultMetaJson,omitempty"`
 	// DiagnosticEventsXDR is present only if transaction was not successful.
 	// DiagnosticEventsXDR is a base64-encoded slice of xdr.DiagnosticEvent
-	DiagnosticEventsXDR  []string                 `json:"diagnosticEventsXdr,omitempty"`
-	DiagnosticEventsJSON []map[string]interface{} `json:"diagnosticEventsJson,omitempty"`
+	DiagnosticEventsXDR  []string          `json:"diagnosticEventsXdr,omitempty"`
+	DiagnosticEventsJSON []json.RawMessage `json:"diagnosticEventsJson,omitempty"`
 	// Ledger is the sequence of the ledger which included the transaction.
 	Ledger uint32 `json:"ledger"`
 	// LedgerCloseTime is the unix timestamp of when the transaction was included in the ledger.

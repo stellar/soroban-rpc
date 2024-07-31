@@ -77,12 +77,12 @@ type EventInfo struct {
 	TransactionHash          string `json:"txHash"`
 
 	// TopicXDR is a base64-encoded list of ScVals
-	TopicXDR  []string                 `json:"topic,omitempty"`
-	TopicJSON []map[string]interface{} `json:"topicJson,omitempty"`
+	TopicXDR  []string          `json:"topic,omitempty"`
+	TopicJSON []json.RawMessage `json:"topicJson,omitempty"`
 
 	// ValueXDR is a base64-encoded ScVal
-	ValueXDR  string                 `json:"value,omitempty"`
-	ValueJSON map[string]interface{} `json:"valueJson,omitempty"`
+	ValueXDR  string          `json:"value,omitempty"`
+	ValueJSON json.RawMessage `json:"valueJson,omitempty"`
 }
 
 type GetEventsRequest struct {
@@ -435,7 +435,7 @@ func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCl
 		info.ValueXDR = data
 
 	case xdr2json.FormatJSON:
-		topics := make([]map[string]interface{}, 0, 4)
+		topics := make([]json.RawMessage, 0, 4)
 		for _, topic := range v0.Topics {
 			topicJs, err := xdr2json.ConvertInterface(topic)
 			if err != nil {

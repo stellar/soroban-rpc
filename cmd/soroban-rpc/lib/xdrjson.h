@@ -1,9 +1,16 @@
-typedef struct xdr_t {
+typedef struct {
     unsigned char *xdr;
     size_t        len;
 } xdr_t;
 
-char* xdr_to_json(
+typedef struct {
+    const char* const json;
+    const char* const error;
+} conversion_result_t;
+
+conversion_result_t* xdr_to_json(
     const char* const typename,
     xdr_t xdr
 );
+
+void free_conversion_result(conversion_result_t*);

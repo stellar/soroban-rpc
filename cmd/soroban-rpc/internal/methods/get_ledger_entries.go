@@ -2,6 +2,7 @@ package methods
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/creachadair/jrpc2"
@@ -23,11 +24,11 @@ type GetLedgerEntriesRequest struct {
 
 type LedgerEntryResult struct {
 	// Original request key matching this LedgerEntryResult.
-	KeyXDR  string                 `json:"key,omitempty"`
-	KeyJSON map[string]interface{} `json:"keyJson,omitempty"`
+	KeyXDR  string          `json:"key,omitempty"`
+	KeyJSON json.RawMessage `json:"keyJson,omitempty"`
 	// Ledger entry data encoded in base 64.
-	DataXDR  string                 `json:"xdr,omitempty"`
-	DataJSON map[string]interface{} `json:"dataJson,omitempty"`
+	DataXDR  string          `json:"xdr,omitempty"`
+	DataJSON json.RawMessage `json:"dataJson,omitempty"`
 	// Last modified ledger for this entry.
 	LastModifiedLedger uint32 `json:"lastModifiedLedgerSeq"`
 	// The ledger sequence until the entry is live, available for entries that have associated ttl ledger entries.
