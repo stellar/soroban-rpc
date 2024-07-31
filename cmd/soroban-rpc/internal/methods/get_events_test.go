@@ -773,7 +773,7 @@ func TestGetEvents(t *testing.T) {
 		valueJs, err := xdr2json.ConvertInterface(scVal)
 		require.NoError(t, err)
 
-		topicsJs := make([]map[string]interface{}, 2)
+		topicsJs := make([]json.RawMessage, 2)
 		for i, scv := range []xdr.ScVal{counterScVal, scVal} {
 			topicsJs[i], err = xdr2json.ConvertInterface(scv)
 			require.NoError(t, err)

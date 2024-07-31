@@ -336,7 +336,10 @@ func TestGetTransaction_JSONFormat(t *testing.T) {
 
 	// Do a deep validation on the format
 
-	envMap, err := xdr2json.ConvertInterface(lookupEnv)
+	envJs, err := xdr2json.ConvertInterface(lookupEnv)
 	require.NoError(t, err)
-	require.Equal(t, envMap, tx["envelopeJson"])
+
+	var envelope map[string]interface{}
+	json.Unmarshal(envJs, &envelope)
+	require.Equal(t, envelope, tx["envelopeJson"])
 }
