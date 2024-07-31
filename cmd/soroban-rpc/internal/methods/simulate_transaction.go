@@ -136,24 +136,7 @@ func (l *LedgerEntryChange) FromXDRDiff(diff preflight.XDRDiff, format string) e
 
 	switch format {
 	case xdr2json.FormatJSON:
-		l.KeyJSON, err = xdr2json.ConvertInterface(key)
-		if err != nil {
-			return err
-		}
-
-		if beforePresent {
-			l.BeforeJSON, err = xdr2json.ConvertBytes(xdr.LedgerEntry{}, diff.Before)
-			if err != nil {
-				return err
-			}
-		}
-
-		if afterPresent {
-			l.BeforeJSON, err = xdr2json.ConvertBytes(xdr.LedgerEntry{}, diff.After)
-			if err != nil {
-				return err
-			}
-		}
+		return l.jsonXdrDiff(diff, key)
 
 	default:
 		keyB64, err := xdr.MarshalBase64(key)
@@ -175,6 +158,33 @@ func (l *LedgerEntryChange) FromXDRDiff(diff preflight.XDRDiff, format string) e
 	}
 
 	l.Type = changeType
+	return nil
+}
+
+func (l *LedgerEntryChange) jsonXdrDiff(diff preflight.XDRDiff, key xdr.LedgerKey) error {
+	var err error
+	beforePresent := len(diff.Before) > 0
+	afterPresent := len(diff.After) > 0
+
+	l.KeyJSON, err = xdr2json.ConvertInterface(key)
+	if err != nil {
+		return err
+	}
+
+	if beforePresent {
+		l.BeforeJSON, err = xdr2json.ConvertBytes(xdr.LedgerEntry{}, diff.Before)
+		if err != nil {
+			return err
+		}
+	}
+
+	if afterPresent {
+		l.BeforeJSON, err = xdr2json.ConvertBytes(xdr.LedgerEntry{}, diff.After)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

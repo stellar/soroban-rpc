@@ -1,9 +1,4 @@
 typedef struct {
-    unsigned char *xdr;
-    size_t        len;
-} xdr_t;
-
-typedef struct {
     const char* const json;
     const char* const error;
 } conversion_result_t;

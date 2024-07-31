@@ -5,6 +5,7 @@ package xdr2json
 // See preflight.go for add'l explanations:
 // Note: no blank lines allowed.
 #include <stdlib.h>
+#include "../../lib/preflight.h"
 #include "../../lib/xdrjson.h"
 #cgo windows,amd64 LDFLAGS: -L${SRCDIR}/../../../../target/x86_64-pc-windows-gnu/release-with-panic-unwind/ -lpreflight -lntdll -static -lws2_32 -lbcrypt -luserenv
 #cgo darwin,amd64  LDFLAGS: -L${SRCDIR}/../../../../target/x86_64-apple-darwin/release-with-panic-unwind/ -lpreflight -ldl -lm
