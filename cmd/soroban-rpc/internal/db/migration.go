@@ -204,7 +204,7 @@ func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, cfg *config
 
 	m1, err := newGuardedDataMigration(ctx, migrationName, logger, factory, db)
 	if err != nil {
-		return nil, fmt.Errorf("creating guarded transaction migration: %w", err)
+		return nil, fmt.Errorf("could not create guarded transaction migration: %w", err)
 	}
 	migrations = append(migrations, m1)
 
@@ -216,7 +216,7 @@ func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, cfg *config
 	)
 	m2, err := newGuardedDataMigration(ctx, eventMigrationName, logger, eventFactory, db)
 	if err != nil {
-		return nil, fmt.Errorf("creating guarded transaction migration: %w", err)
+		return nil, fmt.Errorf("could not create guarded event migration: %w", err)
 	}
 	migrations = append(migrations, m2)
 

@@ -306,12 +306,15 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 
 	// Merge migrations range and fee stats range to get the applicable range
 	latestLedger, err := db.NewLedgerEntryReader(d.db).GetLatestLedgerSequence(readTxMetaCtx)
-	if err != nil {
+	if err != nil && !errors.Is(err, db.ErrEmptyDB) {
 		d.logger.WithError(err).Fatal("failed to get latest ledger sequence: %w", err)
 	}
 
 	maxFeeRetentionWindow := max(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow)
-	ledgerSeqRange := &db.LedgerSeqRange{FirstLedgerSeq: latestLedger - maxFeeRetentionWindow, LastLedgerSeq: latestLedger}
+	ledgerSeqRange := &db.LedgerSeqRange{FirstLedgerSeq: 0, LastLedgerSeq: latestLedger}
+	if latestLedger > maxFeeRetentionWindow {
+		ledgerSeqRange.FirstLedgerSeq = latestLedger - maxFeeRetentionWindow
+	}
 	applicableRange := dataMigrations.ApplicableRange()
 	ledgerSeqRange = ledgerSeqRange.Merge(applicableRange)
 
