@@ -324,7 +324,7 @@ func TestGetTransactions_JSONFormat(t *testing.T) {
 	js, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
 	require.NoError(t, err)
 
-	// Do a marshalling round-trip on a transaction so we can check that the
+	// Do a marshaling round-trip on a transaction so we can check that the
 	// fields are encoded correctly as JSON.
 	txResp := js.Transactions[0]
 	jsBytes, err := json.Marshal(txResp)

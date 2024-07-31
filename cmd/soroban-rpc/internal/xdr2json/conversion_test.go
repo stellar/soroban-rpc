@@ -3,9 +3,10 @@ package xdr2json
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/xdr"
-	"github.com/stretchr/testify/require"
 )
 
 func TestBytesConversion(t *testing.T) {

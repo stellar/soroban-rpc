@@ -680,12 +680,19 @@ struct RustConversionResult {
     error: String,
 }
 
-// xdr_to_json takes in a string name of an XDR type in the Stellar Protocol
-// (i.e. from the stellar_xdr crate) as well as a raw byte structure and returns a
-// structure containing the JSONified string of the given structure.
-//
-// On error, the struct's `error` field will be filled out with the appropriate
-// message that caused the function to panic.
+/// Takes in a string name of an XDR type in the Stellar Protocol (i.e. from
+/// the `stellar_xdr` crate) as well as a raw byte structure and returns a
+/// structure containing the JSON-ified string of the given structure.
+///
+/// # Errors
+///
+/// On error, the struct's `error` field will be filled out with the appropriate
+/// message that caused the function to panic.
+///
+/// # Panics
+///
+/// This should never panic due to `catch_json_to_xdr_panic` catching and
+/// unwinding all panics to stringified error messages.
 #[no_mangle]
 pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut ConversionResult {
     let result = catch_json_to_xdr_panic(Box::new(move || {
@@ -710,8 +717,11 @@ pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut Co
     }))
 }
 
-// free_conversion_result will free the memory allocated for the corresponding
-// conversion result returned from calling `xdr_to_json`.
+/// Frees memory allocated for the corresponding conversion result.
+///
+/// # Safety
+///
+/// You should *only* use this to free the return value of `xdr_to_json`.
 #[no_mangle]
 pub unsafe extern "C" fn free_conversion_result(ptr: *mut ConversionResult) {
     if ptr.is_null() {
