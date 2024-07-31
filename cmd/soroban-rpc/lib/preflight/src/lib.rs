@@ -713,7 +713,7 @@ pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut Co
 // free_conversion_result will free the memory allocated for the corresponding
 // conversion result returned from calling `xdr_to_json`.
 #[no_mangle]
-pub extern "C" fn free_conversion_result(ptr: *mut ConversionResult) {
+pub unsafe extern "C" fn free_conversion_result(ptr: *mut ConversionResult) {
     if ptr.is_null() {
         return;
     }
