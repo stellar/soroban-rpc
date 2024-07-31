@@ -90,10 +90,10 @@ func convertAnyBytes(xdrTypeName string, field []byte) (json.RawMessage, error) 
 	}
 
 	if errStr != "" {
-		return []byte(jsonStr), errors.New(errStr)
+		return json.RawMessage(jsonStr), errors.New(errStr)
 	}
 
-	return []byte(jsonStr), nil
+	return json.RawMessage(jsonStr), nil
 }
 
 // CXDR is ripped directly from preflight.go to avoid a dependency.

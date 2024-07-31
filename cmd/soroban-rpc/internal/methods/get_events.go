@@ -413,7 +413,8 @@ func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCl
 
 	switch format {
 	case xdr2json.FormatJSON:
-		topics := make([]json.RawMessage, 0, 4)
+		// json encode the topic
+		topics := make([]json.RawMessage, 0, maxTopicCount)
 		for _, topic := range v0.Topics {
 			topic, err := xdr2json.ConvertInterface(topic)
 			if err != nil {
@@ -431,7 +432,7 @@ func eventInfoForEvent(event xdr.DiagnosticEvent, cursor events.Cursor, ledgerCl
 
 	default:
 		// base64-xdr encode the topic
-		topic := make([]string, 0, 4)
+		topic := make([]string, 0, maxTopicCount)
 		for _, segment := range v0.Topics {
 			seg, err := xdr.MarshalBase64(segment)
 			if err != nil {
