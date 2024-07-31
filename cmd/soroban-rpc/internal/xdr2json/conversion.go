@@ -138,7 +138,7 @@ func IsValidConversion(format string) error {
 	case FormatJSON:
 	case FormatBase64:
 	default:
-		return errInvalidFormat
+		return errors.Wrapf(errInvalidFormat, "got '%s'", format)
 	}
 	return nil
 }

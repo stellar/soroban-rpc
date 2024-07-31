@@ -93,13 +93,17 @@ type GetEventsRequest struct {
 }
 
 func (g *GetEventsRequest) Valid(maxLimit uint) error {
-	// Validate start
+	if err := xdr2json.IsValidConversion(g.Format); err != nil {
+		return err
+	}
+
 	// Validate the paging limit (if it exists)
 	if g.Pagination != nil && g.Pagination.Cursor != nil {
 		if g.StartLedger != 0 {
 			return errors.New("startLedger and cursor cannot both be set")
 		}
 	} else if g.StartLedger <= 0 {
+		// Validate start
 		return errors.New("startLedger must be positive")
 	}
 	if g.Pagination != nil && g.Pagination.Limit > maxLimit {
