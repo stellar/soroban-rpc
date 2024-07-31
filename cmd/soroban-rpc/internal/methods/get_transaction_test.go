@@ -340,6 +340,6 @@ func TestGetTransaction_JSONFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	var envelope map[string]interface{}
-	json.Unmarshal(envJs, &envelope)
+	require.NoError(t, json.Unmarshal(envJs, &envelope))
 	require.Equal(t, envelope, tx["envelopeJson"])
 }

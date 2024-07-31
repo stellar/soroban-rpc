@@ -122,6 +122,8 @@ func (l *LedgerEntryChange) FromXDRDiff(diff preflight.XDRDiff, format string) e
 		return errors.New("missing before and after")
 	}
 
+	// We need to unmarshal the ledger entry for both b64 and json cases
+	// because we need the inner ledger key.
 	var entry xdr.LedgerEntry
 	if err := xdr.SafeUnmarshal(entryXDR, &entry); err != nil {
 		return err
@@ -363,7 +365,12 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 
 		stateChanges := make([]LedgerEntryChange, len(result.LedgerEntryDiff))
 		for i := 0; i < len(stateChanges); i++ {
-			stateChanges[i].FromXDRDiff(result.LedgerEntryDiff[i], request.Format)
+			if err := stateChanges[i].FromXDRDiff(result.LedgerEntryDiff[i], request.Format); err != nil {
+				return SimulateTransactionResponse{
+					Error:        err.Error(),
+					LatestLedger: latestLedger,
+				}
+			}
 		}
 
 		simResp := SimulateTransactionResponse{
