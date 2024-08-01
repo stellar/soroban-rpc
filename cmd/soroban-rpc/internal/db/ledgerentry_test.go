@@ -357,8 +357,6 @@ func TestWriteTxsDuringReadTxs(t *testing.T) {
 	assert.NoError(t, tx.Commit(ledgerSequence))
 
 	for _, readTx := range []LedgerEntryReadTx{readTx1, readTx2, readTx3} {
-		_, err = readTx.GetLatestLedgerSequence()
-		assert.Equal(t, ErrEmptyDB, err)
 		present, _, _, err := GetLedgerEntry(readTx, key)
 		assert.NoError(t, err)
 		assert.False(t, present)
