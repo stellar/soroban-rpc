@@ -40,13 +40,14 @@ type WriteTx interface {
 	LedgerEntryWriter() LedgerEntryWriter
 	LedgerWriter() LedgerWriter
 
-	Commit(ledgerSeq uint32) error
+	Commit(ledgerCloseMeta xdr.LedgerCloseMeta) error
 	Rollback() error
 }
 
 type dbCache struct {
-	latestLedgerSeq uint32
-	ledgerEntries   transactionalCache // Just like the DB: compress-encoded ledger key -> ledger entry XDR
+	latestLedgerSeq       uint32
+	latestLedgerCloseTime int64
+	ledgerEntries         transactionalCache // Just like the DB: compress-encoded ledger key -> ledger entry XDR
 	sync.RWMutex
 }
 
@@ -137,7 +138,6 @@ func getLatestLedgerSequence(ctx context.Context, ledgerReader LedgerReader, cac
 	if err != nil {
 		return 0, err
 	}
-	result := ledgerRange.LastLedger.Sequence
 
 	// Add missing ledger sequence to the top cache.
 	// Otherwise, the write-through cache won't get updated until the first ingestion commit
@@ -145,11 +145,12 @@ func getLatestLedgerSequence(ctx context.Context, ledgerReader LedgerReader, cac
 	if cache.latestLedgerSeq == 0 {
 		// Only update the cache if the value is missing (0), otherwise
 		// we may end up overwriting the entry with an older version
-		cache.latestLedgerSeq = result
+		cache.latestLedgerSeq = ledgerRange.LastLedger.Sequence
+		cache.latestLedgerCloseTime = ledgerRange.LastLedger.CloseTime
 	}
 	cache.Unlock()
 
-	return result, nil
+	return ledgerRange.LastLedger.Sequence, nil
 }
 
 type ReadWriterMetrics struct {
@@ -276,7 +277,10 @@ func (w writeTx) TransactionWriter() TransactionWriter {
 	return &w.txWriter
 }
 
-func (w writeTx) Commit(ledgerSeq uint32) error {
+func (w writeTx) Commit(ledgerCloseMeta xdr.LedgerCloseMeta) error {
+	ledgerSeq := ledgerCloseMeta.LedgerSequence()
+	ledgerCloseTime := ledgerCloseMeta.LedgerCloseTime()
+
 	if err := w.ledgerEntryWriter.flush(); err != nil {
 		return err
 	}
@@ -298,6 +302,7 @@ func (w writeTx) Commit(ledgerSeq uint32) error {
 			return err
 		}
 		w.globalCache.latestLedgerSeq = ledgerSeq
+		w.globalCache.latestLedgerCloseTime = ledgerCloseTime
 		w.ledgerEntryWriter.ledgerEntryCacheWriteTx.commit()
 		return nil
 	}
