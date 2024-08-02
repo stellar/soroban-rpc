@@ -150,7 +150,7 @@ func (eventHandler *eventHandler) GetEvents(
 	}
 
 	rowQ := sq.
-		Select("e.application_order", "lcm.meta").
+		Select("DISTINCT e.application_order", "lcm.meta").
 		From(eventTableName + " e").
 		Join(ledgerCloseMetaTableName + " lcm ON (e.ledger_sequence = lcm.sequence)").
 		Where(sq.GtOrEq{"e.ledger_sequence": cursorRange.Start.Ledger}).

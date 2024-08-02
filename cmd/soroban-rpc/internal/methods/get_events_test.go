@@ -1186,9 +1186,9 @@ func BenchmarkGetEvents(b *testing.B) {
 	ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
 	store := db.NewEventReader(log, dbx, passphrase)
 
-	// create 25 contract events
+	// create 250 contract events
 	var events []xdr.ContractEvent
-	for i := 0; i < 25; i++ {
+	for i := 0; i < 250; i++ {
 
 		contractEvent := contractEvent(
 			contractID,
@@ -1244,6 +1244,7 @@ func BenchmarkGetEvents(b *testing.B) {
 			b.Errorf("getEvents failed: %v", err)
 		}
 	}
+
 }
 
 func ledgerCloseMetaWithEvents(sequence uint32, closeTimestamp int64, txMeta ...xdr.TransactionMeta) xdr.LedgerCloseMeta {
@@ -1279,7 +1280,7 @@ func ledgerCloseMetaWithEvents(sequence uint32, closeTimestamp int64, txMeta ...
 			V1: &xdr.TransactionV1Envelope{
 				Tx: xdr.Transaction{
 					SourceAccount: xdr.MustMuxedAddress(keypair.MustRandom().Address()),
-					Operations:    operations,
+					//Operations:    operations,
 				},
 			},
 		}
