@@ -3,6 +3,7 @@ package methods
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 
 	"github.com/creachadair/jrpc2"
 
@@ -75,7 +76,10 @@ func NewSendTransactionHandler(
 
 		tx, err := ledgerReader.NewTx(ctx)
 		if err != nil {
-			return SendTransactionResponse{}, err
+			return SendTransactionResponse{}, jrpc2.Error{
+				Code:    jrpc2.InternalError,
+				Message: fmt.Errorf("could not initialize ledger reader tx: %s", err).Error(),
+			}
 		}
 
 		ledgerRange, err := tx.GetLedgerRange(ctx)

@@ -2,6 +2,7 @@ package methods
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/creachadair/jrpc2"
 
@@ -64,7 +65,10 @@ func NewGetFeeStatsHandler(windows *feewindow.FeeWindows, ledgerReader db.Ledger
 	return NewHandler(func(ctx context.Context) (GetFeeStatsResult, error) {
 		tx, err := ledgerReader.NewTx(ctx)
 		if err != nil {
-			return GetFeeStatsResult{}, err
+			return GetFeeStatsResult{}, jrpc2.Error{
+				Code:    jrpc2.InternalError,
+				Message: fmt.Errorf("could not initialize ledger reader tx: %s", err).Error(),
+			}
 		}
 
 		ledgerRange, err := tx.GetLedgerRange(ctx)

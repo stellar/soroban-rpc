@@ -26,7 +26,10 @@ func NewHealthCheck(
 	return NewHandler(func(ctx context.Context) (HealthCheckResult, error) {
 		tx, err := ledgerReader.NewTx(ctx)
 		if err != nil {
-			return HealthCheckResult{}, err
+			return HealthCheckResult{}, jrpc2.Error{
+				Code:    jrpc2.InternalError,
+				Message: fmt.Errorf("could not initialize ledger reader tx: %s", err).Error(),
+			}
 		}
 
 		ledgerRange, err := tx.GetLedgerRange(ctx)

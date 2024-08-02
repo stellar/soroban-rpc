@@ -144,7 +144,7 @@ func getLatestLedgerSequence(ctx context.Context, ledgerReader LedgerReader, cac
 		return 0, err
 	}
 
-	// Add missing ledger sequence to the top cache.
+	// Add missing ledger sequence and close time to the top cache.
 	// Otherwise, the write-through cache won't get updated until the first ingestion commit
 	cache.Lock()
 	if cache.latestLedgerSeq == 0 {

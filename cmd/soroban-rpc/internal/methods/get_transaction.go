@@ -94,7 +94,10 @@ func GetTransaction(
 
 	tx, err := ledgerReader.NewTx(ctx)
 	if err != nil {
-		return GetTransactionResponse{}, err
+		return GetTransactionResponse{}, jrpc2.Error{
+			Code:    jrpc2.InternalError,
+			Message: fmt.Errorf("could not initialize ledger reader tx: %s", err).Error(),
+		}
 	}
 
 	storeRange, err := tx.GetLedgerRange(ctx)

@@ -216,7 +216,10 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 ) (GetTransactionsResponse, error) {
 	tx, err := h.ledgerReader.NewTx(ctx)
 	if err != nil {
-		return GetTransactionsResponse{}, err
+		return GetTransactionsResponse{}, jrpc2.Error{
+			Code:    jrpc2.InternalError,
+			Message: fmt.Errorf("could not initialize ledger reader tx: %s", err).Error(),
+		}
 	}
 
 	ledgerRange, err := tx.GetLedgerRange(ctx)
