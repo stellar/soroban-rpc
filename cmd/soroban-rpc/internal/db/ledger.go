@@ -21,7 +21,7 @@ type StreamLedgerFn func(xdr.LedgerCloseMeta) error
 type LedgerReader interface {
 	GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error)
 	StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error
-	GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error)
+	NewTx(ctx context.Context) (LedgerReaderTx, error)
 }
 
 type LedgerWriter interface {
@@ -45,16 +45,20 @@ type ledgerReaderTx struct {
 // GetLedgerRange pulls the min/max ledger sequence numbers from the meta table.
 func (r *ledgerReaderTx) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
 	if r.latestLedgerSeqCache != 0 {
-		query := sq.Select("MIN(sequence)").From(ledgerCloseMetaTableName)
-		var lcm xdr.LedgerCloseMeta
+		query := sq.Select("meta").
+			From(ledgerCloseMetaTableName).
+			Where(
+				sq.Expr("sequence = (?)", sq.Select("MIN(sequence)").From(ledgerCloseMetaTableName)),
+			)
+		var lcm []xdr.LedgerCloseMeta
 		if err := r.db.Select(ctx, &lcm, query); err != nil {
 			return ledgerbucketwindow.LedgerRange{}, fmt.Errorf("couldn't query ledger range: %w", err)
 		}
 
 		return ledgerbucketwindow.LedgerRange{
 			FirstLedger: ledgerbucketwindow.LedgerInfo{
-				Sequence:  lcm.LedgerSequence(),
-				CloseTime: lcm.LedgerCloseTime(),
+				Sequence:  lcm[0].LedgerSequence(),
+				CloseTime: lcm[0].LedgerCloseTime(),
 			},
 			LastLedger: ledgerbucketwindow.LedgerInfo{
 				Sequence:  r.latestLedgerSeqCache,
@@ -153,35 +157,35 @@ func (r ledgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.Ledge
 }
 
 // GetLedgerRange pulls the min/max ledger sequence numbers from the meta table.
-func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
-	query := sq.Select("lcm.meta").
-		From(ledgerCloseMetaTableName + " as lcm").
-		Where(sq.Or{
-			sq.Expr("lcm.sequence = (?)", sq.Select("MIN(sequence)").From(ledgerCloseMetaTableName)),
-			sq.Expr("lcm.sequence = (?)", sq.Select("MAX(sequence)").From(ledgerCloseMetaTableName)),
-		}).OrderBy("lcm.sequence ASC")
-
-	var lcms []xdr.LedgerCloseMeta
-	if err := r.db.Select(ctx, &lcms, query); err != nil {
-		return ledgerbucketwindow.LedgerRange{}, fmt.Errorf("couldn't query ledger range: %w", err)
-	}
-
-	// Empty DB
-	if len(lcms) == 0 {
-		return ledgerbucketwindow.LedgerRange{}, ErrEmptyDB
-	}
-
-	return ledgerbucketwindow.LedgerRange{
-		FirstLedger: ledgerbucketwindow.LedgerInfo{
-			Sequence:  lcms[0].LedgerSequence(),
-			CloseTime: lcms[0].LedgerCloseTime(),
-		},
-		LastLedger: ledgerbucketwindow.LedgerInfo{
-			Sequence:  lcms[len(lcms)-1].LedgerSequence(),
-			CloseTime: lcms[len(lcms)-1].LedgerCloseTime(),
-		},
-	}, nil
-}
+//func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
+//	query := sq.Select("lcm.meta").
+//		From(ledgerCloseMetaTableName + " as lcm").
+//		Where(sq.Or{
+//			sq.Expr("lcm.sequence = (?)", sq.Select("MIN(sequence)").From(ledgerCloseMetaTableName)),
+//			sq.Expr("lcm.sequence = (?)", sq.Select("MAX(sequence)").From(ledgerCloseMetaTableName)),
+//		}).OrderBy("lcm.sequence ASC")
+//
+//	var lcms []xdr.LedgerCloseMeta
+//	if err := r.db.Select(ctx, &lcms, query); err != nil {
+//		return ledgerbucketwindow.LedgerRange{}, fmt.Errorf("couldn't query ledger range: %w", err)
+//	}
+//
+//	// Empty DB
+//	if len(lcms) == 0 {
+//		return ledgerbucketwindow.LedgerRange{}, ErrEmptyDB
+//	}
+//
+//	return ledgerbucketwindow.LedgerRange{
+//		FirstLedger: ledgerbucketwindow.LedgerInfo{
+//			Sequence:  lcms[0].LedgerSequence(),
+//			CloseTime: lcms[0].LedgerCloseTime(),
+//		},
+//		LastLedger: ledgerbucketwindow.LedgerInfo{
+//			Sequence:  lcms[len(lcms)-1].LedgerSequence(),
+//			CloseTime: lcms[len(lcms)-1].LedgerCloseTime(),
+//		},
+//	}, nil
+//}
 
 type ledgerWriter struct {
 	stmtCache *sq.StmtCache

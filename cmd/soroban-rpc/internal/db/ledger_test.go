@@ -133,7 +133,10 @@ func TestGetLedgerRange_NonEmptyDB(t *testing.T) {
 	require.NoError(t, write.Commit(lcms[len(lcms)-1]))
 
 	reader := NewLedgerReader(db)
-	ledgerRange, err := reader.GetLedgerRange(ctx)
+	tx, err := reader.NewTx(ctx)
+	require.NoError(t, err)
+
+	ledgerRange, err := tx.GetLedgerRange(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, uint32(1334), ledgerRange.FirstLedger.Sequence)
 	assert.Equal(t, ledgerCloseTime(1334), ledgerRange.FirstLedger.CloseTime)
@@ -161,7 +164,10 @@ func TestGetLedgerRange_SingleDBRow(t *testing.T) {
 	require.NoError(t, write.Commit(lcms[len(lcms)-1]))
 
 	reader := NewLedgerReader(db)
-	ledgerRange, err := reader.GetLedgerRange(ctx)
+	tx, err := reader.NewTx(ctx)
+	require.NoError(t, err)
+
+	ledgerRange, err := tx.GetLedgerRange(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, uint32(1334), ledgerRange.FirstLedger.Sequence)
 	assert.Equal(t, ledgerCloseTime(1334), ledgerRange.FirstLedger.CloseTime)
@@ -174,7 +180,10 @@ func TestGetLedgerRange_EmptyDB(t *testing.T) {
 	ctx := context.TODO()
 
 	reader := NewLedgerReader(db)
-	ledgerRange, err := reader.GetLedgerRange(ctx)
+	tx, err := reader.NewTx(ctx)
+	require.NoError(t, err)
+
+	ledgerRange, err := tx.GetLedgerRange(ctx)
 	assert.Equal(t, ErrEmptyDB, err)
 	assert.Equal(t, uint32(0), ledgerRange.FirstLedger.Sequence)
 	assert.Equal(t, int64(0), ledgerRange.FirstLedger.CloseTime)
@@ -185,6 +194,7 @@ func TestGetLedgerRange_EmptyDB(t *testing.T) {
 func BenchmarkGetLedgerRange(b *testing.B) {
 	db := NewTestDB(b)
 	logger := log.DefaultLogger
+	ctx := context.TODO()
 	writer := NewReadWriter(logger, db, interfaces.MakeNoOpDeamon(), 100, 1_000_000, passphrase)
 	write, err := writer.NewTx(context.TODO())
 	require.NoError(b, err)
@@ -202,10 +212,12 @@ func BenchmarkGetLedgerRange(b *testing.B) {
 	}
 	require.NoError(b, write.Commit(lcms[len(lcms)-1]))
 	reader := NewLedgerReader(db)
+	tx, err := reader.NewTx(ctx)
+	require.NoError(b, err)
 
 	b.ResetTimer()
 	for range b.N {
-		ledgerRange, err := reader.GetLedgerRange(context.TODO())
+		ledgerRange, err := tx.GetLedgerRange(context.TODO())
 		require.NoError(b, err)
 		assert.Equal(b, lcms[0].LedgerSequence(), ledgerRange.FirstLedger.Sequence)
 		assert.Equal(b, lcms[len(lcms)-1].LedgerSequence(), ledgerRange.LastLedger.Sequence)

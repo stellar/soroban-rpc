@@ -24,7 +24,12 @@ func NewHealthCheck(
 	maxHealthyLedgerLatency time.Duration,
 ) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context) (HealthCheckResult, error) {
-		ledgerRange, err := ledgerReader.GetLedgerRange(ctx)
+		tx, err := ledgerReader.NewTx(ctx)
+		if err != nil {
+			return HealthCheckResult{}, err
+		}
+
+		ledgerRange, err := tx.GetLedgerRange(ctx)
 		if err != nil || ledgerRange.LastLedger.Sequence < 1 {
 			extra := ""
 			if err != nil {

@@ -73,13 +73,18 @@ func NewSendTransactionHandler(
 		}
 		txHash := hex.EncodeToString(hash[:])
 
-		ledgerInfo, err := ledgerReader.GetLedgerRange(ctx)
+		tx, err := ledgerReader.NewTx(ctx)
+		if err != nil {
+			return SendTransactionResponse{}, err
+		}
+
+		ledgerRange, err := tx.GetLedgerRange(ctx)
 		if err != nil { // still not fatal
 			logger.WithError(err).
 				WithField("tx", request.Transaction).
 				Error("could not fetch ledger range")
 		}
-		latestLedgerInfo := ledgerInfo.LastLedger
+		latestLedgerInfo := ledgerRange.LastLedger
 
 		resp, err := submitter.SubmitTransaction(ctx, request.Transaction)
 		if err != nil {

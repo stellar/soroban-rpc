@@ -62,7 +62,12 @@ func NewGetFeeStatsHandler(windows *feewindow.FeeWindows, ledgerReader db.Ledger
 	logger *log.Entry,
 ) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context) (GetFeeStatsResult, error) {
-		ledgerRange, err := ledgerReader.GetLedgerRange(ctx)
+		tx, err := ledgerReader.NewTx(ctx)
+		if err != nil {
+			return GetFeeStatsResult{}, err
+		}
+
+		ledgerRange, err := tx.GetLedgerRange(ctx)
 		if err != nil { // still not fatal
 			logger.WithError(err).
 				Error("could not fetch ledger range")

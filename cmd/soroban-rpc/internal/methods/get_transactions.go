@@ -214,7 +214,12 @@ func (h transactionsRPCHandler) processTransactionsInLedger(ledger xdr.LedgerClo
 func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Context,
 	request GetTransactionsRequest,
 ) (GetTransactionsResponse, error) {
-	ledgerRange, err := h.ledgerReader.GetLedgerRange(ctx)
+	tx, err := h.ledgerReader.NewTx(ctx)
+	if err != nil {
+		return GetTransactionsResponse{}, err
+	}
+
+	ledgerRange, err := tx.GetLedgerRange(ctx)
 	if err != nil {
 		return GetTransactionsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InternalError,

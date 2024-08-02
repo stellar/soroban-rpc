@@ -83,6 +83,10 @@ type MockLedgerReader struct {
 	txn *MockTransactionHandler
 }
 
+func (m *MockLedgerReader) NewTx(ctx context.Context) (LedgerReaderTx, error) {
+	return nil, nil
+}
+
 func NewMockLedgerReader(txn *MockTransactionHandler) *MockLedgerReader {
 	return &MockLedgerReader{
 		txn: txn,
@@ -99,10 +103,6 @@ func (m *MockLedgerReader) GetLedger(_ context.Context, sequence uint32) (xdr.Le
 
 func (m *MockLedgerReader) StreamAllLedgers(_ context.Context, _ StreamLedgerFn) error {
 	return nil
-}
-
-func (m *MockLedgerReader) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
-	return m.txn.ledgerRange, nil
 }
 
 var (
