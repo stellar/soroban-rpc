@@ -347,7 +347,6 @@ func TestGetTransaction_JSONFormat(t *testing.T) {
 func BenchmarkJSONTransactions(b *testing.B) {
 	mockDBReader := db.NewMockTransactionStore(NetworkPassphrase)
 	mockLedgerReader := db.NewMockLedgerReader(mockDBReader)
-	mockDaemon := interfaces.MakeNoOpDeamon()
 
 	var lookupHash string
 	var lookupEnv xdr.TransactionEnvelope
@@ -378,8 +377,7 @@ func BenchmarkJSONTransactions(b *testing.B) {
 				nil,
 				mockDBReader,
 				mockLedgerReader,
-				request,
-				mockDaemon)
+				request)
 			require.NoError(bb, err)
 		}
 	})
@@ -395,8 +393,7 @@ func BenchmarkJSONTransactions(b *testing.B) {
 				nil,
 				mockDBReader,
 				mockLedgerReader,
-				request,
-				mockDaemon)
+				request)
 			require.NoError(bb, err)
 		}
 	})
