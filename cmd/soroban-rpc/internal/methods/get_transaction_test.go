@@ -13,7 +13,6 @@ import (
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
@@ -24,20 +23,17 @@ func TestGetTransaction(t *testing.T) {
 		log          = log.DefaultLogger
 		store        = db.NewMockTransactionStore("passphrase")
 		ledgerReader = db.NewMockLedgerReader(store)
-		daemon       = interfaces.MakeNoOpDeamon()
-		getTx        = func(request GetTransactionRequest) (GetTransactionResponse, error) {
-			return GetTransaction(ctx, log, store, ledgerReader, request, daemon)
-		}
 	)
 	log.SetLevel(logrus.DebugLevel)
 
-	_, err := getTx(GetTransactionRequest{"ab", ""})
+	_, err := GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{"ab", ""})
 	require.EqualError(t, err, "[-32602] unexpected hash length (2)")
-	_, err = getTx(GetTransactionRequest{"foo                                                              ", ""})
+	_, err = GetTransaction(ctx, log, store, ledgerReader,
+		GetTransactionRequest{"foo                                                              ", ""})
 	require.EqualError(t, err, "[-32602] incorrect hash: encoding/hex: invalid byte: U+006F 'o'")
 
 	hash := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	tx, err := getTx(GetTransactionRequest{hash, ""})
+	tx, err := GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{hash, ""})
 	require.NoError(t, err)
 	require.Equal(t, GetTransactionResponse{Status: TransactionStatusNotFound}, tx)
 
@@ -46,7 +42,7 @@ func TestGetTransaction(t *testing.T) {
 
 	xdrHash := txHash(1)
 	hash = hex.EncodeToString(xdrHash[:])
-	tx, err = getTx(GetTransactionRequest{hash, ""})
+	tx, err = GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{hash, ""})
 	require.NoError(t, err)
 
 	expectedTxResult, err := xdr.MarshalBase64(meta.V1.TxProcessing[0].Result.Result)
@@ -76,7 +72,7 @@ func TestGetTransaction(t *testing.T) {
 	require.NoError(t, store.InsertTransactions(meta))
 
 	// the first transaction should still be there
-	tx, err = getTx(GetTransactionRequest{hash, ""})
+	tx, err = GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{hash, ""})
 	require.NoError(t, err)
 	require.Equal(t, GetTransactionResponse{
 		Status:                TransactionStatusSuccess,
@@ -105,7 +101,7 @@ func TestGetTransaction(t *testing.T) {
 	expectedTxMeta, err = xdr.MarshalBase64(meta.V1.TxProcessing[0].TxApplyProcessing)
 	require.NoError(t, err)
 
-	tx, err = getTx(GetTransactionRequest{hash, ""})
+	tx, err = GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{hash, ""})
 	require.NoError(t, err)
 	require.Equal(t, GetTransactionResponse{
 		Status:                TransactionStatusFailed,
@@ -142,7 +138,7 @@ func TestGetTransaction(t *testing.T) {
 	expectedEventsMeta, err := xdr.MarshalBase64(diagnosticEvents[0])
 	require.NoError(t, err)
 
-	tx, err = getTx(GetTransactionRequest{hash, ""})
+	tx, err = GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{hash, ""})
 	require.NoError(t, err)
 	require.Equal(t, GetTransactionResponse{
 		Status:                TransactionStatusSuccess,
@@ -300,8 +296,6 @@ func txMetaWithEvents(acctSeq uint32, successful bool) xdr.LedgerCloseMeta {
 func TestGetTransaction_JSONFormat(t *testing.T) {
 	mockDBReader := db.NewMockTransactionStore(NetworkPassphrase)
 	mockLedgerReader := db.NewMockLedgerReader(mockDBReader)
-	mockDaemon := interfaces.MakeNoOpDeamon()
-
 	var lookupHash string
 	var lookupEnv xdr.TransactionEnvelope
 	for i := 1; i <= 3; i++ {
@@ -322,7 +316,7 @@ func TestGetTransaction_JSONFormat(t *testing.T) {
 		Hash:   lookupHash,
 	}
 
-	txResp, err := GetTransaction(context.TODO(), nil, mockDBReader, mockLedgerReader, request, mockDaemon)
+	txResp, err := GetTransaction(context.TODO(), nil, mockDBReader, mockLedgerReader, request)
 	require.NoError(t, err)
 
 	// Do a marshaling round-trip on a transaction so we can check that the

@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	runtimePprof "runtime/pprof"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -392,15 +391,4 @@ func (d *Daemon) Run() {
 	case <-d.done:
 		return
 	}
-}
-
-func (d *Daemon) GetMajorCoreVersion() string {
-	core := d.GetCore()
-	coreVersion := core.GetCoreVersion()
-	versions := strings.Split(coreVersion, ".")
-	majorVersion := "0"
-	if len(versions) > 0 {
-		majorVersion = versions[0]
-	}
-	return majorVersion
 }

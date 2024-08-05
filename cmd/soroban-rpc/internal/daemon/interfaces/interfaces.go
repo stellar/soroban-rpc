@@ -17,7 +17,6 @@ type Daemon interface {
 	MetricsNamespace() string
 	CoreClient() CoreClient
 	GetCore() *ledgerbackend.CaptiveStellarCore
-	GetMajorCoreVersion() string
 }
 
 type CoreClient interface {

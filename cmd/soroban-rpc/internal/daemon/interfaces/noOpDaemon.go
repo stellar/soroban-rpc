@@ -18,7 +18,7 @@ type NoOpDaemon struct {
 	core             *ledgerbackend.CaptiveStellarCore
 }
 
-func MakeNoOpDeamon() Daemon {
+func MakeNoOpDeamon() *NoOpDaemon {
 	return &NoOpDaemon{
 		metricsRegistry:  prometheus.NewRegistry(),
 		metricsNamespace: "soroban_rpc",
@@ -40,10 +40,6 @@ func (d *NoOpDaemon) CoreClient() CoreClient {
 
 func (d *NoOpDaemon) GetCore() *ledgerbackend.CaptiveStellarCore {
 	return d.core
-}
-
-func (d *NoOpDaemon) GetMajorCoreVersion() string {
-	return "NoOp"
 }
 
 type noOpCoreClient struct{}
