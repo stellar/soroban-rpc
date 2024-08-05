@@ -343,3 +343,61 @@ func TestGetTransaction_JSONFormat(t *testing.T) {
 	require.NoError(t, json.Unmarshal(envJs, &envelope))
 	require.Equal(t, envelope, tx["envelopeJson"])
 }
+
+func BenchmarkJSONTransactions(b *testing.B) {
+	mockDBReader := db.NewMockTransactionStore(NetworkPassphrase)
+	mockLedgerReader := db.NewMockLedgerReader(mockDBReader)
+	mockDaemon := interfaces.MakeNoOpDeamon()
+
+	var lookupHash string
+	var lookupEnv xdr.TransactionEnvelope
+	for i := 1; i <= 3; i++ {
+		meta := createTestLedger(uint32(i))
+		err := mockDBReader.InsertTransactions(meta)
+		require.NoError(b, err)
+
+		if lookupHash == "" {
+			lookupEnv = meta.TransactionEnvelopes()[0]
+			rawHash, hashErr := network.HashTransactionInEnvelope(lookupEnv, "passphrase")
+			require.NoError(b, hashErr)
+			lookupHash = hex.EncodeToString(rawHash[:])
+		}
+	}
+
+	b.ResetTimer()
+	b.Run("JSON format", func(bb *testing.B) {
+		request := GetTransactionRequest{
+			Format: xdr2json.FormatJSON,
+			Hash:   lookupHash,
+		}
+		bb.ResetTimer()
+
+		for i := 0; i < bb.N; i++ {
+			_, err := GetTransaction(
+				context.TODO(),
+				nil,
+				mockDBReader,
+				mockLedgerReader,
+				request,
+				mockDaemon)
+			require.NoError(bb, err)
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("XDR format", func(bb *testing.B) {
+		request := GetTransactionRequest{Hash: lookupHash}
+		bb.ResetTimer()
+
+		for i := 0; i < bb.N; i++ {
+			_, err := GetTransaction(
+				context.TODO(),
+				nil,
+				mockDBReader,
+				mockLedgerReader,
+				request,
+				mockDaemon)
+			require.NoError(bb, err)
+		}
+	})
+}
