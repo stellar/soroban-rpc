@@ -60,18 +60,14 @@ func ConvertBytes(xdr interface{}, field []byte) ([]byte, error) {
 //
 // Unlike `ConvertBytes`, the value here needs to be valid and
 // serializable.
-func ConvertInterface(xdr interface{}) (json.RawMessage, error) {
+func ConvertInterface(xdr encoding.BinaryMarshaler) (json.RawMessage, error) {
 	xdrTypeName := reflect.TypeOf(xdr).Name()
-	if cerealXdr, ok := xdr.(encoding.BinaryMarshaler); ok {
-		data, err := cerealXdr.MarshalBinary()
-		if err != nil {
-			return []byte("{}"), errors.Wrapf(err, "failed to serialize XDR type '%s'", xdrTypeName)
-		}
-
-		return convertAnyBytes(xdrTypeName, data)
+	data, err := xdr.MarshalBinary()
+	if err != nil {
+		return []byte("{}"), errors.Wrapf(err, "failed to serialize XDR type '%s'", xdrTypeName)
 	}
 
-	return []byte("{}"), fmt.Errorf("expected serializable XDR, got '%s': %+v", xdrTypeName, xdr)
+	return convertAnyBytes(xdrTypeName, data)
 }
 
 func convertAnyBytes(xdrTypeName string, field []byte) (json.RawMessage, error) {

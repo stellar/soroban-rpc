@@ -680,9 +680,9 @@ struct RustConversionResult {
     error: String,
 }
 
-/// Takes in a string name of an XDR type in the Stellar Protocol (i.e. from
-/// the `stellar_xdr` crate) as well as a raw byte structure and returns a
-/// structure containing the JSON-ified string of the given structure.
+/// Takes in a string name of an XDR type in the Stellar Protocol (i.e. from the
+/// `stellar_xdr` crate) as well as a raw byte structure and returns a structure
+/// containing the JSON-ified string of the given structure.
 ///
 /// # Errors
 ///
@@ -735,9 +735,11 @@ pub unsafe extern "C" fn free_conversion_result(ptr: *mut ConversionResult) {
     }
 }
 
-// catch_json_to_xdr_panic is modeled after catch_preflight_panic(). It will always
-// return valid JSON in the result's `json` field and an error string in `error`
-// if a panic occurs.
+/// Runs a JSON conversion operation and unwinds panics.
+///
+/// It is modeled after catch_preflight_panic() and will always return valid
+/// JSON in the result's `json` field and an error string in `error` if a panic
+/// occurs.
 fn catch_json_to_xdr_panic(
     op: Box<dyn Fn() -> Result<RustConversionResult>>,
 ) -> RustConversionResult {
