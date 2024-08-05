@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 
 	"github.com/creachadair/jrpc2"
 
 	"github.com/stellar/go/network"
 	proto "github.com/stellar/go/protocols/stellarcore"
-	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
@@ -136,7 +137,7 @@ func NewSendTransactionHandler(
 
 					return SendTransactionResponse{}, &jrpc2.Error{
 						Code:    jrpc2.InternalError,
-						Message: errors.Wrap(err, "couldn't decode error").Error(),
+						Message: errors.Join(err, errors.New("couldn't decode error")).Error(),
 					}
 				}
 
@@ -147,7 +148,7 @@ func NewSendTransactionHandler(
 
 					return SendTransactionResponse{}, &jrpc2.Error{
 						Code:    jrpc2.InternalError,
-						Message: errors.Wrap(err, "couldn't serialize error").Error(),
+						Message: errors.Join(err, errors.New("couldn't serialize error")).Error(),
 					}
 				}
 
@@ -159,7 +160,7 @@ func NewSendTransactionHandler(
 
 					return SendTransactionResponse{}, &jrpc2.Error{
 						Code:    jrpc2.InternalError,
-						Message: errors.Wrap(err, "couldn't decode events").Error(),
+						Message: errors.Join(err, errors.New("couldn't decode events")).Error(),
 					}
 				}
 
@@ -171,8 +172,9 @@ func NewSendTransactionHandler(
 							WithError(err).Errorf("Cannot decode event %d: %+v", i+1, event)
 
 						return SendTransactionResponse{}, &jrpc2.Error{
-							Code:    jrpc2.InternalError,
-							Message: errors.Wrapf(err, "couldn't decode event #%d", i+1).Error(),
+							Code: jrpc2.InternalError,
+							Message: errors.Join(err,
+								fmt.Errorf("couldn't decode event #%d", i+1)).Error(),
 						}
 					}
 				}

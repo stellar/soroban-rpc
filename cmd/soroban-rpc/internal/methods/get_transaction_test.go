@@ -350,7 +350,7 @@ func BenchmarkJSONTransactions(b *testing.B) {
 
 	var lookupHash string
 	var lookupEnv xdr.TransactionEnvelope
-	for i := 1; i <= 3; i++ {
+	for i := range 10_000 {
 		meta := createTestLedger(uint32(i))
 		err := mockDBReader.InsertTransactions(meta)
 		require.NoError(b, err)
@@ -371,7 +371,7 @@ func BenchmarkJSONTransactions(b *testing.B) {
 		}
 		bb.ResetTimer()
 
-		for i := 0; i < bb.N; i++ {
+		for range bb.N {
 			_, err := GetTransaction(
 				context.TODO(),
 				nil,
@@ -387,7 +387,7 @@ func BenchmarkJSONTransactions(b *testing.B) {
 		request := GetTransactionRequest{Hash: lookupHash}
 		bb.ResetTimer()
 
-		for i := 0; i < bb.N; i++ {
+		for range bb.N {
 			_, err := GetTransaction(
 				context.TODO(),
 				nil,

@@ -737,7 +737,7 @@ pub unsafe extern "C" fn free_conversion_result(ptr: *mut ConversionResult) {
 
 /// Runs a JSON conversion operation and unwinds panics.
 ///
-/// It is modeled after catch_preflight_panic() and will always return valid
+/// It is modeled after `catch_preflight_panic()` and will always return valid
 /// JSON in the result's `json` field and an error string in `error` if a panic
 /// occurs.
 fn catch_json_to_xdr_panic(
