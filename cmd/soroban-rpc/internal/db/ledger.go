@@ -44,6 +44,7 @@ type ledgerReaderTx struct {
 
 // GetLedgerRange pulls the min/max ledger sequence numbers from the meta table.
 func (r *ledgerReaderTx) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
+	// Make use of the cached latest ledger seq and close time to query only the oldest ledger details.
 	if r.latestLedgerSeqCache != 0 {
 		query := sq.Select("meta").
 			From(ledgerCloseMetaTableName).
@@ -155,37 +156,6 @@ func (r ledgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.Ledge
 			len(results), sequence, ledgerCloseMetaTableName)
 	}
 }
-
-// GetLedgerRange pulls the min/max ledger sequence numbers from the meta table.
-//func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
-//	query := sq.Select("lcm.meta").
-//		From(ledgerCloseMetaTableName + " as lcm").
-//		Where(sq.Or{
-//			sq.Expr("lcm.sequence = (?)", sq.Select("MIN(sequence)").From(ledgerCloseMetaTableName)),
-//			sq.Expr("lcm.sequence = (?)", sq.Select("MAX(sequence)").From(ledgerCloseMetaTableName)),
-//		}).OrderBy("lcm.sequence ASC")
-//
-//	var lcms []xdr.LedgerCloseMeta
-//	if err := r.db.Select(ctx, &lcms, query); err != nil {
-//		return ledgerbucketwindow.LedgerRange{}, fmt.Errorf("couldn't query ledger range: %w", err)
-//	}
-//
-//	// Empty DB
-//	if len(lcms) == 0 {
-//		return ledgerbucketwindow.LedgerRange{}, ErrEmptyDB
-//	}
-//
-//	return ledgerbucketwindow.LedgerRange{
-//		FirstLedger: ledgerbucketwindow.LedgerInfo{
-//			Sequence:  lcms[0].LedgerSequence(),
-//			CloseTime: lcms[0].LedgerCloseTime(),
-//		},
-//		LastLedger: ledgerbucketwindow.LedgerInfo{
-//			Sequence:  lcms[len(lcms)-1].LedgerSequence(),
-//			CloseTime: lcms[len(lcms)-1].LedgerCloseTime(),
-//		},
-//	}, nil
-//}
 
 type ledgerWriter struct {
 	stmtCache *sq.StmtCache

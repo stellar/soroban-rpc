@@ -51,8 +51,8 @@ func (m MockTx) TransactionWriter() db.TransactionWriter {
 	return args.Get(0).(db.TransactionWriter)
 }
 
-func (m MockTx) Commit(ledgerSeq uint32) error {
-	args := m.Called(ledgerSeq)
+func (m MockTx) Commit(ledgerCloseMeta xdr.LedgerCloseMeta) error {
+	args := m.Called(ledgerCloseMeta)
 	return args.Error(0)
 }
 

@@ -326,8 +326,9 @@ func getDB(t testing.TB, restartDB bool) *db.DB {
 		err := tx.LedgerEntryWriter().UpsertLedgerEntry(e)
 		require.NoError(t, err)
 	}
-	require.NoError(t, tx.LedgerWriter().InsertLedger(createLedger(2)))
-	require.NoError(t, tx.Commit(2))
+	ledgerCloseMeta := createLedger(uint32(2))
+	require.NoError(t, tx.LedgerWriter().InsertLedger(ledgerCloseMeta))
+	require.NoError(t, tx.Commit(ledgerCloseMeta))
 
 	if restartDB {
 		// Restarting the DB resets the ledger entries write-through cache
