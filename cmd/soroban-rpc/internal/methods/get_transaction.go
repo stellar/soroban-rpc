@@ -13,6 +13,7 @@ import (
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
@@ -68,6 +69,12 @@ type GetTransactionResponse struct {
 	// DiagnosticEventsXDR is a base64-encoded slice of xdr.DiagnosticEvent
 	DiagnosticEventsXDR  []string          `json:"diagnosticEventsXdr,omitempty"`
 	DiagnosticEventsJSON []json.RawMessage `json:"diagnosticEventsJson,omitempty"`
+
+	// SchemaVersion is the major version of the underlying Captive Core
+	// version, to signify the version of stellar_xdr used to provide the
+	// JSONified XDR result which may change across protocol versions.
+	// See: https://github.com/stellar/soroban-rpc/pull/249#issuecomment-2264402741
+	SchemaVersion string `json:"jsonSchemaVersion,omitempty"`
 }
 
 type GetTransactionRequest struct {
@@ -81,6 +88,7 @@ func GetTransaction(
 	reader db.TransactionReader,
 	ledgerReader db.LedgerReader,
 	request GetTransactionRequest,
+	daemon interfaces.Daemon,
 ) (GetTransactionResponse, error) {
 	if err := xdr2json.IsValidConversion(request.Format); err != nil {
 		return GetTransactionResponse{}, &jrpc2.Error{
@@ -161,6 +169,7 @@ func GetTransaction(
 		response.EnvelopeJSON = envelope
 		response.ResultMetaJSON = meta
 		response.DiagnosticEventsJSON = diagEvents
+		response.SchemaVersion = daemon.GetMajorCoreVersion()
 
 	default:
 		response.ResultXDR = base64.StdEncoding.EncodeToString(tx.Result)
@@ -177,11 +186,13 @@ func GetTransaction(
 }
 
 // NewGetTransactionHandler returns a get transaction json rpc handler
-
-func NewGetTransactionHandler(logger *log.Entry, getter db.TransactionReader,
+func NewGetTransactionHandler(
+	daemon interfaces.Daemon,
+	logger *log.Entry,
+	getter db.TransactionReader,
 	ledgerReader db.LedgerReader,
 ) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context, request GetTransactionRequest) (GetTransactionResponse, error) {
-		return GetTransaction(ctx, logger, getter, ledgerReader, request)
+		return GetTransaction(ctx, logger, getter, ledgerReader, request, daemon)
 	})
 }
