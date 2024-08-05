@@ -27,8 +27,9 @@ func BenchmarkGetProtocolVersion(b *testing.B) {
 	ledgerSequence := uint32(1)
 	tx, err := db.NewReadWriter(log.DefaultLogger, dbx, daemon, 150, 15, "passphrase").NewTx(context.Background())
 	require.NoError(b, err)
-	require.NoError(b, tx.LedgerWriter().InsertLedger(createMockLedgerCloseMeta(ledgerSequence)))
-	require.NoError(b, tx.Commit(ledgerSequence))
+	ledgerCloseMeta := createMockLedgerCloseMeta(ledgerSequence)
+	require.NoError(b, tx.LedgerWriter().InsertLedger(ledgerCloseMeta))
+	require.NoError(b, tx.Commit(ledgerCloseMeta))
 
 	ledgerEntryReader := db.NewLedgerEntryReader(dbx)
 	b.ResetTimer()
@@ -52,8 +53,9 @@ func TestGetProtocolVersion(t *testing.T) {
 	ledgerSequence := uint32(1)
 	tx, err := db.NewReadWriter(log.DefaultLogger, dbx, daemon, 150, 15, "passphrase").NewTx(context.Background())
 	require.NoError(t, err)
-	require.NoError(t, tx.LedgerWriter().InsertLedger(createMockLedgerCloseMeta(ledgerSequence)))
-	require.NoError(t, tx.Commit(ledgerSequence))
+	ledgerCloseMeta := createMockLedgerCloseMeta(ledgerSequence)
+	require.NoError(t, tx.LedgerWriter().InsertLedger(ledgerCloseMeta))
+	require.NoError(t, tx.Commit(ledgerCloseMeta))
 
 	ledgerEntryReader := db.NewLedgerEntryReader(dbx)
 	protocolVersion, err := getProtocolVersion(context.TODO(), ledgerEntryReader, ledgerReader)

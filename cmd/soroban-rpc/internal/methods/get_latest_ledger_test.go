@@ -25,6 +25,10 @@ type ConstantLedgerEntryReaderTx struct{}
 
 type ConstantLedgerReader struct{}
 
+func (ledgerReader *ConstantLedgerReader) NewTx(ctx context.Context) (db.LedgerReaderTx, error) {
+	return nil, nil
+}
+
 func (entryReader *ConstantLedgerEntryReader) GetLatestLedgerSequence(_ context.Context) (uint32, error) {
 	return expectedLatestLedgerSequence, nil
 }
@@ -86,3 +90,5 @@ func TestGetLatestLedger(t *testing.T) {
 	assert.Equal(t, expectedLatestLedgerProtocolVersion, latestLedgerResp.ProtocolVersion)
 	assert.Equal(t, expectedLatestLedgerSequence, latestLedgerResp.Sequence)
 }
+
+var _ db.LedgerReader = &ConstantLedgerReader{}

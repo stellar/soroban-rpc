@@ -92,7 +92,7 @@ func GetTransaction(
 		}
 	}
 
-	tx, err := ledgerReader.NewTx(ctx)
+	ledgerTx, err := ledgerReader.NewTx(ctx)
 	if err != nil {
 		return GetTransactionResponse{}, jrpc2.Error{
 			Code:    jrpc2.InternalError,
@@ -100,7 +100,7 @@ func GetTransaction(
 		}
 	}
 
-	storeRange, err := tx.GetLedgerRange(ctx)
+	storeRange, err := ledgerTx.GetLedgerRange(ctx)
 	if err != nil {
 		return GetTransactionResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InternalError,
