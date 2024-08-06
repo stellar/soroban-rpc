@@ -397,6 +397,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ffi"
+version = "21.0.0"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "fiat-crypto"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -719,17 +726,17 @@ checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
 name = "preflight"
-version = "21.3.0"
+version = "21.4.0"
 dependencies = [
  "anyhow",
  "base64 0.22.0",
+ "ffi",
  "libc",
  "rand",
  "serde_json",
  "sha2",
  "soroban-env-host",
  "soroban-simulation",
- "stellar-xdr",
 ]
 
 [[package]]
@@ -1351,6 +1358,21 @@ name = "windows_x86_64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
+
+[[package]]
+name = "xdr2json"
+version = "21.0.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.0",
+ "ffi",
+ "libc",
+ "rand",
+ "serde_json",
+ "sha2",
+ "soroban-env-host",
+ "stellar-xdr",
+]
 
 [[package]]
 name = "zeroize"

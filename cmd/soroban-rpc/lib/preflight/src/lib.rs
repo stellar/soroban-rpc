@@ -1,5 +1,6 @@
 extern crate anyhow;
 extern crate base64;
+extern crate ffi;
 extern crate libc;
 extern crate serde_json;
 extern crate sha2;
@@ -9,11 +10,12 @@ extern crate soroban_simulation;
 use anyhow::{anyhow, bail, Result};
 use sha2::{Digest, Sha256};
 
+use ffi::*;
 use soroban_env_host::storage::EntryWithLiveUntil;
 use soroban_env_host::xdr::{
-    self, AccountId, ExtendFootprintTtlOp, Hash, InvokeHostFunctionOp, LedgerEntry,
-    LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyTtl, OperationBody, ReadXdr, ScErrorCode,
-    ScErrorType, SorobanTransactionData, TtlEntry, WriteXdr,
+    AccountId, ExtendFootprintTtlOp, Hash, InvokeHostFunctionOp, LedgerEntry, LedgerEntryData,
+    LedgerFootprint, LedgerKey, LedgerKeyTtl, OperationBody, ReadXdr, ScErrorCode, ScErrorType,
+    SorobanTransactionData, TtlEntry, WriteXdr,
 };
 use soroban_env_host::{HostError, LedgerInfo, DEFAULT_XDR_RW_LIMITS};
 use soroban_simulation::simulation::{
@@ -25,12 +27,11 @@ use soroban_simulation::{AutoRestoringSnapshotSource, NetworkConfig, SnapshotSou
 
 use std::cell::RefCell;
 use std::convert::TryFrom;
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
+use std::mem;
 use std::panic;
 use std::ptr::null_mut;
 use std::rc::Rc;
-use std::str::FromStr;
-use std::{mem, slice};
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -55,24 +56,6 @@ fn fill_ledger_info(c_ledger_info: CLedgerInfo, network_config: &NetworkConfig) 
     };
     network_config.fill_config_fields_in_ledger_info(&mut ledger_info);
     ledger_info
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct CXDR {
-    pub xdr: *mut libc::c_uchar,
-    pub len: libc::size_t,
-}
-
-// It would be nicer to derive Default, but we can't. It errors with:
-// The trait bound `*mut u8: std::default::Default` is not satisfied
-impl Default for CXDR {
-    fn default() -> Self {
-        CXDR {
-            xdr: null_mut(),
-            len: 0,
-        }
-    }
 }
 
 #[repr(C)]
@@ -499,24 +482,6 @@ pub unsafe extern "C" fn free_preflight_result(result: *mut CPreflightResult) {
     free_c_xdr_diff_array(boxed.ledger_entry_diff);
 }
 
-fn free_c_string(str: *mut libc::c_char) {
-    if str.is_null() {
-        return;
-    }
-    unsafe {
-        _ = CString::from_raw(str);
-    }
-}
-
-fn free_c_xdr(xdr: CXDR) {
-    if xdr.xdr.is_null() {
-        return;
-    }
-    unsafe {
-        let _ = Vec::from_raw_parts(xdr.xdr, xdr.len, xdr.len);
-    }
-}
-
 fn free_c_xdr_array(xdr_array: CXDRVector) {
     if xdr_array.array.is_null() {
         return;
@@ -540,16 +505,6 @@ fn free_c_xdr_diff_array(xdr_array: CXDRDiffVector) {
             free_c_xdr(diff.after);
         }
     }
-}
-
-fn from_c_string(str: *const libc::c_char) -> String {
-    let c_str = unsafe { CStr::from_ptr(str) };
-    c_str.to_str().unwrap().to_string()
-}
-
-fn from_c_xdr(xdr: CXDR) -> Vec<u8> {
-    let s = unsafe { slice::from_raw_parts(xdr.xdr, xdr.len) };
-    s.to_vec()
 }
 
 // Functions imported from Golang
@@ -666,103 +621,5 @@ fn extract_error_string<T>(simulation_result: &Result<T>, go_storage: &GoLedgerS
                 format!("{e:?}")
             }
         }
-    }
-}
-
-#[repr(C)]
-pub struct ConversionResult {
-    json: *mut libc::c_char,
-    error: *mut libc::c_char,
-}
-
-struct RustConversionResult {
-    json: String,
-    error: String,
-}
-
-/// Takes in a string name of an XDR type in the Stellar Protocol (i.e. from the
-/// `stellar_xdr` crate) as well as a raw byte structure and returns a structure
-/// containing the JSON-ified string of the given structure.
-///
-/// # Errors
-///
-/// On error, the struct's `error` field will be filled out with the appropriate
-/// message that caused the function to panic.
-///
-/// # Panics
-///
-/// This should never panic due to `catch_json_to_xdr_panic` catching and
-/// unwinding all panics to stringified error messages.
-#[no_mangle]
-pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut ConversionResult {
-    let result = catch_json_to_xdr_panic(Box::new(move || {
-        let type_str = from_c_string(typename);
-        let the_type = xdr::TypeVariant::from_str(&type_str).unwrap();
-
-        let xdr_bytearray = from_c_xdr(xdr);
-        let mut buffer = xdr::Limited::new(xdr_bytearray.as_slice(), DEFAULT_XDR_RW_LIMITS.clone());
-
-        let t = xdr::Type::read_xdr_to_end(the_type, &mut buffer).unwrap();
-
-        Ok(RustConversionResult {
-            json: serde_json::to_string(&t).unwrap(),
-            error: String::new(),
-        })
-    }));
-
-    // Caller is responsible for calling free_conversion_result.
-    Box::into_raw(Box::new(ConversionResult {
-        json: string_to_c(result.json),
-        error: string_to_c(result.error),
-    }))
-}
-
-/// Frees memory allocated for the corresponding conversion result.
-///
-/// # Safety
-///
-/// You should *only* use this to free the return value of `xdr_to_json`.
-#[no_mangle]
-pub unsafe extern "C" fn free_conversion_result(ptr: *mut ConversionResult) {
-    if ptr.is_null() {
-        return;
-    }
-
-    unsafe {
-        free_c_string((*ptr).json);
-        free_c_string((*ptr).error);
-        drop(Box::from_raw(ptr));
-    }
-}
-
-/// Runs a JSON conversion operation and unwinds panics.
-///
-/// It is modeled after `catch_preflight_panic()` and will always return valid
-/// JSON in the result's `json` field and an error string in `error` if a panic
-/// occurs.
-fn catch_json_to_xdr_panic(
-    op: Box<dyn Fn() -> Result<RustConversionResult>>,
-) -> RustConversionResult {
-    // catch panics before they reach foreign callers (which otherwise would result in
-    // undefined behavior)
-    let res: std::thread::Result<Result<RustConversionResult>> =
-        panic::catch_unwind(panic::AssertUnwindSafe(op));
-
-    match res {
-        Err(panic) => match panic.downcast::<String>() {
-            Ok(panic_msg) => RustConversionResult {
-                json: "{}".to_string(),
-                error: format!("xdr_to_json() failed: {panic_msg}"),
-            },
-            Err(_) => RustConversionResult {
-                json: "{}".to_string(),
-                error: "xdr_to_json() failed: unknown cause".to_string(),
-            },
-        },
-        // See https://docs.rs/anyhow/latest/anyhow/struct.Error.html#display-representations
-        Ok(r) => r.unwrap_or_else(|e| RustConversionResult {
-            json: "{}".to_string(),
-            error: format!("{e:?}"),
-        }),
     }
 }

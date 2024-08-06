@@ -1,3 +1,5 @@
+#include "shared.h"
+
 typedef struct {
     const char* const json;
     const char* const error;

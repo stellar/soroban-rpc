@@ -11,7 +11,7 @@ endif
 # Both cases should fallback to default of getting the version from git tag.
 ifeq ($(strip $(REPOSITORY_VERSION)),)
 	override REPOSITORY_VERSION = "$(shell git describe --tags --always --abbrev=0 --match='v[0-9]*.[0-9]*.[0-9]*' 2> /dev/null | sed 's/^.//')"
-endif  
+endif
 REPOSITORY_BRANCH := "$(shell git rev-parse --abbrev-ref HEAD)"
 BUILD_TIMESTAMP ?= $(shell date '+%Y-%m-%dT%H:%M:%S')
 GOLDFLAGS :=	-X 'github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config.Version=${REPOSITORY_VERSION}' \
@@ -40,14 +40,17 @@ CARGO_BUILD_TARGET ?= $(shell rustc -vV | sed -n 's|host: ||p')
 Cargo.lock: Cargo.toml
 	cargo update --workspace
 
-install: build-libpreflight
+install: build-libs
 	go install -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} ./...
 
-build: build-libpreflight
+build: build-libs
 	go build -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} ./...
 
-build-libpreflight: Cargo.lock
-	cd cmd/soroban-rpc/lib/preflight && cargo build --target $(CARGO_BUILD_TARGET) --profile release-with-panic-unwind
+build-libs: Cargo.lock
+	cd cmd/soroban-rpc/lib/preflight && \
+	cargo build --target $(CARGO_BUILD_TARGET) --profile release-with-panic-unwind && \
+	cd ../xdr2json && \
+	cargo build --target $(CARGO_BUILD_TARGET) --profile release-with-panic-unwind
 
 check: rust-check go-check
 
@@ -65,7 +68,7 @@ fmt:
 rust-test:
 	cargo test
 
-go-test: build-libpreflight
+go-test: build-libs
 	go test ./...
 
 test: go-test rust-test
@@ -74,10 +77,10 @@ clean:
 	cargo clean
 	go clean ./...
 
-# the build-soroban-rpc build target is an optimized build target used by 
+# the build-soroban-rpc build target is an optimized build target used by
 # https://github.com/stellar/pipelines/stellar-horizon/Jenkinsfile-soroban-rpc-package-builder
 # as part of the package building.
-build-soroban-rpc: build-libpreflight
+build-soroban-rpc: build-libs
 	go build -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} -o soroban-rpc -trimpath -v ./cmd/soroban-rpc
 
 go-check-branch:
