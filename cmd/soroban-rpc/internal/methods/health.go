@@ -28,7 +28,7 @@ func NewHealthCheck(
 		if err != nil {
 			return HealthCheckResult{}, jrpc2.Error{
 				Code:    jrpc2.InternalError,
-				Message: fmt.Errorf("could not initialize ledger reader tx: %s", err).Error(),
+				Message: fmt.Errorf("could not initialize ledger reader tx: %w", err).Error(),
 			}
 		}
 
