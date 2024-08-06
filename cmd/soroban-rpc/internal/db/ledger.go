@@ -49,7 +49,7 @@ func (r *ledgerReaderTx) GetLedgerRange(ctx context.Context) (ledgerbucketwindow
 		query := sq.Select("meta").
 			From(ledgerCloseMetaTableName).
 			Where(
-				sq.Expr("sequence = (?)", sq.Select("MIN(sequence)").From(ledgerCloseMetaTableName)),
+				fmt.Sprintf("sequence = (SELECT MIN(sequence) FROM %s)", ledgerCloseMetaTableName),
 			)
 		var lcm []xdr.LedgerCloseMeta
 		if err := r.db.Select(ctx, &lcm, query); err != nil {
