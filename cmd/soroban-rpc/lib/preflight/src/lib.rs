@@ -10,7 +10,10 @@ extern crate soroban_simulation;
 use anyhow::{anyhow, bail, Result};
 use sha2::{Digest, Sha256};
 
+// We really do need everything.
+#[allow(clippy::wildcard_imports)]
 use ffi::*;
+
 use soroban_env_host::storage::EntryWithLiveUntil;
 use soroban_env_host::xdr::{
     AccountId, ExtendFootprintTtlOp, Hash, InvokeHostFunctionOp, LedgerEntry, LedgerEntryData,
@@ -45,7 +48,7 @@ pub struct CLedgerInfo {
 }
 
 fn fill_ledger_info(c_ledger_info: CLedgerInfo, network_config: &NetworkConfig) -> LedgerInfo {
-    let network_passphrase = from_c_string(c_ledger_info.network_passphrase);
+    let network_passphrase = unsafe { from_c_string(c_ledger_info.network_passphrase) };
     let mut ledger_info = LedgerInfo {
         protocol_version: c_ledger_info.protocol_version,
         sequence_number: c_ledger_info.sequence_number,
@@ -225,9 +228,11 @@ fn preflight_invoke_hf_op_or_maybe_panic(
     enable_debug: bool,
 ) -> Result<CPreflightResult> {
     let invoke_hf_op =
-        InvokeHostFunctionOp::from_xdr(from_c_xdr(invoke_hf_op), DEFAULT_XDR_RW_LIMITS).unwrap();
+        InvokeHostFunctionOp::from_xdr(unsafe { from_c_xdr(invoke_hf_op) }, DEFAULT_XDR_RW_LIMITS)
+            .unwrap();
     let source_account =
-        AccountId::from_xdr(from_c_xdr(source_account), DEFAULT_XDR_RW_LIMITS).unwrap();
+        AccountId::from_xdr(unsafe { from_c_xdr(source_account) }, DEFAULT_XDR_RW_LIMITS).unwrap();
+
     let go_storage = Rc::new(GoLedgerStorage::new(handle));
     let network_config =
         NetworkConfig::load_from_snapshot(go_storage.as_ref(), c_ledger_info.bucket_list_size)?;
@@ -299,8 +304,9 @@ fn preflight_footprint_ttl_op_or_maybe_panic(
     footprint: CXDR,
     c_ledger_info: CLedgerInfo,
 ) -> Result<CPreflightResult> {
-    let op_body = OperationBody::from_xdr(from_c_xdr(op_body), DEFAULT_XDR_RW_LIMITS)?;
-    let footprint = LedgerFootprint::from_xdr(from_c_xdr(footprint), DEFAULT_XDR_RW_LIMITS)?;
+    let op_body = OperationBody::from_xdr(unsafe { from_c_xdr(op_body) }, DEFAULT_XDR_RW_LIMITS)?;
+    let footprint =
+        LedgerFootprint::from_xdr(unsafe { from_c_xdr(footprint) }, DEFAULT_XDR_RW_LIMITS)?;
     let go_storage = Rc::new(GoLedgerStorage::new(handle));
     let network_config =
         NetworkConfig::load_from_snapshot(go_storage.as_ref(), c_ledger_info.bucket_list_size)?;
@@ -482,6 +488,15 @@ pub unsafe extern "C" fn free_preflight_result(result: *mut CPreflightResult) {
     free_c_xdr_diff_array(boxed.ledger_entry_diff);
 }
 
+fn free_c_xdr(xdr: CXDR) {
+    if xdr.xdr.is_null() {
+        return;
+    }
+    unsafe {
+        _ = Vec::from_raw_parts(xdr.xdr, xdr.len, xdr.len);
+    }
+}
+
 fn free_c_xdr_array(xdr_array: CXDRVector) {
     if xdr_array.array.is_null() {
         return;
@@ -538,7 +553,7 @@ impl GoLedgerStorage {
         if res.xdr.is_null() {
             return None;
         }
-        let v = from_c_xdr(res);
+        let v = unsafe { from_c_xdr(res) };
         unsafe { FreeGoXDR(res) };
         Some(v)
     }

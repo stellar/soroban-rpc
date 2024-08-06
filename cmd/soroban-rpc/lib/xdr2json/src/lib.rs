@@ -6,6 +6,9 @@ extern crate stellar_xdr;
 use std::{panic, str::FromStr};
 
 use anyhow::Result;
+
+// We really do need everything.
+#[allow(clippy::wildcard_imports)]
 use ffi::*;
 use soroban_env_host::{xdr, DEFAULT_XDR_RW_LIMITS};
 
@@ -33,13 +36,23 @@ struct RustConversionResult {
 ///
 /// This should never panic due to `catch_json_to_xdr_panic` catching and
 /// unwinding all panics to stringified error messages.
+///
+/// # Safety
+///
+/// This relies on the function parameters to be valid structures. The
+/// `typename` must be a null-terminated C string. The `xdr` structure should
+/// have a valid pointer to an aligned byte array and have a matching size. If
+/// these aren't true there may be segfaults when trying to manage their memory.
 #[no_mangle]
-pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut ConversionResult {
+pub unsafe extern "C" fn xdr_to_json(
+    typename: *mut libc::c_char,
+    xdr: CXDR,
+) -> *mut ConversionResult {
     let result = catch_json_to_xdr_panic(Box::new(move || {
-        let type_str = from_c_string(typename);
+        let type_str = unsafe { from_c_string(typename) };
         let the_type = xdr::TypeVariant::from_str(&type_str).unwrap();
 
-        let xdr_bytearray = from_c_xdr(xdr);
+        let xdr_bytearray = unsafe { from_c_xdr(xdr) };
         let mut buffer = xdr::Limited::new(xdr_bytearray.as_slice(), DEFAULT_XDR_RW_LIMITS.clone());
 
         let t = xdr::Type::read_xdr_to_end(the_type, &mut buffer).unwrap();
@@ -52,7 +65,7 @@ pub extern "C" fn xdr_to_json(typename: *mut libc::c_char, xdr: CXDR) -> *mut Co
 
     // Caller is responsible for calling free_conversion_result.
     Box::into_raw(Box::new(ConversionResult {
-        json: ffi::string_to_c(result.json),
+        json: string_to_c(result.json),
         error: string_to_c(result.error),
     }))
 }
