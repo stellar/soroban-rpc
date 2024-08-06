@@ -245,14 +245,15 @@ func (s *Service) fillEntriesFromCheckpoint(ctx context.Context, archive history
 	if err := <-prepareRangeErr; err != nil {
 		return err
 	}
-	if ledgerCloseMeta, err := s.ledgerBackend.GetLedger(ctx, checkpointLedger); err != nil {
+	var ledgerCloseMeta xdr.LedgerCloseMeta
+	if ledgerCloseMeta, err = s.ledgerBackend.GetLedger(ctx, checkpointLedger); err != nil {
 		return err
 	} else if err = reader.VerifyBucketList(ledgerCloseMeta.BucketListHash()); err != nil {
 		return err
 	}
 
 	s.logger.Info("committing checkpoint ledger entries")
-	err = tx.Commit(checkpointLedger)
+	err = tx.Commit(ledgerCloseMeta)
 	transactionCommitted = true
 	if err != nil {
 		return err
@@ -306,7 +307,7 @@ func (s *Service) ingest(ctx context.Context, sequence uint32) error {
 		return err
 	}
 
-	if err := tx.Commit(sequence); err != nil {
+	if err := tx.Commit(ledgerCloseMeta); err != nil {
 		return err
 	}
 	s.logger.

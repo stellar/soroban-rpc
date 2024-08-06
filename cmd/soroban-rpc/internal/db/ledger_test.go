@@ -81,8 +81,10 @@ func TestLedgers(t *testing.T) {
 		ledgerSequence := uint32(i)
 		tx, err := NewReadWriter(logger, db, daemon, 150, 15, passphrase).NewTx(context.Background())
 		require.NoError(t, err)
-		require.NoError(t, tx.LedgerWriter().InsertLedger(createLedger(ledgerSequence)))
-		require.NoError(t, tx.Commit(ledgerSequence))
+
+		ledgerCloseMeta := createLedger(ledgerSequence)
+		require.NoError(t, tx.LedgerWriter().InsertLedger(ledgerCloseMeta))
+		require.NoError(t, tx.Commit(ledgerCloseMeta))
 		// rolling back after a commit is a no-op
 		require.NoError(t, tx.Rollback())
 	}
@@ -92,16 +94,18 @@ func TestLedgers(t *testing.T) {
 	ledgerSequence := uint32(11)
 	tx, err := NewReadWriter(logger, db, daemon, 150, 15, passphrase).NewTx(context.Background())
 	require.NoError(t, err)
-	require.NoError(t, tx.LedgerWriter().InsertLedger(createLedger(ledgerSequence)))
-	require.NoError(t, tx.Commit(ledgerSequence))
+	ledgerCloseMeta := createLedger(ledgerSequence)
+	require.NoError(t, tx.LedgerWriter().InsertLedger(ledgerCloseMeta))
+	require.NoError(t, tx.Commit(ledgerCloseMeta))
 
 	assertLedgerRange(t, reader, 1, 11)
 
 	ledgerSequence = uint32(12)
 	tx, err = NewReadWriter(logger, db, daemon, 150, 5, passphrase).NewTx(context.Background())
 	require.NoError(t, err)
-	require.NoError(t, tx.LedgerWriter().InsertLedger(createLedger(ledgerSequence)))
-	require.NoError(t, tx.Commit(ledgerSequence))
+	ledgerCloseMeta = createLedger(ledgerSequence)
+	require.NoError(t, tx.LedgerWriter().InsertLedger(ledgerCloseMeta))
+	require.NoError(t, tx.Commit(ledgerCloseMeta))
 
 	assertLedgerRange(t, reader, 8, 12)
 }
@@ -126,10 +130,13 @@ func TestGetLedgerRange_NonEmptyDB(t *testing.T) {
 		require.NoError(t, ledgerW.InsertLedger(lcm), "ingestion failed for ledger %+v", lcm.V1)
 		require.NoError(t, txW.InsertTransactions(lcm), "ingestion failed for ledger %+v", lcm.V1)
 	}
-	require.NoError(t, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
+	require.NoError(t, write.Commit(lcms[len(lcms)-1]))
 
 	reader := NewLedgerReader(db)
-	ledgerRange, err := reader.GetLedgerRange(ctx)
+	tx, err := reader.NewTx(ctx)
+	require.NoError(t, err)
+
+	ledgerRange, err := tx.GetLedgerRange(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, uint32(1334), ledgerRange.FirstLedger.Sequence)
 	assert.Equal(t, ledgerCloseTime(1334), ledgerRange.FirstLedger.CloseTime)
@@ -154,10 +161,13 @@ func TestGetLedgerRange_SingleDBRow(t *testing.T) {
 		require.NoError(t, ledgerW.InsertLedger(lcm), "ingestion failed for ledger %+v", lcm.V1)
 		require.NoError(t, txW.InsertTransactions(lcm), "ingestion failed for ledger %+v", lcm.V1)
 	}
-	require.NoError(t, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
+	require.NoError(t, write.Commit(lcms[len(lcms)-1]))
 
 	reader := NewLedgerReader(db)
-	ledgerRange, err := reader.GetLedgerRange(ctx)
+	tx, err := reader.NewTx(ctx)
+	require.NoError(t, err)
+
+	ledgerRange, err := tx.GetLedgerRange(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, uint32(1334), ledgerRange.FirstLedger.Sequence)
 	assert.Equal(t, ledgerCloseTime(1334), ledgerRange.FirstLedger.CloseTime)
@@ -170,8 +180,11 @@ func TestGetLedgerRange_EmptyDB(t *testing.T) {
 	ctx := context.TODO()
 
 	reader := NewLedgerReader(db)
-	ledgerRange, err := reader.GetLedgerRange(ctx)
+	tx, err := reader.NewTx(ctx)
 	require.NoError(t, err)
+
+	ledgerRange, err := tx.GetLedgerRange(ctx)
+	assert.Equal(t, ErrEmptyDB, err)
 	assert.Equal(t, uint32(0), ledgerRange.FirstLedger.Sequence)
 	assert.Equal(t, int64(0), ledgerRange.FirstLedger.CloseTime)
 	assert.Equal(t, uint32(0), ledgerRange.LastLedger.Sequence)
@@ -181,6 +194,7 @@ func TestGetLedgerRange_EmptyDB(t *testing.T) {
 func BenchmarkGetLedgerRange(b *testing.B) {
 	db := NewTestDB(b)
 	logger := log.DefaultLogger
+	ctx := context.TODO()
 	writer := NewReadWriter(logger, db, interfaces.MakeNoOpDeamon(), 100, 1_000_000, passphrase)
 	write, err := writer.NewTx(context.TODO())
 	require.NoError(b, err)
@@ -196,12 +210,14 @@ func BenchmarkGetLedgerRange(b *testing.B) {
 		require.NoError(b, ledgerW.InsertLedger(lcm))
 		require.NoError(b, txW.InsertTransactions(lcm))
 	}
-	require.NoError(b, write.Commit(lcms[len(lcms)-1].LedgerSequence()))
+	require.NoError(b, write.Commit(lcms[len(lcms)-1]))
 	reader := NewLedgerReader(db)
+	tx, err := reader.NewTx(ctx)
+	require.NoError(b, err)
 
 	b.ResetTimer()
 	for range b.N {
-		ledgerRange, err := reader.GetLedgerRange(context.TODO())
+		ledgerRange, err := tx.GetLedgerRange(context.TODO())
 		require.NoError(b, err)
 		assert.Equal(b, lcms[0].LedgerSequence(), ledgerRange.FirstLedger.Sequence)
 		assert.Equal(b, lcms[len(lcms)-1].LedgerSequence(), ledgerRange.LastLedger.Sequence)
