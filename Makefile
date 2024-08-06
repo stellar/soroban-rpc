@@ -91,4 +91,4 @@ go-check:
 
 
 # PHONY lists all the targets that aren't file names, so that make would skip the timestamp based check.
-.PHONY: clean fmt watch test rust-test go-test check rust-check go-check install build build-soroban-rpc build-libpreflight lint lint-changes
+.PHONY: clean fmt watch test rust-test go-test check rust-check go-check install build build-soroban-rpc build-libs lint lint-changes

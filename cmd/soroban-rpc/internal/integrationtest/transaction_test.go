@@ -6,6 +6,7 @@ import (
 
 	"github.com/creachadair/jrpc2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/go/keypair"
 	proto "github.com/stellar/go/protocols/stellarcore"
@@ -30,19 +31,19 @@ func TestSendTransactionSucceedsWithResults(t *testing.T) {
 
 	// Check the result is what we expect
 	var transactionResult xdr.TransactionResult
-	assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultXDR, &transactionResult))
+	require.NoError(t, xdr.SafeUnmarshalBase64(response.ResultXDR, &transactionResult))
 	opResults, ok := transactionResult.OperationResults()
-	assert.True(t, ok)
+	require.True(t, ok)
 	invokeHostFunctionResult, ok := opResults[0].MustTr().GetInvokeHostFunctionResult()
-	assert.True(t, ok)
-	assert.Equal(t, invokeHostFunctionResult.Code, xdr.InvokeHostFunctionResultCodeInvokeHostFunctionSuccess)
+	require.True(t, ok)
+	require.Equal(t, xdr.InvokeHostFunctionResultCodeInvokeHostFunctionSuccess, invokeHostFunctionResult.Code)
 	contractHashBytes := xdr.ScBytes(contractHash[:])
 	expectedScVal := xdr.ScVal{Type: xdr.ScValTypeScvBytes, Bytes: &contractHashBytes}
 	var transactionMeta xdr.TransactionMeta
-	assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultMetaXDR, &transactionMeta))
-	assert.True(t, expectedScVal.Equals(transactionMeta.V3.SorobanMeta.ReturnValue))
+	require.NoError(t, xdr.SafeUnmarshalBase64(response.ResultMetaXDR, &transactionMeta))
+	require.True(t, expectedScVal.Equals(transactionMeta.V3.SorobanMeta.ReturnValue))
 	var resultXdr xdr.TransactionResult
-	assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultXDR, &resultXdr))
+	require.NoError(t, xdr.SafeUnmarshalBase64(response.ResultXDR, &resultXdr))
 	expectedResult := xdr.TransactionResult{
 		FeeCharged: resultXdr.FeeCharged,
 		Result: xdr.TransactionResultResult{
@@ -62,7 +63,7 @@ func TestSendTransactionSucceedsWithResults(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, expectedResult, resultXdr)
+	require.Equal(t, expectedResult, resultXdr)
 }
 
 func TestSendTransactionBadSequence(t *testing.T) {
@@ -74,27 +75,27 @@ func TestSendTransactionBadSequence(t *testing.T) {
 	)
 	params.IncrementSequenceNum = false
 	tx, err := txnbuild.NewTransaction(params)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	tx, err = tx.Sign(infrastructure.StandaloneNetworkPassphrase, test.MasterKey())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	b64, err := tx.Base64()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	request := methods.SendTransactionRequest{Transaction: b64}
 	var result methods.SendTransactionResponse
 	client := test.GetRPCLient()
 	err = client.CallResult(context.Background(), "sendTransaction", request, &result)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	assert.NotZero(t, result.LatestLedger)
-	assert.NotZero(t, result.LatestLedgerCloseTime)
+	require.NotZero(t, result.LatestLedger)
+	require.NotZero(t, result.LatestLedgerCloseTime)
 	expectedHashHex, err := tx.HashHex(infrastructure.StandaloneNetworkPassphrase)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedHashHex, result.Hash)
-	assert.Equal(t, proto.TXStatusError, result.Status)
+	require.NoError(t, err)
+	require.Equal(t, expectedHashHex, result.Hash)
+	require.Equal(t, proto.TXStatusError, result.Status)
 	var errorResult xdr.TransactionResult
-	assert.NoError(t, xdr.SafeUnmarshalBase64(result.ErrorResultXDR, &errorResult))
-	assert.Equal(t, xdr.TransactionResultCodeTxBadSeq, errorResult.Result.Code)
+	require.NoError(t, xdr.SafeUnmarshalBase64(result.ErrorResultXDR, &errorResult))
+	require.Equal(t, xdr.TransactionResultCodeTxBadSeq, errorResult.Result.Code)
 }
 
 func TestSendTransactionFailedInsufficientResourceFee(t *testing.T) {
@@ -113,28 +114,28 @@ func TestSendTransactionFailedInsufficientResourceFee(t *testing.T) {
 	params.Operations[0].(*txnbuild.InvokeHostFunction).Ext.SorobanData.ResourceFee /= 2
 
 	tx, err := txnbuild.NewTransaction(params)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	tx, err = tx.Sign(infrastructure.StandaloneNetworkPassphrase, test.MasterKey())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	b64, err := tx.Base64()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	request := methods.SendTransactionRequest{Transaction: b64}
 	var result methods.SendTransactionResponse
 	err = client.CallResult(context.Background(), "sendTransaction", request, &result)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	assert.Equal(t, proto.TXStatusError, result.Status)
+	require.Equal(t, proto.TXStatusError, result.Status)
 	var errorResult xdr.TransactionResult
-	assert.NoError(t, xdr.SafeUnmarshalBase64(result.ErrorResultXDR, &errorResult))
-	assert.Equal(t, xdr.TransactionResultCodeTxSorobanInvalid, errorResult.Result.Code)
+	require.NoError(t, xdr.SafeUnmarshalBase64(result.ErrorResultXDR, &errorResult))
+	require.Equal(t, xdr.TransactionResultCodeTxSorobanInvalid, errorResult.Result.Code)
 
-	assert.NotEmpty(t, result.DiagnosticEventsXDR)
+	require.NotEmpty(t, result.DiagnosticEventsXDR)
 	var event xdr.DiagnosticEvent
 	err = xdr.SafeUnmarshalBase64(result.DiagnosticEventsXDR[0], &event)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestSendTransactionFailedInLedger(t *testing.T) {
@@ -155,39 +156,39 @@ func TestSendTransactionFailedInLedger(t *testing.T) {
 			},
 		),
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	tx, err = tx.Sign(infrastructure.StandaloneNetworkPassphrase, kp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	b64, err := tx.Base64()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	request := methods.SendTransactionRequest{Transaction: b64}
 	var result methods.SendTransactionResponse
 	err = client.CallResult(context.Background(), "sendTransaction", request, &result)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	expectedHashHex, err := tx.HashHex(infrastructure.StandaloneNetworkPassphrase)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	assert.Equal(t, expectedHashHex, result.Hash)
+	require.Equal(t, expectedHashHex, result.Hash)
 	if !assert.Equal(t, proto.TXStatusPending, result.Status) {
 		var txResult xdr.TransactionResult
 		err := xdr.SafeUnmarshalBase64(result.ErrorResultXDR, &txResult)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		t.Logf("error: %#v\n", txResult)
 	}
-	assert.NotZero(t, result.LatestLedger)
-	assert.NotZero(t, result.LatestLedgerCloseTime)
+	require.NotZero(t, result.LatestLedger)
+	require.NotZero(t, result.LatestLedgerCloseTime)
 
 	response := test.GetTransaction(expectedHashHex)
-	assert.Equal(t, methods.TransactionStatusFailed, response.Status)
+	require.Equal(t, methods.TransactionStatusFailed, response.Status)
 	var transactionResult xdr.TransactionResult
-	assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultXDR, &transactionResult))
-	assert.Equal(t, xdr.TransactionResultCodeTxFailed, transactionResult.Result.Code)
-	assert.Greater(t, response.Ledger, result.LatestLedger)
-	assert.Greater(t, response.LedgerCloseTime, result.LatestLedgerCloseTime)
-	assert.GreaterOrEqual(t, response.LatestLedger, response.Ledger)
-	assert.GreaterOrEqual(t, response.LatestLedgerCloseTime, response.LedgerCloseTime)
+	require.NoError(t, xdr.SafeUnmarshalBase64(response.ResultXDR, &transactionResult))
+	require.Equal(t, xdr.TransactionResultCodeTxFailed, transactionResult.Result.Code)
+	require.Greater(t, response.Ledger, result.LatestLedger)
+	require.Greater(t, response.LedgerCloseTime, result.LatestLedgerCloseTime)
+	require.GreaterOrEqual(t, response.LatestLedger, response.Ledger)
+	require.GreaterOrEqual(t, response.LatestLedgerCloseTime, response.LedgerCloseTime)
 }
 
 func TestSendTransactionFailedInvalidXDR(t *testing.T) {
@@ -198,6 +199,6 @@ func TestSendTransactionFailedInvalidXDR(t *testing.T) {
 	request := methods.SendTransactionRequest{Transaction: "abcdef"}
 	var response methods.SendTransactionResponse
 	jsonRPCErr := client.CallResult(context.Background(), "sendTransaction", request, &response).(*jrpc2.Error)
-	assert.Equal(t, "invalid_xdr", jsonRPCErr.Message)
-	assert.Equal(t, jrpc2.InvalidParams, jsonRPCErr.Code)
+	require.Equal(t, "invalid_xdr", jsonRPCErr.Message)
+	require.Equal(t, jrpc2.InvalidParams, jsonRPCErr.Code)
 }

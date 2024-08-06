@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/go/xdr"
@@ -89,25 +88,25 @@ func TestLedgerEntryChange(t *testing.T) {
 	} {
 		var change LedgerEntryChange
 		require.NoError(t, change.FromXDRDiff(test.input, ""), test.name)
-		assert.Equal(t, test.expectedOutput, change)
+		require.Equal(t, test.expectedOutput, change)
 
 		// test json roundtrip
 		changeJSON, err := json.Marshal(change)
 		require.NoError(t, err, test.name)
 		var change2 LedgerEntryChange
 		require.NoError(t, json.Unmarshal(changeJSON, &change2))
-		assert.Equal(t, change, change2, test.name)
+		require.Equal(t, change, change2, test.name)
 
 		// test JSON output
 		var changeJs LedgerEntryChange
 		require.NoError(t, changeJs.FromXDRDiff(test.input, xdr2json.FormatJSON), test.name)
 
-		assert.Equal(t, keyJs, changeJs.KeyJSON)
+		require.Equal(t, keyJs, changeJs.KeyJSON)
 		if changeJs.AfterJSON != nil {
-			assert.Equal(t, entryJs, changeJs.AfterJSON)
+			require.Equal(t, entryJs, changeJs.AfterJSON)
 		}
 		if changeJs.BeforeJSON != nil {
-			assert.Equal(t, entryJs, changeJs.BeforeJSON)
+			require.Equal(t, entryJs, changeJs.BeforeJSON)
 		}
 	}
 }

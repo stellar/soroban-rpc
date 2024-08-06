@@ -1,3 +1,4 @@
+extern crate anyhow;
 extern crate ffi;
 extern crate soroban_env_host;
 extern crate stellar_xdr;
