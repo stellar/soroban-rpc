@@ -31,7 +31,7 @@ jobs:
       - uses: ./.github/actions/setup-go
       - run: rustup update
       - uses: stellar/actions/rust-cache@main
-      - run: make build-libpreflight
+      - run: make build-libs
       - run: go test -race -timeout 25m ./cmd/soroban-rpc/...
 
   build:
@@ -79,7 +79,7 @@ jobs:
           rustup target add ${{ matrix.rust_target }}
           rustup update
       - uses: stellar/actions/rust-cache@main
-      - run: make build-libpreflight
+      - run: make build-libs
         env:
           CARGO_BUILD_TARGET: ${{ matrix.rust_target }}
 
@@ -168,7 +168,7 @@ jobs:
 
       - run: rustup update
       - uses: stellar/actions/rust-cache@main
-      - run: make build-libpreflight
+      - run: make build-libs
 
       - name: Run Soroban RPC Integration Tests
         run: |

@@ -32,7 +32,7 @@ jobs:
           go-version: 1.22
       - run: rustup update
       - uses: stellar/actions/rust-cache@main
-      - run: make build-libpreflight
+      - run: make build-libs
 
       # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL

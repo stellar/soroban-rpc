@@ -1,0 +1,10 @@
+[package]
+name = "ffi"
+version = "21.0.0"
+publish = false
+
+[lib]
+crate-type = ["lib"]
+
+[dependencies]
+libc = { workspace = true }

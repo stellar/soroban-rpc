@@ -19,10 +19,10 @@ func TestGetFeeStats(t *testing.T) {
 
 	sorobanTxResponse, _ := test.UploadHelloWorldContract()
 	var sorobanTxResult xdr.TransactionResult
-	require.NoError(t, xdr.SafeUnmarshalBase64(sorobanTxResponse.ResultXdr, &sorobanTxResult))
+	require.NoError(t, xdr.SafeUnmarshalBase64(sorobanTxResponse.ResultXDR, &sorobanTxResult))
 	sorobanTotalFee := sorobanTxResult.FeeCharged
 	var sorobanTxMeta xdr.TransactionMeta
-	require.NoError(t, xdr.SafeUnmarshalBase64(sorobanTxResponse.ResultMetaXdr, &sorobanTxMeta))
+	require.NoError(t, xdr.SafeUnmarshalBase64(sorobanTxResponse.ResultMetaXDR, &sorobanTxMeta))
 	sorobanFees := sorobanTxMeta.MustV3().SorobanMeta.Ext.MustV1()
 	sorobanResourceFeeCharged := sorobanFees.TotalRefundableResourceFeeCharged + sorobanFees.TotalNonRefundableResourceFeeCharged
 	sorobanInclusionFee := uint64(sorobanTotalFee - sorobanResourceFeeCharged)
@@ -34,7 +34,7 @@ func TestGetFeeStats(t *testing.T) {
 		&txnbuild.BumpSequence{BumpTo: seq + 100},
 	)
 	var classicTxResult xdr.TransactionResult
-	require.NoError(t, xdr.SafeUnmarshalBase64(classicTxResponse.ResultXdr, &classicTxResult))
+	require.NoError(t, xdr.SafeUnmarshalBase64(classicTxResponse.ResultXDR, &classicTxResult))
 	classicFee := uint64(classicTxResult.FeeCharged)
 
 	var result methods.GetFeeStatsResult

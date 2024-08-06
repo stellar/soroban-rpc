@@ -111,9 +111,9 @@ func TestGetLedgerEntriesSucceeds(t *testing.T) {
 	require.LessOrEqual(t, result.Entries[0].LastModifiedLedger, result.LatestLedger)
 	require.NotNil(t, result.Entries[0].LiveUntilLedgerSeq)
 	require.Greater(t, *result.Entries[0].LiveUntilLedgerSeq, result.LatestLedger)
-	require.Equal(t, contractCodeKeyB64, result.Entries[0].Key)
+	require.Equal(t, contractCodeKeyB64, result.Entries[0].KeyXDR)
 	var firstEntry xdr.LedgerEntryData
-	require.NoError(t, xdr.SafeUnmarshalBase64(result.Entries[0].XDR, &firstEntry))
+	require.NoError(t, xdr.SafeUnmarshalBase64(result.Entries[0].DataXDR, &firstEntry))
 	require.Equal(t, xdr.LedgerEntryTypeContractCode, firstEntry.Type)
 	require.Equal(t, infrastructure.GetHelloWorldContract(), firstEntry.MustContractCode().Code)
 
@@ -121,9 +121,9 @@ func TestGetLedgerEntriesSucceeds(t *testing.T) {
 	require.LessOrEqual(t, result.Entries[1].LastModifiedLedger, result.LatestLedger)
 	require.NotNil(t, result.Entries[1].LiveUntilLedgerSeq)
 	require.Greater(t, *result.Entries[1].LiveUntilLedgerSeq, result.LatestLedger)
-	require.Equal(t, contractInstanceKeyB64, result.Entries[1].Key)
+	require.Equal(t, contractInstanceKeyB64, result.Entries[1].KeyXDR)
 	var secondEntry xdr.LedgerEntryData
-	require.NoError(t, xdr.SafeUnmarshalBase64(result.Entries[1].XDR, &secondEntry))
+	require.NoError(t, xdr.SafeUnmarshalBase64(result.Entries[1].DataXDR, &secondEntry))
 	require.Equal(t, xdr.LedgerEntryTypeContractData, secondEntry.Type)
 	require.True(t, secondEntry.MustContractData().Key.Equals(xdr.ScVal{
 		Type: xdr.ScValTypeScvLedgerKeyContractInstance,
