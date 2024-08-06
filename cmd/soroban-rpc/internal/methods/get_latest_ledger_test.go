@@ -11,6 +11,7 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
 const (
@@ -25,8 +26,10 @@ type ConstantLedgerEntryReaderTx struct{}
 
 type ConstantLedgerReader struct{}
 
-func (ledgerReader *ConstantLedgerReader) NewTx(ctx context.Context) (db.LedgerReaderTx, error) {
-	return nil, nil
+type ConstantLedgerReaderTx struct{}
+
+func (ledgerReader *ConstantLedgerReader) NewTx(_ context.Context) (db.LedgerReaderTx, error) {
+	return ConstantLedgerReaderTx{}, nil
 }
 
 func (entryReader *ConstantLedgerEntryReader) GetLatestLedgerSequence(_ context.Context) (uint32, error) {
@@ -39,6 +42,10 @@ func (entryReader *ConstantLedgerEntryReader) NewTx(_ context.Context) (db.Ledge
 
 func (entryReader *ConstantLedgerEntryReader) NewCachedTx(_ context.Context) (db.LedgerEntryReadTx, error) {
 	return ConstantLedgerEntryReaderTx{}, nil
+}
+
+func (tx ConstantLedgerReaderTx) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
+	return ledgerbucketwindow.LedgerRange{}, nil
 }
 
 func (entryReaderTx ConstantLedgerEntryReaderTx) GetLatestLedgerSequence() (uint32, error) {

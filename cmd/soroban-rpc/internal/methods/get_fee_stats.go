@@ -67,7 +67,7 @@ func NewGetFeeStatsHandler(windows *feewindow.FeeWindows, ledgerReader db.Ledger
 		if err != nil {
 			return GetFeeStatsResult{}, jrpc2.Error{
 				Code:    jrpc2.InternalError,
-				Message: fmt.Errorf("could not initialize ledger reader tx: %s", err).Error(),
+				Message: fmt.Errorf("could not initialize ledger reader tx: %w", err).Error(),
 			}
 		}
 

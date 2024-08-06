@@ -66,7 +66,6 @@ func (r *ledgerReaderTx) GetLedgerRange(ctx context.Context) (ledgerbucketwindow
 				CloseTime: r.latestLedgerCloseTimeCache,
 			},
 		}, nil
-
 	}
 
 	query := sq.Select("lcm.meta").
