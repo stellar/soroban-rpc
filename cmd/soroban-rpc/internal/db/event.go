@@ -110,7 +110,7 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 			}
 
 			id := Cursor{Ledger: lcm.LedgerSequence(), Tx: tx.Index, Op: 0, Event: uint32(index)}.String()
-			eventBlob, err := xdr.MarshalBase64(e)
+			eventBlob, err := xdr.NewEncodingBuffer().MarshalBinary(&e)
 			if err != nil {
 				return err
 			}
@@ -250,8 +250,7 @@ func (eventHandler *eventHandler) GetEvents(
 		}
 
 		var eventXDR xdr.DiagnosticEvent
-		err = xdr.SafeUnmarshalBase64(string(eventData), &eventXDR)
-
+		err = xdr.SafeUnmarshal(eventData, &eventXDR)
 		if err != nil {
 			return fmt.Errorf("failed to decode event: %w", err)
 		}

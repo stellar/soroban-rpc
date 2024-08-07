@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	LedgerScanLimit     = 10000
+	LedgerScanLimit     = 8000
 	maxContractIDsLimit = 5
 	maxTopicsLimit      = 5
 	maxFiltersLimit     = 5
@@ -355,8 +355,8 @@ func combineContractIDs(filters []EventFilter) ([][]byte, error) {
 	}
 	return contractIDs, nil
 }
-func combineEventTypes(filters []EventFilter) []int {
 
+func combineEventTypes(filters []EventFilter) []int {
 	eventTypes := make(map[int]bool)
 	for _, filter := range filters {
 		for _, eventType := range filter.EventType.Keys() {
@@ -388,7 +388,6 @@ func combineTopics(filters []EventFilter) ([][]string, error) {
 					}
 					encodedTopicsList[i] = append(encodedTopicsList[i], encodedTopic)
 				}
-
 			}
 		}
 	}
@@ -474,7 +473,6 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 
 	// Scan function to apply filters
 	eventScanFunction := func(event xdr.DiagnosticEvent, cursor db.Cursor, ledgerCloseTimestamp int64, txHash *xdr.Hash) bool {
-
 		if request.Matches(event) {
 			found = append(found, entry{cursor, ledgerCloseTimestamp, event, txHash})
 		}
