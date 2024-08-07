@@ -28,7 +28,14 @@ type EventWriter interface {
 
 // EventReader has all the public methods to fetch events from DB
 type EventReader interface {
-	GetEvents(ctx context.Context, cursorRange CursorRange, contractIDs [][]byte, f ScanFunction) error
+	GetEvents(
+		ctx context.Context,
+		cursorRange CursorRange,
+		contractIDs [][]byte,
+		topics [][]string,
+		eventTypes []int,
+		f ScanFunction,
+	) error
 }
 
 type eventHandler struct {
@@ -81,6 +88,8 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 			continue
 		}
 
+		transactionHash := tx.Result.TransactionHash[:]
+
 		txEvents, err := tx.GetDiagnosticEvents()
 		if err != nil {
 			return err
@@ -91,14 +100,48 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 		}
 
 		query := sq.Insert(eventTableName).
-			Columns("ledger_sequence", "application_order", "contract_id", "event_type")
+			Columns("id", "contract_id", "event_type", "event_data", "ledger_close_time", "transaction_hash", "topic1", "topic2", "topic3", "topic4")
 
-		for _, e := range txEvents {
+		for index, e := range txEvents {
+
 			var contractID []byte
 			if e.Event.ContractId != nil {
 				contractID = e.Event.ContractId[:]
 			}
-			query = query.Values(lcm.LedgerSequence(), tx.Index, contractID, int(e.Event.Type))
+
+			id := Cursor{Ledger: lcm.LedgerSequence(), Tx: tx.Index, Op: 0, Event: uint32(index)}.String()
+			eventBlob, err := xdr.MarshalBase64(e)
+			if err != nil {
+				return err
+			}
+
+			v0, ok := e.Event.Body.GetV0()
+			if !ok {
+				return errors.New("unknown event version")
+			}
+
+			// Encode the topics
+			topicList := make([]string, 4)
+			for index, segment := range v0.Topics {
+				seg, err := xdr.MarshalBase64(segment)
+				if err != nil {
+					return err
+				}
+				topicList[index] = seg
+			}
+
+			query = query.Values(
+				id,
+				contractID,
+				int(e.Event.Type),
+				eventBlob,
+				lcm.LedgerCloseTime(),
+				transactionHash,
+				topicList[0],
+				topicList[1],
+				topicList[2],
+				topicList[3],
+			)
 		}
 
 		_, err = query.RunWith(eventHandler.stmtCache).Exec()
@@ -140,40 +183,93 @@ func (eventHandler *eventHandler) GetEvents(
 	ctx context.Context,
 	cursorRange CursorRange,
 	contractIDs [][]byte,
+	topics [][]string,
+	eventTypes []int,
 	f ScanFunction,
 ) error {
 	start := time.Now()
 
-	var rows []struct {
-		TxIndex int                 `db:"application_order"`
-		Lcm     xdr.LedgerCloseMeta `db:"meta"`
-	}
-
 	rowQ := sq.
-		Select("DISTINCT e.application_order", "lcm.meta").
-		From(eventTableName + " e").
-		Join(ledgerCloseMetaTableName + " lcm ON (e.ledger_sequence = lcm.sequence)").
-		Where(sq.GtOrEq{"e.ledger_sequence": cursorRange.Start.Ledger}).
-		Where(sq.GtOrEq{"e.application_order": cursorRange.Start.Tx}).
-		Where(sq.Lt{"e.ledger_sequence": cursorRange.End.Ledger}).
-		OrderBy("e.ledger_sequence ASC")
+		Select(" id", "event_data", "transaction_hash", "ledger_close_time").
+		From(eventTableName).
+		Where(sq.GtOrEq{"id": cursorRange.Start.String()}).
+		Where(sq.Lt{"id": cursorRange.End.String()}).
+		OrderBy("id ASC")
 
 	if len(contractIDs) > 0 {
-		rowQ = rowQ.Where(sq.Eq{"e.contract_id": contractIDs})
+		rowQ = rowQ.Where(sq.Eq{"contract_id": contractIDs})
+	}
+	if len(eventTypes) > 0 {
+		rowQ = rowQ.Where(sq.Eq{"event_type": eventTypes})
 	}
 
-	if err := eventHandler.db.Select(ctx, &rows, rowQ); err != nil {
+	if len(topics) > 0 {
+		var orConditions sq.Or
+		for i, topic := range topics {
+			if topic == nil {
+				break
+			}
+			orConditions = append(orConditions, sq.Eq{fmt.Sprintf("topic%d", i+1): topic})
+		}
+		if len(orConditions) > 0 {
+			rowQ = rowQ.Where(orConditions)
+		}
+	}
+
+	rows, err := eventHandler.db.Query(ctx, rowQ)
+	if err != nil {
 		return fmt.Errorf(
-			"db read failed for start ledger cursor= %v contractIDs= %v: %w",
+			"db read failed for start ledger cursor= %v end ledger cursor= %v "+
+				"contractIDs= %v eventTypes= %v topics= %v   : %w",
 			cursorRange.Start.String(),
+			cursorRange.End.String(),
 			contractIDs,
+			eventTypes,
+			topics,
 			err)
-	} else if len(rows) < 1 {
+	}
+
+	defer rows.Close()
+
+	foundRows := false
+	for rows.Next() {
+		foundRows = true
+		var row struct {
+			eventCursorID   string `db:"id"`
+			eventData       []byte `db:"event_data"`
+			transactionHash []byte `db:"transaction_hash"`
+			ledgerCloseTime int64  `db:"ledger_close_time"`
+		}
+
+		err = rows.Scan(&row.eventCursorID, &row.eventData, &row.transactionHash, &row.ledgerCloseTime)
+
+		id, eventData, ledgerCloseTime, transactionHash := row.eventCursorID, row.eventData, row.ledgerCloseTime, row.transactionHash
+		cur, err := ParseCursor(id)
+		if err != nil {
+			return fmt.Errorf("failed to parse cursor: %w", err)
+		}
+
+		var eventXDR xdr.DiagnosticEvent
+		err = xdr.SafeUnmarshalBase64(string(eventData), &eventXDR)
+
+		if err != nil {
+			return fmt.Errorf("failed to decode event: %w", err)
+		}
+		txHash := xdr.Hash(transactionHash)
+		if !f(eventXDR, cur, ledgerCloseTime, &txHash) {
+			return nil
+		}
+
+	}
+
+	if !foundRows {
 		eventHandler.log.
 			WithField("duration", time.Since(start)).
 			WithField("start", cursorRange.Start.String()).
 			WithField("end", cursorRange.End.String()).
 			WithField("contracts", contractIDs).
+			WithField("eventTypes", eventTypes).
+			WithField("Topics", topics).
 			Debugf(
 				"No events found for ledger range: duration= %v start ledger cursor= %v - end ledger cursor= %v contractIDs= %v",
 				time.Since(start),
@@ -181,40 +277,6 @@ func (eventHandler *eventHandler) GetEvents(
 				cursorRange.End.String(),
 				contractIDs,
 			)
-		return nil
-	}
-
-	for _, row := range rows {
-		txIndex, lcm := row.TxIndex, row.Lcm
-		reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(eventHandler.passphrase, lcm)
-		if err != nil {
-			return fmt.Errorf("failed to create ledger reader from LCM: %w", err)
-		}
-
-		err = reader.Seek(txIndex - 1)
-		if err != nil {
-			return fmt.Errorf("failed to index to tx %d in ledger %d: %w", txIndex, lcm.LedgerSequence(), err)
-		}
-
-		ledgerCloseTime := lcm.LedgerCloseTime()
-		ledgerTx, err := reader.Read()
-		if err != nil {
-			return fmt.Errorf("failed reading tx: %w", err)
-		}
-		transactionHash := ledgerTx.Result.TransactionHash
-		diagEvents, diagErr := ledgerTx.GetDiagnosticEvents()
-
-		if diagErr != nil {
-			return fmt.Errorf("couldn't encode transaction DiagnosticEvents: %w", err)
-		}
-
-		// Find events based on filter passed in function f
-		for eventIndex, event := range diagEvents {
-			cur := Cursor{Ledger: lcm.LedgerSequence(), Tx: uint32(txIndex), Event: uint32(eventIndex)}
-			if !f(event, cur, ledgerCloseTime, &transactionHash) {
-				return nil
-			}
-		}
 	}
 
 	eventHandler.log.

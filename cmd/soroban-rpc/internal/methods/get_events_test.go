@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1171,42 +1172,34 @@ func TestGetEvents(t *testing.T) {
 
 // TODO:Clean up once benchmarking is done !!
 func BenchmarkGetEvents(b *testing.B) {
-	now := time.Now().UTC()
-	counter := xdr.ScSymbol("COUNTER")
-	requestedCounter := xdr.ScSymbol("REQUESTED")
+
+	var counters [10000]xdr.ScSymbol
+	for i := 0; i < len(counters); i++ {
+		counters[i] = xdr.ScSymbol("TEST-COUNTER-" + strconv.Itoa(i+1) + strconv.Itoa(i%1000))
+	}
+	//counter := xdr.ScSymbol("COUNTER")
+	//requestedCounter := xdr.ScSymbol("REQUESTED")
 	dbx := newTestDB(b)
 	ctx := context.TODO()
 	log := log.DefaultLogger
 	log.SetLevel(logrus.TraceLevel)
+	store := db.NewEventReader(log, dbx, passphrase)
 	contractID := xdr.Hash([32]byte{})
+	now := time.Now().UTC()
 
 	writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
 	write, err := writer.NewTx(ctx)
 	require.NoError(b, err)
 	ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
-	store := db.NewEventReader(log, dbx, passphrase)
-
-	// create 250 contract events
-	var events []xdr.ContractEvent
-	for i := 0; i < 250; i++ {
-
-		contractEvent := contractEvent(
-			contractID,
-			xdr.ScVec{
-				xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
-			},
-			xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter},
-		)
-		events = append(events, contractEvent)
-	}
-
-	txMeta := []xdr.TransactionMeta{
-		transactionMetaWithEvents(
-			events...,
-		),
-	}
 
 	for i := 1; i < 121000; i++ {
+
+		var counters [250]xdr.ScSymbol
+		for j := 0; j < len(counters); j++ {
+			counters[j] = xdr.ScSymbol("TEST-COUNTER-" + strconv.Itoa(j+1) + strconv.Itoa(i%1000))
+		}
+
+		txMeta := getTxMeta(contractID, counters)
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(uint32(i), now.Unix(), txMeta...)
 		require.NoError(b, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
 		require.NoError(b, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
@@ -1220,15 +1213,17 @@ func BenchmarkGetEvents(b *testing.B) {
 		ledgerReader: db.NewLedgerReader(dbx),
 	}
 
+	//star := "*"
 	request := GetEventsRequest{
 		StartLedger: 1,
 		Filters: []EventFilter{
 			{
-				// ContractIDs: []string{"CCVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKUD2U"},
-				EventType: map[string]interface{}{EventTypeSystem: nil},
+				//ContractIDs: []string{"CCVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKUD2U"},
+				EventType: map[string]interface{}{EventTypeContract: nil},
 				Topics: []TopicFilter{
 					[]SegmentFilter{
-						{scval: &xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &requestedCounter}},
+						{scval: &xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counters[1]}},
+						//{wildcard: &star},
 					},
 				},
 			},
@@ -1245,6 +1240,38 @@ func BenchmarkGetEvents(b *testing.B) {
 		}
 	}
 
+	totalNs := b.Elapsed()
+	nsPerOp := totalNs.Nanoseconds() / int64(b.N)
+	msPerOp := float64(nsPerOp) / 1e6
+	fmt.Printf("Benchmark Results:\n")
+	fmt.Printf("%d ns/op (%.3f ms/op)\n", nsPerOp, msPerOp)
+
+}
+
+func getTxMeta(contractID xdr.Hash, counters [250]xdr.ScSymbol) []xdr.TransactionMeta {
+	// create 250 contract events
+	var events []xdr.ContractEvent
+	count := 0
+	for i := 0; i < 250; i++ {
+
+		contractEvent := contractEvent(
+			contractID,
+			xdr.ScVec{
+				xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counters[count]},
+			},
+			xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counters[count]},
+		)
+		events = append(events, contractEvent)
+		count += 1
+
+	}
+
+	txMeta := []xdr.TransactionMeta{
+		transactionMetaWithEvents(
+			events...,
+		),
+	}
+	return txMeta
 }
 
 func ledgerCloseMetaWithEvents(sequence uint32, closeTimestamp int64, txMeta ...xdr.TransactionMeta) xdr.LedgerCloseMeta {
@@ -1252,29 +1279,6 @@ func ledgerCloseMetaWithEvents(sequence uint32, closeTimestamp int64, txMeta ...
 	var phases []xdr.TransactionPhase
 
 	for _, item := range txMeta {
-		var operations []xdr.Operation
-		for range item.MustV3().SorobanMeta.Events {
-			operations = append(operations,
-				xdr.Operation{
-					Body: xdr.OperationBody{
-						Type: xdr.OperationTypeInvokeHostFunction,
-						InvokeHostFunctionOp: &xdr.InvokeHostFunctionOp{
-							HostFunction: xdr.HostFunction{
-								Type: xdr.HostFunctionTypeHostFunctionTypeInvokeContract,
-								InvokeContract: &xdr.InvokeContractArgs{
-									ContractAddress: xdr.ScAddress{
-										Type:       xdr.ScAddressTypeScAddressTypeContract,
-										ContractId: &xdr.Hash{0x1, 0x2},
-									},
-									FunctionName: "foo",
-									Args:         nil,
-								},
-							},
-							Auth: []xdr.SorobanAuthorizationEntry{},
-						},
-					},
-				})
-		}
 		envelope := xdr.TransactionEnvelope{
 			Type: xdr.EnvelopeTypeEnvelopeTypeTx,
 			V1: &xdr.TransactionV1Envelope{
@@ -1397,8 +1401,8 @@ func diagnosticEvent(contractID xdr.Hash, topic []xdr.ScVal, body xdr.ScVal) xdr
 }
 
 func newTestDB(tb testing.TB) *db.DB {
-	tmp := tb.TempDir()
-	dbPath := path.Join(tmp, "db.sqlite")
+	//tmp := tb.TempDir()
+	dbPath := path.Join("", "dbx.sqlite")
 	db, err := db.OpenSQLiteDB(dbPath)
 	require.NoError(tb, err)
 	tb.Cleanup(func() {
