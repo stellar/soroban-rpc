@@ -372,7 +372,7 @@ func combineEventTypes(filters []EventFilter) []int {
 }
 
 func combineTopics(filters []EventFilter) ([][]string, error) {
-	encodedTopicsList := make([][]string, 4)
+	encodedTopicsList := make([][]string, maxTopicsLimit)
 
 	for _, filter := range filters {
 		if len(filter.Topics) == 0 {
@@ -472,7 +472,12 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 	eventTypes := combineEventTypes(request.Filters)
 
 	// Scan function to apply filters
-	eventScanFunction := func(event xdr.DiagnosticEvent, cursor db.Cursor, ledgerCloseTimestamp int64, txHash *xdr.Hash) bool {
+	eventScanFunction := func(
+		event xdr.DiagnosticEvent,
+		cursor db.Cursor,
+		ledgerCloseTimestamp int64,
+		txHash *xdr.Hash,
+	) bool {
 		if request.Matches(event) {
 			found = append(found, entry{cursor, ledgerCloseTimestamp, event, txHash})
 		}

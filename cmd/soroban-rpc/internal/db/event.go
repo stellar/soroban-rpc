@@ -100,7 +100,19 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 		}
 
 		query := sq.Insert(eventTableName).
-			Columns("id", "contract_id", "event_type", "event_data", "ledger_close_time", "transaction_hash", "topic1", "topic2", "topic3", "topic4")
+			Columns(
+				"id",
+				"contract_id",
+				"event_type",
+				"event_data",
+				"ledger_close_time",
+				"transaction_hash",
+				"topic1",
+				"topic2",
+				"topic3",
+				"topic4",
+				"topic5",
+			)
 
 		for index, e := range txEvents {
 
@@ -121,7 +133,7 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 			}
 
 			// Encode the topics
-			topicList := make([]string, 4)
+			topicList := make([]string, 5)
 			for index, segment := range v0.Topics {
 				seg, err := xdr.MarshalBase64(segment)
 				if err != nil {
@@ -141,6 +153,7 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 				topicList[1],
 				topicList[2],
 				topicList[3],
+				topicList[4],
 			)
 		}
 
@@ -242,8 +255,12 @@ func (eventHandler *eventHandler) GetEvents(
 		}
 
 		err = rows.Scan(&row.eventCursorID, &row.eventData, &row.transactionHash, &row.ledgerCloseTime)
+		if err != nil {
+			return fmt.Errorf("failed to scan row: %w", err)
+		}
 
-		id, eventData, ledgerCloseTime, transactionHash := row.eventCursorID, row.eventData, row.ledgerCloseTime, row.transactionHash
+		id, eventData, ledgerCloseTime := row.eventCursorID, row.eventData, row.ledgerCloseTime
+		transactionHash := row.transactionHash
 		cur, err := ParseCursor(id)
 		if err != nil {
 			return fmt.Errorf("failed to parse cursor: %w", err)
@@ -258,9 +275,7 @@ func (eventHandler *eventHandler) GetEvents(
 		if !f(eventXDR, cur, ledgerCloseTime, &txHash) {
 			return nil
 		}
-
 	}
-
 	if !foundRows {
 		eventHandler.log.
 			WithField("duration", time.Since(start)).
