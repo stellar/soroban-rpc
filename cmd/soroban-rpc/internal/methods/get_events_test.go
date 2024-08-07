@@ -1401,8 +1401,8 @@ func diagnosticEvent(contractID xdr.Hash, topic []xdr.ScVal, body xdr.ScVal) xdr
 }
 
 func newTestDB(tb testing.TB) *db.DB {
-	//tmp := tb.TempDir()
-	dbPath := path.Join("", "dbx.sqlite")
+	tmp := tb.TempDir()
+	dbPath := path.Join(tmp, "dbx.sqlite")
 	db, err := db.OpenSQLiteDB(dbPath)
 	require.NoError(tb, err)
 	tb.Cleanup(func() {
