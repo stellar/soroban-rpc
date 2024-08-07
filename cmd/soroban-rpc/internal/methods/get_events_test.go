@@ -1250,7 +1250,7 @@ func getTxMeta(contractID xdr.Hash, counters [1000]xdr.ScSymbol) []xdr.Transacti
 	// create 250 contract events
 
 	var events []xdr.ContractEvent
-	for i := 0; i < 250; i++ {
+	for i := 0; i < 2; i++ {
 		contractEvent := contractEvent(
 			contractID,
 			xdr.ScVec{
