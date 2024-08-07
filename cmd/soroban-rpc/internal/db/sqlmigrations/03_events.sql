@@ -12,7 +12,8 @@ CREATE TABLE events
     topic1            BLOB,
     topic2            BLOB,
     topic3            BLOB,
-    topic4            BLOB
+    topic4            BLOB,
+    topic5            BLOB
 );
 
 CREATE INDEX idx_contract_id ON events (contract_id);
