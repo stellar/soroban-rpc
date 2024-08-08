@@ -170,7 +170,9 @@ func GetMigrationLedgerRange(ctx context.Context, db *DB, retentionWindow uint32
 	}, nil
 }
 
-func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, networkPassphrase string, ledgerSeqRange *LedgerSeqRange) ([]MigrationFactory, error) {
+func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, networkPassphrase string,
+	ledgerSeqRange *LedgerSeqRange,
+) ([]MigrationFactory, error) {
 	var migrations []MigrationFactory
 
 	transactionFactory := newTransactionTableMigration(
