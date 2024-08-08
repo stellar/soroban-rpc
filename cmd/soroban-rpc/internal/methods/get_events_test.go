@@ -28,7 +28,6 @@ var passphrase = "passphrase"
 
 func TestEventTypeSetMatches(t *testing.T) {
 	var defaultSet eventTypeSet
-
 	all := eventTypeSet{}
 	all[EventTypeContract] = nil
 	all[EventTypeDiagnostic] = nil
@@ -1191,7 +1190,7 @@ func BenchmarkGetEvents(b *testing.B) {
 	require.NoError(b, err)
 	ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
 
-	for i := 1; i < 121000; i++ {
+	for i := range []int{1, 2, 3} {
 
 		txMeta := getTxMetaWithContractEvents(contractID)
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(uint32(i), now.Unix(), txMeta...)
@@ -1212,12 +1211,9 @@ func BenchmarkGetEvents(b *testing.B) {
 		StartLedger: 1,
 		Filters: []EventFilter{
 			{
-				// ContractIDs: []string{"CCVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKUD2U"},
-				// EventType:   map[string]interface{}{EventTypeContract: nil},
 				Topics: []TopicFilter{
 					[]SegmentFilter{
 						{scval: &xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counters[1]}},
-						//{wildcard: &star},
 					},
 				},
 			},
@@ -1248,9 +1244,8 @@ func getTxMetaWithContractEvents(contractID xdr.Hash) []xdr.TransactionMeta {
 		counters[j] = xdr.ScSymbol("TEST-COUNTER-" + strconv.Itoa(j+1))
 	}
 
-	// create 2 contract events
 	var events []xdr.ContractEvent
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 10; i++ {
 		contractEvent := contractEvent(
 			contractID,
 			xdr.ScVec{
