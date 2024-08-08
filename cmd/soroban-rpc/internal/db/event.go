@@ -218,7 +218,7 @@ func (eventHandler *eventHandler) GetEvents(
 		var orConditions sq.Or
 		for i, topic := range topics {
 			if topic == nil {
-				break
+				continue
 			}
 			orConditions = append(orConditions, sq.Eq{fmt.Sprintf("topic%d", i+1): topic})
 		}
