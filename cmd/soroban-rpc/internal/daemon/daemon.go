@@ -27,7 +27,6 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/feewindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ingest"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/preflight"
@@ -199,7 +198,7 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 		}, metricsRegistry),
 	}
 
-	feewindows, eventStore := daemon.mustInitializeStorage(cfg)
+	feewindows := daemon.mustInitializeStorage(cfg)
 
 	onIngestionRetry := func(err error, dur time.Duration) {
 		logger.WithError(err).Error("could not run ingestion. Retrying")
@@ -215,7 +214,6 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 			cfg.HistoryRetentionWindow,
 			cfg.NetworkPassphrase,
 		),
-		EventStore:        eventStore,
 		NetworkPassPhrase: cfg.NetworkPassphrase,
 		Archive:           historyArchive,
 		LedgerBackend:     core,
@@ -240,12 +238,12 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 
 	jsonRPCHandler := internal.NewJSONRPCHandler(cfg, internal.HandlerParams{
 		Daemon:            daemon,
-		EventStore:        eventStore,
 		FeeStatWindows:    feewindows,
 		Logger:            logger,
 		LedgerReader:      db.NewLedgerReader(dbConn),
 		LedgerEntryReader: db.NewLedgerEntryReader(dbConn),
 		TransactionReader: db.NewTransactionReader(logger, dbConn, cfg.NetworkPassphrase),
+		EventReader:       db.NewEventReader(logger, dbConn, cfg.NetworkPassphrase),
 		PreflightGetter:   preflightWorkerPool,
 	})
 
@@ -290,12 +288,7 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 }
 
 // mustInitializeStorage initializes the storage using what was on the DB
-func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindows, *events.MemoryStore) {
-	eventStore := events.NewMemoryStore(
-		d,
-		cfg.NetworkPassphrase,
-		cfg.HistoryRetentionWindow,
-	)
+func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows {
 	feewindows := feewindow.NewFeeWindows(
 		cfg.ClassicFeeStatsLedgerRetentionWindow,
 		cfg.SorobanFeeStatsLedgerRetentionWindow,
@@ -310,36 +303,46 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 	if err != nil {
 		d.logger.WithError(err).Fatal("could not build migrations")
 	}
-	// NOTE: We could optimize this to avoid unnecessary ingestion calls
-	//       (the range of txmetas can be larger than the individual store retention windows)
-	//       but it's probably not worth the pain.
-	err = db.NewLedgerReader(d.db).StreamAllLedgers(readTxMetaCtx, func(txmeta xdr.LedgerCloseMeta) error {
-		currentSeq = txmeta.LedgerSequence()
-		if initialSeq == 0 {
-			initialSeq = currentSeq
-			d.logger.WithFields(supportlog.F{
-				"seq": currentSeq,
-			}).Info("initializing in-memory store and applying DB data migrations")
-		} else if (currentSeq-initialSeq)%inMemoryInitializationLedgerLogPeriod == 0 {
-			d.logger.WithFields(supportlog.F{
-				"seq": currentSeq,
-			}).Debug("still initializing in-memory store")
-		}
-		if err := eventStore.IngestEvents(txmeta); err != nil {
-			d.logger.WithError(err).Fatal("could not initialize event memory store")
-		}
-		if err := feewindows.IngestFees(txmeta); err != nil {
-			d.logger.WithError(err).Fatal("could not initialize fee stats")
-		}
-		// TODO: clean up once we remove the in-memory storage.
-		//       (we should only stream over the required range)
-		if r := dataMigrations.ApplicableRange(); r.IsLedgerIncluded(currentSeq) {
-			if err := dataMigrations.Apply(readTxMetaCtx, txmeta); err != nil {
-				d.logger.WithError(err).Fatal("could not run migrations")
+
+	// Merge migrations range and fee stats range to get the applicable range
+	latestLedger, err := db.NewLedgerEntryReader(d.db).GetLatestLedgerSequence(readTxMetaCtx)
+	if err != nil {
+		d.logger.WithError(err).Fatal("failed to get latest ledger sequence: %w", err)
+	}
+
+	maxFeeRetentionWindow := max(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow)
+	ledgerSeqRange := &db.LedgerSeqRange{FirstLedgerSeq: latestLedger - maxFeeRetentionWindow, LastLedgerSeq: latestLedger}
+	applicableRange := dataMigrations.ApplicableRange()
+	ledgerSeqRange = ledgerSeqRange.Merge(applicableRange)
+
+	err = db.NewLedgerReader(d.db).StreamLedgerRange(
+		readTxMetaCtx,
+		ledgerSeqRange.FirstLedgerSeq,
+		ledgerSeqRange.LastLedgerSeq,
+		func(txmeta xdr.LedgerCloseMeta) error {
+			currentSeq = txmeta.LedgerSequence()
+			if initialSeq == 0 {
+				initialSeq = currentSeq
+				d.logger.WithFields(supportlog.F{
+					"seq": currentSeq,
+				}).Info("initializing in-memory store")
+			} else if (currentSeq-initialSeq)%inMemoryInitializationLedgerLogPeriod == 0 {
+				d.logger.WithFields(supportlog.F{
+					"seq": currentSeq,
+				}).Debug("still initializing in-memory store")
 			}
-		}
-		return nil
-	})
+
+			if err := feewindows.IngestFees(txmeta); err != nil {
+				d.logger.WithError(err).Fatal("could not initialize fee stats")
+			}
+
+			if applicableRange.IsLedgerIncluded(currentSeq) {
+				if err := dataMigrations.Apply(readTxMetaCtx, txmeta); err != nil {
+					d.logger.WithError(err).Fatal("could not run migrations")
+				}
+			}
+			return nil
+		})
 	if err != nil {
 		d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
 	}
@@ -353,7 +356,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 		}).Info("finished initializing in-memory store and applying DB data migrations")
 	}
 
-	return feewindows, eventStore
+	return feewindows
 }
 
 func (d *Daemon) Run() {

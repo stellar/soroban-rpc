@@ -305,6 +305,10 @@ func (w writeTx) Commit(ledgerSeq uint32) error {
 		return err
 	}
 
+	if err := w.eventWriter.trimEvents(ledgerSeq, w.ledgerRetentionWindow); err != nil {
+		return err
+	}
+
 	_, err := sq.Replace(metaTableName).
 		Values(latestLedgerSequenceMetaKey, strconv.FormatUint(uint64(ledgerSeq), 10)).
 		RunWith(w.stmtCache).
