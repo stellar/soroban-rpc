@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	LedgerScanLimit     = 4000
+	LedgerScanLimit     = 8000
 	maxContractIDsLimit = 5
 	maxTopicsLimit      = 5
 	maxFiltersLimit     = 5
@@ -64,6 +64,14 @@ func (e eventTypeSet) MarshalJSON() ([]byte, error) {
 		keys = append(keys, key)
 	}
 	return json.Marshal(strings.Join(keys, ","))
+}
+
+func (e eventTypeSet) Keys() []string {
+	keys := make([]string, 0, len(e))
+	for key := range e {
+		keys = append(keys, key)
+	}
+	return keys
 }
 
 func (e eventTypeSet) matches(event xdr.ContractEvent) bool {
@@ -144,6 +152,12 @@ var eventTypeFromXDR = map[xdr.ContractEventType]string{
 	xdr.ContractEventTypeSystem:     EventTypeSystem,
 	xdr.ContractEventTypeContract:   EventTypeContract,
 	xdr.ContractEventTypeDiagnostic: EventTypeDiagnostic,
+}
+
+var eventTypeXDRFromEventType = map[string]xdr.ContractEventType{
+	EventTypeSystem:     xdr.ContractEventTypeSystem,
+	EventTypeContract:   xdr.ContractEventTypeContract,
+	EventTypeDiagnostic: xdr.ContractEventTypeDiagnostic,
 }
 
 type EventFilter struct {
@@ -342,6 +356,45 @@ func combineContractIDs(filters []EventFilter) ([][]byte, error) {
 	return contractIDs, nil
 }
 
+func combineEventTypes(filters []EventFilter) []int {
+	eventTypes := make(map[int]bool)
+	for _, filter := range filters {
+		for _, eventType := range filter.EventType.Keys() {
+			eventTypeXDR := eventTypeXDRFromEventType[eventType]
+			eventTypes[int(eventTypeXDR)] = true
+		}
+	}
+	uniqueEventTypes := make([]int, 0, len(eventTypes))
+	for eventType := range eventTypes {
+		uniqueEventTypes = append(uniqueEventTypes, eventType)
+	}
+	return uniqueEventTypes
+}
+
+func combineTopics(filters []EventFilter) ([][]string, error) {
+	encodedTopicsList := make([][]string, maxTopicsLimit)
+
+	for _, filter := range filters {
+		if len(filter.Topics) == 0 {
+			return [][]string{}, nil
+		}
+
+		for _, topicFilter := range filter.Topics {
+			for i, segmentFilter := range topicFilter {
+				if segmentFilter.wildcard == nil && segmentFilter.scval != nil {
+					encodedTopic, err := xdr.MarshalBase64(segmentFilter.scval)
+					if err != nil {
+						return [][]string{}, fmt.Errorf("failed to marshal segment: %w", err)
+					}
+					encodedTopicsList[i] = append(encodedTopicsList[i], encodedTopic)
+				}
+			}
+		}
+	}
+
+	return encodedTopicsList, nil
+}
+
 func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsRequest) (GetEventsResponse, error) {
 	if err := request.Valid(h.maxLimit); err != nil {
 		return GetEventsResponse{}, &jrpc2.Error{
@@ -399,7 +452,6 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		txHash               *xdr.Hash
 	}
 	found := make([]entry, 0, limit)
-	cursorSet := set.NewSet[string](int(limit))
 
 	contractIDs, err := combineContractIDs(request.Filters)
 	if err != nil {
@@ -409,21 +461,30 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		}
 	}
 
-	// Scan function to apply filters
-	f := func(event xdr.DiagnosticEvent, cursor db.Cursor, ledgerCloseTimestamp int64, txHash *xdr.Hash) bool {
-		cursorID := cursor.String()
-		if _, exists := cursorSet[cursorID]; exists {
-			return true
+	topics, err := combineTopics(request.Filters)
+	if err != nil {
+		return GetEventsResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InvalidParams,
+			Message: err.Error(),
 		}
+	}
 
-		if request.Matches(event) && cursor.Cmp(start) >= 0 {
-			cursorSet.Add(cursorID)
+	eventTypes := combineEventTypes(request.Filters)
+
+	// Scan function to apply filters
+	eventScanFunction := func(
+		event xdr.DiagnosticEvent,
+		cursor db.Cursor,
+		ledgerCloseTimestamp int64,
+		txHash *xdr.Hash,
+	) bool {
+		if request.Matches(event) {
 			found = append(found, entry{cursor, ledgerCloseTimestamp, event, txHash})
 		}
 		return uint(len(found)) < limit
 	}
 
-	err = h.dbReader.GetEvents(ctx, cursorRange, contractIDs, f)
+	err = h.dbReader.GetEvents(ctx, cursorRange, contractIDs, topics, eventTypes, eventScanFunction)
 	if err != nil {
 		return GetEventsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidRequest,

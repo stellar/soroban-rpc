@@ -99,7 +99,7 @@ func TestTransactionFound(t *testing.T) {
 	end := Cursor{Ledger: 1000}
 	cursorRange := CursorRange{Start: start, End: end}
 
-	err = eventReader.GetEvents(ctx, cursorRange, nil, nil)
+	err = eventReader.GetEvents(ctx, cursorRange, nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	// check all 200 cases
