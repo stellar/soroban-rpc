@@ -1172,9 +1172,9 @@ func TestGetEvents(t *testing.T) {
 
 // TODO:Clean up once benchmarking is done !!
 func BenchmarkGetEvents(b *testing.B) {
-	var counters [10000]xdr.ScSymbol
+	var counters [1000]xdr.ScSymbol
 	for i := 0; i < len(counters); i++ {
-		counters[i] = xdr.ScSymbol("TEST-COUNTER-" + strconv.Itoa(i+1) + strconv.Itoa(i%1000))
+		counters[i] = xdr.ScSymbol("TEST-COUNTER-" + strconv.Itoa(i+1))
 	}
 	// counter := xdr.ScSymbol("COUNTER")
 	// requestedCounter := xdr.ScSymbol("REQUESTED")
@@ -1193,12 +1193,7 @@ func BenchmarkGetEvents(b *testing.B) {
 
 	for i := 1; i < 121000; i++ {
 
-		var counters [1000]xdr.ScSymbol
-		for j := 0; j < len(counters); j++ {
-			counters[j] = xdr.ScSymbol("TEST-COUNTER-" + strconv.Itoa(j+1) + strconv.Itoa(i%1000))
-		}
-
-		txMeta := getTxMeta(contractID, counters)
+		txMeta := getTxMetaWithContractEvents(contractID)
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(uint32(i), now.Unix(), txMeta...)
 		require.NoError(b, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
 		require.NoError(b, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
@@ -1246,9 +1241,14 @@ func BenchmarkGetEvents(b *testing.B) {
 	fmt.Printf("%d ns/op (%.3f ms/op)\n", nsPerOp, msPerOp)
 }
 
-func getTxMeta(contractID xdr.Hash, counters [1000]xdr.ScSymbol) []xdr.TransactionMeta {
-	// create 250 contract events
+func getTxMetaWithContractEvents(contractID xdr.Hash) []xdr.TransactionMeta {
 
+	var counters [1000]xdr.ScSymbol
+	for j := 0; j < len(counters); j++ {
+		counters[j] = xdr.ScSymbol("TEST-COUNTER-" + strconv.Itoa(j+1))
+	}
+
+	// create 2 contract events
 	var events []xdr.ContractEvent
 	for i := 0; i < 2; i++ {
 		contractEvent := contractEvent(

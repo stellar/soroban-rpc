@@ -111,7 +111,6 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 				"topic2",
 				"topic3",
 				"topic4",
-				"topic5",
 			)
 
 		for index, e := range txEvents {
@@ -153,7 +152,6 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 				topicList[1],
 				topicList[2],
 				topicList[3],
-				topicList[4],
 			)
 		}
 

@@ -372,7 +372,7 @@ func combineEventTypes(filters []EventFilter) []int {
 }
 
 func combineTopics(filters []EventFilter) ([][]string, error) {
-	encodedTopicsList := make([][]string, maxTopicsLimit)
+	encodedTopicsList := make([][]string, 4)
 
 	for _, filter := range filters {
 		if len(filter.Topics) == 0 {
