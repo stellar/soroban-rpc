@@ -190,6 +190,21 @@ func (g *guardedMigration) Rollback(_ context.Context) error {
 	return g.db.Rollback()
 }
 
+func GetMigrationLedgerRange(ctx context.Context, db *DB, retentionWindow uint32) (*LedgerSeqRange, error) {
+	firstLedgerToMigrate := firstLedger
+	latestLedger, err := NewLedgerEntryReader(db).GetLatestLedgerSequence(ctx)
+	if err != nil && !errors.Is(err, ErrEmptyDB) {
+		return nil, fmt.Errorf("failed to get latest ledger sequence: %w", err)
+	}
+	if latestLedger > retentionWindow {
+		firstLedgerToMigrate = latestLedger - retentionWindow
+	}
+	return &LedgerSeqRange{
+		FirstLedgerSeq: firstLedgerToMigrate,
+		LastLedgerSeq:  latestLedger,
+	}, nil
+}
+
 func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, cfg *config.Config) (Migration, error) {
 	var migrations []Migration
 

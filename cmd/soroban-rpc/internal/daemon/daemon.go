@@ -299,9 +299,9 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	defer cancelReadTxMeta()
 	var initialSeq uint32
 	var currentSeq uint32
-	dataMigrations, err := db.BuildMigrations(readTxMetaCtx, d.logger, d.db, cfg)
+	applicableRange, err := db.GetMigrationLedgerRange(readTxMetaCtx, d.db, cfg.HistoryRetentionWindow)
 	if err != nil {
-		d.logger.WithError(err).Fatal("could not build migrations")
+		d.logger.WithError(err).Fatal("could not get ledger range for migration")
 	}
 
 	// Merge migrations range and fee stats range to get the applicable range
@@ -315,8 +315,12 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	if latestLedger > maxFeeRetentionWindow {
 		ledgerSeqRange.FirstLedgerSeq = latestLedger - maxFeeRetentionWindow
 	}
-	applicableRange := dataMigrations.ApplicableRange()
 	ledgerSeqRange = ledgerSeqRange.Merge(applicableRange)
+
+	dataMigrations, err := db.BuildMigrations(readTxMetaCtx, d.logger, d.db, cfg)
+	if err != nil {
+		d.logger.WithError(err).Fatal("could not build migrations")
+	}
 
 	err = db.NewLedgerReader(d.db).StreamLedgerRange(
 		readTxMetaCtx,
