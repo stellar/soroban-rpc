@@ -332,7 +332,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 			migrationFactory.DB,
 		)
 		if err != nil {
-			d.logger.WithError(err).Fatal("could not create guarded migration for: %s",
+			d.logger.WithError(err).Fatal("could not create guarded migration for: %w",
 				migrationFactory.MigrationName)
 		}
 
@@ -368,7 +368,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 			d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
 		}
 		if err := guardedMigration.Commit(readTxMetaCtx); err != nil {
-			d.logger.WithError(err).Fatal("could not commit migration for: %s",
+			d.logger.WithError(err).Fatal("could not commit migration for: %w",
 				migrationFactory.MigrationName)
 		}
 	}
