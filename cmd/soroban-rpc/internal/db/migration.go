@@ -7,8 +7,11 @@ import (
 
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
+)
 
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
+const (
+	TransactionsMigrationName = "TransactionsTable"
+	EventsMigrationName       = "EventsTable"
 )
 
 type LedgerSeqRange struct {
@@ -63,49 +66,11 @@ type Migration interface {
 	Rollback(ctx context.Context) error
 }
 
-type multiMigration []Migration
-
-func (mm multiMigration) ApplicableRange() *LedgerSeqRange {
-	var result *LedgerSeqRange
-	for _, m := range mm {
-		result = m.ApplicableRange().Merge(result)
-	}
-	return result
-}
-
-func (mm multiMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error {
-	var err error
-	for _, m := range mm {
-		ledgerSeq := meta.LedgerSequence()
-		if !m.ApplicableRange().IsLedgerIncluded(ledgerSeq) {
-			// The range of a sub-migration can be smaller than the global range.
-			continue
-		}
-		if localErr := m.Apply(ctx, meta); localErr != nil {
-			err = errors.Join(err, localErr)
-		}
-	}
-	return err
-}
-
-func (mm multiMigration) Commit(ctx context.Context) error {
-	var err error
-	for _, m := range mm {
-		if localErr := m.Commit(ctx); localErr != nil {
-			err = errors.Join(err, localErr)
-		}
-	}
-	return err
-}
-
-func (mm multiMigration) Rollback(ctx context.Context) error {
-	var err error
-	for _, m := range mm {
-		if localErr := m.Rollback(ctx); localErr != nil {
-			err = errors.Join(err, localErr)
-		}
-	}
-	return err
+type MigrationFactory struct {
+	Factory       migrationApplierFactory
+	DB            *DB
+	Logger        *log.Entry
+	MigrationName string
 }
 
 // guardedMigration is a db data migration whose application is guarded by a boolean in the meta table
@@ -119,7 +84,7 @@ type guardedMigration struct {
 	applyLogged     bool
 }
 
-func newGuardedDataMigration(
+func NewGuardedDataMigration(
 	ctx context.Context, uniqueMigrationName string, logger *log.Entry, factory migrationApplierFactory, db *DB,
 ) (Migration, error) {
 	migrationDB := &DB{
@@ -205,35 +170,33 @@ func GetMigrationLedgerRange(ctx context.Context, db *DB, retentionWindow uint32
 	}, nil
 }
 
-func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, cfg *config.Config) (Migration, error) {
-	var migrations []Migration
+func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, networkPassphrase string, ledgerSeqRange *LedgerSeqRange) ([]MigrationFactory, error) {
+	var migrations []MigrationFactory
 
-	migrationName := "TransactionsTable"
-	logger = logger.WithField("migration", migrationName)
-	factory := newTransactionTableMigration(
+	transactionFactory := newTransactionTableMigration(
 		ctx,
-		logger,
-		cfg.HistoryRetentionWindow,
-		cfg.NetworkPassphrase,
+		logger.WithField("migration", TransactionsMigrationName),
+		networkPassphrase,
+		ledgerSeqRange,
 	)
+	migrations = append(migrations, MigrationFactory{
+		Factory:       transactionFactory,
+		DB:            db,
+		Logger:        logger,
+		MigrationName: TransactionsMigrationName,
+	})
 
-	m1, err := newGuardedDataMigration(ctx, migrationName, logger, factory, db)
-	if err != nil {
-		return nil, fmt.Errorf("could not create guarded transaction migration: %w", err)
-	}
-	migrations = append(migrations, m1)
-
-	eventMigrationName := "EventsTable"
 	eventFactory := newEventTableMigration(
-		logger.WithField("migration", eventMigrationName),
-		cfg.HistoryRetentionWindow,
-		cfg.NetworkPassphrase,
+		logger.WithField("migration", EventsMigrationName),
+		networkPassphrase,
+		ledgerSeqRange,
 	)
-	m2, err := newGuardedDataMigration(ctx, eventMigrationName, logger, eventFactory, db)
-	if err != nil {
-		return nil, fmt.Errorf("could not create guarded event migration: %w", err)
-	}
-	migrations = append(migrations, m2)
+	migrations = append(migrations, MigrationFactory{
+		Factory:       eventFactory,
+		DB:            db,
+		Logger:        logger,
+		MigrationName: EventsMigrationName,
+	})
 
-	return multiMigration(migrations), nil
+	return migrations, nil
 }

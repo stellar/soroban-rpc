@@ -317,44 +317,60 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	}
 	ledgerSeqRange = ledgerSeqRange.Merge(applicableRange)
 
-	dataMigrations, err := db.BuildMigrations(readTxMetaCtx, d.logger, d.db, cfg)
+	dataMigrations, err := db.BuildMigrations(readTxMetaCtx, d.logger, d.db, cfg.NetworkPassphrase, ledgerSeqRange)
 	if err != nil {
 		d.logger.WithError(err).Fatal("could not build migrations")
 	}
 
-	err = db.NewLedgerReader(d.db).StreamLedgerRange(
-		readTxMetaCtx,
-		ledgerSeqRange.FirstLedgerSeq,
-		ledgerSeqRange.LastLedgerSeq,
-		func(txmeta xdr.LedgerCloseMeta) error {
-			currentSeq = txmeta.LedgerSequence()
-			if initialSeq == 0 {
-				initialSeq = currentSeq
-				d.logger.WithFields(supportlog.F{
-					"seq": currentSeq,
-				}).Info("initializing in-memory store")
-			} else if (currentSeq-initialSeq)%inMemoryInitializationLedgerLogPeriod == 0 {
-				d.logger.WithFields(supportlog.F{
-					"seq": currentSeq,
-				}).Debug("still initializing in-memory store")
-			}
+	for _, migrationFactory := range dataMigrations {
+		// create guarded migration
+		guardedMigration, err := db.NewGuardedDataMigration(
+			readTxMetaCtx,
+			migrationFactory.MigrationName,
+			migrationFactory.Logger,
+			migrationFactory.Factory,
+			migrationFactory.DB,
+		)
+		if err != nil {
+			d.logger.WithError(err).Fatal("could not create guarded migration for: %s",
+				migrationFactory.MigrationName)
+		}
 
-			if err := feewindows.IngestFees(txmeta); err != nil {
-				d.logger.WithError(err).Fatal("could not initialize fee stats")
-			}
-
-			if applicableRange.IsLedgerIncluded(currentSeq) {
-				if err := dataMigrations.Apply(readTxMetaCtx, txmeta); err != nil {
-					d.logger.WithError(err).Fatal("could not run migrations")
+		err = db.NewLedgerReader(d.db).StreamLedgerRange(
+			readTxMetaCtx,
+			ledgerSeqRange.FirstLedgerSeq,
+			ledgerSeqRange.LastLedgerSeq,
+			func(txmeta xdr.LedgerCloseMeta) error {
+				currentSeq = txmeta.LedgerSequence()
+				if initialSeq == 0 {
+					initialSeq = currentSeq
+					d.logger.WithFields(supportlog.F{
+						"seq": currentSeq,
+					}).Info("initializing in-memory store")
+				} else if (currentSeq-initialSeq)%inMemoryInitializationLedgerLogPeriod == 0 {
+					d.logger.WithFields(supportlog.F{
+						"seq": currentSeq,
+					}).Debug("still initializing in-memory store")
 				}
-			}
-			return nil
-		})
-	if err != nil {
-		d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
-	}
-	if err := dataMigrations.Commit(readTxMetaCtx); err != nil {
-		d.logger.WithError(err).Fatal("could not commit data migrations")
+
+				if err := feewindows.IngestFees(txmeta); err != nil {
+					d.logger.WithError(err).Fatal("could not initialize fee stats")
+				}
+
+				if applicableRange.IsLedgerIncluded(currentSeq) {
+					if err := guardedMigration.Apply(readTxMetaCtx, txmeta); err != nil {
+						d.logger.WithError(err).Fatal("could not run migrations")
+					}
+				}
+				return nil
+			})
+		if err != nil {
+			d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
+		}
+		if err := guardedMigration.Commit(readTxMetaCtx); err != nil {
+			d.logger.WithError(err).Fatal("could not commit migration for: %s",
+				migrationFactory.MigrationName)
+		}
 	}
 
 	if currentSeq != 0 {
