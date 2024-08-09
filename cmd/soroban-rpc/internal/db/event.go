@@ -319,6 +319,7 @@ func (e *eventTableMigration) Apply(_ context.Context, meta xdr.LedgerCloseMeta)
 }
 
 func newEventTableMigration(
+	_ context.Context,
 	logger *log.Entry,
 	passphrase string,
 	ledgerSeqRange *LedgerSeqRange,
