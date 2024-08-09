@@ -324,18 +324,16 @@ func newEventTableMigration(
 	passphrase string,
 	ledgerSeqRange *LedgerSeqRange,
 ) migrationApplierFactory {
-	return migrationApplierFactoryF(func(db *DB, latestLedger uint32) (MigrationApplier, error) {
-		writer := &eventHandler{
-			log:        logger,
-			db:         db,
-			stmtCache:  sq.NewStmtCache(db.GetTx()),
-			passphrase: passphrase,
-		}
-
+	return migrationApplierFactoryF(func(db *DB) (MigrationApplier, error) {
 		migration := eventTableMigration{
 			firstLedger: ledgerSeqRange.FirstLedgerSeq,
 			lastLedger:  ledgerSeqRange.LastLedgerSeq,
-			writer:      writer,
+			writer: &eventHandler{
+				log:        logger,
+				db:         db,
+				stmtCache:  sq.NewStmtCache(db.GetTx()),
+				passphrase: passphrase,
+			},
 		}
 		return &migration, nil
 	})

@@ -272,13 +272,7 @@ func newTransactionTableMigration(
 	passphrase string,
 	ledgerSeqRange *LedgerSeqRange,
 ) migrationApplierFactory {
-	return migrationApplierFactoryF(func(db *DB, latestLedger uint32) (MigrationApplier, error) {
-		writer := &transactionHandler{
-			log:        logger,
-			db:         db,
-			stmtCache:  sq.NewStmtCache(db.GetTx()),
-			passphrase: passphrase,
-		}
+	return migrationApplierFactoryF(func(db *DB) (MigrationApplier, error) {
 		// Truncate the table, since it may contain data, causing insert conflicts later on.
 		// (the migration was shipped after the actual transactions table change)
 		_, err := db.Exec(ctx, sq.Delete(transactionTableName))
@@ -288,7 +282,12 @@ func newTransactionTableMigration(
 		migration := transactionTableMigration{
 			firstLedger: ledgerSeqRange.FirstLedgerSeq,
 			lastLedger:  ledgerSeqRange.LastLedgerSeq,
-			writer:      writer,
+			writer: &transactionHandler{
+				log:        logger,
+				db:         db,
+				stmtCache:  sq.NewStmtCache(db.GetTx()),
+				passphrase: passphrase,
+			},
 		}
 		return &migration, nil
 	})

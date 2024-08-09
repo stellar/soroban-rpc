@@ -51,13 +51,13 @@ type MigrationApplier interface {
 }
 
 type migrationApplierFactory interface {
-	New(db *DB, latestLedger uint32) (MigrationApplier, error)
+	New(db *DB) (MigrationApplier, error)
 }
 
-type migrationApplierFactoryF func(db *DB, latestLedger uint32) (MigrationApplier, error)
+type migrationApplierFactoryF func(db *DB) (MigrationApplier, error)
 
-func (m migrationApplierFactoryF) New(db *DB, latestLedger uint32) (MigrationApplier, error) {
-	return m(db, latestLedger)
+func (m migrationApplierFactoryF) New(db *DB) (MigrationApplier, error) {
+	return m(db)
 }
 
 type Migration interface {
@@ -100,12 +100,7 @@ func NewGuardedDataMigration(
 		err = errors.Join(err, migrationDB.Rollback())
 		return nil, err
 	}
-	latestLedger, err := NewLedgerEntryReader(db).GetLatestLedgerSequence(ctx)
-	if err != nil && !errors.Is(err, ErrEmptyDB) {
-		err = errors.Join(err, migrationDB.Rollback())
-		return nil, fmt.Errorf("failed to get latest ledger sequence: %w", err)
-	}
-	applier, err := factory.New(migrationDB, latestLedger)
+	applier, err := factory.New(migrationDB)
 	if err != nil {
 		err = errors.Join(err, migrationDB.Rollback())
 		return nil, err
