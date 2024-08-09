@@ -309,7 +309,6 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	if err != nil && !errors.Is(err, db.ErrEmptyDB) {
 		d.logger.WithError(err).Fatal("failed to get latest ledger sequence: %w", err)
 	}
-
 	maxFeeRetentionWindow := max(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow)
 	ledgerSeqRange := &db.LedgerSeqRange{FirstLedgerSeq: 2, LastLedgerSeq: latestLedger}
 	if latestLedger > maxFeeRetentionWindow {
@@ -319,7 +318,24 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	// Combine the ledger range for fees, events and transactions
 	ledgerSeqRange = ledgerSeqRange.Merge(applicableRange)
 
-	// Apply migration for fee stats in-memory store
+	// Start a common db transaction for the entire migration duration
+	err = d.db.Begin(readTxMetaCtx)
+	if err != nil {
+		d.logger.WithError(err).Fatal("could not commit database transaction: ", d.db.Rollback())
+	}
+	defer func() {
+		err = d.db.Commit()
+		if err != nil {
+			d.logger.WithError(err).Fatal("could not commit database transaction")
+		}
+	}()
+
+	dataMigrations, err := db.BuildMigrations(readTxMetaCtx, d.logger, d.db, cfg.NetworkPassphrase, ledgerSeqRange)
+	if err != nil {
+		d.logger.WithError(err).Fatal("could not build migrations")
+	}
+
+	// Apply migration for events, transactions and fee stats
 	err = db.NewLedgerReader(d.db).StreamLedgerRange(
 		readTxMetaCtx,
 		ledgerSeqRange.FirstLedgerSeq,
@@ -340,41 +356,13 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 			if err = feeWindows.IngestFees(txMeta); err != nil {
 				d.logger.WithError(err).Fatal("could not initialize fee stats")
 			}
-			return nil
-		})
-	if err != nil {
-		d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
-	}
 
-	// Start a common db transaction for the entire migration duration
-	err = d.db.Begin(readTxMetaCtx)
-	if err != nil {
-		d.logger.WithError(err).Fatal("could not commit database transaction: ", d.db.Rollback())
-	}
-	defer func() {
-		err = d.db.Commit()
-		if err != nil {
-			d.logger.WithError(err).Fatal("could not commit database transaction")
-		}
-	}()
-
-	dataMigrations, err := db.BuildMigrations(readTxMetaCtx, d.logger, d.db, cfg.NetworkPassphrase, ledgerSeqRange)
-	if err != nil {
-		d.logger.WithError(err).Fatal("could not build migrations")
-	}
-
-	// Apply migration for events and transactions tables
-	err = db.NewLedgerReader(d.db).StreamLedgerRange(
-		readTxMetaCtx,
-		ledgerSeqRange.FirstLedgerSeq,
-		ledgerSeqRange.LastLedgerSeq,
-		func(txMeta xdr.LedgerCloseMeta) error {
 			if err := dataMigrations.Apply(readTxMetaCtx, txMeta); err != nil {
 				dbErr := dataMigrations.Rollback(readTxMetaCtx)
 				if dbErr != nil {
-					d.logger.WithError(dbErr).Fatal("could not rollback migration for ledger: ", txMeta.LedgerSequence())
+					d.logger.WithError(dbErr).Fatal("could not rollback migration for ledger: ", currentSeq)
 				}
-				d.logger.WithError(err).Fatal("could not apply migration for ledger: ", txMeta.LedgerSequence())
+				d.logger.WithError(err).Fatal("could not apply migration for ledger: ", currentSeq)
 			}
 			return nil
 		})
