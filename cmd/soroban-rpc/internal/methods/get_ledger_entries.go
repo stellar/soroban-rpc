@@ -140,8 +140,6 @@ func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEn
 			default:
 				keyXDR, err := xdr.MarshalBase64(ledgerKeyAndEntry.Key)
 				if err != nil {
-					logger.WithError(err).WithField("request", request).
-						Infof("could not serialize ledger key %v", ledgerKeyAndEntry.Key)
 					return GetLedgerEntriesResponse{}, &jrpc2.Error{
 						Code:    jrpc2.InternalError,
 						Message: fmt.Sprintf("could not serialize ledger key %v", ledgerKeyAndEntry.Key),
@@ -150,8 +148,6 @@ func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEn
 
 				entryXDR, err := xdr.MarshalBase64(ledgerKeyAndEntry.Entry.Data)
 				if err != nil {
-					logger.WithError(err).WithField("request", request).
-						Infof("could not serialize ledger entry data for ledger entry %v", ledgerKeyAndEntry.Entry)
 					return GetLedgerEntriesResponse{}, &jrpc2.Error{
 						Code:    jrpc2.InternalError,
 						Message: fmt.Sprintf("could not serialize ledger entry data for ledger entry %v", ledgerKeyAndEntry.Entry),
