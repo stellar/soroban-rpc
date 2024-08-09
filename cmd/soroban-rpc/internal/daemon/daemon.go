@@ -315,6 +315,8 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	if latestLedger > maxFeeRetentionWindow {
 		ledgerSeqRange.FirstLedgerSeq = latestLedger - maxFeeRetentionWindow
 	}
+
+	// Combine the ledger range for fees, events and transactions
 	ledgerSeqRange = ledgerSeqRange.Merge(applicableRange)
 
 	// Apply migration for fee stats in-memory store
