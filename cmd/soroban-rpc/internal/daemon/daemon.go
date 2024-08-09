@@ -359,7 +359,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 			migrationFactory.DB,
 		)
 		if err != nil {
-			d.logger.WithError(err).Fatal("could not create guarded migration for: %w",
+			d.logger.WithError(err).Fatal("could not create guarded migration for: ",
 				migrationFactory.MigrationName)
 		}
 
@@ -369,19 +369,18 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 			ledgerSeqRange.LastLedgerSeq,
 			func(txMeta xdr.LedgerCloseMeta) error {
 				currentSeq = txMeta.LedgerSequence()
-				if applicableRange.IsLedgerIncluded(currentSeq) {
-					if err := guardedMigration.Apply(readTxMetaCtx, txMeta); err != nil {
-						d.logger.WithError(err).Fatal("could not run migrations")
-					}
+				if err := guardedMigration.Apply(readTxMetaCtx, txMeta); err != nil {
+					d.logger.WithError(err).Fatal("could not run migrations for: ",
+						migrationFactory.MigrationName)
 				}
 				return nil
 			})
 		if err != nil {
-			d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
-		}
-		if err := guardedMigration.Commit(readTxMetaCtx); err != nil {
-			d.logger.WithError(err).Fatal("could not commit migration for: %w",
+			d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database for: ",
 				migrationFactory.MigrationName)
+		}
+		if err = guardedMigration.Commit(readTxMetaCtx); err != nil {
+			d.logger.WithError(err).Fatal("could not commit migration for: ", migrationFactory.MigrationName)
 		}
 	}
 
