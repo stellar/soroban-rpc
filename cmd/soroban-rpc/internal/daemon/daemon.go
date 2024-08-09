@@ -39,6 +39,7 @@ const (
 	defaultReadTimeout                    = 5 * time.Second
 	defaultShutdownGracePeriod            = 10 * time.Second
 	inMemoryInitializationLedgerLogPeriod = 1_000_000
+	firstLedger                           = 2
 )
 
 type Daemon struct {
@@ -310,7 +311,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 		d.logger.WithError(err).Fatal("failed to get latest ledger sequence: %w", err)
 	}
 	maxFeeRetentionWindow := max(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow)
-	ledgerSeqRange := &db.LedgerSeqRange{FirstLedgerSeq: 2, LastLedgerSeq: latestLedger}
+	ledgerSeqRange := &db.LedgerSeqRange{FirstLedgerSeq: firstLedger, LastLedgerSeq: latestLedger}
 	if latestLedger > maxFeeRetentionWindow {
 		ledgerSeqRange.FirstLedgerSeq = latestLedger - maxFeeRetentionWindow
 	}

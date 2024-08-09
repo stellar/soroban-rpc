@@ -10,14 +10,9 @@ import (
 )
 
 const (
-	TransactionsMigrationName = "TransactionsTable"
-	EventsMigrationName       = "EventsTable"
+	transactionsMigrationName = "TransactionsTable"
+	eventsMigrationName       = "EventsTable"
 )
-
-var migrationNameToFunc = map[string]migrationApplierF{
-	TransactionsMigrationName: newTransactionTableMigration,
-	EventsMigrationName:       newEventTableMigration,
-}
 
 type LedgerSeqRange struct {
 	FirstLedgerSeq uint32
@@ -202,11 +197,16 @@ func GetMigrationLedgerRange(ctx context.Context, db *DB, retentionWindow uint32
 func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, networkPassphrase string,
 	ledgerSeqRange *LedgerSeqRange,
 ) (MultiMigration, error) {
-	var migrations MultiMigration
+	migrations := make(MultiMigration, 0, 2)
 
-	for _, migrationName := range []string{TransactionsMigrationName, EventsMigrationName} {
+	migrationNameToFunc := map[string]migrationApplierF{
+		transactionsMigrationName: newTransactionTableMigration,
+		eventsMigrationName:       newEventTableMigration,
+	}
+
+	for migrationName, migrationFunc := range migrationNameToFunc {
 		migrationLogger := logger.WithField("migration", migrationName)
-		factory := migrationNameToFunc[migrationName](
+		factory := migrationFunc(
 			ctx,
 			migrationLogger,
 			networkPassphrase,
