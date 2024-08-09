@@ -5,7 +5,9 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+
 	"github.com/stellar/go/xdr"
+
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
