@@ -111,7 +111,6 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 				"topic2",
 				"topic3",
 				"topic4",
-				"topic5",
 			)
 
 		for index, e := range txEvents {
@@ -153,7 +152,6 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 				topicList[1],
 				topicList[2],
 				topicList[3],
-				topicList[4],
 			)
 		}
 
@@ -178,12 +176,13 @@ func (eventHandler *eventHandler) trimEvents(latestLedgerSeq uint32, retentionWi
 	if latestLedgerSeq+1 <= retentionWindow {
 		return nil
 	}
-
 	cutoff := latestLedgerSeq + 1 - retentionWindow
+	id := Cursor{Ledger: cutoff}.String()
+
 	_, err := sq.StatementBuilder.
 		RunWith(eventHandler.stmtCache).
 		Delete(eventTableName).
-		Where(sq.Lt{"ledger_sequence": cutoff}).
+		Where(sq.Lt{"id": id}).
 		Exec()
 	return err
 }
@@ -220,7 +219,7 @@ func (eventHandler *eventHandler) GetEvents(
 		var orConditions sq.Or
 		for i, topic := range topics {
 			if topic == nil {
-				break
+				continue
 			}
 			orConditions = append(orConditions, sq.Eq{fmt.Sprintf("topic%d", i+1): topic})
 		}
