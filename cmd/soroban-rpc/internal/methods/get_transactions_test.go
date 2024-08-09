@@ -14,7 +14,6 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
 
 const (
@@ -317,7 +316,7 @@ func TestGetTransactions_JSONFormat(t *testing.T) {
 	}
 
 	request := GetTransactionsRequest{
-		Format:      xdr2json.FormatJSON,
+		Format:      FormatJSON,
 		StartLedger: 1,
 	}
 

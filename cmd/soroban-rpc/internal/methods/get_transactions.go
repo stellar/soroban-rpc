@@ -19,7 +19,6 @@ import (
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
 
 // TransactionsPaginationOptions defines the available options for paginating through transactions.
@@ -53,7 +52,7 @@ func (req GetTransactionsRequest) isValid(maxLimit uint, ledgerRange ledgerbucke
 		return fmt.Errorf("limit must not exceed %d", maxLimit)
 	}
 
-	return xdr2json.IsValidConversion(req.Format)
+	return IsValidConversion(req.Format)
 }
 
 type TransactionInfo struct {
@@ -202,8 +201,8 @@ func (h transactionsRPCHandler) processTransactionsInLedger(
 		}
 
 		switch format {
-		case xdr2json.FormatJSON:
-			result, envelope, meta, convErr := xdr2json.TransactionToJSON(tx)
+		case FormatJSON:
+			result, envelope, meta, convErr := transactionToJSON(tx)
 			if convErr != nil {
 				return nil, false, &jrpc2.Error{
 					Code:    jrpc2.InternalError,

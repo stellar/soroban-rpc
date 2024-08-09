@@ -14,7 +14,6 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
 
 const (
@@ -82,7 +81,7 @@ func GetTransaction(
 	ledgerReader db.LedgerReader,
 	request GetTransactionRequest,
 ) (GetTransactionResponse, error) {
-	if err := xdr2json.IsValidConversion(request.Format); err != nil {
+	if err := IsValidConversion(request.Format); err != nil {
 		return GetTransactionResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidParams,
 			Message: err.Error(),
@@ -141,8 +140,8 @@ func GetTransaction(
 	response.LedgerCloseTime = tx.Ledger.CloseTime
 
 	switch request.Format {
-	case xdr2json.FormatJSON:
-		result, envelope, meta, convErr := xdr2json.TransactionToJSON(tx)
+	case FormatJSON:
+		result, envelope, meta, convErr := transactionToJSON(tx)
 		if convErr != nil {
 			return response, &jrpc2.Error{
 				Code:    jrpc2.InternalError,

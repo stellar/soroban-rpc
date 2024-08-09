@@ -751,7 +751,7 @@ func TestGetEvents(t *testing.T) {
 
 		results, err = handler.getEvents(GetEventsRequest{
 			StartLedger: 1,
-			Format:      xdr2json.FormatJSON,
+			Format:      FormatJSON,
 			Filters: []EventFilter{
 				{Topics: []TopicFilter{
 					[]SegmentFilter{

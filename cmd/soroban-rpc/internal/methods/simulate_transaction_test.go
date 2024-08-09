@@ -99,7 +99,7 @@ func TestLedgerEntryChange(t *testing.T) {
 
 		// test JSON output
 		var changeJs LedgerEntryChange
-		require.NoError(t, changeJs.FromXDRDiff(test.input, xdr2json.FormatJSON), test.name)
+		require.NoError(t, changeJs.FromXDRDiff(test.input, FormatJSON), test.name)
 
 		require.Equal(t, keyJs, changeJs.KeyJSON)
 		if changeJs.AfterJSON != nil {

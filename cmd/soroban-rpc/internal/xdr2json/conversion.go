@@ -17,26 +17,11 @@ import "C"
 import (
 	"encoding"
 	"encoding/json"
-	"fmt"
 	"reflect"
-	"strings"
 	"unsafe"
 
 	"github.com/pkg/errors"
-
-	"github.com/stellar/go/xdr"
-
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
-
-const (
-	FormatBase64 = "base64"
-	FormatJSON   = "json"
-)
-
-var errInvalidFormat = fmt.Errorf(
-	"expected %s for optional 'xdrFormat'",
-	strings.Join([]string{FormatBase64, FormatJSON}, ", "))
 
 // ConvertBytes takes an XDR object (`xdr`) and its serialized bytes (`field`)
 // and returns the raw JSON-formatted serialization of that object.
@@ -98,42 +83,4 @@ func CXDR(xdr []byte) C.xdr_t {
 		xdr: (*C.uchar)(C.CBytes(xdr)),
 		len: C.size_t(len(xdr)),
 	}
-}
-
-func TransactionToJSON(tx db.Transaction) (
-	[]byte,
-	[]byte,
-	[]byte,
-	error,
-) {
-	var err error
-	var result, resultMeta, envelope []byte
-
-	result, err = ConvertBytes(xdr.TransactionResult{}, tx.Result)
-	if err != nil {
-		return result, envelope, resultMeta, err
-	}
-
-	envelope, err = ConvertBytes(xdr.TransactionEnvelope{}, tx.Envelope)
-	if err != nil {
-		return result, envelope, resultMeta, err
-	}
-
-	resultMeta, err = ConvertBytes(xdr.TransactionMeta{}, tx.Meta)
-	if err != nil {
-		return result, envelope, resultMeta, err
-	}
-
-	return result, envelope, resultMeta, nil
-}
-
-func IsValidConversion(format string) error {
-	switch format {
-	case "":
-	case FormatJSON:
-	case FormatBase64:
-	default:
-		return errors.Wrapf(errInvalidFormat, "got '%s'", format)
-	}
-	return nil
 }

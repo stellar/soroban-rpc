@@ -93,7 +93,7 @@ type GetEventsRequest struct {
 }
 
 func (g *GetEventsRequest) Valid(maxLimit uint) error {
-	if err := xdr2json.IsValidConversion(g.Format); err != nil {
+	if err := IsValidConversion(g.Format); err != nil {
 		return err
 	}
 
@@ -420,23 +420,22 @@ func eventInfoForEvent(
 	}
 
 	switch format {
-	case xdr2json.FormatJSON:
+	case FormatJSON:
 		// json encode the topic
-		topics := make([]json.RawMessage, 0, maxTopicCount)
+		info.TopicJSON = make([]json.RawMessage, 0, maxTopicCount)
 		for _, topic := range v0.Topics {
 			topic, err := xdr2json.ConvertInterface(topic)
 			if err != nil {
 				return EventInfo{}, err
 			}
-			topics = append(topics, topic)
+			info.TopicJSON = append(info.TopicJSON, topic)
 		}
-		info.TopicJSON = topics
 
-		dataJs, err := xdr2json.ConvertInterface(v0.Data)
-		if err != nil {
-			return EventInfo{}, err
+		var convErr error
+		info.ValueJSON, convErr = xdr2json.ConvertInterface(v0.Data)
+		if convErr != nil {
+			return EventInfo{}, convErr
 		}
-		info.ValueJSON = dataJs
 
 	default:
 		// base64-xdr encode the topic

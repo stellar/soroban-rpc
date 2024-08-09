@@ -312,7 +312,7 @@ func TestGetTransaction_JSONFormat(t *testing.T) {
 	}
 
 	request := GetTransactionRequest{
-		Format: xdr2json.FormatJSON,
+		Format: FormatJSON,
 		Hash:   lookupHash,
 	}
 
@@ -366,7 +366,7 @@ func BenchmarkJSONTransactions(b *testing.B) {
 	b.ResetTimer()
 	b.Run("JSON format", func(bb *testing.B) {
 		request := GetTransactionRequest{
-			Format: xdr2json.FormatJSON,
+			Format: FormatJSON,
 			Hash:   lookupHash,
 		}
 		bb.ResetTimer()

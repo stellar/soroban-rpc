@@ -94,7 +94,7 @@ func (l *LedgerEntryChangeType) UnmarshalJSON(data []byte) error {
 }
 
 func (l *LedgerEntryChange) FromXDRDiff(diff preflight.XDRDiff, format string) error {
-	if err := xdr2json.IsValidConversion(format); err != nil {
+	if err := IsValidConversion(format); err != nil {
 		return err
 	}
 
@@ -135,7 +135,7 @@ func (l *LedgerEntryChange) FromXDRDiff(diff preflight.XDRDiff, format string) e
 	}
 
 	switch format {
-	case xdr2json.FormatJSON:
+	case FormatJSON:
 		return l.jsonXdrDiff(diff, key)
 
 	default:
@@ -227,7 +227,7 @@ type PreflightGetter interface {
 // NewSimulateTransactionHandler returns a json rpc handler to run preflight simulations
 func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntryReader, ledgerReader db.LedgerReader, daemon interfaces.Daemon, getter PreflightGetter) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context, request SimulateTransactionRequest) SimulateTransactionResponse {
-		if err := xdr2json.IsValidConversion(request.Format); err != nil {
+		if err := IsValidConversion(request.Format); err != nil {
 			return SimulateTransactionResponse{Error: err.Error()}
 		}
 
@@ -315,7 +315,7 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 		var results []SimulateHostFunctionResult
 		if len(result.Result) != 0 {
 			switch request.Format {
-			case xdr2json.FormatJSON:
+			case FormatJSON:
 				rvJs, err := xdr2json.ConvertBytes(xdr.ScVal{}, result.Result)
 				if err != nil {
 					return SimulateTransactionResponse{
@@ -348,7 +348,7 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 		var restorePreamble *RestorePreamble = nil
 		if len(result.PreRestoreTransactionData) != 0 {
 			switch request.Format {
-			case xdr2json.FormatJSON:
+			case FormatJSON:
 				txDataJs, err := xdr2json.ConvertBytes(
 					xdr.SorobanTransactionData{},
 					result.PreRestoreTransactionData)
@@ -396,7 +396,7 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 		}
 
 		switch request.Format {
-		case xdr2json.FormatJSON:
+		case FormatJSON:
 			simResp.TransactionDataJSON, err = xdr2json.ConvertBytes(
 				xdr.SorobanTransactionData{},
 				result.TransactionData)

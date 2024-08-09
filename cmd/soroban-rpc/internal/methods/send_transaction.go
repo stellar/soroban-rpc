@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
-	"fmt"
+
+	"github.com/pkg/errors"
 
 	"github.com/creachadair/jrpc2"
 
@@ -63,7 +63,7 @@ func NewSendTransactionHandler(
 ) jrpc2.Handler {
 	submitter := daemon.CoreClient()
 	return NewHandler(func(ctx context.Context, request SendTransactionRequest) (SendTransactionResponse, error) {
-		if err := xdr2json.IsValidConversion(request.Format); err != nil {
+		if err := IsValidConversion(request.Format); err != nil {
 			return SendTransactionResponse{}, &jrpc2.Error{
 				Code:    jrpc2.InvalidParams,
 				Message: err.Error(),
@@ -128,7 +128,7 @@ func NewSendTransactionHandler(
 			}
 
 			switch request.Format {
-			case xdr2json.FormatJSON:
+			case FormatJSON:
 				errResult := xdr.TransactionResult{}
 				err = xdr.SafeUnmarshalBase64(resp.Error, &errResult)
 				if err != nil {
@@ -137,7 +137,7 @@ func NewSendTransactionHandler(
 
 					return SendTransactionResponse{}, &jrpc2.Error{
 						Code:    jrpc2.InternalError,
-						Message: errors.Join(err, errors.New("couldn't decode error")).Error(),
+						Message: errors.Wrap(err, "couldn't decode error").Error(),
 					}
 				}
 
@@ -148,7 +148,7 @@ func NewSendTransactionHandler(
 
 					return SendTransactionResponse{}, &jrpc2.Error{
 						Code:    jrpc2.InternalError,
-						Message: errors.Join(err, errors.New("couldn't serialize error")).Error(),
+						Message: errors.Wrap(err, "couldn't serialize error").Error(),
 					}
 				}
 
@@ -160,7 +160,7 @@ func NewSendTransactionHandler(
 
 					return SendTransactionResponse{}, &jrpc2.Error{
 						Code:    jrpc2.InternalError,
-						Message: errors.Join(err, errors.New("couldn't decode events")).Error(),
+						Message: errors.Wrap(err, "couldn't decode events").Error(),
 					}
 				}
 
@@ -172,9 +172,8 @@ func NewSendTransactionHandler(
 							WithError(err).Errorf("Cannot decode event %d: %+v", i+1, event)
 
 						return SendTransactionResponse{}, &jrpc2.Error{
-							Code: jrpc2.InternalError,
-							Message: errors.Join(err,
-								fmt.Errorf("couldn't decode event #%d", i+1)).Error(),
+							Code:    jrpc2.InternalError,
+							Message: errors.Wrapf(err, "couldn't decode event #%d", i+1).Error(),
 						}
 					}
 				}

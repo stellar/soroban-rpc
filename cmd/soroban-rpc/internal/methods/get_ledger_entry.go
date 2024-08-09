@@ -39,7 +39,7 @@ type GetLedgerEntryResponse struct {
 // TODO(https://github.com/stellar/soroban-tools/issues/374) remove after getLedgerEntries is deployed.
 func NewGetLedgerEntryHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntryReader) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context, request GetLedgerEntryRequest) (GetLedgerEntryResponse, error) {
-		if err := xdr2json.IsValidConversion(request.Format); err != nil {
+		if err := IsValidConversion(request.Format); err != nil {
 			return GetLedgerEntryResponse{}, &jrpc2.Error{
 				Code:    jrpc2.InvalidParams,
 				Message: err.Error(),
@@ -106,7 +106,7 @@ func NewGetLedgerEntryHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntr
 		}
 
 		switch request.Format {
-		case xdr2json.FormatJSON:
+		case FormatJSON:
 			response.EntryJSON, err = xdr2json.ConvertInterface(ledgerEntry.Data)
 			logger.WithError(err).WithField("request", request).
 				Info("could not JSONify ledger entry data")
