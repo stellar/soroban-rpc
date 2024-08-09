@@ -346,14 +346,15 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 		d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
 	}
 
+	// Start a common db transaction for the entire migration duration
 	err = d.db.Begin(readTxMetaCtx)
 	if err != nil {
-		d.logger.WithError(err).Fatal("could not begin db transaction")
+		d.logger.WithError(err).Fatal("could not commit database transaction: ", d.db.Rollback())
 	}
 	defer func() {
-		commitErr := d.db.Commit()
-		if commitErr != nil {
-			d.logger.WithError(commitErr).Fatal("could not commit migrations")
+		err = d.db.Commit()
+		if err != nil {
+			d.logger.WithError(err).Fatal("could not commit database transaction")
 		}
 	}()
 
@@ -363,41 +364,34 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	}
 
 	// Apply migration for events and transactions tables
-	//guardedMigration, err := db.NewGuardedDataMigration(
-	//	readTxMetaCtx,
-	//	migrationFactory.MigrationName,
-	//	migrationFactory.Logger,
-	//	migrationFactory.Factory,
-	//	migrationFactory.DB,
-	//)
-	//if err != nil {
-	//	d.logger.WithError(err).Fatal("could not create guarded migration for: ",
-	//		migrationFactory.MigrationName)
-	//}
-	//
-	//err = db.NewLedgerReader(d.db).StreamLedgerRange(
-	//	readTxMetaCtx,
-	//	ledgerSeqRange.FirstLedgerSeq,
-	//	ledgerSeqRange.LastLedgerSeq,
-	//	func(txMeta xdr.LedgerCloseMeta) error {
-	//		currentSeq = txMeta.LedgerSequence()
-	//		if err := guardedMigration.Apply(readTxMetaCtx, txMeta); err != nil {
-	//			d.logger.WithError(err).Fatal("could not apply migration for ledger: ",
-	//				currentSeq, " and table: ", migrationFactory.MigrationName)
-	//		}
-	//		return nil
-	//	})
-	//if err != nil {
-	//	d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
-	//}
-	//
-	//if currentSeq != 0 {
-	//	d.logger.WithFields(supportlog.F{
-	//		"seq": currentSeq,
-	//	}).Info("finished initializing in-memory store and applying DB data migrations")
-	//}
-	//
-	//return feeWindows
+	err = db.NewLedgerReader(d.db).StreamLedgerRange(
+		readTxMetaCtx,
+		ledgerSeqRange.FirstLedgerSeq,
+		ledgerSeqRange.LastLedgerSeq,
+		func(txMeta xdr.LedgerCloseMeta) error {
+			if err := dataMigrations.Apply(readTxMetaCtx, txMeta); err != nil {
+				dbErr := dataMigrations.Rollback(readTxMetaCtx)
+				if dbErr != nil {
+					d.logger.WithError(dbErr).Fatal("could not rollback migration for ledger: ", txMeta.LedgerSequence())
+				}
+				d.logger.WithError(err).Fatal("could not apply migration for ledger: ", txMeta.LedgerSequence())
+			}
+			return nil
+		})
+	if err != nil {
+		d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
+	}
+	if err := dataMigrations.Commit(readTxMetaCtx); err != nil {
+		d.logger.WithError(err).Fatal("could not commit data migrations")
+	}
+
+	if currentSeq != 0 {
+		d.logger.WithFields(supportlog.F{
+			"seq": currentSeq,
+		}).Info("finished initializing in-memory store and applying DB data migrations")
+	}
+
+	return feeWindows
 }
 
 func (d *Daemon) Run() {

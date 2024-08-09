@@ -73,9 +73,9 @@ type Migration interface {
 	Rollback(ctx context.Context) error
 }
 
-type multiMigration []Migration
+type MultiMigration []Migration
 
-func (mm multiMigration) ApplicableRange() *LedgerSeqRange {
+func (mm MultiMigration) ApplicableRange() *LedgerSeqRange {
 	var result *LedgerSeqRange
 	for _, m := range mm {
 		result = m.ApplicableRange().Merge(result)
@@ -83,7 +83,7 @@ func (mm multiMigration) ApplicableRange() *LedgerSeqRange {
 	return result
 }
 
-func (mm multiMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error {
+func (mm MultiMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error {
 	var err error
 	for _, m := range mm {
 		ledgerSeq := meta.LedgerSequence()
@@ -98,7 +98,7 @@ func (mm multiMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) er
 	return err
 }
 
-func (mm multiMigration) Commit(ctx context.Context) error {
+func (mm MultiMigration) Commit(ctx context.Context) error {
 	var err error
 	for _, m := range mm {
 		if localErr := m.Commit(ctx); localErr != nil {
@@ -108,7 +108,7 @@ func (mm multiMigration) Commit(ctx context.Context) error {
 	return err
 }
 
-func (mm multiMigration) Rollback(ctx context.Context) error {
+func (mm MultiMigration) Rollback(ctx context.Context) error {
 	var err error
 	for _, m := range mm {
 		if localErr := m.Rollback(ctx); localErr != nil {
@@ -175,14 +175,9 @@ func (g *guardedMigration) ApplicableRange() *LedgerSeqRange {
 
 func (g *guardedMigration) Commit(ctx context.Context) error {
 	if g.alreadyMigrated {
-		return g.Rollback(ctx)
+		return nil
 	}
-
-	err := setMetaBool(ctx, g.db, g.guardMetaKey, true)
-	if err != nil {
-		return errors.Join(err, g.Rollback(ctx))
-	}
-	return g.db.Commit()
+	return setMetaBool(ctx, g.db, g.guardMetaKey, true)
 }
 
 func (g *guardedMigration) Rollback(_ context.Context) error {
@@ -206,8 +201,8 @@ func GetMigrationLedgerRange(ctx context.Context, db *DB, retentionWindow uint32
 
 func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, networkPassphrase string,
 	ledgerSeqRange *LedgerSeqRange,
-) ([]Migration, error) {
-	var migrations []Migration
+) (MultiMigration, error) {
+	var migrations MultiMigration
 
 	for _, migrationName := range []string{TransactionsMigrationName, EventsMigrationName} {
 		migrationLogger := logger.WithField("migration", migrationName)
