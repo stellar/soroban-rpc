@@ -12,6 +12,7 @@ import (
 const (
 	transactionsMigrationName = "TransactionsTable"
 	eventsMigrationName       = "EventsTable"
+	numMigrations             = 2
 )
 
 type LedgerSeqRange struct {
@@ -197,7 +198,7 @@ func GetMigrationLedgerRange(ctx context.Context, db *DB, retentionWindow uint32
 func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, networkPassphrase string,
 	ledgerSeqRange *LedgerSeqRange,
 ) (MultiMigration, error) {
-	migrations := make(MultiMigration, 0, 2)
+	migrations := make(MultiMigration, 0, numMigrations)
 
 	migrationNameToFunc := map[string]migrationApplierF{
 		transactionsMigrationName: newTransactionTableMigration,
