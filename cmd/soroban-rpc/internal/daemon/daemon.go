@@ -317,11 +317,6 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	}
 	ledgerSeqRange = ledgerSeqRange.Merge(applicableRange)
 
-	dataMigrations, err := db.BuildMigrations(readTxMetaCtx, d.logger, d.db, cfg.NetworkPassphrase, ledgerSeqRange)
-	if err != nil {
-		d.logger.WithError(err).Fatal("could not build migrations")
-	}
-
 	// Apply migration for fee stats in-memory store
 	err = db.NewLedgerReader(d.db).StreamLedgerRange(
 		readTxMetaCtx,
@@ -349,6 +344,11 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 		d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
 	}
 
+	dataMigrations, err := db.BuildMigrations(readTxMetaCtx, d.logger, d.db, cfg.NetworkPassphrase, ledgerSeqRange)
+	if err != nil {
+		d.logger.WithError(err).Fatal("could not build migrations")
+	}
+
 	// Apply migration for events and transactions tables
 	for _, migrationFactory := range dataMigrations {
 		guardedMigration, err := db.NewGuardedDataMigration(
@@ -370,8 +370,8 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 			func(txMeta xdr.LedgerCloseMeta) error {
 				currentSeq = txMeta.LedgerSequence()
 				if err := guardedMigration.Apply(readTxMetaCtx, txMeta); err != nil {
-					d.logger.WithError(err).Fatal("could not run migrations for: ",
-						migrationFactory.MigrationName)
+					d.logger.WithError(err).Fatal("could not apply migration for ledger: ",
+						currentSeq, " and table: ", migrationFactory.MigrationName)
 				}
 				return nil
 			})
