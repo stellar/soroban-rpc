@@ -1232,7 +1232,7 @@ func BenchmarkGetEvents(b *testing.B) {
 	totalNs := b.Elapsed()
 	nsPerOp := totalNs.Nanoseconds() / int64(b.N)
 	msPerOp := float64(nsPerOp) / 1e6
-	log.Info("Benchmark Results: (%.3f ms/op) ", msPerOp)
+	log.Infof("Benchmark Results: %v ms/op ", msPerOp)
 }
 
 func getTxMetaWithContractEvents(contractID xdr.Hash) []xdr.TransactionMeta {
