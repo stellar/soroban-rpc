@@ -52,7 +52,7 @@ func (req GetTransactionsRequest) isValid(maxLimit uint, ledgerRange ledgerbucke
 		return fmt.Errorf("limit must not exceed %d", maxLimit)
 	}
 
-	return IsValidConversion(req.Format)
+	return IsValidFormat(req.Format)
 }
 
 type TransactionInfo struct {

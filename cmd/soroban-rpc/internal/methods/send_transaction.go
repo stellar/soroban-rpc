@@ -63,7 +63,7 @@ func NewSendTransactionHandler(
 ) jrpc2.Handler {
 	submitter := daemon.CoreClient()
 	return NewHandler(func(ctx context.Context, request SendTransactionRequest) (SendTransactionResponse, error) {
-		if err := IsValidConversion(request.Format); err != nil {
+		if err := IsValidFormat(request.Format); err != nil {
 			return SendTransactionResponse{}, &jrpc2.Error{
 				Code:    jrpc2.InvalidParams,
 				Message: err.Error(),

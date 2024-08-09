@@ -81,7 +81,7 @@ func GetTransaction(
 	ledgerReader db.LedgerReader,
 	request GetTransactionRequest,
 ) (GetTransactionResponse, error) {
-	if err := IsValidConversion(request.Format); err != nil {
+	if err := IsValidFormat(request.Format); err != nil {
 		return GetTransactionResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InvalidParams,
 			Message: err.Error(),

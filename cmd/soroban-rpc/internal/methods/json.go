@@ -19,7 +19,7 @@ var errInvalidFormat = fmt.Errorf(
 	"expected %s for optional 'xdrFormat'",
 	strings.Join([]string{FormatBase64, FormatJSON}, ", "))
 
-func IsValidConversion(format string) error {
+func IsValidFormat(format string) error {
 	switch format {
 	case "":
 	case FormatJSON:

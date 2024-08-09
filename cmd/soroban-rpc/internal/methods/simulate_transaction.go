@@ -94,7 +94,7 @@ func (l *LedgerEntryChangeType) UnmarshalJSON(data []byte) error {
 }
 
 func (l *LedgerEntryChange) FromXDRDiff(diff preflight.XDRDiff, format string) error {
-	if err := IsValidConversion(format); err != nil {
+	if err := IsValidFormat(format); err != nil {
 		return err
 	}
 
@@ -227,7 +227,7 @@ type PreflightGetter interface {
 // NewSimulateTransactionHandler returns a json rpc handler to run preflight simulations
 func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntryReader, ledgerReader db.LedgerReader, daemon interfaces.Daemon, getter PreflightGetter) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context, request SimulateTransactionRequest) SimulateTransactionResponse {
-		if err := IsValidConversion(request.Format); err != nil {
+		if err := IsValidFormat(request.Format); err != nil {
 			return SimulateTransactionResponse{Error: err.Error()}
 		}
 

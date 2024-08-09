@@ -93,7 +93,7 @@ type GetEventsRequest struct {
 }
 
 func (g *GetEventsRequest) Valid(maxLimit uint) error {
-	if err := IsValidConversion(g.Format); err != nil {
+	if err := IsValidFormat(g.Format); err != nil {
 		return err
 	}
 
