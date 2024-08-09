@@ -1191,7 +1191,6 @@ func BenchmarkGetEvents(b *testing.B) {
 	ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
 
 	for i := range []int{1, 2, 3} {
-
 		txMeta := getTxMetaWithContractEvents(contractID)
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(uint32(i), now.Unix(), txMeta...)
 		require.NoError(b, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
@@ -1233,8 +1232,7 @@ func BenchmarkGetEvents(b *testing.B) {
 	totalNs := b.Elapsed()
 	nsPerOp := totalNs.Nanoseconds() / int64(b.N)
 	msPerOp := float64(nsPerOp) / 1e6
-	fmt.Printf("Benchmark Results:\n")
-	fmt.Printf("%d ns/op (%.3f ms/op)\n", nsPerOp, msPerOp)
+	log.Info("Benchmark Results: (%.3f ms/op) ", msPerOp)
 }
 
 func getTxMetaWithContractEvents(contractID xdr.Hash) []xdr.TransactionMeta {

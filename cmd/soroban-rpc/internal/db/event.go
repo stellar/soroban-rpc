@@ -176,12 +176,13 @@ func (eventHandler *eventHandler) trimEvents(latestLedgerSeq uint32, retentionWi
 	if latestLedgerSeq+1 <= retentionWindow {
 		return nil
 	}
-
 	cutoff := latestLedgerSeq + 1 - retentionWindow
+	id := Cursor{Ledger: cutoff}.String()
+
 	_, err := sq.StatementBuilder.
 		RunWith(eventHandler.stmtCache).
 		Delete(eventTableName).
-		Where(sq.Lt{"ledger_sequence": cutoff}).
+		Where(sq.Lt{"id": id}).
 		Exec()
 	return err
 }
