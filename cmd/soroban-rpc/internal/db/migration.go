@@ -137,8 +137,9 @@ func (g *guardedMigration) ApplicableRange() *LedgerSeqRange {
 
 func (g *guardedMigration) Commit(ctx context.Context) error {
 	if g.alreadyMigrated {
-		return nil
+		return g.Rollback(ctx)
 	}
+
 	err := setMetaBool(ctx, g.db, g.guardMetaKey, true)
 	if err != nil {
 		return errors.Join(err, g.Rollback(ctx))
