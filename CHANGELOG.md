@@ -29,7 +29,7 @@ Certain XDR-encoded fields do not have an `Xdr` suffix, but those also have a `*
 * Improve performance of `getVersionInfo` and `getNetwork` ([#198](https://github.com/stellar/soroban-rpc/pull/198)).
 
 
-## [v21.4.0](https://github.com/stellar/soroban-rpc/compare/v21.4.0...v21.4.1)
+## [v21.4.1](https://github.com/stellar/soroban-rpc/compare/v21.4.0...v21.4.1)
 
 ### Fixed
 * Fix parsing of the `--log-format` parameter ([#252](https://github.com/stellar/soroban-rpc/pull/252))
