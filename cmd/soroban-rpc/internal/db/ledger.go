@@ -92,6 +92,10 @@ func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.Le
 			return ledgerbucketwindow.LedgerRange{}, fmt.Errorf("couldn't query ledger range: %w", err)
 		}
 
+		if len(lcm) == 0 {
+			return ledgerbucketwindow.LedgerRange{}, ErrEmptyDB
+		}
+
 		return ledgerbucketwindow.LedgerRange{
 			FirstLedger: ledgerbucketwindow.LedgerInfo{
 				Sequence:  lcm[0].LedgerSequence(),
@@ -116,7 +120,6 @@ func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.Le
 		return ledgerbucketwindow.LedgerRange{}, fmt.Errorf("couldn't query ledger range: %w", err)
 	}
 
-	// Empty DB
 	if len(lcms) == 0 {
 		return ledgerbucketwindow.LedgerRange{}, ErrEmptyDB
 	}
