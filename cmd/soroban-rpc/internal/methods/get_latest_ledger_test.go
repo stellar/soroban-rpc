@@ -26,11 +26,9 @@ type ConstantLedgerEntryReaderTx struct{}
 
 type ConstantLedgerReader struct{}
 
-// type ConstantLedgerReaderTx struct{}
-
-//func (ledgerReader *ConstantLedgerReader) NewTx(_ context.Context) (db.LedgerReaderTx, error) {
-//	return ConstantLedgerReaderTx{}, nil
-//}
+func (ledgerReader *ConstantLedgerReader) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
+	return ledgerbucketwindow.LedgerRange{}, nil
+}
 
 func (entryReader *ConstantLedgerEntryReader) GetLatestLedgerSequence(_ context.Context) (uint32, error) {
 	return expectedLatestLedgerSequence, nil
@@ -42,10 +40,6 @@ func (entryReader *ConstantLedgerEntryReader) NewTx(_ context.Context) (db.Ledge
 
 func (entryReader *ConstantLedgerEntryReader) NewCachedTx(_ context.Context) (db.LedgerEntryReadTx, error) {
 	return ConstantLedgerEntryReaderTx{}, nil
-}
-
-func (entryReader *ConstantLedgerReader) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
-	return ledgerbucketwindow.LedgerRange{}, nil
 }
 
 func (entryReaderTx ConstantLedgerEntryReaderTx) GetLatestLedgerSequence() (uint32, error) {
@@ -97,5 +91,3 @@ func TestGetLatestLedger(t *testing.T) {
 	assert.Equal(t, expectedLatestLedgerProtocolVersion, latestLedgerResp.ProtocolVersion)
 	assert.Equal(t, expectedLatestLedgerSequence, latestLedgerResp.Sequence)
 }
-
-var _ db.LedgerReader = &ConstantLedgerReader{}
