@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/go/xdr"
@@ -39,8 +38,8 @@ func TestGetLedgerEntryNotFound(t *testing.T) {
 	var result methods.GetLedgerEntryResponse
 	client := test.GetRPCLient()
 	jsonRPCErr := client.CallResult(context.Background(), "getLedgerEntry", request, &result).(*jrpc2.Error)
-	assert.Contains(t, jsonRPCErr.Message, "not found")
-	assert.Equal(t, jrpc2.InvalidRequest, jsonRPCErr.Code)
+	require.Contains(t, jsonRPCErr.Message, "not found")
+	require.Equal(t, jrpc2.InvalidRequest, jsonRPCErr.Code)
 }
 
 func TestGetLedgerEntryInvalidParams(t *testing.T) {
@@ -54,8 +53,8 @@ func TestGetLedgerEntryInvalidParams(t *testing.T) {
 
 	var result methods.GetLedgerEntryResponse
 	jsonRPCErr := client.CallResult(context.Background(), "getLedgerEntry", request, &result).(*jrpc2.Error)
-	assert.Equal(t, "cannot unmarshal key value", jsonRPCErr.Message)
-	assert.Equal(t, jrpc2.InvalidParams, jsonRPCErr.Code)
+	require.Equal(t, "cannot unmarshal key value", jsonRPCErr.Message)
+	require.Equal(t, jrpc2.InvalidParams, jsonRPCErr.Code)
 }
 
 func TestGetLedgerEntrySucceeds(t *testing.T) {
@@ -76,10 +75,10 @@ func TestGetLedgerEntrySucceeds(t *testing.T) {
 
 	var result methods.GetLedgerEntryResponse
 	err = test.GetRPCLient().CallResult(context.Background(), "getLedgerEntry", request, &result)
-	assert.NoError(t, err)
-	assert.Greater(t, result.LatestLedger, uint32(0))
-	assert.GreaterOrEqual(t, result.LatestLedger, result.LastModifiedLedger)
+	require.NoError(t, err)
+	require.Greater(t, result.LatestLedger, uint32(0))
+	require.GreaterOrEqual(t, result.LatestLedger, result.LastModifiedLedger)
 	var entry xdr.LedgerEntryData
-	assert.NoError(t, xdr.SafeUnmarshalBase64(result.XDR, &entry))
-	assert.Equal(t, infrastructure.GetHelloWorldContract(), entry.MustContractCode().Code)
+	require.NoError(t, xdr.SafeUnmarshalBase64(result.EntryXDR, &entry))
+	require.Equal(t, infrastructure.GetHelloWorldContract(), entry.MustContractCode().Code)
 }

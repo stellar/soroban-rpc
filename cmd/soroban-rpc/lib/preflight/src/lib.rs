@@ -1,12 +1,19 @@
 extern crate anyhow;
 extern crate base64;
+extern crate ffi;
 extern crate libc;
+extern crate serde_json;
 extern crate sha2;
 extern crate soroban_env_host;
 extern crate soroban_simulation;
 
 use anyhow::{anyhow, bail, Result};
 use sha2::{Digest, Sha256};
+
+// We really do need everything.
+#[allow(clippy::wildcard_imports)]
+use ffi::*;
+
 use soroban_env_host::storage::EntryWithLiveUntil;
 use soroban_env_host::xdr::{
     AccountId, ExtendFootprintTtlOp, Hash, InvokeHostFunctionOp, LedgerEntry, LedgerEntryData,
@@ -20,13 +27,14 @@ use soroban_simulation::simulation::{
     SimulationAdjustmentConfig,
 };
 use soroban_simulation::{AutoRestoringSnapshotSource, NetworkConfig, SnapshotSourceWithArchive};
+
 use std::cell::RefCell;
 use std::convert::TryFrom;
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
+use std::mem;
 use std::panic;
 use std::ptr::null_mut;
 use std::rc::Rc;
-use std::{mem, slice};
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -40,7 +48,7 @@ pub struct CLedgerInfo {
 }
 
 fn fill_ledger_info(c_ledger_info: CLedgerInfo, network_config: &NetworkConfig) -> LedgerInfo {
-    let network_passphrase = from_c_string(c_ledger_info.network_passphrase);
+    let network_passphrase = unsafe { from_c_string(c_ledger_info.network_passphrase) };
     let mut ledger_info = LedgerInfo {
         protocol_version: c_ledger_info.protocol_version,
         sequence_number: c_ledger_info.sequence_number,
@@ -51,24 +59,6 @@ fn fill_ledger_info(c_ledger_info: CLedgerInfo, network_config: &NetworkConfig) 
     };
     network_config.fill_config_fields_in_ledger_info(&mut ledger_info);
     ledger_info
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct CXDR {
-    pub xdr: *mut libc::c_uchar,
-    pub len: libc::size_t,
-}
-
-// It would be nicer to derive Default, but we can't. It errors with:
-// The trait bound `*mut u8: std::default::Default` is not satisfied
-impl Default for CXDR {
-    fn default() -> Self {
-        CXDR {
-            xdr: null_mut(),
-            len: 0,
-        }
-    }
 }
 
 #[repr(C)]
@@ -238,9 +228,11 @@ fn preflight_invoke_hf_op_or_maybe_panic(
     enable_debug: bool,
 ) -> Result<CPreflightResult> {
     let invoke_hf_op =
-        InvokeHostFunctionOp::from_xdr(from_c_xdr(invoke_hf_op), DEFAULT_XDR_RW_LIMITS).unwrap();
+        InvokeHostFunctionOp::from_xdr(unsafe { from_c_xdr(invoke_hf_op) }, DEFAULT_XDR_RW_LIMITS)
+            .unwrap();
     let source_account =
-        AccountId::from_xdr(from_c_xdr(source_account), DEFAULT_XDR_RW_LIMITS).unwrap();
+        AccountId::from_xdr(unsafe { from_c_xdr(source_account) }, DEFAULT_XDR_RW_LIMITS).unwrap();
+
     let go_storage = Rc::new(GoLedgerStorage::new(handle));
     let network_config =
         NetworkConfig::load_from_snapshot(go_storage.as_ref(), c_ledger_info.bucket_list_size)?;
@@ -312,8 +304,9 @@ fn preflight_footprint_ttl_op_or_maybe_panic(
     footprint: CXDR,
     c_ledger_info: CLedgerInfo,
 ) -> Result<CPreflightResult> {
-    let op_body = OperationBody::from_xdr(from_c_xdr(op_body), DEFAULT_XDR_RW_LIMITS)?;
-    let footprint = LedgerFootprint::from_xdr(from_c_xdr(footprint), DEFAULT_XDR_RW_LIMITS)?;
+    let op_body = OperationBody::from_xdr(unsafe { from_c_xdr(op_body) }, DEFAULT_XDR_RW_LIMITS)?;
+    let footprint =
+        LedgerFootprint::from_xdr(unsafe { from_c_xdr(footprint) }, DEFAULT_XDR_RW_LIMITS)?;
     let go_storage = Rc::new(GoLedgerStorage::new(handle));
     let network_config =
         NetworkConfig::load_from_snapshot(go_storage.as_ref(), c_ledger_info.bucket_list_size)?;
@@ -495,21 +488,12 @@ pub unsafe extern "C" fn free_preflight_result(result: *mut CPreflightResult) {
     free_c_xdr_diff_array(boxed.ledger_entry_diff);
 }
 
-fn free_c_string(str: *mut libc::c_char) {
-    if str.is_null() {
-        return;
-    }
-    unsafe {
-        _ = CString::from_raw(str);
-    }
-}
-
 fn free_c_xdr(xdr: CXDR) {
     if xdr.xdr.is_null() {
         return;
     }
     unsafe {
-        let _ = Vec::from_raw_parts(xdr.xdr, xdr.len, xdr.len);
+        _ = Vec::from_raw_parts(xdr.xdr, xdr.len, xdr.len);
     }
 }
 
@@ -536,16 +520,6 @@ fn free_c_xdr_diff_array(xdr_array: CXDRDiffVector) {
             free_c_xdr(diff.after);
         }
     }
-}
-
-fn from_c_string(str: *const libc::c_char) -> String {
-    let c_str = unsafe { CStr::from_ptr(str) };
-    c_str.to_str().unwrap().to_string()
-}
-
-fn from_c_xdr(xdr: CXDR) -> Vec<u8> {
-    let s = unsafe { slice::from_raw_parts(xdr.xdr, xdr.len) };
-    s.to_vec()
 }
 
 // Functions imported from Golang
@@ -579,7 +553,7 @@ impl GoLedgerStorage {
         if res.xdr.is_null() {
             return None;
         }
-        let v = from_c_xdr(res);
+        let v = unsafe { from_c_xdr(res) };
         unsafe { FreeGoXDR(res) };
         Some(v)
     }
