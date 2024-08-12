@@ -28,23 +28,15 @@ type LedgerWriter interface {
 }
 
 type ledgerReader struct {
-	db                         *DB
-	latestLedgerSeqCache       uint32
-	latestLedgerCloseTimeCache int64
+	db *DB
 }
 
 func NewLedgerReader(db *DB) LedgerReader {
-	db.cache.RLock()
-	defer db.cache.RUnlock()
-	return &ledgerReader{
-		db:                         db,
-		latestLedgerSeqCache:       db.cache.latestLedgerSeq,
-		latestLedgerCloseTimeCache: db.cache.latestLedgerCloseTime,
-	}
+	return ledgerReader{db: db}
 }
 
 // StreamAllLedgers runs f over all the ledgers in the database (until f errors or signals it's done).
-func (r *ledgerReader) StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error {
+func (r ledgerReader) StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error {
 	sql := sq.Select("meta").From(ledgerCloseMetaTableName).OrderBy("sequence asc")
 	q, err := r.db.Query(ctx, sql)
 	if err != nil {
@@ -64,7 +56,7 @@ func (r *ledgerReader) StreamAllLedgers(ctx context.Context, f StreamLedgerFn) e
 }
 
 // GetLedger fetches a single ledger from the db.
-func (r *ledgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
+func (r ledgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
 	sql := sq.Select("meta").From(ledgerCloseMetaTableName).Where(sq.Eq{"sequence": sequence})
 	var results []xdr.LedgerCloseMeta
 	if err := r.db.Select(ctx, &results, sql); err != nil {
@@ -82,9 +74,17 @@ func (r *ledgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.Ledg
 }
 
 // GetLedgerRange pulls the min/max ledger sequence numbers from the meta table.
-func (r *ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
+func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
+	var latestLedgerSeqCache uint32
+	var latestLedgerCloseTimeCache int64
+
+	r.db.cache.RLock()
+	latestLedgerSeqCache = r.db.cache.latestLedgerSeq
+	latestLedgerCloseTimeCache = r.db.cache.latestLedgerCloseTime
+	r.db.cache.RUnlock()
+
 	// Make use of the cached latest ledger seq and close time to query only the oldest ledger details.
-	if r.latestLedgerSeqCache != 0 {
+	if latestLedgerSeqCache != 0 {
 		query := sq.Select("meta").
 			From(ledgerCloseMetaTableName).
 			Where(
@@ -101,8 +101,8 @@ func (r *ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.L
 				CloseTime: lcm[0].LedgerCloseTime(),
 			},
 			LastLedger: ledgerbucketwindow.LedgerInfo{
-				Sequence:  r.latestLedgerSeqCache,
-				CloseTime: r.latestLedgerCloseTimeCache,
+				Sequence:  latestLedgerSeqCache,
+				CloseTime: latestLedgerCloseTimeCache,
 			},
 		}, nil
 	}
@@ -123,9 +123,6 @@ func (r *ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.L
 	if len(lcms) == 0 {
 		return ledgerbucketwindow.LedgerRange{}, ErrEmptyDB
 	}
-
-	r.latestLedgerSeqCache = lcms[len(lcms)-1].LedgerSequence()
-	r.latestLedgerCloseTimeCache = lcms[len(lcms)-1].LedgerCloseTime()
 
 	return ledgerbucketwindow.LedgerRange{
 		FirstLedger: ledgerbucketwindow.LedgerInfo{
