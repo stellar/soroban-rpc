@@ -39,7 +39,6 @@ const (
 	defaultReadTimeout                    = 5 * time.Second
 	defaultShutdownGracePeriod            = 10 * time.Second
 	inMemoryInitializationLedgerLogPeriod = 1_000_000
-	firstLedger                           = 2
 )
 
 type Daemon struct {
