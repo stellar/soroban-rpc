@@ -3,6 +3,7 @@ package methods
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -30,6 +31,7 @@ type TransactionsPaginationOptions struct {
 type GetTransactionsRequest struct {
 	StartLedger uint32                         `json:"startLedger"`
 	Pagination  *TransactionsPaginationOptions `json:"pagination,omitempty"`
+	Format      string                         `json:"xdrFormat,omitempty"`
 }
 
 // isValid checks the validity of the request parameters.
@@ -50,7 +52,7 @@ func (req GetTransactionsRequest) isValid(maxLimit uint, ledgerRange ledgerbucke
 		return fmt.Errorf("limit must not exceed %d", maxLimit)
 	}
 
-	return nil
+	return IsValidFormat(req.Format)
 }
 
 type TransactionInfo struct {
@@ -61,15 +63,19 @@ type TransactionInfo struct {
 	ApplicationOrder int32 `json:"applicationOrder"`
 	// FeeBump indicates whether the transaction is a feebump transaction
 	FeeBump bool `json:"feeBump"`
-	// EnvelopeXdr is the TransactionEnvelope XDR value.
-	EnvelopeXdr string `json:"envelopeXdr"`
-	// ResultXdr is the TransactionResult XDR value.
-	ResultXdr string `json:"resultXdr"`
-	// ResultMetaXdr is the TransactionMeta XDR value.
-	ResultMetaXdr string `json:"resultMetaXdr"`
+	// EnvelopeXDR is the TransactionEnvelope XDR value.
+	EnvelopeXDR  string          `json:"envelopeXdr,omitempty"`
+	EnvelopeJSON json.RawMessage `json:"envelopeJson,omitempty"`
+	// ResultXDR is the TransactionResult XDR value.
+	ResultXDR  string          `json:"resultXdr,omitempty"`
+	ResultJSON json.RawMessage `json:"resultJson,omitempty"`
+	// ResultMetaXDR is the TransactionMeta XDR value.
+	ResultMetaXDR  string          `json:"resultMetaXdr,omitempty"`
+	ResultMetaJSON json.RawMessage `json:"resultMetaJson,omitempty"`
 	// DiagnosticEventsXDR is present only if transaction was not successful.
 	// DiagnosticEventsXDR is a base64-encoded slice of xdr.DiagnosticEvent
-	DiagnosticEventsXDR []string `json:"diagnosticEventsXdr,omitempty"`
+	DiagnosticEventsXDR  []string          `json:"diagnosticEventsXdr,omitempty"`
+	DiagnosticEventsJSON []json.RawMessage `json:"diagnosticEventsJson,omitempty"`
 	// Ledger is the sequence of the ledger which included the transaction.
 	Ledger uint32 `json:"ledger"`
 	// LedgerCloseTime is the unix timestamp of when the transaction was included in the ledger.
@@ -138,8 +144,10 @@ func (h transactionsRPCHandler) fetchLedgerData(ctx context.Context, ledgerSeq u
 
 // processTransactionsInLedger cycles through all the transactions in a ledger, extracts the transaction info
 // and builds the list of transactions.
-func (h transactionsRPCHandler) processTransactionsInLedger(ledger xdr.LedgerCloseMeta, start toid.ID,
+func (h transactionsRPCHandler) processTransactionsInLedger(
+	ledger xdr.LedgerCloseMeta, start toid.ID,
 	txns *[]TransactionInfo, limit uint,
+	format string,
 ) (*toid.ID, bool, error) {
 	reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(h.networkPassphrase, ledger)
 	if err != nil {
@@ -186,15 +194,42 @@ func (h transactionsRPCHandler) processTransactionsInLedger(ledger xdr.LedgerClo
 		}
 
 		txInfo := TransactionInfo{
-			ApplicationOrder:    tx.ApplicationOrder,
-			FeeBump:             tx.FeeBump,
-			ResultXdr:           base64.StdEncoding.EncodeToString(tx.Result),
-			ResultMetaXdr:       base64.StdEncoding.EncodeToString(tx.Meta),
-			EnvelopeXdr:         base64.StdEncoding.EncodeToString(tx.Envelope),
-			DiagnosticEventsXDR: base64EncodeSlice(tx.Events),
-			Ledger:              tx.Ledger.Sequence,
-			LedgerCloseTime:     tx.Ledger.CloseTime,
+			ApplicationOrder: tx.ApplicationOrder,
+			FeeBump:          tx.FeeBump,
+			Ledger:           tx.Ledger.Sequence,
+			LedgerCloseTime:  tx.Ledger.CloseTime,
 		}
+
+		switch format {
+		case FormatJSON:
+			result, envelope, meta, convErr := transactionToJSON(tx)
+			if convErr != nil {
+				return nil, false, &jrpc2.Error{
+					Code:    jrpc2.InternalError,
+					Message: convErr.Error(),
+				}
+			}
+
+			diagEvents, convErr := jsonifySlice(xdr.DiagnosticEvent{}, tx.Events)
+			if convErr != nil {
+				return nil, false, &jrpc2.Error{
+					Code:    jrpc2.InternalError,
+					Message: convErr.Error(),
+				}
+			}
+
+			txInfo.ResultJSON = result
+			txInfo.ResultMetaJSON = envelope
+			txInfo.EnvelopeJSON = meta
+			txInfo.DiagnosticEventsJSON = diagEvents
+
+		default:
+			txInfo.ResultXDR = base64.StdEncoding.EncodeToString(tx.Result)
+			txInfo.ResultMetaXDR = base64.StdEncoding.EncodeToString(tx.Meta)
+			txInfo.EnvelopeXDR = base64.StdEncoding.EncodeToString(tx.Envelope)
+			txInfo.DiagnosticEventsXDR = base64EncodeSlice(tx.Events)
+		}
+
 		txInfo.Status = TransactionStatusFailed
 		if tx.Successful {
 			txInfo.Status = TransactionStatusSuccess
@@ -246,7 +281,7 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 			return GetTransactionsResponse{}, err
 		}
 
-		cursor, done, err = h.processTransactionsInLedger(ledger, start, &txns, limit)
+		cursor, done, err = h.processTransactionsInLedger(ledger, start, &txns, limit, request.Format)
 		if err != nil {
 			return GetTransactionsResponse{}, err
 		}
