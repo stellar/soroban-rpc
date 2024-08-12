@@ -107,10 +107,10 @@ func (g *GetEventsRequest) Valid(maxLimit uint) error {
 	// Validate the paging limit (if it exists)
 	if g.Pagination != nil && g.Pagination.Cursor != nil {
 		if g.StartLedger != 0 || g.EndLedger != 0 {
-			return fmt.Errorf("startLedger/endLedger and cursor cannot both be set")
+			return errors.New("startLedger/endLedger and cursor cannot both be set") //nolint:forbidigo
 		}
 	} else if g.StartLedger <= 0 {
-		return fmt.Errorf("startLedger must be positive")
+		return errors.New("startLedger must be positive")
 	}
 
 	if g.Pagination != nil && g.Pagination.Limit > maxLimit {
@@ -119,11 +119,11 @@ func (g *GetEventsRequest) Valid(maxLimit uint) error {
 
 	// Validate filters
 	if len(g.Filters) > maxFiltersLimit {
-		return fmt.Errorf("maximum 5 filters per request")
+		return errors.New("maximum 5 filters per request")
 	}
 	for i, filter := range g.Filters {
 		if err := filter.Valid(); err != nil {
-			return fmt.Errorf("filter %d invalid: %w", i+1, err)
+			return errors.Wrapf(err, "filter %d invalid: %w", i+1)
 		}
 	}
 

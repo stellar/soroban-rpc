@@ -1239,7 +1239,7 @@ func getTxMetaWithContractEvents(contractID xdr.Hash) []xdr.TransactionMeta {
 		counters[j] = xdr.ScSymbol("TEST-COUNTER-" + strconv.Itoa(j+1))
 	}
 
-	var events []xdr.ContractEvent
+	events := make([]xdr.ContractEvent, 0, 10)
 	for i := range []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9} {
 		contractEvent := contractEvent(
 			contractID,
