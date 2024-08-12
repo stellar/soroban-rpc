@@ -133,9 +133,6 @@ func TestGetLedgerRange_NonEmptyDB(t *testing.T) {
 	require.NoError(t, write.Commit(lcms[len(lcms)-1]))
 
 	reader := NewLedgerReader(db)
-	// tx, err := reader.NewTx(ctx)
-	// require.NoError(t, err)
-
 	ledgerRange, err := reader.GetLedgerRange(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, uint32(1334), ledgerRange.FirstLedger.Sequence)
@@ -164,9 +161,6 @@ func TestGetLedgerRange_SingleDBRow(t *testing.T) {
 	require.NoError(t, write.Commit(lcms[len(lcms)-1]))
 
 	reader := NewLedgerReader(db)
-	// tx, err := reader.NewTx(ctx)
-	// require.NoError(t, err)
-
 	ledgerRange, err := reader.GetLedgerRange(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, uint32(1334), ledgerRange.FirstLedger.Sequence)
@@ -180,9 +174,6 @@ func TestGetLedgerRange_EmptyDB(t *testing.T) {
 	ctx := context.TODO()
 
 	reader := NewLedgerReader(db)
-	// tx, err := reader.NewTx(ctx)
-	// require.NoError(t, err)
-
 	ledgerRange, err := reader.GetLedgerRange(ctx)
 	assert.Equal(t, ErrEmptyDB, err)
 	assert.Equal(t, uint32(0), ledgerRange.FirstLedger.Sequence)
@@ -211,8 +202,6 @@ func BenchmarkGetLedgerRange(b *testing.B) {
 	}
 	require.NoError(b, write.Commit(lcms[len(lcms)-1]))
 	reader := NewLedgerReader(db)
-	// tx, err := reader.NewTx(ctx)
-	// require.NoError(b, err)
 
 	b.ResetTimer()
 	for range b.N {
