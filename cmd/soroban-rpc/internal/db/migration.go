@@ -66,7 +66,6 @@ func (m migrationApplierFactoryF) New(db *DB) (MigrationApplier, error) {
 type Migration interface {
 	MigrationApplier
 	Commit(ctx context.Context) error
-	Rollback(ctx context.Context) error
 }
 
 type MultiMigration []Migration
@@ -104,16 +103,6 @@ func (mm MultiMigration) Commit(ctx context.Context) error {
 	return err
 }
 
-func (mm MultiMigration) Rollback(ctx context.Context) error {
-	var err error
-	for _, m := range mm {
-		if localErr := m.Rollback(ctx); localErr != nil {
-			err = errors.Join(err, localErr)
-		}
-	}
-	return err
-}
-
 // guardedMigration is a db data migration whose application is guarded by a boolean in the meta table
 // (after the migration is applied the boolean is set to true, so that the migration is not applied again)
 type guardedMigration struct {
@@ -131,12 +120,10 @@ func newGuardedDataMigration(
 	metaKey := "Migration" + uniqueMigrationName + "Done"
 	previouslyMigrated, err := getMetaBool(ctx, db, metaKey)
 	if err != nil && !errors.Is(err, ErrEmptyDB) {
-		err = errors.Join(err, db.Rollback())
 		return nil, err
 	}
 	applier, err := factory.New(db)
 	if err != nil {
-		err = errors.Join(err, db.Rollback())
 		return nil, err
 	}
 	guardedMigration := &guardedMigration{
@@ -174,10 +161,6 @@ func (g *guardedMigration) Commit(ctx context.Context) error {
 		return nil
 	}
 	return setMetaBool(ctx, g.db, g.guardMetaKey, true)
-}
-
-func (g *guardedMigration) Rollback(_ context.Context) error {
-	return g.db.Rollback()
 }
 
 func GetMigrationLedgerRange(ctx context.Context, db *DB, retentionWindow uint32) (*LedgerSeqRange, error) {

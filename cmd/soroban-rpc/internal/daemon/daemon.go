@@ -328,7 +328,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 
 	dataMigrations, err := db.BuildMigrations(readTxMetaCtx, d.logger, d.db, cfg.NetworkPassphrase, ledgerSeqRange)
 	if err != nil {
-		d.logger.WithError(err).Fatal("could not build migrations")
+		d.logger.WithError(err).Fatal("could not build migrations: ", d.db.Rollback())
 	}
 
 	// Apply migration for events, transactions and fee stats
@@ -350,23 +350,19 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 			}
 
 			if err = feeWindows.IngestFees(txMeta); err != nil {
-				d.logger.WithError(err).Fatal("could not initialize fee stats")
+				d.logger.WithError(err).Fatal("could not initialize fee stats: ", d.db.Rollback())
 			}
 
 			if err := dataMigrations.Apply(readTxMetaCtx, txMeta); err != nil {
-				dbErr := dataMigrations.Rollback(readTxMetaCtx)
-				if dbErr != nil {
-					d.logger.WithError(dbErr).Fatal("could not rollback migration for ledger: ", currentSeq)
-				}
-				d.logger.WithError(err).Fatal("could not apply migration for ledger: ", currentSeq)
+				d.logger.WithError(err).Fatal("could not apply migration for ledger ", currentSeq, ": ", d.db.Rollback())
 			}
 			return nil
 		})
 	if err != nil {
-		d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
+		d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database: ", d.db.Rollback())
 	}
 	if err := dataMigrations.Commit(readTxMetaCtx); err != nil {
-		d.logger.WithError(err).Fatal("could not commit data migrations")
+		d.logger.WithError(err).Fatal("could not commit data migrations ", d.db.Rollback())
 	}
 
 	if currentSeq != 0 {
