@@ -2,6 +2,7 @@ package methods
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/creachadair/jrpc2"
@@ -10,20 +11,24 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
 
 //nolint:gochecknoglobals
 var ErrLedgerTTLEntriesCannotBeQueriedDirectly = "ledger ttl entries cannot be queried directly"
 
 type GetLedgerEntriesRequest struct {
-	Keys []string `json:"keys"`
+	Keys   []string `json:"keys"`
+	Format string   `json:"xdrFormat,omitempty"`
 }
 
 type LedgerEntryResult struct {
 	// Original request key matching this LedgerEntryResult.
-	Key string `json:"key"`
+	KeyXDR  string          `json:"key,omitempty"`
+	KeyJSON json.RawMessage `json:"keyJson,omitempty"`
 	// Ledger entry data encoded in base 64.
-	XDR string `json:"xdr"`
+	DataXDR  string          `json:"xdr,omitempty"`
+	DataJSON json.RawMessage `json:"dataJson,omitempty"`
 	// Last modified ledger for this entry.
 	LastModifiedLedger uint32 `json:"lastModifiedLedgerSeq"`
 	// The ledger sequence until the entry is live, available for entries that have associated ttl ledger entries.
@@ -42,6 +47,13 @@ const getLedgerEntriesMaxKeys = 200
 // NewGetLedgerEntriesHandler returns a JSON RPC handler to retrieve the specified ledger entries from Stellar Core.
 func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntryReader) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context, request GetLedgerEntriesRequest) (GetLedgerEntriesResponse, error) {
+		if err := IsValidFormat(request.Format); err != nil {
+			return GetLedgerEntriesResponse{}, &jrpc2.Error{
+				Code:    jrpc2.InvalidParams,
+				Message: err.Error(),
+			}
+		}
+
 		if len(request.Keys) > getLedgerEntriesMaxKeys {
 			return GetLedgerEntriesResponse{}, &jrpc2.Error{
 				Code:    jrpc2.InvalidParams,
@@ -101,32 +113,54 @@ func NewGetLedgerEntriesHandler(logger *log.Entry, ledgerEntryReader db.LedgerEn
 		}
 
 		for _, ledgerKeyAndEntry := range ledgerKeysAndEntries {
-			keyXDR, err := xdr.MarshalBase64(ledgerKeyAndEntry.Key)
-			if err != nil {
-				logger.WithError(err).WithField("request", request).
-					Infof("could not serialize ledger key %v", ledgerKeyAndEntry.Key)
-				return GetLedgerEntriesResponse{}, &jrpc2.Error{
-					Code:    jrpc2.InternalError,
-					Message: fmt.Sprintf("could not serialize ledger key %v", ledgerKeyAndEntry.Key),
+			switch request.Format {
+			case FormatJSON:
+				keyJs, err := xdr2json.ConvertInterface(ledgerKeyAndEntry.Key)
+				if err != nil {
+					return GetLedgerEntriesResponse{}, &jrpc2.Error{
+						Code:    jrpc2.InternalError,
+						Message: err.Error(),
+					}
 				}
-			}
-
-			entryXDR, err := xdr.MarshalBase64(ledgerKeyAndEntry.Entry.Data)
-			if err != nil {
-				logger.WithError(err).WithField("request", request).
-					Infof("could not serialize ledger entry data for ledger entry %v", ledgerKeyAndEntry.Entry)
-				return GetLedgerEntriesResponse{}, &jrpc2.Error{
-					Code:    jrpc2.InternalError,
-					Message: fmt.Sprintf("could not serialize ledger entry data for ledger entry %v", ledgerKeyAndEntry.Entry),
+				entryJs, err := xdr2json.ConvertInterface(ledgerKeyAndEntry.Entry.Data)
+				if err != nil {
+					return GetLedgerEntriesResponse{}, &jrpc2.Error{
+						Code:    jrpc2.InternalError,
+						Message: err.Error(),
+					}
 				}
-			}
 
-			ledgerEntryResults = append(ledgerEntryResults, LedgerEntryResult{
-				Key:                keyXDR,
-				XDR:                entryXDR,
-				LastModifiedLedger: uint32(ledgerKeyAndEntry.Entry.LastModifiedLedgerSeq),
-				LiveUntilLedgerSeq: ledgerKeyAndEntry.LiveUntilLedgerSeq,
-			})
+				ledgerEntryResults = append(ledgerEntryResults, LedgerEntryResult{
+					KeyJSON:            keyJs,
+					DataJSON:           entryJs,
+					LastModifiedLedger: uint32(ledgerKeyAndEntry.Entry.LastModifiedLedgerSeq),
+					LiveUntilLedgerSeq: ledgerKeyAndEntry.LiveUntilLedgerSeq,
+				})
+
+			default:
+				keyXDR, err := xdr.MarshalBase64(ledgerKeyAndEntry.Key)
+				if err != nil {
+					return GetLedgerEntriesResponse{}, &jrpc2.Error{
+						Code:    jrpc2.InternalError,
+						Message: fmt.Sprintf("could not serialize ledger key %v", ledgerKeyAndEntry.Key),
+					}
+				}
+
+				entryXDR, err := xdr.MarshalBase64(ledgerKeyAndEntry.Entry.Data)
+				if err != nil {
+					return GetLedgerEntriesResponse{}, &jrpc2.Error{
+						Code:    jrpc2.InternalError,
+						Message: fmt.Sprintf("could not serialize ledger entry data for ledger entry %v", ledgerKeyAndEntry.Entry),
+					}
+				}
+
+				ledgerEntryResults = append(ledgerEntryResults, LedgerEntryResult{
+					KeyXDR:             keyXDR,
+					DataXDR:            entryXDR,
+					LastModifiedLedger: uint32(ledgerKeyAndEntry.Entry.LastModifiedLedgerSeq),
+					LiveUntilLedgerSeq: ledgerKeyAndEntry.LiveUntilLedgerSeq,
+				})
+			}
 		}
 
 		response := GetLedgerEntriesResponse{

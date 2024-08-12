@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/network"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
 
 func TestEventTypeSetMatches(t *testing.T) {
@@ -624,8 +626,8 @@ func TestGetEvents(t *testing.T) {
 				ContractID:               "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
 				ID:                       id,
 				PagingToken:              id,
-				Topic:                    []string{value},
-				Value:                    value,
+				TopicXDR:                 []string{value},
+				ValueXDR:                 value,
 				InSuccessfulContractCall: true,
 				TransactionHash:          ledgerCloseMeta.TransactionHash(i).HexString(),
 			})
@@ -725,10 +727,11 @@ func TestGetEvents(t *testing.T) {
 
 		id := events.Cursor{Ledger: 1, Tx: 5, Op: 0, Event: 0}.String()
 		assert.NoError(t, err)
-		value, err := xdr.MarshalBase64(xdr.ScVal{
+		scVal := xdr.ScVal{
 			Type: xdr.ScValTypeScvU64,
 			U64:  &number,
-		})
+		}
+		value, err := xdr.MarshalBase64(scVal)
 		assert.NoError(t, err)
 		expected := []EventInfo{
 			{
@@ -738,13 +741,47 @@ func TestGetEvents(t *testing.T) {
 				ContractID:               "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
 				ID:                       id,
 				PagingToken:              id,
-				Topic:                    []string{counterXdr, value},
-				Value:                    value,
+				TopicXDR:                 []string{counterXdr, value},
+				ValueXDR:                 value,
 				InSuccessfulContractCall: true,
 				TransactionHash:          ledgerCloseMeta.TransactionHash(4).HexString(),
 			},
 		}
 		assert.Equal(t, GetEventsResponse{expected, 1}, results)
+
+		results, err = handler.getEvents(GetEventsRequest{
+			StartLedger: 1,
+			Format:      FormatJSON,
+			Filters: []EventFilter{
+				{Topics: []TopicFilter{
+					[]SegmentFilter{
+						{scval: &xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter}},
+						{scval: &xdr.ScVal{Type: xdr.ScValTypeScvU64, U64: &number}},
+					},
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		//
+		// Test that JSON conversion will work correctly
+		//
+
+		expected[0].TopicXDR = nil
+		expected[0].ValueXDR = ""
+
+		valueJs, err := xdr2json.ConvertInterface(scVal)
+		require.NoError(t, err)
+
+		topicsJs := make([]json.RawMessage, 2)
+		for i, scv := range []xdr.ScVal{counterScVal, scVal} {
+			topicsJs[i], err = xdr2json.ConvertInterface(scv)
+			require.NoError(t, err)
+		}
+
+		expected[0].ValueJSON = valueJs
+		expected[0].TopicJSON = topicsJs
+		require.Equal(t, GetEventsResponse{expected, 1}, results)
 	})
 
 	t.Run("filtering by both contract id and topic", func(t *testing.T) {
@@ -834,8 +871,8 @@ func TestGetEvents(t *testing.T) {
 				ContractID:               strkey.MustEncode(strkey.VersionByteContract, contractID[:]),
 				ID:                       id,
 				PagingToken:              id,
-				Topic:                    []string{counterXdr, value},
-				Value:                    value,
+				TopicXDR:                 []string{counterXdr, value},
+				ValueXDR:                 value,
 				InSuccessfulContractCall: true,
 				TransactionHash:          ledgerCloseMeta.TransactionHash(3).HexString(),
 			},
@@ -896,8 +933,8 @@ func TestGetEvents(t *testing.T) {
 				ContractID:               strkey.MustEncode(strkey.VersionByteContract, contractID[:]),
 				ID:                       id,
 				PagingToken:              id,
-				Topic:                    []string{counterXdr},
-				Value:                    counterXdr,
+				TopicXDR:                 []string{counterXdr},
+				ValueXDR:                 counterXdr,
 				InSuccessfulContractCall: true,
 				TransactionHash:          ledgerCloseMeta.TransactionHash(0).HexString(),
 			},
@@ -953,8 +990,8 @@ func TestGetEvents(t *testing.T) {
 				ContractID:               "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
 				ID:                       id,
 				PagingToken:              id,
-				Topic:                    []string{value},
-				Value:                    value,
+				TopicXDR:                 []string{value},
+				ValueXDR:                 value,
 				InSuccessfulContractCall: true,
 				TransactionHash:          ledgerCloseMeta.TransactionHash(i).HexString(),
 			})
@@ -1039,8 +1076,8 @@ func TestGetEvents(t *testing.T) {
 				ContractID:               strkey.MustEncode(strkey.VersionByteContract, contractID[:]),
 				ID:                       id,
 				PagingToken:              id,
-				Topic:                    []string{counterXdr},
-				Value:                    expectedXdr,
+				TopicXDR:                 []string{counterXdr},
+				ValueXDR:                 expectedXdr,
 				InSuccessfulContractCall: true,
 				TransactionHash:          ledgerCloseMeta.TransactionHash(i).HexString(),
 			})
