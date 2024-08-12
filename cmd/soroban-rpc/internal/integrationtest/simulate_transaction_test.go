@@ -1,3 +1,4 @@
+//nolint:lll
 package integrationtest
 
 import (
@@ -6,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/go/keypair"
@@ -31,9 +31,9 @@ func TestSimulateTransactionSucceeds(t *testing.T) {
 	contractHash := sha256.Sum256(contractBinary)
 	contractHashBytes := xdr.ScBytes(contractHash[:])
 	expectedXdr := xdr.ScVal{Type: xdr.ScValTypeScvBytes, Bytes: &contractHashBytes}
-	assert.Greater(t, result.LatestLedger, uint32(0))
-	assert.Greater(t, result.Cost.CPUInstructions, uint64(0))
-	assert.Greater(t, result.Cost.MemoryBytes, uint64(0))
+	require.Greater(t, result.LatestLedger, uint32(0))
+	require.Greater(t, result.Cost.CPUInstructions, uint64(0))
+	require.Greater(t, result.Cost.MemoryBytes, uint64(0))
 
 	expectedTransactionData := xdr.SorobanTransactionData{
 		Resources: xdr.SorobanResources{
@@ -52,7 +52,7 @@ func TestSimulateTransactionSucceeds(t *testing.T) {
 			WriteBytes:   7048,
 		},
 		// the resulting fee is derived from the compute factors and a default padding is applied to instructions by preflight
-		// for test purposes, the most deterministic way to assert the resulting fee is expected value in test scope, is to capture
+		// for test purposes, the most deterministic way to require the resulting fee is expected value in test scope, is to capture
 		// the resulting fee from current preflight output and re-plug it in here, rather than try to re-implement the cost-model algo
 		// in the test.
 		ResourceFee: 149755,
@@ -60,34 +60,34 @@ func TestSimulateTransactionSucceeds(t *testing.T) {
 
 	// First, decode and compare the transaction data so we get a decent diff if it fails.
 	var transactionData xdr.SorobanTransactionData
-	err := xdr.SafeUnmarshalBase64(result.TransactionData, &transactionData)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedTransactionData.Resources.Footprint, transactionData.Resources.Footprint)
-	assert.InDelta(t, uint32(expectedTransactionData.Resources.Instructions), uint32(transactionData.Resources.Instructions), 3200000)
-	assert.InDelta(t, uint32(expectedTransactionData.Resources.ReadBytes), uint32(transactionData.Resources.ReadBytes), 10)
-	assert.InDelta(t, uint32(expectedTransactionData.Resources.WriteBytes), uint32(transactionData.Resources.WriteBytes), 300)
-	assert.InDelta(t, int64(expectedTransactionData.ResourceFee), int64(transactionData.ResourceFee), 40000)
+	err := xdr.SafeUnmarshalBase64(result.TransactionDataXDR, &transactionData)
+	require.NoError(t, err)
+	require.Equal(t, expectedTransactionData.Resources.Footprint, transactionData.Resources.Footprint)
+	require.InDelta(t, uint32(expectedTransactionData.Resources.Instructions), uint32(transactionData.Resources.Instructions), 3200000)
+	require.InDelta(t, uint32(expectedTransactionData.Resources.ReadBytes), uint32(transactionData.Resources.ReadBytes), 10)
+	require.InDelta(t, uint32(expectedTransactionData.Resources.WriteBytes), uint32(transactionData.Resources.WriteBytes), 300)
+	require.InDelta(t, int64(expectedTransactionData.ResourceFee), int64(transactionData.ResourceFee), 40000)
 
 	// Then decode and check the result xdr, separately so we get a decent diff if it fails.
-	assert.Len(t, result.Results, 1)
+	require.Len(t, result.Results, 1)
 	var resultXdr xdr.ScVal
-	err = xdr.SafeUnmarshalBase64(result.Results[0].XDR, &resultXdr)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedXdr, resultXdr)
+	err = xdr.SafeUnmarshalBase64(result.Results[0].ReturnValueXDR, &resultXdr)
+	require.NoError(t, err)
+	require.Equal(t, expectedXdr, resultXdr)
 
 	// Check state diff
-	assert.Len(t, result.StateChanges, 1)
-	assert.Nil(t, result.StateChanges[0].Before)
-	assert.NotNil(t, result.StateChanges[0].After)
-	assert.Equal(t, methods.LedgerEntryChangeTypeCreated, result.StateChanges[0].Type)
+	require.Len(t, result.StateChanges, 1)
+	require.Nil(t, result.StateChanges[0].BeforeXDR)
+	require.NotNil(t, result.StateChanges[0].AfterXDR)
+	require.Equal(t, methods.LedgerEntryChangeTypeCreated, result.StateChanges[0].Type)
 	var after xdr.LedgerEntry
-	assert.NoError(t, xdr.SafeUnmarshalBase64(*result.StateChanges[0].After, &after))
-	assert.Equal(t, xdr.LedgerEntryTypeContractCode, after.Data.Type)
+	require.NoError(t, xdr.SafeUnmarshalBase64(*result.StateChanges[0].AfterXDR, &after))
+	require.Equal(t, xdr.LedgerEntryTypeContractCode, after.Data.Type)
 	entryKey, err := after.LedgerKey()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	entryKeyB64, err := xdr.MarshalBase64(entryKey)
-	assert.NoError(t, err)
-	assert.Equal(t, entryKeyB64, result.StateChanges[0].Key)
+	require.NoError(t, err)
+	require.Equal(t, entryKeyB64, result.StateChanges[0].KeyXDR)
 
 	// test operation which does not have a source account
 	params = infrastructure.CreateTransactionParams(test.MasterAccount(),
@@ -98,7 +98,7 @@ func TestSimulateTransactionSucceeds(t *testing.T) {
 	resultForRequestWithoutOpSource := infrastructure.SimulateTransactionFromTxParams(t, client, params)
 	// Let's not compare the latest ledger since it may change
 	result.LatestLedger = resultForRequestWithoutOpSource.LatestLedger
-	assert.Equal(t, result, resultForRequestWithoutOpSource)
+	require.Equal(t, result, resultForRequestWithoutOpSource)
 
 	// test that operation source account takes precedence over tx source account
 	params = infrastructure.CreateTransactionParams(
@@ -110,10 +110,10 @@ func TestSimulateTransactionSucceeds(t *testing.T) {
 	)
 
 	resultForRequestWithDifferentTxSource := infrastructure.SimulateTransactionFromTxParams(t, client, params)
-	assert.GreaterOrEqual(t, resultForRequestWithDifferentTxSource.LatestLedger, result.LatestLedger)
+	require.GreaterOrEqual(t, resultForRequestWithDifferentTxSource.LatestLedger, result.LatestLedger)
 	// apart from latest ledger the response should be the same
 	resultForRequestWithDifferentTxSource.LatestLedger = result.LatestLedger
-	assert.Equal(t, result, resultForRequestWithDifferentTxSource)
+	require.Equal(t, result, resultForRequestWithDifferentTxSource)
 }
 
 func TestSimulateTransactionWithAuth(t *testing.T) {
@@ -130,11 +130,11 @@ func TestSimulateTransactionWithAuth(t *testing.T) {
 	client := test.GetRPCLient()
 	response := infrastructure.SimulateTransactionFromTxParams(t, client, deployContractParams)
 	require.NotEmpty(t, response.Results)
-	require.Len(t, response.Results[0].Auth, 1)
+	require.Len(t, response.Results[0].AuthXDR, 1)
 	require.Empty(t, deployContractOp.Auth)
 
 	var auth xdr.SorobanAuthorizationEntry
-	assert.NoError(t, xdr.SafeUnmarshalBase64(response.Results[0].Auth[0], &auth))
+	require.NoError(t, xdr.SafeUnmarshalBase64(response.Results[0].AuthXDR[0], &auth))
 	require.Equal(t, auth.Credentials.Type, xdr.SorobanCredentialsTypeSorobanCredentialsSourceAccount)
 	deployContractOp.Auth = append(deployContractOp.Auth, auth)
 	deployContractParams.Operations = []txnbuild.Operation{deployContractOp}
@@ -142,7 +142,7 @@ func TestSimulateTransactionWithAuth(t *testing.T) {
 	// preflight deployContractOp with auth
 	deployContractParams = infrastructure.PreflightTransactionParams(t, client, deployContractParams)
 	tx, err := txnbuild.NewTransaction(deployContractParams)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	test.SendMasterTransaction(tx)
 }
 
@@ -179,90 +179,90 @@ func TestSimulateInvokeContractTransactionSucceeds(t *testing.T) {
 		),
 	)
 	tx, err := txnbuild.NewTransaction(params)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	txB64, err := tx.Base64()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	request := methods.SimulateTransactionRequest{Transaction: txB64}
 	var response methods.SimulateTransactionResponse
 	err = test.GetRPCLient().CallResult(context.Background(), "simulateTransaction", request, &response)
-	assert.NoError(t, err)
-	assert.Empty(t, response.Error)
+	require.NoError(t, err)
+	require.Empty(t, response.Error)
 
 	// check the result
-	assert.Len(t, response.Results, 1)
+	require.Len(t, response.Results, 1)
 	var obtainedResult xdr.ScVal
-	err = xdr.SafeUnmarshalBase64(response.Results[0].XDR, &obtainedResult)
-	assert.NoError(t, err)
-	assert.Equal(t, xdr.ScValTypeScvAddress, obtainedResult.Type)
+	err = xdr.SafeUnmarshalBase64(response.Results[0].ReturnValueXDR, &obtainedResult)
+	require.NoError(t, err)
+	require.Equal(t, xdr.ScValTypeScvAddress, obtainedResult.Type)
 	require.NotNil(t, obtainedResult.Address)
-	assert.Equal(t, authAccountIDArg, obtainedResult.Address.MustAccountId())
+	require.Equal(t, authAccountIDArg, obtainedResult.Address.MustAccountId())
 
 	// check the footprint
 	var obtainedTransactionData xdr.SorobanTransactionData
-	err = xdr.SafeUnmarshalBase64(response.TransactionData, &obtainedTransactionData)
+	err = xdr.SafeUnmarshalBase64(response.TransactionDataXDR, &obtainedTransactionData)
 	obtainedFootprint := obtainedTransactionData.Resources.Footprint
-	assert.NoError(t, err)
-	assert.Len(t, obtainedFootprint.ReadWrite, 1)
-	assert.Len(t, obtainedFootprint.ReadOnly, 3)
+	require.NoError(t, err)
+	require.Len(t, obtainedFootprint.ReadWrite, 1)
+	require.Len(t, obtainedFootprint.ReadOnly, 3)
 	ro0 := obtainedFootprint.ReadOnly[0]
-	assert.Equal(t, xdr.LedgerEntryTypeAccount, ro0.Type)
-	assert.Equal(t, authAddrArg, ro0.Account.AccountId.Address())
+	require.Equal(t, xdr.LedgerEntryTypeAccount, ro0.Type)
+	require.Equal(t, authAddrArg, ro0.Account.AccountId.Address())
 	ro1 := obtainedFootprint.ReadOnly[1]
-	assert.Equal(t, xdr.LedgerEntryTypeContractData, ro1.Type)
-	assert.Equal(t, xdr.ScAddressTypeScAddressTypeContract, ro1.ContractData.Contract.Type)
-	assert.Equal(t, xdr.Hash(contractID), *ro1.ContractData.Contract.ContractId)
-	assert.Equal(t, xdr.ScValTypeScvLedgerKeyContractInstance, ro1.ContractData.Key.Type)
+	require.Equal(t, xdr.LedgerEntryTypeContractData, ro1.Type)
+	require.Equal(t, xdr.ScAddressTypeScAddressTypeContract, ro1.ContractData.Contract.Type)
+	require.Equal(t, xdr.Hash(contractID), *ro1.ContractData.Contract.ContractId)
+	require.Equal(t, xdr.ScValTypeScvLedgerKeyContractInstance, ro1.ContractData.Key.Type)
 	ro2 := obtainedFootprint.ReadOnly[2]
-	assert.Equal(t, xdr.LedgerEntryTypeContractCode, ro2.Type)
-	assert.Equal(t, contractHash, ro2.ContractCode.Hash)
-	assert.NoError(t, err)
+	require.Equal(t, xdr.LedgerEntryTypeContractCode, ro2.Type)
+	require.Equal(t, contractHash, ro2.ContractCode.Hash)
+	require.NoError(t, err)
 
-	assert.NotZero(t, obtainedTransactionData.ResourceFee)
-	assert.NotZero(t, obtainedTransactionData.Resources.Instructions)
-	assert.NotZero(t, obtainedTransactionData.Resources.ReadBytes)
-	assert.NotZero(t, obtainedTransactionData.Resources.WriteBytes)
+	require.NotZero(t, obtainedTransactionData.ResourceFee)
+	require.NotZero(t, obtainedTransactionData.Resources.Instructions)
+	require.NotZero(t, obtainedTransactionData.Resources.ReadBytes)
+	require.NotZero(t, obtainedTransactionData.Resources.WriteBytes)
 
 	// check the auth
-	assert.Len(t, response.Results[0].Auth, 1)
+	require.Len(t, response.Results[0].AuthXDR, 1)
 	var obtainedAuth xdr.SorobanAuthorizationEntry
-	err = xdr.SafeUnmarshalBase64(response.Results[0].Auth[0], &obtainedAuth)
-	assert.NoError(t, err)
-	assert.Equal(t, obtainedAuth.Credentials.Type, xdr.SorobanCredentialsTypeSorobanCredentialsAddress)
-	assert.Equal(t, obtainedAuth.Credentials.Address.Signature.Type, xdr.ScValTypeScvVoid)
+	err = xdr.SafeUnmarshalBase64(response.Results[0].AuthXDR[0], &obtainedAuth)
+	require.NoError(t, err)
+	require.Equal(t, xdr.SorobanCredentialsTypeSorobanCredentialsAddress, obtainedAuth.Credentials.Type)
+	require.Equal(t, xdr.ScValTypeScvVoid, obtainedAuth.Credentials.Address.Signature.Type)
 
-	assert.NotZero(t, obtainedAuth.Credentials.Address.Nonce)
-	assert.Equal(t, xdr.ScAddressTypeScAddressTypeAccount, obtainedAuth.Credentials.Address.Address.Type)
-	assert.Equal(t, authAddrArg, obtainedAuth.Credentials.Address.Address.AccountId.Address())
+	require.NotZero(t, obtainedAuth.Credentials.Address.Nonce)
+	require.Equal(t, xdr.ScAddressTypeScAddressTypeAccount, obtainedAuth.Credentials.Address.Address.Type)
+	require.Equal(t, authAddrArg, obtainedAuth.Credentials.Address.Address.AccountId.Address())
 
-	assert.Equal(t, xdr.SorobanCredentialsTypeSorobanCredentialsAddress, obtainedAuth.Credentials.Type)
-	assert.Equal(t, xdr.ScAddressTypeScAddressTypeAccount, obtainedAuth.Credentials.Address.Address.Type)
-	assert.Equal(t, authAddrArg, obtainedAuth.Credentials.Address.Address.AccountId.Address())
-	assert.Equal(t, xdr.SorobanAuthorizedFunctionTypeSorobanAuthorizedFunctionTypeContractFn, obtainedAuth.RootInvocation.Function.Type)
-	assert.Equal(t, xdr.ScSymbol("auth"), obtainedAuth.RootInvocation.Function.ContractFn.FunctionName)
-	assert.Len(t, obtainedAuth.RootInvocation.Function.ContractFn.Args, 2)
+	require.Equal(t, xdr.SorobanCredentialsTypeSorobanCredentialsAddress, obtainedAuth.Credentials.Type)
+	require.Equal(t, xdr.ScAddressTypeScAddressTypeAccount, obtainedAuth.Credentials.Address.Address.Type)
+	require.Equal(t, authAddrArg, obtainedAuth.Credentials.Address.Address.AccountId.Address())
+	require.Equal(t, xdr.SorobanAuthorizedFunctionTypeSorobanAuthorizedFunctionTypeContractFn, obtainedAuth.RootInvocation.Function.Type)
+	require.Equal(t, xdr.ScSymbol("auth"), obtainedAuth.RootInvocation.Function.ContractFn.FunctionName)
+	require.Len(t, obtainedAuth.RootInvocation.Function.ContractFn.Args, 2)
 	world := obtainedAuth.RootInvocation.Function.ContractFn.Args[1]
-	assert.Equal(t, xdr.ScValTypeScvSymbol, world.Type)
-	assert.Equal(t, xdr.ScSymbol("world"), *world.Sym)
-	assert.Nil(t, obtainedAuth.RootInvocation.SubInvocations)
+	require.Equal(t, xdr.ScValTypeScvSymbol, world.Type)
+	require.Equal(t, xdr.ScSymbol("world"), *world.Sym)
+	require.Nil(t, obtainedAuth.RootInvocation.SubInvocations)
 
 	// check the events. There will be 2 debug events and the event emitted by the "auth" function
 	// which is the one we are going to check.
-	assert.Len(t, response.Events, 3)
+	require.Len(t, response.EventsXDR, 3)
 	var event xdr.DiagnosticEvent
-	err = xdr.SafeUnmarshalBase64(response.Events[1], &event)
-	assert.NoError(t, err)
-	assert.True(t, event.InSuccessfulContractCall)
-	assert.NotNil(t, event.Event.ContractId)
-	assert.Equal(t, xdr.Hash(contractID), *event.Event.ContractId)
-	assert.Equal(t, xdr.ContractEventTypeContract, event.Event.Type)
-	assert.Equal(t, int32(0), event.Event.Body.V)
-	assert.Equal(t, xdr.ScValTypeScvSymbol, event.Event.Body.V0.Data.Type)
-	assert.Equal(t, xdr.ScSymbol("world"), *event.Event.Body.V0.Data.Sym)
-	assert.Len(t, event.Event.Body.V0.Topics, 1)
-	assert.Equal(t, xdr.ScValTypeScvString, event.Event.Body.V0.Topics[0].Type)
-	assert.Equal(t, xdr.ScString("auth"), *event.Event.Body.V0.Topics[0].Str)
+	err = xdr.SafeUnmarshalBase64(response.EventsXDR[1], &event)
+	require.NoError(t, err)
+	require.True(t, event.InSuccessfulContractCall)
+	require.NotNil(t, event.Event.ContractId)
+	require.Equal(t, xdr.Hash(contractID), *event.Event.ContractId)
+	require.Equal(t, xdr.ContractEventTypeContract, event.Event.Type)
+	require.Equal(t, int32(0), event.Event.Body.V)
+	require.Equal(t, xdr.ScValTypeScvSymbol, event.Event.Body.V0.Data.Type)
+	require.Equal(t, xdr.ScSymbol("world"), *event.Event.Body.V0.Data.Sym)
+	require.Len(t, event.Event.Body.V0.Topics, 1)
+	require.Equal(t, xdr.ScValTypeScvString, event.Event.Body.V0.Topics[0].Type)
+	require.Equal(t, xdr.ScString("auth"), *event.Event.Body.V0.Topics[0].Str)
 }
 
 func TestSimulateTransactionError(t *testing.T) {
@@ -291,11 +291,11 @@ func TestSimulateTransactionError(t *testing.T) {
 		invokeHostOp,
 	)
 	result := infrastructure.SimulateTransactionFromTxParams(t, client, params)
-	assert.Greater(t, result.LatestLedger, uint32(0))
-	assert.Contains(t, result.Error, "MissingValue")
-	require.GreaterOrEqual(t, len(result.Events), 1)
+	require.Greater(t, result.LatestLedger, uint32(0))
+	require.Contains(t, result.Error, "MissingValue")
+	require.GreaterOrEqual(t, len(result.EventsXDR), 1)
 	var event xdr.DiagnosticEvent
-	require.NoError(t, xdr.SafeUnmarshalBase64(result.Events[0], &event))
+	require.NoError(t, xdr.SafeUnmarshalBase64(result.EventsXDR[0], &event))
 }
 
 func TestSimulateTransactionMultipleOperations(t *testing.T) {
@@ -319,7 +319,7 @@ func TestSimulateTransactionMultipleOperations(t *testing.T) {
 
 	client := test.GetRPCLient()
 	result := infrastructure.SimulateTransactionFromTxParams(t, client, params)
-	assert.Equal(
+	require.Equal(
 		t,
 		methods.SimulateTransactionResponse{
 			Error: "Transaction contains more than one operation",
@@ -338,7 +338,7 @@ func TestSimulateTransactionWithoutInvokeHostFunction(t *testing.T) {
 
 	client := test.GetRPCLient()
 	result := infrastructure.SimulateTransactionFromTxParams(t, client, params)
-	assert.Equal(
+	require.Equal(
 		t,
 		methods.SimulateTransactionResponse{
 			Error: "Transaction contains unsupported operation type: OperationTypeBumpSequence",
@@ -355,8 +355,8 @@ func TestSimulateTransactionUnmarshalError(t *testing.T) {
 	request := methods.SimulateTransactionRequest{Transaction: "invalid"}
 	var result methods.SimulateTransactionResponse
 	err := client.CallResult(context.Background(), "simulateTransaction", request, &result)
-	assert.NoError(t, err)
-	assert.Equal(
+	require.NoError(t, err)
+	require.Equal(
 		t,
 		"Could not unmarshal transaction",
 		result.Error,
@@ -383,11 +383,11 @@ func TestSimulateTransactionExtendAndRestoreFootprint(t *testing.T) {
 	var getLedgerEntryResult methods.GetLedgerEntryResponse
 	client := test.GetRPCLient()
 	err = client.CallResult(context.Background(), "getLedgerEntry", getLedgerEntryrequest, &getLedgerEntryResult)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	var entry xdr.LedgerEntryData
-	assert.NoError(t, xdr.SafeUnmarshalBase64(getLedgerEntryResult.XDR, &entry))
-	assert.Equal(t, xdr.LedgerEntryTypeContractData, entry.Type)
+	require.NoError(t, xdr.SafeUnmarshalBase64(getLedgerEntryResult.EntryXDR, &entry))
+	require.Equal(t, xdr.LedgerEntryTypeContractData, entry.Type)
 	require.NotNil(t, getLedgerEntryResult.LiveUntilLedgerSeq)
 
 	initialLiveUntil := *getLedgerEntryResult.LiveUntilLedgerSeq
@@ -409,12 +409,12 @@ func TestSimulateTransactionExtendAndRestoreFootprint(t *testing.T) {
 	)
 
 	err = client.CallResult(context.Background(), "getLedgerEntry", getLedgerEntryrequest, &getLedgerEntryResult)
-	assert.NoError(t, err)
-	assert.NoError(t, xdr.SafeUnmarshalBase64(getLedgerEntryResult.XDR, &entry))
-	assert.Equal(t, xdr.LedgerEntryTypeContractData, entry.Type)
+	require.NoError(t, err)
+	require.NoError(t, xdr.SafeUnmarshalBase64(getLedgerEntryResult.EntryXDR, &entry))
+	require.Equal(t, xdr.LedgerEntryTypeContractData, entry.Type)
 	require.NotNil(t, getLedgerEntryResult.LiveUntilLedgerSeq)
 	newLiveUntilSeq := *getLedgerEntryResult.LiveUntilLedgerSeq
-	assert.Greater(t, newLiveUntilSeq, initialLiveUntil)
+	require.Greater(t, newLiveUntilSeq, initialLiveUntil)
 
 	// Wait until it is not live anymore
 	waitUntilLedgerEntryTTL(t, client, key)
@@ -444,7 +444,7 @@ func TestSimulateTransactionExtendAndRestoreFootprint(t *testing.T) {
 	)
 	simulationResult := infrastructure.SimulateTransactionFromTxParams(t, client, invokeIncPresistentEntryParams)
 	require.NotNil(t, simulationResult.RestorePreamble)
-	assert.NotZero(t, simulationResult.RestorePreamble)
+	require.NotZero(t, simulationResult.RestorePreamble)
 
 	params := infrastructure.PreflightTransactionParamsLocally(
 		t,
@@ -453,19 +453,19 @@ func TestSimulateTransactionExtendAndRestoreFootprint(t *testing.T) {
 			&txnbuild.RestoreFootprint{},
 		),
 		methods.SimulateTransactionResponse{
-			TransactionData: simulationResult.RestorePreamble.TransactionData,
-			MinResourceFee:  simulationResult.RestorePreamble.MinResourceFee,
+			TransactionDataXDR: simulationResult.RestorePreamble.TransactionDataXDR,
+			MinResourceFee:     simulationResult.RestorePreamble.MinResourceFee,
 		},
 	)
 	tx, err := txnbuild.NewTransaction(params)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	test.SendMasterTransaction(tx)
 
 	// Finally, we should be able to send the inc host function invocation now that we
 	// have pre-restored the entries
 	params = infrastructure.PreflightTransactionParamsLocally(t, invokeIncPresistentEntryParams, simulationResult)
 	tx, err = txnbuild.NewTransaction(params)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	test.SendMasterTransaction(tx)
 }
 
@@ -502,7 +502,7 @@ func waitUntilLedgerEntryTTL(t *testing.T, client *infrastructure.Client, ledger
 		err := client.CallResult(context.Background(), "getLedgerEntries", request, &result)
 		require.NoError(t, err)
 		require.NotEmpty(t, result.Entries)
-		require.NoError(t, xdr.SafeUnmarshalBase64(result.Entries[0].XDR, &entry))
+		require.NoError(t, xdr.SafeUnmarshalBase64(result.Entries[0].DataXDR, &entry))
 		require.NotEqual(t, xdr.LedgerEntryTypeTtl, entry.Type)
 		liveUntilLedgerSeq := xdr.Uint32(*result.Entries[0].LiveUntilLedgerSeq)
 		// See https://soroban.stellar.org/docs/fundamentals-and-concepts/state-expiration#expiration-ledger
@@ -564,7 +564,7 @@ func TestSimulateInvokePrng_u64_in_range(t *testing.T) {
 	// check the result
 	require.Len(t, response.Results, 1)
 	var obtainedResult xdr.ScVal
-	err = xdr.SafeUnmarshalBase64(response.Results[0].XDR, &obtainedResult)
+	err = xdr.SafeUnmarshalBase64(response.Results[0].ReturnValueXDR, &obtainedResult)
 	require.NoError(t, err)
 	require.Equal(t, xdr.ScValTypeScvU64, obtainedResult.Type)
 	require.LessOrEqual(t, uint64(*obtainedResult.U64), uint64(high))
@@ -612,19 +612,19 @@ func TestSimulateSystemEvent(t *testing.T) {
 	// check the result
 	require.Len(t, response.Results, 1)
 	var obtainedResult xdr.ScVal
-	err = xdr.SafeUnmarshalBase64(response.Results[0].XDR, &obtainedResult)
+	err = xdr.SafeUnmarshalBase64(response.Results[0].ReturnValueXDR, &obtainedResult)
 	require.NoError(t, err)
 
 	var transactionData xdr.SorobanTransactionData
-	err = xdr.SafeUnmarshalBase64(response.TransactionData, &transactionData)
+	err = xdr.SafeUnmarshalBase64(response.TransactionDataXDR, &transactionData)
 	require.NoError(t, err)
-	assert.InDelta(t, 6856, uint32(transactionData.Resources.ReadBytes), 200)
+	require.InDelta(t, 6856, uint32(transactionData.Resources.ReadBytes), 200)
 
 	// the resulting fee is derived from compute factors and a default padding is applied to instructions by preflight
-	// for test purposes, the most deterministic way to assert the resulting fee is expected value in test scope, is to capture
+	// for test purposes, the most deterministic way to require the resulting fee is expected value in test scope, is to capture
 	// the resulting fee from current preflight output and re-plug it in here, rather than try to re-implement the cost-model algo
 	// in the test.
-	assert.InDelta(t, 70668, int64(transactionData.ResourceFee), 20000)
-	assert.InDelta(t, 104, uint32(transactionData.Resources.WriteBytes), 15)
-	require.GreaterOrEqual(t, len(response.Events), 3)
+	require.InDelta(t, 70668, int64(transactionData.ResourceFee), 20000)
+	require.InDelta(t, 104, uint32(transactionData.Resources.WriteBytes), 15)
+	require.GreaterOrEqual(t, len(response.EventsXDR), 3)
 }

@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/preflight"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
 
 func TestLedgerEntryChange(t *testing.T) {
@@ -36,6 +36,11 @@ func TestLedgerEntryChange(t *testing.T) {
 	require.NoError(t, err)
 	keyB64 := base64.StdEncoding.EncodeToString(keyXDR)
 
+	keyJs, err := xdr2json.ConvertInterface(key)
+	require.NoError(t, err)
+	entryJs, err := xdr2json.ConvertInterface(entry)
+	require.NoError(t, err)
+
 	for _, test := range []struct {
 		name           string
 		input          preflight.XDRDiff
@@ -48,10 +53,10 @@ func TestLedgerEntryChange(t *testing.T) {
 				After:  entryXDR,
 			},
 			expectedOutput: LedgerEntryChange{
-				Type:   LedgerEntryChangeTypeCreated,
-				Key:    keyB64,
-				Before: nil,
-				After:  &entryB64,
+				Type:      LedgerEntryChangeTypeCreated,
+				KeyXDR:    keyB64,
+				BeforeXDR: nil,
+				AfterXDR:  &entryB64,
 			},
 		},
 		{
@@ -61,10 +66,10 @@ func TestLedgerEntryChange(t *testing.T) {
 				After:  nil,
 			},
 			expectedOutput: LedgerEntryChange{
-				Type:   LedgerEntryChangeTypeDeleted,
-				Key:    keyB64,
-				Before: &entryB64,
-				After:  nil,
+				Type:      LedgerEntryChangeTypeDeleted,
+				KeyXDR:    keyB64,
+				BeforeXDR: &entryB64,
+				AfterXDR:  nil,
 			},
 		},
 		{
@@ -74,22 +79,34 @@ func TestLedgerEntryChange(t *testing.T) {
 				After:  entryXDR,
 			},
 			expectedOutput: LedgerEntryChange{
-				Type:   LedgerEntryChangeTypeUpdated,
-				Key:    keyB64,
-				Before: &entryB64,
-				After:  &entryB64,
+				Type:      LedgerEntryChangeTypeUpdated,
+				KeyXDR:    keyB64,
+				BeforeXDR: &entryB64,
+				AfterXDR:  &entryB64,
 			},
 		},
 	} {
 		var change LedgerEntryChange
-		require.NoError(t, change.FromXDRDiff(test.input), test.name)
-		assert.Equal(t, test.expectedOutput, change)
+		require.NoError(t, change.FromXDRDiff(test.input, ""), test.name)
+		require.Equal(t, test.expectedOutput, change)
 
 		// test json roundtrip
 		changeJSON, err := json.Marshal(change)
 		require.NoError(t, err, test.name)
 		var change2 LedgerEntryChange
 		require.NoError(t, json.Unmarshal(changeJSON, &change2))
-		assert.Equal(t, change, change2, test.name)
+		require.Equal(t, change, change2, test.name)
+
+		// test JSON output
+		var changeJs LedgerEntryChange
+		require.NoError(t, changeJs.FromXDRDiff(test.input, FormatJSON), test.name)
+
+		require.Equal(t, keyJs, changeJs.KeyJSON)
+		if changeJs.AfterJSON != nil {
+			require.Equal(t, entryJs, changeJs.AfterJSON)
+		}
+		if changeJs.BeforeJSON != nil {
+			require.Equal(t, entryJs, changeJs.BeforeJSON)
+		}
 	}
 }
