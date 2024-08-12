@@ -107,10 +107,10 @@ func (g *GetEventsRequest) Valid(maxLimit uint) error {
 	// Validate the paging limit (if it exists)
 	if g.Pagination != nil && g.Pagination.Cursor != nil {
 		if g.StartLedger != 0 || g.EndLedger != 0 {
-			return errors.New("startLedger/endLedger and cursor cannot both be set")
+			return fmt.Errorf("startLedger/endLedger and cursor cannot both be set")
 		}
 	} else if g.StartLedger <= 0 {
-		return errors.New("startLedger must be positive")
+		return fmt.Errorf("startLedger must be positive")
 	}
 
 	if g.Pagination != nil && g.Pagination.Limit > maxLimit {
@@ -119,7 +119,7 @@ func (g *GetEventsRequest) Valid(maxLimit uint) error {
 
 	// Validate filters
 	if len(g.Filters) > maxFiltersLimit {
-		return errors.New("maximum 5 filters per request")
+		return fmt.Errorf("maximum 5 filters per request")
 	}
 	for i, filter := range g.Filters {
 		if err := filter.Valid(); err != nil {
@@ -154,10 +154,12 @@ var eventTypeFromXDR = map[xdr.ContractEventType]string{
 	xdr.ContractEventTypeDiagnostic: EventTypeDiagnostic,
 }
 
-var eventTypeXDRFromEventType = map[string]xdr.ContractEventType{
-	EventTypeSystem:     xdr.ContractEventTypeSystem,
-	EventTypeContract:   xdr.ContractEventTypeContract,
-	EventTypeDiagnostic: xdr.ContractEventTypeDiagnostic,
+func getEventTypeXDRFromEventType() map[string]xdr.ContractEventType {
+	return map[string]xdr.ContractEventType{
+		EventTypeSystem:     xdr.ContractEventTypeSystem,
+		EventTypeContract:   xdr.ContractEventTypeContract,
+		EventTypeDiagnostic: xdr.ContractEventTypeDiagnostic,
+	}
 }
 
 type EventFilter struct {
@@ -360,7 +362,7 @@ func combineEventTypes(filters []EventFilter) []int {
 	eventTypes := make(map[int]bool)
 	for _, filter := range filters {
 		for _, eventType := range filter.EventType.Keys() {
-			eventTypeXDR := eventTypeXDRFromEventType[eventType]
+			eventTypeXDR := getEventTypeXDRFromEventType()[eventType]
 			eventTypes[int(eventTypeXDR)] = true
 		}
 	}
@@ -372,7 +374,7 @@ func combineEventTypes(filters []EventFilter) []int {
 }
 
 func combineTopics(filters []EventFilter) ([][]string, error) {
-	encodedTopicsList := make([][]string, 4)
+	encodedTopicsList := make([][]string, maxTopicCount)
 
 	for _, filter := range filters {
 		if len(filter.Topics) == 0 {
@@ -529,7 +531,7 @@ func eventInfoForEvent(
 	}
 
 	// base64-xdr encode the topic
-	topic := make([]string, 0, 4)
+	topic := make([]string, 0, maxTopicCount)
 	for _, segment := range v0.Topics {
 		seg, err := xdr.MarshalBase64(segment)
 		if err != nil {
