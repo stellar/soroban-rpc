@@ -122,6 +122,8 @@ func (l *LedgerEntryChange) FromXDRDiff(diff preflight.XDRDiff, format string) e
 		return errors.New("missing before and after")
 	}
 
+	l.Type = changeType
+
 	// We need to unmarshal the ledger entry for both b64 and json cases
 	// because we need the inner ledger key.
 	var entry xdr.LedgerEntry
@@ -157,7 +159,6 @@ func (l *LedgerEntryChange) FromXDRDiff(diff preflight.XDRDiff, format string) e
 		}
 	}
 
-	l.Type = changeType
 	return nil
 }
 
