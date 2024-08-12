@@ -79,14 +79,6 @@ func (txn *MockTransactionHandler) GetTransaction(_ context.Context, hash xdr.Ha
 
 func (txn *MockTransactionHandler) RegisterMetrics(_, _ prometheus.Observer) {}
 
-type MockLedgerReaderTx struct {
-	reader *MockLedgerReader
-}
-
-func (tx *MockLedgerReaderTx) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
-	return tx.reader.txn.ledgerRange, nil
-}
-
 type MockLedgerReader struct {
 	txn *MockTransactionHandler
 }
@@ -95,12 +87,6 @@ func NewMockLedgerReader(txn *MockTransactionHandler) *MockLedgerReader {
 	return &MockLedgerReader{
 		txn: txn,
 	}
-}
-
-func (m *MockLedgerReader) NewTx(_ context.Context) (LedgerReaderTx, error) {
-	return &MockLedgerReaderTx{
-		reader: m,
-	}, nil
 }
 
 func (m *MockLedgerReader) GetLedger(_ context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
@@ -113,6 +99,10 @@ func (m *MockLedgerReader) GetLedger(_ context.Context, sequence uint32) (xdr.Le
 
 func (m *MockLedgerReader) StreamAllLedgers(_ context.Context, _ StreamLedgerFn) error {
 	return nil
+}
+
+func (m *MockLedgerReader) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
+	return m.txn.ledgerRange, nil
 }
 
 var (

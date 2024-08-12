@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
@@ -21,7 +20,7 @@ type StreamLedgerFn func(xdr.LedgerCloseMeta) error
 type LedgerReader interface {
 	GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error)
 	StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error
-	NewTx(ctx context.Context) (LedgerReaderTx, error)
+	GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error)
 }
 
 type LedgerWriter interface {
@@ -29,21 +28,61 @@ type LedgerWriter interface {
 }
 
 type ledgerReader struct {
-	db *DB
-}
-
-type LedgerReaderTx interface {
-	GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error)
-}
-
-type ledgerReaderTx struct {
 	db                         *DB
 	latestLedgerSeqCache       uint32
 	latestLedgerCloseTimeCache int64
 }
 
+func NewLedgerReader(db *DB) LedgerReader {
+	db.cache.RLock()
+	defer db.cache.RUnlock()
+	return ledgerReader{
+		db:                         db,
+		latestLedgerSeqCache:       db.cache.latestLedgerSeq,
+		latestLedgerCloseTimeCache: db.cache.latestLedgerCloseTime,
+	}
+}
+
+// StreamAllLedgers runs f over all the ledgers in the database (until f errors or signals it's done).
+func (r ledgerReader) StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error {
+	sql := sq.Select("meta").From(ledgerCloseMetaTableName).OrderBy("sequence asc")
+	q, err := r.db.Query(ctx, sql)
+	if err != nil {
+		return err
+	}
+	defer q.Close()
+	for q.Next() {
+		var closeMeta xdr.LedgerCloseMeta
+		if err = q.Scan(&closeMeta); err != nil {
+			return err
+		}
+		if err = f(closeMeta); err != nil {
+			return err
+		}
+	}
+	return q.Err()
+}
+
+// GetLedger fetches a single ledger from the db.
+func (r ledgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
+	sql := sq.Select("meta").From(ledgerCloseMetaTableName).Where(sq.Eq{"sequence": sequence})
+	var results []xdr.LedgerCloseMeta
+	if err := r.db.Select(ctx, &results, sql); err != nil {
+		return xdr.LedgerCloseMeta{}, false, err
+	}
+	switch len(results) {
+	case 0:
+		return xdr.LedgerCloseMeta{}, false, nil
+	case 1:
+		return results[0], true, nil
+	default:
+		return xdr.LedgerCloseMeta{}, false, fmt.Errorf("multiple lcm entries (%d) for sequence %d in table %q",
+			len(results), sequence, ledgerCloseMetaTableName)
+	}
+}
+
 // GetLedgerRange pulls the min/max ledger sequence numbers from the meta table.
-func (r *ledgerReaderTx) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
+func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
 	// Make use of the cached latest ledger seq and close time to query only the oldest ledger details.
 	if r.latestLedgerSeqCache != 0 {
 		query := sq.Select("meta").
@@ -98,62 +137,6 @@ func (r *ledgerReaderTx) GetLedgerRange(ctx context.Context) (ledgerbucketwindow
 			CloseTime: lcms[len(lcms)-1].LedgerCloseTime(),
 		},
 	}, nil
-}
-
-func NewLedgerReader(db *DB) LedgerReader {
-	return ledgerReader{db: db}
-}
-
-func (r ledgerReader) NewTx(ctx context.Context) (LedgerReaderTx, error) {
-	txSession := r.db.Clone()
-	if err := txSession.BeginTx(ctx, &sql.TxOptions{ReadOnly: true}); err != nil {
-		return nil, err
-	}
-	r.db.cache.RLock()
-	defer r.db.cache.RUnlock()
-	return &ledgerReaderTx{
-		db:                         r.db,
-		latestLedgerSeqCache:       r.db.cache.latestLedgerSeq,
-		latestLedgerCloseTimeCache: r.db.cache.latestLedgerCloseTime,
-	}, nil
-}
-
-// StreamAllLedgers runs f over all the ledgers in the database (until f errors or signals it's done).
-func (r ledgerReader) StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error {
-	sql := sq.Select("meta").From(ledgerCloseMetaTableName).OrderBy("sequence asc")
-	q, err := r.db.Query(ctx, sql)
-	if err != nil {
-		return err
-	}
-	defer q.Close()
-	for q.Next() {
-		var closeMeta xdr.LedgerCloseMeta
-		if err = q.Scan(&closeMeta); err != nil {
-			return err
-		}
-		if err = f(closeMeta); err != nil {
-			return err
-		}
-	}
-	return q.Err()
-}
-
-// GetLedger fetches a single ledger from the db.
-func (r ledgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
-	sql := sq.Select("meta").From(ledgerCloseMetaTableName).Where(sq.Eq{"sequence": sequence})
-	var results []xdr.LedgerCloseMeta
-	if err := r.db.Select(ctx, &results, sql); err != nil {
-		return xdr.LedgerCloseMeta{}, false, err
-	}
-	switch len(results) {
-	case 0:
-		return xdr.LedgerCloseMeta{}, false, nil
-	case 1:
-		return results[0], true, nil
-	default:
-		return xdr.LedgerCloseMeta{}, false, fmt.Errorf("multiple lcm entries (%d) for sequence %d in table %q",
-			len(results), sequence, ledgerCloseMetaTableName)
-	}
 }
 
 type ledgerWriter struct {

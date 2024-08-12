@@ -214,15 +214,7 @@ func (h transactionsRPCHandler) processTransactionsInLedger(ledger xdr.LedgerClo
 func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Context,
 	request GetTransactionsRequest,
 ) (GetTransactionsResponse, error) {
-	tx, err := h.ledgerReader.NewTx(ctx)
-	if err != nil {
-		return GetTransactionsResponse{}, jrpc2.Error{
-			Code:    jrpc2.InternalError,
-			Message: fmt.Errorf("could not initialize ledger reader tx: %w", err).Error(),
-		}
-	}
-
-	ledgerRange, err := tx.GetLedgerRange(ctx)
+	ledgerRange, err := h.ledgerReader.GetLedgerRange(ctx)
 	if err != nil {
 		return GetTransactionsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InternalError,

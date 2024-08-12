@@ -26,11 +26,11 @@ type ConstantLedgerEntryReaderTx struct{}
 
 type ConstantLedgerReader struct{}
 
-type ConstantLedgerReaderTx struct{}
+// type ConstantLedgerReaderTx struct{}
 
-func (ledgerReader *ConstantLedgerReader) NewTx(_ context.Context) (db.LedgerReaderTx, error) {
-	return ConstantLedgerReaderTx{}, nil
-}
+//func (ledgerReader *ConstantLedgerReader) NewTx(_ context.Context) (db.LedgerReaderTx, error) {
+//	return ConstantLedgerReaderTx{}, nil
+//}
 
 func (entryReader *ConstantLedgerEntryReader) GetLatestLedgerSequence(_ context.Context) (uint32, error) {
 	return expectedLatestLedgerSequence, nil
@@ -44,7 +44,7 @@ func (entryReader *ConstantLedgerEntryReader) NewCachedTx(_ context.Context) (db
 	return ConstantLedgerEntryReaderTx{}, nil
 }
 
-func (tx ConstantLedgerReaderTx) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
+func (entryReader *ConstantLedgerReader) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
 	return ledgerbucketwindow.LedgerRange{}, nil
 }
 

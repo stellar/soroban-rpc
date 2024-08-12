@@ -24,15 +24,7 @@ func NewHealthCheck(
 	maxHealthyLedgerLatency time.Duration,
 ) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context) (HealthCheckResult, error) {
-		tx, err := ledgerReader.NewTx(ctx)
-		if err != nil {
-			return HealthCheckResult{}, jrpc2.Error{
-				Code:    jrpc2.InternalError,
-				Message: fmt.Errorf("could not initialize ledger reader tx: %w", err).Error(),
-			}
-		}
-
-		ledgerRange, err := tx.GetLedgerRange(ctx)
+		ledgerRange, err := ledgerReader.GetLedgerRange(ctx)
 		if err != nil || ledgerRange.LastLedger.Sequence < 1 {
 			extra := ""
 			if err != nil {
