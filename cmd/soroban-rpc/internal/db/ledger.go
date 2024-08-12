@@ -75,12 +75,9 @@ func (r ledgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.Ledge
 
 // GetLedgerRange pulls the min/max ledger sequence numbers from the meta table.
 func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
-	var latestLedgerSeqCache uint32
-	var latestLedgerCloseTimeCache int64
-
 	r.db.cache.RLock()
-	latestLedgerSeqCache = r.db.cache.latestLedgerSeq
-	latestLedgerCloseTimeCache = r.db.cache.latestLedgerCloseTime
+	latestLedgerSeqCache := r.db.cache.latestLedgerSeq
+	latestLedgerCloseTimeCache := r.db.cache.latestLedgerCloseTime
 	r.db.cache.RUnlock()
 
 	// Make use of the cached latest ledger seq and close time to query only the oldest ledger details.
