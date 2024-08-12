@@ -3,10 +3,47 @@
 ## Unreleased
 
 ### Added
+### What
+* Add support for unpacked JSON responses of base64-encoded XDR fields via a new, optional parameter. When omitted, the behavior does not change and we encode fields as base64.
+```typescript
+xdrFormat?: "" | "base64" | "json"
+```
+  - `getTransaction`
+  - `getTransactions`
+  - `getLedgerEntry`
+  - `getLedgerEntries`
+  - `getEvents`
+  - `sendTransaction`
+  - `simulateTransaction`
+
+There are new field names for the JSONified versions of XDR structures. Any field with an `Xdr` suffix (e.g., `resultXdr` in `getTransaction()`) will be replaced with one that has a `Json` suffix (e.g., `resultJson`) that is a JSON object verbosely and completely describing the XDR structure.
+
+Certain XDR-encoded fields do not have an `Xdr` suffix, but those also have a `*Json` equivalent and are listed below:
+  * _getEvents_: `topic` -> `topicJson`, `value` -> `valueJson`
+  * _getLedgerEntries_: `key` -> `keyJson`, `xdr` -> `dataJson`
+  * _getLedgerEntry_: `xdr` -> `entryJson`
+  * _simulateTransaction_: `transactionData`, `events`, `results.auth`,
+    `restorePreamble.transactionData`, `stateChanges.key|before|after` all have a
+    `Json` suffix, and `results.xdr` is now `results.returnValueJson`
+
+### Fixed
+* Improve performance of `getVersionInfo` and `getNetwork` ([#198](https://github.com/stellar/soroban-rpc/pull/198)).
+
+
+## [v21.4.0](https://github.com/stellar/soroban-rpc/compare/v21.4.0...v21.4.1)
+
+### Fixed
+* Fix parsing of the `--log-format` parameter ([#252](https://github.com/stellar/soroban-rpc/pull/252))
+
+
+## [v21.4.0](https://github.com/stellar/soroban-rpc/compare/v21.2.0...v21.4.0)
+
+### Added
 * Transactions will now be stored in a database rather than in memory ([#174](https://github.com/stellar/soroban-rpc/pull/174)).
 
 You can opt-in to longer transaction retention by setting `--transaction-retention-window` / `TRANSACTION_RETENTION_WINDOW` to a higher number of ledgers. This will also retain corresponding number of ledgers in the database. Keep in mind, of course, that this will cause an increase in disk usage for the growing database.
 
+* Unify transaction and event retention windows ([#234](https://github.com/stellar/soroban-rpc/pull/234)).
 * There is a new `getTransactions` endpoint with the following API ([#136](https://github.com/stellar/soroban-rpc/pull/136)):
 
 ```typescript
@@ -39,6 +76,10 @@ interface Transaction {
   diagnosticEventsXdr?: string[]; // if failed, DiagnosticEvent XDRs
 }
 ```
+
+### Fixed
+* Logging and typo fixes in ([#238](https://github.com/stellar/soroban-rpc/pull/238)).
+* Fix calculation of ledger ranges across endpoints ([#217](https://github.com/stellar/soroban-rpc/pull/217)).
 
 
 ## [v21.2.0](https://github.com/stellar/soroban-rpc/compare/v21.1.0...v21.2.0)
