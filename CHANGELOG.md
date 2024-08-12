@@ -3,7 +3,6 @@
 ## Unreleased
 
 ### Added
-### What
 * Add support for unpacked JSON responses of base64-encoded XDR fields via a new, optional parameter. When omitted, the behavior does not change and we encode fields as base64.
 ```typescript
 xdrFormat?: "" | "base64" | "json"
