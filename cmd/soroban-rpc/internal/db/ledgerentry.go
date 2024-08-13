@@ -146,9 +146,6 @@ type ledgerEntryReadTx struct {
 }
 
 func (l *ledgerEntryReadTx) GetLatestLedgerSequence() (uint32, error) {
-	if l.latestLedgerSeqCache != 0 {
-		return l.latestLedgerSeqCache, nil
-	}
 	latestLedgerSeq, err := getLatestLedgerSequence(context.Background(), l.ledgerReader, l.globalCache)
 	if err == nil {
 		l.latestLedgerSeqCache = latestLedgerSeq
