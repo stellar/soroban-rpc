@@ -15,8 +15,10 @@ sha2 = { workspace = true }
 
 # we need the testutils feature in order to get backtraces in the preflight library
 # when soroban rpc is configured to run with --preflight-enable-debug
-soroban-env-host = { workspace = true, features = ["recording_mode", "testutils", "unstable-next-api"]}
-soroban-simulation = { workspace = true }
+soroban-env-host-prev = { workspace = true, features = ["recording_mode", "testutils", "unstable-next-api"]}
+soroban-simulation-prev = { workspace = true }
+soroban-env-host-curr = { workspace = true, features = ["recording_mode", "testutils", "unstable-next-api"]}
+soroban-simulation-curr = { workspace = true }
 
 anyhow = { workspace = true }
 rand = { workspace = true }
