@@ -596,7 +596,7 @@ func TestGetEvents(t *testing.T) {
 
 		contractID := xdr.Hash([32]byte{})
 		var txMeta []xdr.TransactionMeta
-		for i := 0; i < 10; i++ {
+		for range []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9} {
 			txMeta = append(txMeta, transactionMetaWithEvents(
 				contractEvent(
 					contractID,
@@ -738,7 +738,7 @@ func TestGetEvents(t *testing.T) {
 
 		var txMeta []xdr.TransactionMeta
 		contractID := xdr.Hash([32]byte{})
-		for i := 0; i < 10; i++ {
+		for i := range []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9} {
 			number := xdr.Uint64(i)
 			txMeta = append(txMeta, transactionMetaWithEvents(
 				// Generate a unique topic like /counter/4 for each event so we can check
@@ -1169,9 +1169,8 @@ func TestGetEvents(t *testing.T) {
 	})
 }
 
-// TODO:Clean up once benchmarking is done !!
 func BenchmarkGetEvents(b *testing.B) {
-	var counters [1000]xdr.ScSymbol
+	var counters [10]xdr.ScSymbol
 	for i := 0; i < len(counters); i++ {
 		counters[i] = xdr.ScSymbol("TEST-COUNTER-" + strconv.Itoa(i+1))
 	}
@@ -1205,7 +1204,6 @@ func BenchmarkGetEvents(b *testing.B) {
 		ledgerReader: db.NewLedgerReader(dbx),
 	}
 
-	// star := "*"
 	request := GetEventsRequest{
 		StartLedger: 1,
 		Filters: []EventFilter{
@@ -1236,14 +1234,13 @@ func BenchmarkGetEvents(b *testing.B) {
 }
 
 func getTxMetaWithContractEvents(contractID xdr.Hash) []xdr.TransactionMeta {
-
 	var counters [1000]xdr.ScSymbol
 	for j := 0; j < len(counters); j++ {
 		counters[j] = xdr.ScSymbol("TEST-COUNTER-" + strconv.Itoa(j+1))
 	}
 
-	var events []xdr.ContractEvent
-	for i := 0; i < 10; i++ {
+	events := make([]xdr.ContractEvent, 0, 10)
+	for i := range []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9} {
 		contractEvent := contractEvent(
 			contractID,
 			xdr.ScVec{

@@ -132,7 +132,8 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 			}
 
 			// Encode the topics
-			topicList := make([]string, 5)
+			maxTopicCount := 4
+			topicList := make([]string, maxTopicCount)
 			for index, segment := range v0.Topics {
 				seg, err := xdr.MarshalBase64(segment)
 				if err != nil {
