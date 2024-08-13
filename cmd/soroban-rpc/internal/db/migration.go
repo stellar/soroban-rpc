@@ -50,13 +50,13 @@ type MigrationApplier interface {
 	Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error
 }
 
+type migrationApplierF func(context.Context, *log.Entry, string, *LedgerSeqRange) migrationApplierFactory
+
 type migrationApplierFactory interface {
 	New(db *DB) (MigrationApplier, error)
 }
 
 type migrationApplierFactoryF func(db *DB) (MigrationApplier, error)
-
-type migrationApplierF func(context.Context, *log.Entry, string, *LedgerSeqRange) migrationApplierFactory
 
 func (m migrationApplierFactoryF) New(db *DB) (MigrationApplier, error) {
 	return m(db)
