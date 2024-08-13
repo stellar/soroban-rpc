@@ -123,7 +123,7 @@ func (g *GetEventsRequest) Valid(maxLimit uint) error {
 	}
 	for i, filter := range g.Filters {
 		if err := filter.Valid(); err != nil {
-			return errors.Wrapf(err, "filter %d invalid: %w", i+1)
+			return errors.Wrapf(err, "filter %d invalid", i+1) //nolint:forbidigo
 		}
 	}
 
