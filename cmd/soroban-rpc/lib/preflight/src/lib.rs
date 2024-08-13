@@ -36,6 +36,7 @@ extern crate soroban_simulation_prev;
 mod curr {
     pub(crate) use soroban_env_host_curr as soroban_env_host;
     pub(crate) use soroban_simulation_curr as soroban_simulation;
+    #[allow(clippy::duplicate_mod)]
     pub(crate) mod shared;
 }
 
@@ -43,6 +44,7 @@ mod curr {
 mod prev {
     pub(crate) use soroban_env_host_prev as soroban_env_host;
     pub(crate) use soroban_simulation_prev as soroban_simulation;
+    #[allow(clippy::duplicate_mod)]
     pub(crate) mod shared;
 }
 
