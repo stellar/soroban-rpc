@@ -397,19 +397,24 @@ func combineTopics(filters []EventFilter) ([][]string, error) {
 	return encodedTopicsList, nil
 }
 
+type entry struct {
+	cursor               db.Cursor
+	ledgerCloseTimestamp int64
+	event                xdr.DiagnosticEvent
+	txHash               *xdr.Hash
+}
+
 func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsRequest) (GetEventsResponse, error) {
 	if err := request.Valid(h.maxLimit); err != nil {
 		return GetEventsResponse{}, &jrpc2.Error{
-			Code:    jrpc2.InvalidParams,
-			Message: err.Error(),
+			Code: jrpc2.InvalidParams, Message: err.Error(),
 		}
 	}
 
 	ledgerRange, err := h.ledgerReader.GetLedgerRange(ctx)
 	if err != nil {
 		return GetEventsResponse{}, &jrpc2.Error{
-			Code:    jrpc2.InternalError,
-			Message: err.Error(),
+			Code: jrpc2.InternalError, Message: err.Error(),
 		}
 	}
 
@@ -418,8 +423,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 	if request.Pagination != nil {
 		if request.Pagination.Cursor != nil {
 			start = *request.Pagination.Cursor
-			// increment event index because, when paginating,
-			// we start with the item right after the cursor
+			// increment event index because, when paginating, we start with the item right after the cursor
 			start.Event++
 		}
 		if request.Pagination.Limit > 0 {
@@ -435,7 +439,6 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 	end := db.Cursor{Ledger: endLedger}
 	cursorRange := db.CursorRange{Start: start, End: end}
 
-	// Check if requested start ledger is within stored ledger range
 	if start.Ledger < ledgerRange.FirstLedger.Sequence || start.Ledger > ledgerRange.LastLedger.Sequence {
 		return GetEventsResponse{}, &jrpc2.Error{
 			Code: jrpc2.InvalidRequest,
@@ -447,27 +450,19 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		}
 	}
 
-	type entry struct {
-		cursor               db.Cursor
-		ledgerCloseTimestamp int64
-		event                xdr.DiagnosticEvent
-		txHash               *xdr.Hash
-	}
 	found := make([]entry, 0, limit)
 
 	contractIDs, err := combineContractIDs(request.Filters)
 	if err != nil {
 		return GetEventsResponse{}, &jrpc2.Error{
-			Code:    jrpc2.InvalidParams,
-			Message: err.Error(),
+			Code: jrpc2.InvalidParams, Message: err.Error(),
 		}
 	}
 
 	topics, err := combineTopics(request.Filters)
 	if err != nil {
 		return GetEventsResponse{}, &jrpc2.Error{
-			Code:    jrpc2.InvalidParams,
-			Message: err.Error(),
+			Code: jrpc2.InvalidParams, Message: err.Error(),
 		}
 	}
 
@@ -475,10 +470,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 
 	// Scan function to apply filters
 	eventScanFunction := func(
-		event xdr.DiagnosticEvent,
-		cursor db.Cursor,
-		ledgerCloseTimestamp int64,
-		txHash *xdr.Hash,
+		event xdr.DiagnosticEvent, cursor db.Cursor, ledgerCloseTimestamp int64, txHash *xdr.Hash,
 	) bool {
 		if request.Matches(event) {
 			found = append(found, entry{cursor, ledgerCloseTimestamp, event, txHash})
@@ -489,8 +481,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 	err = h.dbReader.GetEvents(ctx, cursorRange, contractIDs, topics, eventTypes, eventScanFunction)
 	if err != nil {
 		return GetEventsResponse{}, &jrpc2.Error{
-			Code:    jrpc2.InvalidRequest,
-			Message: err.Error(),
+			Code: jrpc2.InvalidRequest, Message: err.Error(),
 		}
 	}
 
