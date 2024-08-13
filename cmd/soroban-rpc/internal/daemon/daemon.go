@@ -321,7 +321,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	defer func() {
 		err = d.db.Commit()
 		if err != nil {
-			d.logger.WithError(err).Fatal("could not commit database transaction")
+			d.logger.WithError(err).Fatal("could not commit database transaction: ", d.db.Rollback())
 		}
 	}()
 
