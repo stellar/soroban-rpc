@@ -134,6 +134,14 @@ func getMetaValue(ctx context.Context, q db.SessionInterface, key string) (strin
 }
 
 func getLatestLedgerSequence(ctx context.Context, ledgerReader LedgerReader, cache *dbCache) (uint32, error) {
+	cache.RLock()
+	latestLedgerSeqCache := cache.latestLedgerSeq
+	cache.RUnlock()
+
+	if latestLedgerSeqCache != 0 {
+		return latestLedgerSeqCache, nil
+	}
+
 	ledgerRange, err := ledgerReader.GetLedgerRange(ctx)
 	if err != nil {
 		return 0, err

@@ -342,13 +342,6 @@ func NewLedgerEntryReader(db *DB) LedgerEntryReader {
 }
 
 func (r ledgerEntryReader) GetLatestLedgerSequence(ctx context.Context) (uint32, error) {
-	r.db.cache.RLock()
-	latestLedgerSeqCache := r.db.cache.latestLedgerSeq
-	r.db.cache.RUnlock()
-
-	if latestLedgerSeqCache != 0 {
-		return latestLedgerSeqCache, nil
-	}
 	return getLatestLedgerSequence(ctx, NewLedgerReader(r.db), r.db.cache)
 }
 
