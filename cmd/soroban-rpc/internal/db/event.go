@@ -192,6 +192,8 @@ func (eventHandler *eventHandler) trimEvents(latestLedgerSeq uint32, retentionWi
 // The events are returned in sorted ascending Cursor order.
 // If f returns false, the scan terminates early (f will not be applied on
 // remaining events in the range).
+//
+//nolint:funlen
 func (eventHandler *eventHandler) GetEvents(
 	ctx context.Context,
 	cursorRange CursorRange,
