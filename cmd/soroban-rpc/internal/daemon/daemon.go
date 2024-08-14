@@ -293,6 +293,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 		cfg.ClassicFeeStatsLedgerRetentionWindow,
 		cfg.SorobanFeeStatsLedgerRetentionWindow,
 		cfg.NetworkPassphrase,
+		d.db,
 	)
 
 	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
@@ -313,21 +314,9 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	// Combine the ledger range for fees, events and transactions
 	ledgerSeqRange := feeStatsRange.Merge(applicableRange)
 
-	// Start a common db transaction for the entire migration duration
-	err = d.db.Begin(readTxMetaCtx)
-	if err != nil {
-		d.logger.WithError(err).Fatal("could not commit database transaction: ", d.db.Rollback())
-	}
-	defer func() {
-		err = d.db.Commit()
-		if err != nil {
-			d.logger.WithError(err).Fatal("could not commit database transaction: ", d.db.Rollback())
-		}
-	}()
-
 	dataMigrations, err := db.BuildMigrations(readTxMetaCtx, d.logger, d.db, cfg.NetworkPassphrase, ledgerSeqRange)
 	if err != nil {
-		d.logger.WithError(err).Fatal("could not build migrations: ", d.db.Rollback())
+		d.logger.WithError(err).Fatal("could not build migrations")
 	}
 
 	// Apply migration for events, transactions and fee stats
@@ -349,19 +338,19 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 			}
 
 			if err = feeWindows.IngestFees(txMeta); err != nil {
-				d.logger.WithError(err).Fatal("could not initialize fee stats: ", d.db.Rollback())
+				d.logger.WithError(err).Fatal("could not initialize fee stats")
 			}
 
 			if err := dataMigrations.Apply(readTxMetaCtx, txMeta); err != nil {
-				d.logger.WithError(err).Fatal("could not apply migration for ledger ", currentSeq, ": ", d.db.Rollback())
+				d.logger.WithError(err).Fatal("could not apply migration for ledger ", currentSeq)
 			}
 			return nil
 		})
 	if err != nil {
-		d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database: ", d.db.Rollback())
+		d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
 	}
 	if err := dataMigrations.Commit(readTxMetaCtx); err != nil {
-		d.logger.WithError(err).Fatal("could not commit data migrations ", d.db.Rollback())
+		d.logger.WithError(err).Fatal("could not commit data migrations")
 	}
 
 	if currentSeq != 0 {

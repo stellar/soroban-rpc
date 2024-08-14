@@ -67,11 +67,14 @@ type Migration interface {
 	Commit(ctx context.Context) error
 }
 
-type MultiMigration []Migration
+type MultiMigration struct {
+	migrations []Migration
+	db         *DB
+}
 
 func (mm MultiMigration) ApplicableRange() *LedgerSeqRange {
 	var result *LedgerSeqRange
-	for _, m := range mm {
+	for _, m := range mm.migrations {
 		result = m.ApplicableRange().Merge(result)
 	}
 	return result
@@ -79,14 +82,14 @@ func (mm MultiMigration) ApplicableRange() *LedgerSeqRange {
 
 func (mm MultiMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error {
 	var err error
-	for _, m := range mm {
+	for _, m := range mm.migrations {
 		ledgerSeq := meta.LedgerSequence()
 		if !m.ApplicableRange().IsLedgerIncluded(ledgerSeq) {
 			// The range of a sub-migration can be smaller than the global range.
 			continue
 		}
 		if localErr := m.Apply(ctx, meta); localErr != nil {
-			err = errors.Join(err, localErr)
+			err = errors.Join(err, localErr, mm.db.Rollback())
 		}
 	}
 	return err
@@ -94,12 +97,12 @@ func (mm MultiMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) er
 
 func (mm MultiMigration) Commit(ctx context.Context) error {
 	var err error
-	for _, m := range mm {
+	for _, m := range mm.migrations {
 		if localErr := m.Commit(ctx); localErr != nil {
-			err = errors.Join(err, localErr)
+			err = errors.Join(err, localErr, mm.db.Rollback())
 		}
 	}
-	return err
+	return mm.db.Commit()
 }
 
 // guardedMigration is a db data migration whose application is guarded by a boolean in the meta table
@@ -180,12 +183,18 @@ func GetMigrationLedgerRange(ctx context.Context, db *DB, retentionWindow uint32
 func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, networkPassphrase string,
 	ledgerSeqRange *LedgerSeqRange,
 ) (MultiMigration, error) {
+	// Start a common db transaction for the entire migration duration
+	err := db.Begin(ctx)
+	if err != nil {
+		return MultiMigration{}, errors.Join(err, db.Rollback())
+	}
+
 	migrationNameToFunc := map[string]migrationApplierF{
 		transactionsMigrationName: newTransactionTableMigration,
 		eventsMigrationName:       newEventTableMigration,
 	}
 
-	migrations := make(MultiMigration, 0, len(migrationNameToFunc))
+	migrations := make([]Migration, 0, len(migrationNameToFunc))
 
 	for migrationName, migrationFunc := range migrationNameToFunc {
 		migrationLogger := logger.WithField("migration", migrationName)
@@ -198,9 +207,13 @@ func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, networkPass
 
 		guardedM, err := newGuardedDataMigration(ctx, migrationName, migrationLogger, factory, db)
 		if err != nil {
-			return nil, fmt.Errorf("could not create guarded migration for %s: %w", migrationName, err)
+			return MultiMigration{}, errors.Join(fmt.Errorf(
+				"could not create guarded migration for %s: %w", migrationName, err), db.Rollback())
 		}
 		migrations = append(migrations, guardedM)
 	}
-	return migrations, nil
+	return MultiMigration{
+		migrations: migrations,
+		db:         db,
+	}, nil
 }
