@@ -67,7 +67,7 @@ func TestIngestion(t *testing.T) {
 	config := Config{
 		Logger:            supportlog.New(),
 		DB:                mockDB,
-		FeeWindows:        feewindow.NewFeeWindows(1, 1, network.TestNetworkPassphrase),
+		FeeWindows:        feewindow.NewFeeWindows(1, 1, network.TestNetworkPassphrase, nil),
 		LedgerBackend:     mockLedgerBackend,
 		Daemon:            daemon,
 		NetworkPassPhrase: network.TestNetworkPassphrase,
