@@ -7,8 +7,11 @@ import (
 
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
+)
 
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config"
+const (
+	transactionsMigrationName = "TransactionsTable"
+	eventsMigrationName       = "EventsTable"
 )
 
 type LedgerSeqRange struct {
@@ -47,65 +50,59 @@ type MigrationApplier interface {
 	Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error
 }
 
+type migrationApplierF func(context.Context, *log.Entry, string, *LedgerSeqRange) migrationApplierFactory
+
 type migrationApplierFactory interface {
-	New(db *DB, latestLedger uint32) (MigrationApplier, error)
+	New(db *DB) (MigrationApplier, error)
 }
 
-type migrationApplierFactoryF func(db *DB, latestLedger uint32) (MigrationApplier, error)
+type migrationApplierFactoryF func(db *DB) (MigrationApplier, error)
 
-func (m migrationApplierFactoryF) New(db *DB, latestLedger uint32) (MigrationApplier, error) {
-	return m(db, latestLedger)
+func (m migrationApplierFactoryF) New(db *DB) (MigrationApplier, error) {
+	return m(db)
 }
 
 type Migration interface {
 	MigrationApplier
 	Commit(ctx context.Context) error
-	Rollback(ctx context.Context) error
 }
 
-type multiMigration []Migration
+type MultiMigration struct {
+	migrations []Migration
+	db         *DB
+}
 
-func (mm multiMigration) ApplicableRange() *LedgerSeqRange {
+func (mm MultiMigration) ApplicableRange() *LedgerSeqRange {
 	var result *LedgerSeqRange
-	for _, m := range mm {
+	for _, m := range mm.migrations {
 		result = m.ApplicableRange().Merge(result)
 	}
 	return result
 }
 
-func (mm multiMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error {
+func (mm MultiMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error {
 	var err error
-	for _, m := range mm {
+	for _, m := range mm.migrations {
 		ledgerSeq := meta.LedgerSequence()
 		if !m.ApplicableRange().IsLedgerIncluded(ledgerSeq) {
 			// The range of a sub-migration can be smaller than the global range.
 			continue
 		}
 		if localErr := m.Apply(ctx, meta); localErr != nil {
-			err = errors.Join(err, localErr)
+			err = errors.Join(err, localErr, mm.db.Rollback())
 		}
 	}
 	return err
 }
 
-func (mm multiMigration) Commit(ctx context.Context) error {
+func (mm MultiMigration) Commit(ctx context.Context) error {
 	var err error
-	for _, m := range mm {
+	for _, m := range mm.migrations {
 		if localErr := m.Commit(ctx); localErr != nil {
-			err = errors.Join(err, localErr)
+			err = errors.Join(err, localErr, mm.db.Rollback())
 		}
 	}
-	return err
-}
-
-func (mm multiMigration) Rollback(ctx context.Context) error {
-	var err error
-	for _, m := range mm {
-		if localErr := m.Rollback(ctx); localErr != nil {
-			err = errors.Join(err, localErr)
-		}
-	}
-	return err
+	return mm.db.Commit()
 }
 
 // guardedMigration is a db data migration whose application is guarded by a boolean in the meta table
@@ -122,32 +119,18 @@ type guardedMigration struct {
 func newGuardedDataMigration(
 	ctx context.Context, uniqueMigrationName string, logger *log.Entry, factory migrationApplierFactory, db *DB,
 ) (Migration, error) {
-	migrationDB := &DB{
-		cache:            db.cache,
-		SessionInterface: db.SessionInterface.Clone(),
-	}
-	if err := migrationDB.Begin(ctx); err != nil {
-		return nil, err
-	}
 	metaKey := "Migration" + uniqueMigrationName + "Done"
-	previouslyMigrated, err := getMetaBool(ctx, migrationDB, metaKey)
+	previouslyMigrated, err := getMetaBool(ctx, db, metaKey)
 	if err != nil && !errors.Is(err, ErrEmptyDB) {
-		err = errors.Join(err, migrationDB.Rollback())
 		return nil, err
 	}
-	latestLedger, err := NewLedgerEntryReader(db).GetLatestLedgerSequence(ctx)
-	if err != nil && !errors.Is(err, ErrEmptyDB) {
-		err = errors.Join(err, migrationDB.Rollback())
-		return nil, fmt.Errorf("failed to get latest ledger sequence: %w", err)
-	}
-	applier, err := factory.New(migrationDB, latestLedger)
+	applier, err := factory.New(db)
 	if err != nil {
-		err = errors.Join(err, migrationDB.Rollback())
 		return nil, err
 	}
 	guardedMigration := &guardedMigration{
 		guardMetaKey:    metaKey,
-		db:              migrationDB,
+		db:              db,
 		migration:       applier,
 		alreadyMigrated: previouslyMigrated,
 		logger:          logger,
@@ -179,46 +162,58 @@ func (g *guardedMigration) Commit(ctx context.Context) error {
 	if g.alreadyMigrated {
 		return nil
 	}
-	err := setMetaBool(ctx, g.db, g.guardMetaKey, true)
-	if err != nil {
-		return errors.Join(err, g.Rollback(ctx))
-	}
-	return g.db.Commit()
+	return setMetaBool(ctx, g.db, g.guardMetaKey, true)
 }
 
-func (g *guardedMigration) Rollback(_ context.Context) error {
-	return g.db.Rollback()
+func GetMigrationLedgerRange(ctx context.Context, db *DB, retentionWindow uint32) (*LedgerSeqRange, error) {
+	firstLedgerToMigrate := firstLedger
+	latestLedger, err := NewLedgerEntryReader(db).GetLatestLedgerSequence(ctx)
+	if err != nil && !errors.Is(err, ErrEmptyDB) {
+		return nil, fmt.Errorf("failed to get latest ledger sequence: %w", err)
+	}
+	if latestLedger > retentionWindow {
+		firstLedgerToMigrate = latestLedger - retentionWindow
+	}
+	return &LedgerSeqRange{
+		FirstLedgerSeq: firstLedgerToMigrate,
+		LastLedgerSeq:  latestLedger,
+	}, nil
 }
 
-func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, cfg *config.Config) (Migration, error) {
-	var migrations []Migration
-
-	migrationName := "TransactionsTable"
-	logger = logger.WithField("migration", migrationName)
-	factory := newTransactionTableMigration(
-		ctx,
-		logger,
-		cfg.HistoryRetentionWindow,
-		cfg.NetworkPassphrase,
-	)
-
-	m1, err := newGuardedDataMigration(ctx, migrationName, logger, factory, db)
+func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, networkPassphrase string,
+	ledgerSeqRange *LedgerSeqRange,
+) (MultiMigration, error) {
+	// Start a common db transaction for the entire migration duration
+	err := db.Begin(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("creating guarded transaction migration: %w", err)
+		return MultiMigration{}, errors.Join(err, db.Rollback())
 	}
-	migrations = append(migrations, m1)
 
-	eventMigrationName := "EventsTable"
-	eventFactory := newEventTableMigration(
-		logger.WithField("migration", eventMigrationName),
-		cfg.HistoryRetentionWindow,
-		cfg.NetworkPassphrase,
-	)
-	m2, err := newGuardedDataMigration(ctx, eventMigrationName, logger, eventFactory, db)
-	if err != nil {
-		return nil, fmt.Errorf("creating guarded transaction migration: %w", err)
+	migrationNameToFunc := map[string]migrationApplierF{
+		transactionsMigrationName: newTransactionTableMigration,
+		eventsMigrationName:       newEventTableMigration,
 	}
-	migrations = append(migrations, m2)
 
-	return multiMigration(migrations), nil
+	migrations := make([]Migration, 0, len(migrationNameToFunc))
+
+	for migrationName, migrationFunc := range migrationNameToFunc {
+		migrationLogger := logger.WithField("migration", migrationName)
+		factory := migrationFunc(
+			ctx,
+			migrationLogger,
+			networkPassphrase,
+			ledgerSeqRange,
+		)
+
+		guardedM, err := newGuardedDataMigration(ctx, migrationName, migrationLogger, factory, db)
+		if err != nil {
+			return MultiMigration{}, errors.Join(fmt.Errorf(
+				"could not create guarded migration for %s: %w", migrationName, err), db.Rollback())
+		}
+		migrations = append(migrations, guardedM)
+	}
+	return MultiMigration{
+		migrations: migrations,
+		db:         db,
+	}, nil
 }

@@ -322,26 +322,21 @@ func (e *eventTableMigration) Apply(_ context.Context, meta xdr.LedgerCloseMeta)
 }
 
 func newEventTableMigration(
+	_ context.Context,
 	logger *log.Entry,
-	retentionWindow uint32,
 	passphrase string,
+	ledgerSeqRange *LedgerSeqRange,
 ) migrationApplierFactory {
-	return migrationApplierFactoryF(func(db *DB, latestLedger uint32) (MigrationApplier, error) {
-		firstLedgerToMigrate := firstLedger
-		writer := &eventHandler{
-			log:        logger,
-			db:         db,
-			stmtCache:  sq.NewStmtCache(db.GetTx()),
-			passphrase: passphrase,
-		}
-		if latestLedger > retentionWindow {
-			firstLedgerToMigrate = latestLedger - retentionWindow
-		}
-
+	return migrationApplierFactoryF(func(db *DB) (MigrationApplier, error) {
 		migration := eventTableMigration{
-			firstLedger: firstLedgerToMigrate,
-			lastLedger:  latestLedger,
-			writer:      writer,
+			firstLedger: ledgerSeqRange.FirstLedgerSeq,
+			lastLedger:  ledgerSeqRange.LastLedgerSeq,
+			writer: &eventHandler{
+				log:        logger,
+				db:         db,
+				stmtCache:  sq.NewStmtCache(db.GetTx()),
+				passphrase: passphrase,
+			},
 		}
 		return &migration, nil
 	})

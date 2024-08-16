@@ -289,38 +289,43 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 
 // mustInitializeStorage initializes the storage using what was on the DB
 func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows {
-	feewindows := feewindow.NewFeeWindows(
+	feeWindows := feewindow.NewFeeWindows(
 		cfg.ClassicFeeStatsLedgerRetentionWindow,
 		cfg.SorobanFeeStatsLedgerRetentionWindow,
 		cfg.NetworkPassphrase,
+		d.db,
 	)
 
 	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
 	defer cancelReadTxMeta()
 	var initialSeq uint32
 	var currentSeq uint32
-	dataMigrations, err := db.BuildMigrations(readTxMetaCtx, d.logger, d.db, cfg)
+	applicableRange, err := db.GetMigrationLedgerRange(readTxMetaCtx, d.db, cfg.HistoryRetentionWindow)
+	if err != nil {
+		d.logger.WithError(err).Fatal("could not get ledger range for migration")
+	}
+
+	maxFeeRetentionWindow := max(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow)
+	feeStatsRange, err := db.GetMigrationLedgerRange(readTxMetaCtx, d.db, maxFeeRetentionWindow)
+	if err != nil {
+		d.logger.WithError(err).Fatal("could not get ledger range for fee stats")
+	}
+
+	// Combine the ledger range for fees, events and transactions
+	ledgerSeqRange := feeStatsRange.Merge(applicableRange)
+
+	dataMigrations, err := db.BuildMigrations(readTxMetaCtx, d.logger, d.db, cfg.NetworkPassphrase, ledgerSeqRange)
 	if err != nil {
 		d.logger.WithError(err).Fatal("could not build migrations")
 	}
 
-	// Merge migrations range and fee stats range to get the applicable range
-	latestLedger, err := db.NewLedgerEntryReader(d.db).GetLatestLedgerSequence(readTxMetaCtx)
-	if err != nil {
-		d.logger.WithError(err).Fatal("failed to get latest ledger sequence: %w", err)
-	}
-
-	maxFeeRetentionWindow := max(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow)
-	ledgerSeqRange := &db.LedgerSeqRange{FirstLedgerSeq: latestLedger - maxFeeRetentionWindow, LastLedgerSeq: latestLedger}
-	applicableRange := dataMigrations.ApplicableRange()
-	ledgerSeqRange = ledgerSeqRange.Merge(applicableRange)
-
+	// Apply migration for events, transactions and fee stats
 	err = db.NewLedgerReader(d.db).StreamLedgerRange(
 		readTxMetaCtx,
 		ledgerSeqRange.FirstLedgerSeq,
 		ledgerSeqRange.LastLedgerSeq,
-		func(txmeta xdr.LedgerCloseMeta) error {
-			currentSeq = txmeta.LedgerSequence()
+		func(txMeta xdr.LedgerCloseMeta) error {
+			currentSeq = txMeta.LedgerSequence()
 			if initialSeq == 0 {
 				initialSeq = currentSeq
 				d.logger.WithFields(supportlog.F{
@@ -332,14 +337,12 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 				}).Debug("still initializing in-memory store")
 			}
 
-			if err := feewindows.IngestFees(txmeta); err != nil {
+			if err = feeWindows.IngestFees(txMeta); err != nil {
 				d.logger.WithError(err).Fatal("could not initialize fee stats")
 			}
 
-			if applicableRange.IsLedgerIncluded(currentSeq) {
-				if err := dataMigrations.Apply(readTxMetaCtx, txmeta); err != nil {
-					d.logger.WithError(err).Fatal("could not run migrations")
-				}
+			if err := dataMigrations.Apply(readTxMetaCtx, txMeta); err != nil {
+				d.logger.WithError(err).Fatal("could not apply migration for ledger ", currentSeq)
 			}
 			return nil
 		})
@@ -356,7 +359,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 		}).Info("finished initializing in-memory store and applying DB data migrations")
 	}
 
-	return feewindows
+	return feeWindows
 }
 
 func (d *Daemon) Run() {

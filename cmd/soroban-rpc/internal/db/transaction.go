@@ -266,20 +266,13 @@ func (t *transactionTableMigration) Apply(_ context.Context, meta xdr.LedgerClos
 	return t.writer.InsertTransactions(meta)
 }
 
-func newTransactionTableMigration(ctx context.Context, logger *log.Entry,
-	retentionWindow uint32, passphrase string,
+func newTransactionTableMigration(
+	ctx context.Context,
+	logger *log.Entry,
+	passphrase string,
+	ledgerSeqRange *LedgerSeqRange,
 ) migrationApplierFactory {
-	return migrationApplierFactoryF(func(db *DB, latestLedger uint32) (MigrationApplier, error) {
-		firstLedgerToMigrate := uint32(2) //nolint:mnd
-		writer := &transactionHandler{
-			log:        logger,
-			db:         db,
-			stmtCache:  sq.NewStmtCache(db.GetTx()),
-			passphrase: passphrase,
-		}
-		if latestLedger > retentionWindow {
-			firstLedgerToMigrate = latestLedger - retentionWindow
-		}
+	return migrationApplierFactoryF(func(db *DB) (MigrationApplier, error) {
 		// Truncate the table, since it may contain data, causing insert conflicts later on.
 		// (the migration was shipped after the actual transactions table change)
 		_, err := db.Exec(ctx, sq.Delete(transactionTableName))
@@ -287,9 +280,14 @@ func newTransactionTableMigration(ctx context.Context, logger *log.Entry,
 			return nil, fmt.Errorf("couldn't delete table %q: %w", transactionTableName, err)
 		}
 		migration := transactionTableMigration{
-			firstLedger: firstLedgerToMigrate,
-			lastLedger:  latestLedger,
-			writer:      writer,
+			firstLedger: ledgerSeqRange.FirstLedgerSeq,
+			lastLedger:  ledgerSeqRange.LastLedgerSeq,
+			writer: &transactionHandler{
+				log:        logger,
+				db:         db,
+				stmtCache:  sq.NewStmtCache(db.GetTx()),
+				passphrase: passphrase,
+			},
 		}
 		return &migration, nil
 	})
