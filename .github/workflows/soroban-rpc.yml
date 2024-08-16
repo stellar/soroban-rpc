@@ -32,7 +32,7 @@ jobs:
       - run: rustup update
       - uses: stellar/actions/rust-cache@main
       - run: make build-libs
-      - run: go test -race -timeout 25m ./cmd/soroban-rpc/...
+      - run: go test -race -timeout 25m ./cmd/stellar-rpc/...
 
   build:
     name: Build

@@ -1,0 +1,21 @@
+include:
+  - docker-compose.yml
+services:
+  rpc:
+    platform: linux/amd64
+    image: stellar/soroban-rpc:${RPC_IMAGE_TAG}
+    depends_on:
+      - core
+    ports: # we omit the host-side ports to allocate them dynamically
+      # HTTP
+      - "127.0.0.1::8000"
+      # Admin HTTP
+      - "127.0.0.1::8080"
+    command: --config-path /stellar-rpc.config
+    volumes:
+      - ${RPC_CONFIG_MOUNT_DIR}/captive-core-integration-tests.cfg:/stellar-core.cfg
+      - ${RPC_CONFIG_MOUNT_DIR}/stellar-rpc.config:/stellar-rpc.config
+      - ${RPC_SQLITE_MOUNT_DIR}:/db/
+    # Needed so that the sql database files created in the container
+    # have the same uid and gid as in the host
+    user: "${RPC_UID}:${RPC_GID}"

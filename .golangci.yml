@@ -115,7 +115,7 @@ linters:
 issues:
   # Exclude certain checks in test files
   exclude-rules:
-    - path: '^(.*_test\.go|cmd/soroban-rpc/internal/integrationtest/infrastructure/.*)$'
+    - path: '^(.*_test\.go|cmd/stellar-rpc/internal/integrationtest/infrastructure/.*)$'
       linters:
         - mnd
         - gosec

@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
 members = [
-    "cmd/soroban-rpc/lib/preflight",
-    "cmd/soroban-rpc/lib/ffi",
-    "cmd/soroban-rpc/lib/xdr2json"
+    "cmd/stellar-rpc/lib/preflight",
+    "cmd/stellar-rpc/lib/ffi",
+    "cmd/stellar-rpc/lib/xdr2json"
 ]
 
 [workspace.package]
