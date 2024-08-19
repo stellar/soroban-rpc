@@ -38,7 +38,7 @@ func TestMigrate(t *testing.T) {
 }
 
 func testMigrateFromVersion(t *testing.T, version string) {
-	sqliteFile := filepath.Join(t.TempDir(), "stellar-rpc.db")
+	sqliteFile := filepath.Join(t.TempDir(), "soroban-rpc.db")
 	test := infrastructure.NewTest(t, &infrastructure.TestConfig{
 		UseReleasedRPCVersion: version,
 		SQLitePath:            sqliteFile,
