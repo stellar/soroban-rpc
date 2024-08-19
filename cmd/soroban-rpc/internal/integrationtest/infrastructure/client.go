@@ -57,7 +57,7 @@ func getTransaction(t *testing.T, client *Client, hash string) methods.GetTransa
 	for i := 0; i < 60; i++ {
 		request := methods.GetTransactionRequest{Hash: hash}
 		err := client.CallResult(context.Background(), "getTransaction", request, &result)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		if result.Status == methods.TransactionStatusNotFound {
 			time.Sleep(time.Second)
@@ -72,35 +72,35 @@ func getTransaction(t *testing.T, client *Client, hash string) methods.GetTransa
 
 func SendSuccessfulTransaction(t *testing.T, client *Client, kp *keypair.Full, transaction *txnbuild.Transaction) methods.GetTransactionResponse {
 	tx, err := transaction.Sign(StandaloneNetworkPassphrase, kp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	b64, err := tx.Base64()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	request := methods.SendTransactionRequest{Transaction: b64}
 	var result methods.SendTransactionResponse
-	assert.NoError(t, client.CallResult(context.Background(), "sendTransaction", request, &result))
+	require.NoError(t, client.CallResult(context.Background(), "sendTransaction", request, &result))
 
 	expectedHashHex, err := tx.HashHex(StandaloneNetworkPassphrase)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	assert.Equal(t, expectedHashHex, result.Hash)
+	require.Equal(t, expectedHashHex, result.Hash)
 	if !assert.Equal(t, stellarcore.TXStatusPending, result.Status) {
 		var txResult xdr.TransactionResult
 		err := xdr.SafeUnmarshalBase64(result.ErrorResultXDR, &txResult)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		t.Logf("error: %#v\n", txResult)
 	}
-	assert.NotZero(t, result.LatestLedger)
-	assert.NotZero(t, result.LatestLedgerCloseTime)
+	require.NotZero(t, result.LatestLedger)
+	require.NotZero(t, result.LatestLedgerCloseTime)
 
 	response := getTransaction(t, client, expectedHashHex)
 	if !assert.Equal(t, methods.TransactionStatusSuccess, response.Status) {
 		var txResult xdr.TransactionResult
-		assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultXdr, &txResult))
+		require.NoError(t, xdr.SafeUnmarshalBase64(response.ResultXDR, &txResult))
 		t.Logf("error: %#v\n", txResult)
 
 		var txMeta xdr.TransactionMeta
-		assert.NoError(t, xdr.SafeUnmarshalBase64(response.ResultMetaXdr, &txMeta))
+		require.NoError(t, xdr.SafeUnmarshalBase64(response.ResultMetaXDR, &txMeta))
 
 		if txMeta.V == 3 && txMeta.V3.SorobanMeta != nil {
 			if len(txMeta.V3.SorobanMeta.Events) > 0 {
@@ -119,11 +119,11 @@ func SendSuccessfulTransaction(t *testing.T, client *Client, kp *keypair.Full, t
 		}
 	}
 
-	require.NotNil(t, response.ResultXdr)
-	assert.Greater(t, response.Ledger, result.LatestLedger)
-	assert.Greater(t, response.LedgerCloseTime, result.LatestLedgerCloseTime)
-	assert.GreaterOrEqual(t, response.LatestLedger, response.Ledger)
-	assert.GreaterOrEqual(t, response.LatestLedgerCloseTime, response.LedgerCloseTime)
+	require.NotNil(t, response.ResultXDR)
+	require.Greater(t, response.Ledger, result.LatestLedger)
+	require.Greater(t, response.LedgerCloseTime, result.LatestLedgerCloseTime)
+	require.GreaterOrEqual(t, response.LatestLedger, response.Ledger)
+	require.GreaterOrEqual(t, response.LatestLedgerCloseTime, response.LedgerCloseTime)
 	return response
 }
 
@@ -147,7 +147,7 @@ func PreflightTransactionParamsLocally(t *testing.T, params txnbuild.Transaction
 		t.Log(response.Error)
 	}
 	var transactionData xdr.SorobanTransactionData
-	err := xdr.SafeUnmarshalBase64(response.TransactionData, &transactionData)
+	err := xdr.SafeUnmarshalBase64(response.TransactionDataXDR, &transactionData)
 	require.NoError(t, err)
 
 	op := params.Operations[0]
@@ -159,7 +159,7 @@ func PreflightTransactionParamsLocally(t *testing.T, params txnbuild.Transaction
 			SorobanData: &transactionData,
 		}
 		var auth []xdr.SorobanAuthorizationEntry
-		for _, b64 := range response.Results[0].Auth {
+		for _, b64 := range response.Results[0].AuthXDR {
 			var a xdr.SorobanAuthorizationEntry
 			err := xdr.SafeUnmarshalBase64(b64, &a)
 			require.NoError(t, err)
@@ -191,6 +191,6 @@ func PreflightTransactionParamsLocally(t *testing.T, params txnbuild.Transaction
 func PreflightTransactionParams(t *testing.T, client *Client, params txnbuild.TransactionParams) txnbuild.TransactionParams {
 	response := SimulateTransactionFromTxParams(t, client, params)
 	// The preamble should be zero except for the special restore case
-	assert.Nil(t, response.RestorePreamble)
+	require.Nil(t, response.RestorePreamble)
 	return PreflightTransactionParamsLocally(t, params, response)
 }

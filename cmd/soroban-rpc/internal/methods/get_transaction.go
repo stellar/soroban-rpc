@@ -38,12 +38,13 @@ type GetTransactionResponse struct {
 	// LatestLedgerCloseTime is the unix timestamp of when the oldest ledger was closed.
 	OldestLedgerCloseTime int64 `json:"oldestLedgerCloseTime,string"`
 
-	// The fields below are only present if Status is not TransactionNotFound.
+	// Many of the fields below are only present if Status is not TransactionNotFound.
 	TransactionInfo
 }
 
 type GetTransactionRequest struct {
-	Hash string `json:"hash"`
+	Hash   string `json:"hash"`
+	Format string `json:"xdrFormat,omitempty"`
 }
 
 func GetTransaction(
@@ -53,6 +54,13 @@ func GetTransaction(
 	ledgerReader db.LedgerReader,
 	request GetTransactionRequest,
 ) (GetTransactionResponse, error) {
+	if err := IsValidFormat(request.Format); err != nil {
+		return GetTransactionResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InvalidParams,
+			Message: err.Error(),
+		}
+	}
+
 	// parse hash
 	if hex.DecodedLen(len(request.Hash)) != len(xdr.Hash{}) {
 		return GetTransactionResponse{}, &jrpc2.Error{
@@ -104,10 +112,34 @@ func GetTransaction(
 	response.Ledger = tx.Ledger.Sequence
 	response.LedgerCloseTime = tx.Ledger.CloseTime
 
-	response.ResultXdr = base64.StdEncoding.EncodeToString(tx.Result)
-	response.EnvelopeXdr = base64.StdEncoding.EncodeToString(tx.Envelope)
-	response.ResultMetaXdr = base64.StdEncoding.EncodeToString(tx.Meta)
-	response.DiagnosticEventsXDR = base64EncodeSlice(tx.Events)
+	switch request.Format {
+	case FormatJSON:
+		result, envelope, meta, convErr := transactionToJSON(tx)
+		if convErr != nil {
+			return response, &jrpc2.Error{
+				Code:    jrpc2.InternalError,
+				Message: convErr.Error(),
+			}
+		}
+		diagEvents, convErr := jsonifySlice(xdr.DiagnosticEvent{}, tx.Events)
+		if convErr != nil {
+			return response, &jrpc2.Error{
+				Code:    jrpc2.InternalError,
+				Message: convErr.Error(),
+			}
+		}
+
+		response.ResultJSON = result
+		response.EnvelopeJSON = envelope
+		response.ResultMetaJSON = meta
+		response.DiagnosticEventsJSON = diagEvents
+
+	default:
+		response.ResultXDR = base64.StdEncoding.EncodeToString(tx.Result)
+		response.EnvelopeXDR = base64.StdEncoding.EncodeToString(tx.Envelope)
+		response.ResultMetaXDR = base64.StdEncoding.EncodeToString(tx.Meta)
+		response.DiagnosticEventsXDR = base64EncodeSlice(tx.Events)
+	}
 
 	response.Status = TransactionStatusFailed
 	if tx.Successful {
@@ -117,6 +149,7 @@ func GetTransaction(
 }
 
 // NewGetTransactionHandler returns a get transaction json rpc handler
+
 func NewGetTransactionHandler(logger *log.Entry, getter db.TransactionReader,
 	ledgerReader db.LedgerReader,
 ) jrpc2.Handler {
