@@ -3,6 +3,7 @@ package methods
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -13,6 +14,7 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
 
 func TestGetTransaction(t *testing.T) {
@@ -24,14 +26,14 @@ func TestGetTransaction(t *testing.T) {
 	)
 	log.SetLevel(logrus.DebugLevel)
 
-	_, err := GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{"ab"})
+	_, err := GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{"ab", ""})
 	require.EqualError(t, err, "[-32602] unexpected hash length (2)")
 	_, err = GetTransaction(ctx, log, store, ledgerReader,
-		GetTransactionRequest{"foo                                                              "})
+		GetTransactionRequest{"foo                                                              ", ""})
 	require.EqualError(t, err, "[-32602] incorrect hash: encoding/hex: invalid byte: U+006F 'o'")
 
 	hash := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	tx, err := GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{hash})
+	tx, err := GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{hash, ""})
 	require.NoError(t, err)
 	require.Equal(t, GetTransactionResponse{Status: TransactionStatusNotFound}, tx)
 
@@ -40,7 +42,7 @@ func TestGetTransaction(t *testing.T) {
 
 	xdrHash := txHash(1)
 	hash = hex.EncodeToString(xdrHash[:])
-	tx, err = GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{hash})
+	tx, err = GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{hash, ""})
 	require.NoError(t, err)
 
 	expectedTxResult, err := xdr.MarshalBase64(meta.V1.TxProcessing[0].Result.Result)
@@ -57,9 +59,9 @@ func TestGetTransaction(t *testing.T) {
 		OldestLedgerCloseTime: 2625,
 		ApplicationOrder:      1,
 		FeeBump:               false,
-		EnvelopeXdr:           expectedEnvelope,
-		ResultXdr:             expectedTxResult,
-		ResultMetaXdr:         expectedTxMeta,
+		EnvelopeXDR:           expectedEnvelope,
+		ResultXDR:             expectedTxResult,
+		ResultMetaXDR:         expectedTxMeta,
 		Ledger:                101,
 		LedgerCloseTime:       2625,
 		DiagnosticEventsXDR:   []string{},
@@ -70,7 +72,7 @@ func TestGetTransaction(t *testing.T) {
 	require.NoError(t, store.InsertTransactions(meta))
 
 	// the first transaction should still be there
-	tx, err = GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{hash})
+	tx, err = GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{hash, ""})
 	require.NoError(t, err)
 	require.Equal(t, GetTransactionResponse{
 		Status:                TransactionStatusSuccess,
@@ -80,9 +82,9 @@ func TestGetTransaction(t *testing.T) {
 		OldestLedgerCloseTime: 2625,
 		ApplicationOrder:      1,
 		FeeBump:               false,
-		EnvelopeXdr:           expectedEnvelope,
-		ResultXdr:             expectedTxResult,
-		ResultMetaXdr:         expectedTxMeta,
+		EnvelopeXDR:           expectedEnvelope,
+		ResultXDR:             expectedTxResult,
+		ResultMetaXDR:         expectedTxMeta,
 		Ledger:                101,
 		LedgerCloseTime:       2625,
 		DiagnosticEventsXDR:   []string{},
@@ -99,7 +101,7 @@ func TestGetTransaction(t *testing.T) {
 	expectedTxMeta, err = xdr.MarshalBase64(meta.V1.TxProcessing[0].TxApplyProcessing)
 	require.NoError(t, err)
 
-	tx, err = GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{hash})
+	tx, err = GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{hash, ""})
 	require.NoError(t, err)
 	require.Equal(t, GetTransactionResponse{
 		Status:                TransactionStatusFailed,
@@ -109,9 +111,9 @@ func TestGetTransaction(t *testing.T) {
 		OldestLedgerCloseTime: 2625,
 		ApplicationOrder:      1,
 		FeeBump:               false,
-		EnvelopeXdr:           expectedEnvelope,
-		ResultXdr:             expectedTxResult,
-		ResultMetaXdr:         expectedTxMeta,
+		EnvelopeXDR:           expectedEnvelope,
+		ResultXDR:             expectedTxResult,
+		ResultMetaXDR:         expectedTxMeta,
 		Ledger:                102,
 		LedgerCloseTime:       2650,
 		DiagnosticEventsXDR:   []string{},
@@ -136,7 +138,7 @@ func TestGetTransaction(t *testing.T) {
 	expectedEventsMeta, err := xdr.MarshalBase64(diagnosticEvents[0])
 	require.NoError(t, err)
 
-	tx, err = GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{hash})
+	tx, err = GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{hash, ""})
 	require.NoError(t, err)
 	require.Equal(t, GetTransactionResponse{
 		Status:                TransactionStatusSuccess,
@@ -146,9 +148,9 @@ func TestGetTransaction(t *testing.T) {
 		OldestLedgerCloseTime: 2625,
 		ApplicationOrder:      1,
 		FeeBump:               false,
-		EnvelopeXdr:           expectedEnvelope,
-		ResultXdr:             expectedTxResult,
-		ResultMetaXdr:         expectedTxMeta,
+		EnvelopeXDR:           expectedEnvelope,
+		ResultXDR:             expectedTxResult,
+		ResultMetaXDR:         expectedTxMeta,
 		Ledger:                103,
 		LedgerCloseTime:       2675,
 		DiagnosticEventsXDR:   []string{expectedEventsMeta},
@@ -289,4 +291,110 @@ func txMetaWithEvents(acctSeq uint32, successful bool) xdr.LedgerCloseMeta {
 	}
 
 	return meta
+}
+
+func TestGetTransaction_JSONFormat(t *testing.T) {
+	mockDBReader := db.NewMockTransactionStore(NetworkPassphrase)
+	mockLedgerReader := db.NewMockLedgerReader(mockDBReader)
+	var lookupHash string
+	var lookupEnv xdr.TransactionEnvelope
+	for i := 1; i <= 3; i++ {
+		meta := createTestLedger(uint32(i))
+		err := mockDBReader.InsertTransactions(meta)
+		require.NoError(t, err)
+
+		if lookupHash == "" {
+			lookupEnv = meta.TransactionEnvelopes()[0]
+			rawHash, hashErr := network.HashTransactionInEnvelope(lookupEnv, "passphrase")
+			require.NoError(t, hashErr)
+			lookupHash = hex.EncodeToString(rawHash[:])
+		}
+	}
+
+	request := GetTransactionRequest{
+		Format: FormatJSON,
+		Hash:   lookupHash,
+	}
+
+	txResp, err := GetTransaction(context.TODO(), nil, mockDBReader, mockLedgerReader, request)
+	require.NoError(t, err)
+
+	// Do a marshaling round-trip on a transaction so we can check that the
+	// fields are encoded correctly as JSON.
+	jsBytes, err := json.Marshal(txResp)
+	require.NoError(t, err)
+
+	var tx map[string]interface{}
+	require.NoError(t, json.Unmarshal(jsBytes, &tx))
+
+	require.Nilf(t, tx["envelopeXdr"], "field: 'envelopeXdr'")
+	require.NotNilf(t, tx["envelopeJson"], "field: 'envelopeJson'")
+	require.Nilf(t, tx["resultXdr"], "field: 'resultXdr'")
+	require.NotNilf(t, tx["resultJson"], "field: 'resultJson'")
+	require.Nilf(t, tx["resultMetaXdr"], "field: 'resultMetaXdr'")
+	require.NotNilf(t, tx["resultMetaJson"], "field: 'resultMetaJson'")
+
+	// Do a deep validation on the format
+
+	envJs, err := xdr2json.ConvertInterface(lookupEnv)
+	require.NoError(t, err)
+
+	var envelope map[string]interface{}
+	require.NoError(t, json.Unmarshal(envJs, &envelope))
+	require.Equal(t, envelope, tx["envelopeJson"])
+}
+
+func BenchmarkJSONTransactions(b *testing.B) {
+	mockDBReader := db.NewMockTransactionStore(NetworkPassphrase)
+	mockLedgerReader := db.NewMockLedgerReader(mockDBReader)
+
+	var lookupHash string
+	var lookupEnv xdr.TransactionEnvelope
+	for i := range 10_000 {
+		meta := createTestLedger(uint32(i))
+		err := mockDBReader.InsertTransactions(meta)
+		require.NoError(b, err)
+
+		if lookupHash == "" {
+			lookupEnv = meta.TransactionEnvelopes()[0]
+			rawHash, hashErr := network.HashTransactionInEnvelope(lookupEnv, "passphrase")
+			require.NoError(b, hashErr)
+			lookupHash = hex.EncodeToString(rawHash[:])
+		}
+	}
+
+	b.ResetTimer()
+	b.Run("JSON format", func(bb *testing.B) {
+		request := GetTransactionRequest{
+			Format: FormatJSON,
+			Hash:   lookupHash,
+		}
+		bb.ResetTimer()
+
+		for range bb.N {
+			_, err := GetTransaction(
+				context.TODO(),
+				nil,
+				mockDBReader,
+				mockLedgerReader,
+				request)
+			require.NoError(bb, err)
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("XDR format", func(bb *testing.B) {
+		request := GetTransactionRequest{Hash: lookupHash}
+		bb.ResetTimer()
+
+		for range bb.N {
+			_, err := GetTransaction(
+				context.TODO(),
+				nil,
+				mockDBReader,
+				mockLedgerReader,
+				request)
+			require.NoError(bb, err)
+		}
+	})
 }

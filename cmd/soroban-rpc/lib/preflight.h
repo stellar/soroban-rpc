@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "shared.h"
 
 typedef struct ledger_info_t {
   uint32_t protocol_version;
@@ -12,11 +13,6 @@ typedef struct ledger_info_t {
   uint32_t base_reserve;
   uint64_t bucket_list_size;
 } ledger_info_t;
-
-typedef struct xdr_t {
-    unsigned char *xdr;
-    size_t        len;
-} xdr_t;
 
 typedef struct xdr_vector_t {
     xdr_t  *array;

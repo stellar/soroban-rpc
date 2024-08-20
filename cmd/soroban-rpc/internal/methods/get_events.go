@@ -16,6 +16,7 @@ import (
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/xdr2json"
 )
 
 const (
@@ -84,16 +85,22 @@ func (e eventTypeSet) matches(event xdr.ContractEvent) bool {
 }
 
 type EventInfo struct {
-	EventType                string   `json:"type"`
-	Ledger                   int32    `json:"ledger"`
-	LedgerClosedAt           string   `json:"ledgerClosedAt"`
-	ContractID               string   `json:"contractId"`
-	ID                       string   `json:"id"`
-	PagingToken              string   `json:"pagingToken"`
-	Topic                    []string `json:"topic"`
-	Value                    string   `json:"value"`
-	InSuccessfulContractCall bool     `json:"inSuccessfulContractCall"`
-	TransactionHash          string   `json:"txHash"`
+	EventType                string `json:"type"`
+	Ledger                   int32  `json:"ledger"`
+	LedgerClosedAt           string `json:"ledgerClosedAt"`
+	ContractID               string `json:"contractId"`
+	ID                       string `json:"id"`
+	PagingToken              string `json:"pagingToken"`
+	InSuccessfulContractCall bool   `json:"inSuccessfulContractCall"`
+	TransactionHash          string `json:"txHash"`
+
+	// TopicXDR is a base64-encoded list of ScVals
+	TopicXDR  []string          `json:"topic,omitempty"`
+	TopicJSON []json.RawMessage `json:"topicJson,omitempty"`
+
+	// ValueXDR is a base64-encoded ScVal
+	ValueXDR  string          `json:"value,omitempty"`
+	ValueJSON json.RawMessage `json:"valueJson,omitempty"`
 }
 
 type GetEventsRequest struct {
@@ -101,10 +108,14 @@ type GetEventsRequest struct {
 	EndLedger   uint32             `json:"endLedger,omitempty"`
 	Filters     []EventFilter      `json:"filters"`
 	Pagination  *PaginationOptions `json:"pagination,omitempty"`
+	Format      string             `json:"xdrFormat,omitempty"`
 }
 
 func (g *GetEventsRequest) Valid(maxLimit uint) error {
-	// Validate start
+	if err := IsValidFormat(g.Format); err != nil {
+		return err
+	}
+
 	// Validate the paging limit (if it exists)
 	if g.Pagination != nil && g.Pagination.Cursor != nil {
 		if g.StartLedger != 0 || g.EndLedger != 0 {
@@ -489,6 +500,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 			entry.cursor,
 			time.Unix(entry.ledgerCloseTimestamp, 0).UTC().Format(time.RFC3339),
 			entry.txHash.HexString(),
+			request.Format,
 		)
 		if err != nil {
 			return GetEventsResponse{}, errors.Wrap(err, "could not parse event")
@@ -505,8 +517,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 func eventInfoForEvent(
 	event xdr.DiagnosticEvent,
 	cursor db.Cursor,
-	ledgerClosedAt string,
-	txHash string,
+	ledgerClosedAt, txHash, format string,
 ) (EventInfo, error) {
 	v0, ok := event.Event.Body.GetV0()
 	if !ok {
@@ -527,26 +538,59 @@ func eventInfoForEvent(
 		}
 		topic = append(topic, seg)
 	}
-
-	// base64-xdr encode the data
-	data, err := xdr.MarshalBase64(v0.Data)
-	if err != nil {
-		return EventInfo{}, err
-	}
-
 	info := EventInfo{
 		EventType:                eventType,
 		Ledger:                   int32(cursor.Ledger),
 		LedgerClosedAt:           ledgerClosedAt,
 		ID:                       cursor.String(),
 		PagingToken:              cursor.String(),
-		Topic:                    topic,
-		Value:                    data,
 		InSuccessfulContractCall: event.InSuccessfulContractCall,
 		TransactionHash:          txHash,
 	}
+
+	switch format {
+	case FormatJSON:
+		// json encode the topic
+		info.TopicJSON = make([]json.RawMessage, 0, db.MaxTopicCount)
+		for _, topic := range v0.Topics {
+			topic, err := xdr2json.ConvertInterface(topic)
+			if err != nil {
+				return EventInfo{}, err
+			}
+			info.TopicJSON = append(info.TopicJSON, topic)
+		}
+
+		var convErr error
+		info.ValueJSON, convErr = xdr2json.ConvertInterface(v0.Data)
+		if convErr != nil {
+			return EventInfo{}, convErr
+		}
+
+	default:
+		// base64-xdr encode the topic
+		topic := make([]string, 0, db.MaxTopicCount)
+		for _, segment := range v0.Topics {
+			seg, err := xdr.MarshalBase64(segment)
+			if err != nil {
+				return EventInfo{}, err
+			}
+			topic = append(topic, seg)
+		}
+
+		// base64-xdr encode the data
+		data, err := xdr.MarshalBase64(v0.Data)
+		if err != nil {
+			return EventInfo{}, err
+		}
+
+		info.TopicXDR = topic
+		info.ValueXDR = data
+	}
+
 	if event.Event.ContractId != nil {
-		info.ContractID = strkey.MustEncode(strkey.VersionByteContract, (*event.Event.ContractId)[:])
+		info.ContractID = strkey.MustEncode(
+			strkey.VersionByteContract,
+			(*event.Event.ContractId)[:])
 	}
 	return info, nil
 }
