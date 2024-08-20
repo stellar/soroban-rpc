@@ -304,12 +304,13 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 
 	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
 	defer cancelReadTxMeta()
-	var initialSeq uint32
-	var currentSeq uint32
+
 	dataMigrations, err := db.BuildMigrations(readTxMetaCtx, d.logger, d.db, cfg)
 	if err != nil {
 		d.logger.WithError(err).Fatal("could not build migrations")
 	}
+
+	var initialSeq, currentSeq uint32
 	// NOTE: We could optimize this to avoid unnecessary ingestion calls
 	//       (the range of txmetas can be larger than the individual store retention windows)
 	//       but it's probably not worth the pain.
@@ -317,20 +318,21 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 		currentSeq = txmeta.LedgerSequence()
 		if initialSeq == 0 {
 			initialSeq = currentSeq
-			d.logger.WithFields(supportlog.F{
-				"seq": currentSeq,
-			}).Info("initializing in-memory store and applying DB data migrations")
+			d.logger.WithField("seq", currentSeq).
+				Info("initializing in-memory store and applying DB data migrations")
 		} else if (currentSeq-initialSeq)%inMemoryInitializationLedgerLogPeriod == 0 {
-			d.logger.WithFields(supportlog.F{
-				"seq": currentSeq,
-			}).Debug("still initializing in-memory store")
+			d.logger.WithField("seq", currentSeq).
+				Debug("still initializing in-memory store")
 		}
+
 		if err := eventStore.IngestEvents(txmeta); err != nil {
 			d.logger.WithError(err).Fatal("could not initialize event memory store")
 		}
+
 		if err := feewindows.IngestFees(txmeta); err != nil {
 			d.logger.WithError(err).Fatal("could not initialize fee stats")
 		}
+
 		// TODO: clean up once we remove the in-memory storage.
 		//       (we should only stream over the required range)
 		if r := dataMigrations.ApplicableRange(); r.IsLedgerIncluded(currentSeq) {
@@ -348,18 +350,15 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) (*feewindow.FeeWindow
 	}
 
 	if currentSeq != 0 {
-		d.logger.WithFields(supportlog.F{
-			"seq": currentSeq,
-		}).Info("finished initializing in-memory store and applying DB data migrations")
+		d.logger.WithField("seq", currentSeq).
+			Info("finished initializing in-memory store and applying DB data migrations")
 	}
 
 	return feewindows, eventStore
 }
 
 func (d *Daemon) Run() {
-	d.logger.WithFields(supportlog.F{
-		"addr": d.listener.Addr().String(),
-	}).Info("starting HTTP server")
+	d.logger.WithField("addr", d.listener.Addr().String()).Info("starting HTTP server")
 
 	panicGroup := util.UnrecoverablePanicGroup.Log(d.logger)
 	panicGroup.Go(func() {
@@ -369,9 +368,9 @@ func (d *Daemon) Run() {
 	})
 
 	if d.adminServer != nil {
-		d.logger.WithFields(supportlog.F{
-			"addr": d.adminListener.Addr().String(),
-		}).Info("starting Admin HTTP server")
+		d.logger.
+			WithField("addr", d.adminListener.Addr().String()).
+			Info("starting Admin HTTP server")
 		panicGroup.Go(func() {
 			if err := d.adminServer.Serve(d.adminListener); !errors.Is(err, http.ErrServerClosed) {
 				d.logger.WithError(err).Error("soroban admin server encountered fatal error")
@@ -379,9 +378,10 @@ func (d *Daemon) Run() {
 		})
 	}
 
-	// Shutdown gracefully when we receive an interrupt signal.
-	// First server.Shutdown closes all open listeners, then closes all idle connections.
-	// Finally, it waits a grace period (10s here) for connections to return to idle and then shut down.
+	// Shutdown gracefully when we receive an interrupt signal. First
+	// server.Shutdown closes all open listeners, then closes all idle
+	// connections. Finally, it waits a grace period (10s here) for connections
+	// to return to idle and then shut down.
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
