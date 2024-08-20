@@ -2,16 +2,18 @@ package db
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
+
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 func transactionMetaWithEvents(events ...xdr.ContractEvent) xdr.TransactionMeta {
@@ -40,7 +42,11 @@ func contractEvent(contractID xdr.Hash, topic []xdr.ScVal, body xdr.ScVal) xdr.C
 	}
 }
 
-func ledgerCloseMetaWithEvents(sequence uint32, closeTimestamp int64, txMeta ...xdr.TransactionMeta) xdr.LedgerCloseMeta {
+func ledgerCloseMetaWithEvents(
+	sequence uint32,
+	closeTimestamp int64,
+	txMeta ...xdr.TransactionMeta,
+) xdr.LedgerCloseMeta {
 	var txProcessing []xdr.TransactionResultMeta
 	var phases []xdr.TransactionPhase
 
@@ -142,7 +148,7 @@ func TestInsertEvents(t *testing.T) {
 	counter := xdr.ScSymbol("COUNTER")
 
 	var txMeta []xdr.TransactionMeta
-	for i := 0; i < 10; i++ {
+	for range []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9} {
 		txMeta = append(txMeta, transactionMetaWithEvents(
 			contractEvent(
 				contractID,
@@ -161,7 +167,13 @@ func TestInsertEvents(t *testing.T) {
 
 	eventW := write.EventWriter()
 	err = eventW.InsertEvents(ledgerCloseMeta)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	//TODO: Call getEvents and validate events data.
+	eventReader := NewEventReader(log, db, passphrase)
+	start := Cursor{Ledger: 1}
+	end := Cursor{Ledger: 100}
+	cursorRange := CursorRange{Start: start, End: end}
+
+	err = eventReader.GetEvents(ctx, cursorRange, nil, nil, nil, nil)
+	require.NoError(t, err)
 }

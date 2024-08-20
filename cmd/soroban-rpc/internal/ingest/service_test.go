@@ -17,7 +17,6 @@ import (
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/feewindow"
 )
 
@@ -45,7 +44,6 @@ func TestRetryRunningIngestion(t *testing.T) {
 	config := Config{
 		Logger:            supportlog.New(),
 		DB:                &ErrorReadWriter{},
-		EventStore:        nil,
 		NetworkPassPhrase: "",
 		Archive:           nil,
 		LedgerBackend:     nil,
@@ -69,8 +67,7 @@ func TestIngestion(t *testing.T) {
 	config := Config{
 		Logger:            supportlog.New(),
 		DB:                mockDB,
-		EventStore:        events.NewMemoryStore(daemon, network.TestNetworkPassphrase, 1),
-		FeeWindows:        feewindow.NewFeeWindows(1, 1, network.TestNetworkPassphrase),
+		FeeWindows:        feewindow.NewFeeWindows(1, 1, network.TestNetworkPassphrase, nil),
 		LedgerBackend:     mockLedgerBackend,
 		Daemon:            daemon,
 		NetworkPassPhrase: network.TestNetworkPassphrase,

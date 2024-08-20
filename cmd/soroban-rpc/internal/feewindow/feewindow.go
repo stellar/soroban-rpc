@@ -2,6 +2,7 @@
 package feewindow
 
 import (
+	"errors"
 	"io"
 	"slices"
 	"sync"
@@ -9,6 +10,7 @@ import (
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/xdr"
 
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
@@ -128,20 +130,22 @@ type FeeWindows struct {
 	SorobanInclusionFeeWindow *FeeWindow
 	ClassicFeeWindow          *FeeWindow
 	networkPassPhrase         string
+	db                        *db.DB
 }
 
-func NewFeeWindows(classicRetention uint32, sorobanRetetion uint32, networkPassPhrase string) *FeeWindows {
+func NewFeeWindows(classicRetention uint32, sorobanRetetion uint32, networkPassPhrase string, db *db.DB) *FeeWindows {
 	return &FeeWindows{
 		SorobanInclusionFeeWindow: NewFeeWindow(sorobanRetetion),
 		ClassicFeeWindow:          NewFeeWindow(classicRetention),
 		networkPassPhrase:         networkPassPhrase,
+		db:                        db,
 	}
 }
 
 func (fw *FeeWindows) IngestFees(meta xdr.LedgerCloseMeta) error {
 	reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(fw.networkPassPhrase, meta)
 	if err != nil {
-		return err
+		return errors.Join(err, fw.db.Rollback())
 	}
 	var sorobanInclusionFees []uint64
 	var classicFees []uint64
@@ -151,7 +155,7 @@ func (fw *FeeWindows) IngestFees(meta xdr.LedgerCloseMeta) error {
 			break
 		}
 		if err != nil {
-			return err
+			return errors.Join(err, fw.db.Rollback())
 		}
 		feeCharged := uint64(tx.Result.Result.FeeCharged)
 		ops := tx.Envelope.Operations()
@@ -182,11 +186,11 @@ func (fw *FeeWindows) IngestFees(meta xdr.LedgerCloseMeta) error {
 		BucketContent:        classicFees,
 	}
 	if err := fw.ClassicFeeWindow.AppendLedgerFees(bucket); err != nil {
-		return err
+		return errors.Join(err, fw.db.Rollback())
 	}
 	bucket.BucketContent = sorobanInclusionFees
 	if err := fw.SorobanInclusionFeeWindow.AppendLedgerFees(bucket); err != nil {
-		return err
+		return errors.Join(err, fw.db.Rollback())
 	}
 	return nil
 }

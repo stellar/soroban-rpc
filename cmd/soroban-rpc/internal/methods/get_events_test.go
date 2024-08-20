@@ -1,26 +1,33 @@
 package methods
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"path"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/strkey"
+	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
+	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
+
+var passphrase = "passphrase"
 
 func TestEventTypeSetMatches(t *testing.T) {
 	var defaultSet eventTypeSet
-
 	all := eventTypeSet{}
 	all[EventTypeContract] = nil
 	all[EventTypeDiagnostic] = nil
@@ -410,8 +417,8 @@ func TestGetEventsRequestValid(t *testing.T) {
 	assert.EqualError(t, (&GetEventsRequest{
 		StartLedger: 1,
 		Filters:     []EventFilter{},
-		Pagination:  &PaginationOptions{Cursor: &events.Cursor{}},
-	}).Valid(1000), "startLedger and cursor cannot both be set")
+		Pagination:  &PaginationOptions{Cursor: &db.Cursor{}},
+	}).Valid(1000), "ledger ranges and cursor cannot both be set")
 
 	assert.NoError(t, (&GetEventsRequest{
 		StartLedger: 1,
@@ -524,22 +531,19 @@ func TestGetEvents(t *testing.T) {
 	counterXdr, err := xdr.MarshalBase64(counterScVal)
 	assert.NoError(t, err)
 
-	t.Run("empty", func(t *testing.T) {
-		store := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "unit-tests", 100)
-		handler := eventsRPCHandler{
-			scanner:      store,
-			maxLimit:     10000,
-			defaultLimit: 100,
-		}
-		_, err = handler.getEvents(GetEventsRequest{
-			StartLedger: 1,
-		})
-		assert.EqualError(t, err, "[-32600] event store is empty")
-	})
-
 	t.Run("startLedger validation", func(t *testing.T) {
 		contractID := xdr.Hash([32]byte{})
-		store := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "unit-tests", 100)
+		dbx := newTestDB(t)
+		ctx := context.TODO()
+		log := log.DefaultLogger
+		log.SetLevel(logrus.TraceLevel)
+
+		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+		write, err := writer.NewTx(ctx)
+		require.NoError(t, err)
+		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+		store := db.NewEventReader(log, dbx, passphrase)
+
 		var txMeta []xdr.TransactionMeta
 		txMeta = append(txMeta, transactionMetaWithEvents(
 			contractEvent(
@@ -554,29 +558,45 @@ func TestGetEvents(t *testing.T) {
 				},
 			),
 		))
-		assert.NoError(t, store.IngestEvents(ledgerCloseMetaWithEvents(2, now.Unix(), txMeta...)))
+
+		ledgerCloseMeta := ledgerCloseMetaWithEvents(2, now.Unix(), txMeta...)
+		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+		assert.NoError(t, eventW.InsertEvents(ledgerCloseMeta))
+		require.NoError(t, write.Commit(2))
 
 		handler := eventsRPCHandler{
-			scanner:      store,
+			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
+			ledgerReader: db.NewLedgerReader(dbx),
 		}
-		_, err = handler.getEvents(GetEventsRequest{
+		_, err = handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 		})
-		assert.EqualError(t, err, "[-32600] start is before oldest ledger")
+		require.EqualError(t, err, "[-32600] startLedger must be within the ledger range: 2 - 2")
 
-		_, err = handler.getEvents(GetEventsRequest{
+		_, err = handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 3,
 		})
-		assert.EqualError(t, err, "[-32600] start is after newest ledger")
+		require.EqualError(t, err, "[-32600] startLedger must be within the ledger range: 2 - 2")
 	})
 
 	t.Run("no filtering returns all", func(t *testing.T) {
+		dbx := newTestDB(t)
+		ctx := context.TODO()
+		log := log.DefaultLogger
+		log.SetLevel(logrus.TraceLevel)
+
+		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+		write, err := writer.NewTx(ctx)
+		require.NoError(t, err)
+
+		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+		store := db.NewEventReader(log, dbx, passphrase)
+
 		contractID := xdr.Hash([32]byte{})
-		store := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "unit-tests", 100)
 		var txMeta []xdr.TransactionMeta
-		for i := 0; i < 10; i++ {
+		for range []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9} {
 			txMeta = append(txMeta, transactionMetaWithEvents(
 				contractEvent(
 					contractID,
@@ -591,22 +611,26 @@ func TestGetEvents(t *testing.T) {
 				),
 			))
 		}
+
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)
-		assert.NoError(t, store.IngestEvents(ledgerCloseMeta))
+		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+		assert.NoError(t, eventW.InsertEvents(ledgerCloseMeta))
+		require.NoError(t, write.Commit(1))
 
 		handler := eventsRPCHandler{
-			scanner:      store,
+			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
+			ledgerReader: db.NewLedgerReader(dbx),
 		}
-		results, err := handler.getEvents(GetEventsRequest{
+		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 		})
 		assert.NoError(t, err)
 
 		var expected []EventInfo
 		for i := range txMeta {
-			id := events.Cursor{
+			id := db.Cursor{
 				Ledger: 1,
 				Tx:     uint32(i + 1),
 				Op:     0,
@@ -634,16 +658,27 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("filtering by contract id", func(t *testing.T) {
-		store := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "unit-tests", 100)
+		dbx := newTestDB(t)
+		ctx := context.TODO()
+		log := log.DefaultLogger
+		log.SetLevel(logrus.TraceLevel)
+
+		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+		write, err := writer.NewTx(ctx)
+		require.NoError(t, err)
+
+		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+		store := db.NewEventReader(log, dbx, passphrase)
+
 		var txMeta []xdr.TransactionMeta
-		contractIds := []xdr.Hash{
+		contractIDs := []xdr.Hash{
 			xdr.Hash([32]byte{}),
 			xdr.Hash([32]byte{1}),
 		}
 		for i := 0; i < 5; i++ {
 			txMeta = append(txMeta, transactionMetaWithEvents(
 				contractEvent(
-					contractIds[i%len(contractIds)],
+					contractIDs[i%len(contractIDs)],
 					xdr.ScVec{xdr.ScVal{
 						Type: xdr.ScValTypeScvSymbol,
 						Sym:  &counter,
@@ -655,26 +690,31 @@ func TestGetEvents(t *testing.T) {
 				),
 			))
 		}
-		assert.NoError(t, store.IngestEvents(ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)))
+
+		ledgerCloseMeta := ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)
+		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
+		require.NoError(t, write.Commit(2))
 
 		handler := eventsRPCHandler{
-			scanner:      store,
+			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
+			ledgerReader: db.NewLedgerReader(dbx),
 		}
-		results, err := handler.getEvents(GetEventsRequest{
+		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 			Filters: []EventFilter{
-				{ContractIDs: []string{strkey.MustEncode(strkey.VersionByteContract, contractIds[0][:])}},
+				{ContractIDs: []string{strkey.MustEncode(strkey.VersionByteContract, contractIDs[0][:])}},
 			},
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, uint32(1), results.LatestLedger)
 
 		expectedIds := []string{
-			events.Cursor{Ledger: 1, Tx: 1, Op: 0, Event: 0}.String(),
-			events.Cursor{Ledger: 1, Tx: 3, Op: 0, Event: 0}.String(),
-			events.Cursor{Ledger: 1, Tx: 5, Op: 0, Event: 0}.String(),
+			db.Cursor{Ledger: 1, Tx: 1, Op: 0, Event: 0}.String(),
+			db.Cursor{Ledger: 1, Tx: 3, Op: 0, Event: 0}.String(),
+			db.Cursor{Ledger: 1, Tx: 5, Op: 0, Event: 0}.String(),
 		}
 		eventIds := []string{}
 		for _, event := range results.Events {
@@ -684,10 +724,21 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("filtering by topic", func(t *testing.T) {
-		store := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "unit-tests", 100)
+		dbx := newTestDB(t)
+		ctx := context.TODO()
+		log := log.DefaultLogger
+		log.SetLevel(logrus.TraceLevel)
+
+		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+		write, err := writer.NewTx(ctx)
+		require.NoError(t, err)
+
+		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+		store := db.NewEventReader(log, dbx, passphrase)
+
 		var txMeta []xdr.TransactionMeta
 		contractID := xdr.Hash([32]byte{})
-		for i := 0; i < 10; i++ {
+		for i := range []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9} {
 			number := xdr.Uint64(i)
 			txMeta = append(txMeta, transactionMetaWithEvents(
 				// Generate a unique topic like /counter/4 for each event so we can check
@@ -702,15 +753,19 @@ func TestGetEvents(t *testing.T) {
 			))
 		}
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)
-		assert.NoError(t, store.IngestEvents(ledgerCloseMeta))
+
+		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
+		require.NoError(t, write.Commit(1))
 
 		number := xdr.Uint64(4)
 		handler := eventsRPCHandler{
-			scanner:      store,
+			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
+			ledgerReader: db.NewLedgerReader(dbx),
 		}
-		results, err := handler.getEvents(GetEventsRequest{
+		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 			Filters: []EventFilter{
 				{Topics: []TopicFilter{
@@ -723,7 +778,7 @@ func TestGetEvents(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		id := events.Cursor{Ledger: 1, Tx: 5, Op: 0, Event: 0}.String()
+		id := db.Cursor{Ledger: 1, Tx: 5, Op: 0, Event: 0}.String()
 		assert.NoError(t, err)
 		value, err := xdr.MarshalBase64(xdr.ScVal{
 			Type: xdr.ScValTypeScvU64,
@@ -748,7 +803,18 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("filtering by both contract id and topic", func(t *testing.T) {
-		store := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "unit-tests", 100)
+		dbx := newTestDB(t)
+		ctx := context.TODO()
+		log := log.DefaultLogger
+		log.SetLevel(logrus.TraceLevel)
+
+		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+		write, err := writer.NewTx(ctx)
+		require.NoError(t, err)
+
+		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+		store := db.NewEventReader(log, dbx, passphrase)
+
 		contractID := xdr.Hash([32]byte{})
 		otherContractID := xdr.Hash([32]byte{1})
 		number := xdr.Uint64(1)
@@ -797,14 +863,18 @@ func TestGetEvents(t *testing.T) {
 			),
 		}
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)
-		assert.NoError(t, store.IngestEvents(ledgerCloseMeta))
+
+		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
+		require.NoError(t, write.Commit(1))
 
 		handler := eventsRPCHandler{
-			scanner:      store,
+			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
+			ledgerReader: db.NewLedgerReader(dbx),
 		}
-		results, err := handler.getEvents(GetEventsRequest{
+		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 			Filters: []EventFilter{
 				{
@@ -820,7 +890,7 @@ func TestGetEvents(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		id := events.Cursor{Ledger: 1, Tx: 4, Op: 0, Event: 0}.String()
+		id := db.Cursor{Ledger: 1, Tx: 4, Op: 0, Event: 0}.String()
 		value, err := xdr.MarshalBase64(xdr.ScVal{
 			Type: xdr.ScValTypeScvU64,
 			U64:  &number,
@@ -844,7 +914,17 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("filtering by event type", func(t *testing.T) {
-		store := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "unit-tests", 100)
+		dbx := newTestDB(t)
+		ctx := context.TODO()
+		log := log.DefaultLogger
+		log.SetLevel(logrus.TraceLevel)
+
+		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+		write, err := writer.NewTx(ctx)
+		require.NoError(t, err)
+		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+		store := db.NewEventReader(log, dbx, passphrase)
+
 		contractID := xdr.Hash([32]byte{})
 		txMeta := []xdr.TransactionMeta{
 			transactionMetaWithEvents(
@@ -872,14 +952,17 @@ func TestGetEvents(t *testing.T) {
 			),
 		}
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)
-		assert.NoError(t, store.IngestEvents(ledgerCloseMeta))
+		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
+		require.NoError(t, write.Commit(1))
 
 		handler := eventsRPCHandler{
-			scanner:      store,
+			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
+			ledgerReader: db.NewLedgerReader(dbx),
 		}
-		results, err := handler.getEvents(GetEventsRequest{
+		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 			Filters: []EventFilter{
 				{EventType: map[string]interface{}{EventTypeSystem: nil}},
@@ -887,7 +970,7 @@ func TestGetEvents(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		id := events.Cursor{Ledger: 1, Tx: 1, Op: 0, Event: 1}.String()
+		id := db.Cursor{Ledger: 1, Tx: 1, Op: 0, Event: 1}.String()
 		expected := []EventInfo{
 			{
 				EventType:                EventTypeSystem,
@@ -906,7 +989,18 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("with limit", func(t *testing.T) {
-		store := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "unit-tests", 100)
+		dbx := newTestDB(t)
+		ctx := context.TODO()
+		log := log.DefaultLogger
+		log.SetLevel(logrus.TraceLevel)
+
+		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+		write, err := writer.NewTx(ctx)
+		require.NoError(t, err)
+
+		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+		store := db.NewEventReader(log, dbx, passphrase)
+
 		contractID := xdr.Hash([32]byte{})
 		var txMeta []xdr.TransactionMeta
 		for i := 0; i < 180; i++ {
@@ -922,14 +1016,17 @@ func TestGetEvents(t *testing.T) {
 			))
 		}
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)
-		assert.NoError(t, store.IngestEvents(ledgerCloseMeta))
+		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
+		require.NoError(t, write.Commit(1))
 
 		handler := eventsRPCHandler{
-			scanner:      store,
+			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
+			ledgerReader: db.NewLedgerReader(dbx),
 		}
-		results, err := handler.getEvents(GetEventsRequest{
+		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 			Filters:     []EventFilter{},
 			Pagination:  &PaginationOptions{Limit: 10},
@@ -938,7 +1035,7 @@ func TestGetEvents(t *testing.T) {
 
 		var expected []EventInfo
 		for i := 0; i < 10; i++ {
-			id := events.Cursor{
+			id := db.Cursor{
 				Ledger: 1,
 				Tx:     uint32(i + 1),
 				Op:     0,
@@ -963,7 +1060,18 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("with cursor", func(t *testing.T) {
-		store := events.NewMemoryStore(interfaces.MakeNoOpDeamon(), "unit-tests", 100)
+		dbx := newTestDB(t)
+		ctx := context.TODO()
+		log := log.DefaultLogger
+		log.SetLevel(logrus.TraceLevel)
+
+		writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+		write, err := writer.NewTx(ctx)
+		require.NoError(t, err)
+
+		ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+		store := db.NewEventReader(log, dbx, passphrase)
+
 		contractID := xdr.Hash([32]byte{})
 		datas := []xdr.ScSymbol{
 			// ledger/transaction/operation/event
@@ -1007,15 +1115,18 @@ func TestGetEvents(t *testing.T) {
 			),
 		}
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(5, now.Unix(), txMeta...)
-		assert.NoError(t, store.IngestEvents(ledgerCloseMeta))
+		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
+		require.NoError(t, write.Commit(4))
 
-		id := &events.Cursor{Ledger: 5, Tx: 1, Op: 0, Event: 0}
+		id := &db.Cursor{Ledger: 5, Tx: 1, Op: 0, Event: 0}
 		handler := eventsRPCHandler{
-			scanner:      store,
+			dbReader:     store,
 			maxLimit:     10000,
 			defaultLimit: 100,
+			ledgerReader: db.NewLedgerReader(dbx),
 		}
-		results, err := handler.getEvents(GetEventsRequest{
+		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			Pagination: &PaginationOptions{
 				Cursor: id,
 				Limit:  2,
@@ -1025,8 +1136,8 @@ func TestGetEvents(t *testing.T) {
 
 		var expected []EventInfo
 		expectedIDs := []string{
-			events.Cursor{Ledger: 5, Tx: 1, Op: 0, Event: 1}.String(),
-			events.Cursor{Ledger: 5, Tx: 2, Op: 0, Event: 0}.String(),
+			db.Cursor{Ledger: 5, Tx: 1, Op: 0, Event: 1}.String(),
+			db.Cursor{Ledger: 5, Tx: 2, Op: 0, Event: 0}.String(),
 		}
 		symbols := datas[1:3]
 		for i, id := range expectedIDs {
@@ -1047,9 +1158,9 @@ func TestGetEvents(t *testing.T) {
 		}
 		assert.Equal(t, GetEventsResponse{expected, 5}, results)
 
-		results, err = handler.getEvents(GetEventsRequest{
+		results, err = handler.getEvents(context.TODO(), GetEventsRequest{
 			Pagination: &PaginationOptions{
-				Cursor: &events.Cursor{Ledger: 5, Tx: 2, Op: 0, Event: 1},
+				Cursor: &db.Cursor{Ledger: 5, Tx: 2, Op: 0, Event: 1},
 				Limit:  2,
 			},
 		})
@@ -1058,44 +1169,111 @@ func TestGetEvents(t *testing.T) {
 	})
 }
 
+func BenchmarkGetEvents(b *testing.B) {
+	var counters [10]xdr.ScSymbol
+	for i := 0; i < len(counters); i++ {
+		counters[i] = xdr.ScSymbol("TEST-COUNTER-" + strconv.Itoa(i+1))
+	}
+	// counter := xdr.ScSymbol("COUNTER")
+	// requestedCounter := xdr.ScSymbol("REQUESTED")
+	dbx := newTestDB(b)
+	ctx := context.TODO()
+	log := log.DefaultLogger
+	log.SetLevel(logrus.TraceLevel)
+	store := db.NewEventReader(log, dbx, passphrase)
+	contractID := xdr.Hash([32]byte{})
+	now := time.Now().UTC()
+
+	writer := db.NewReadWriter(log, dbx, interfaces.MakeNoOpDeamon(), 10, 10, passphrase)
+	write, err := writer.NewTx(ctx)
+	require.NoError(b, err)
+	ledgerW, eventW := write.LedgerWriter(), write.EventWriter()
+
+	for i := range []int{1, 2, 3} {
+		txMeta := getTxMetaWithContractEvents(contractID)
+		ledgerCloseMeta := ledgerCloseMetaWithEvents(uint32(i), now.Unix(), txMeta...)
+		require.NoError(b, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
+		require.NoError(b, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
+	}
+	require.NoError(b, write.Commit(1))
+
+	handler := eventsRPCHandler{
+		dbReader:     store,
+		maxLimit:     10000,
+		defaultLimit: 100,
+		ledgerReader: db.NewLedgerReader(dbx),
+	}
+
+	request := GetEventsRequest{
+		StartLedger: 1,
+		Filters: []EventFilter{
+			{
+				Topics: []TopicFilter{
+					[]SegmentFilter{
+						{scval: &xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counters[1]}},
+					},
+				},
+			},
+		},
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		_, err := handler.getEvents(ctx, request)
+		if err != nil {
+			b.Errorf("getEvents failed: %v", err)
+		}
+	}
+
+	totalNs := b.Elapsed()
+	nsPerOp := totalNs.Nanoseconds() / int64(b.N)
+	msPerOp := float64(nsPerOp) / 1e6
+	log.Infof("Benchmark Results: %v ms/op ", msPerOp)
+}
+
+func getTxMetaWithContractEvents(contractID xdr.Hash) []xdr.TransactionMeta {
+	var counters [1000]xdr.ScSymbol
+	for j := 0; j < len(counters); j++ {
+		counters[j] = xdr.ScSymbol("TEST-COUNTER-" + strconv.Itoa(j+1))
+	}
+
+	events := make([]xdr.ContractEvent, 0, 10)
+	for i := range []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9} {
+		contractEvent := contractEvent(
+			contractID,
+			xdr.ScVec{
+				xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counters[i]},
+			},
+			xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counters[i]},
+		)
+		events = append(events, contractEvent)
+	}
+
+	txMeta := []xdr.TransactionMeta{
+		transactionMetaWithEvents(
+			events...,
+		),
+	}
+	return txMeta
+}
+
 func ledgerCloseMetaWithEvents(sequence uint32, closeTimestamp int64, txMeta ...xdr.TransactionMeta) xdr.LedgerCloseMeta {
 	var txProcessing []xdr.TransactionResultMeta
 	var phases []xdr.TransactionPhase
 
 	for _, item := range txMeta {
-		var operations []xdr.Operation
-		for range item.MustV3().SorobanMeta.Events {
-			operations = append(operations,
-				xdr.Operation{
-					Body: xdr.OperationBody{
-						Type: xdr.OperationTypeInvokeHostFunction,
-						InvokeHostFunctionOp: &xdr.InvokeHostFunctionOp{
-							HostFunction: xdr.HostFunction{
-								Type: xdr.HostFunctionTypeHostFunctionTypeInvokeContract,
-								InvokeContract: &xdr.InvokeContractArgs{
-									ContractAddress: xdr.ScAddress{
-										Type:       xdr.ScAddressTypeScAddressTypeContract,
-										ContractId: &xdr.Hash{0x1, 0x2},
-									},
-									FunctionName: "foo",
-									Args:         nil,
-								},
-							},
-							Auth: []xdr.SorobanAuthorizationEntry{},
-						},
-					},
-				})
-		}
 		envelope := xdr.TransactionEnvelope{
 			Type: xdr.EnvelopeTypeEnvelopeTypeTx,
 			V1: &xdr.TransactionV1Envelope{
 				Tx: xdr.Transaction{
 					SourceAccount: xdr.MustMuxedAddress(keypair.MustRandom().Address()),
-					Operations:    operations,
+					// Operations:    operations,
 				},
 			},
 		}
-		txHash, err := network.HashTransactionInEnvelope(envelope, "unit-tests")
+		txHash, err := network.HashTransactionInEnvelope(envelope, "passphrase")
 		if err != nil {
 			panic(err)
 		}
@@ -1104,6 +1282,7 @@ func ledgerCloseMetaWithEvents(sequence uint32, closeTimestamp int64, txMeta ...
 			TxApplyProcessing: item,
 			Result: xdr.TransactionResultPair{
 				TransactionHash: txHash,
+				Result:          transactionResult(true),
 			},
 		})
 		components := []xdr.TxSetComponent{
@@ -1147,12 +1326,18 @@ func ledgerCloseMetaWithEvents(sequence uint32, closeTimestamp int64, txMeta ...
 }
 
 func transactionMetaWithEvents(events ...xdr.ContractEvent) xdr.TransactionMeta {
+	counter := xdr.ScSymbol("COUNTER")
+
 	return xdr.TransactionMeta{
 		V:          3,
 		Operations: &[]xdr.OperationMeta{},
 		V3: &xdr.TransactionMetaV3{
 			SorobanMeta: &xdr.SorobanTransactionMeta{
 				Events: events,
+				ReturnValue: xdr.ScVal{
+					Type: xdr.ScValTypeScvSymbol,
+					Sym:  &counter,
+				},
 			},
 		},
 	}
@@ -1198,4 +1383,15 @@ func diagnosticEvent(contractID xdr.Hash, topic []xdr.ScVal, body xdr.ScVal) xdr
 			},
 		},
 	}
+}
+
+func newTestDB(tb testing.TB) *db.DB {
+	tmp := tb.TempDir()
+	dbPath := path.Join(tmp, "dbx.sqlite")
+	db, err := db.OpenSQLiteDB(dbPath)
+	require.NoError(tb, err)
+	tb.Cleanup(func() {
+		assert.NoError(tb, db.Close())
+	})
+	return db
 }
