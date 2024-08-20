@@ -32,7 +32,7 @@ type EventReader interface {
 		ctx context.Context,
 		cursorRange CursorRange,
 		contractIDs [][]byte,
-		topics [][]string,
+		topics [][][]byte,
 		eventTypes []int,
 		f ScanFunction,
 	) error
@@ -121,7 +121,7 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 			}
 
 			id := Cursor{Ledger: lcm.LedgerSequence(), Tx: tx.Index, Op: 0, Event: uint32(index)}.String()
-			eventBlob, err := xdr.NewEncodingBuffer().MarshalBinary(&e)
+			eventBlob, err := e.MarshalBinary()
 			if err != nil {
 				return err
 			}
@@ -133,9 +133,9 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 
 			// Encode the topics
 			maxTopicCount := 4
-			topicList := make([]string, maxTopicCount)
+			topicList := make([][]byte, maxTopicCount)
 			for index, segment := range v0.Topics {
-				seg, err := xdr.MarshalBase64(segment)
+				seg, err := segment.MarshalBinary()
 				if err != nil {
 					return err
 				}
@@ -198,7 +198,7 @@ func (eventHandler *eventHandler) GetEvents(
 	ctx context.Context,
 	cursorRange CursorRange,
 	contractIDs [][]byte,
-	topics [][]string,
+	topics [][][]byte,
 	eventTypes []int,
 	f ScanFunction,
 ) error {

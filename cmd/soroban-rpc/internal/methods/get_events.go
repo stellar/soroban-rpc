@@ -373,20 +373,20 @@ func combineEventTypes(filters []EventFilter) []int {
 	return uniqueEventTypes
 }
 
-func combineTopics(filters []EventFilter) ([][]string, error) {
-	encodedTopicsList := make([][]string, maxTopicCount)
+func combineTopics(filters []EventFilter) ([][][]byte, error) {
+	encodedTopicsList := make([][][]byte, maxTopicCount)
 
 	for _, filter := range filters {
 		if len(filter.Topics) == 0 {
-			return [][]string{}, nil
+			return [][][]byte{}, nil
 		}
 
 		for _, topicFilter := range filter.Topics {
 			for i, segmentFilter := range topicFilter {
 				if segmentFilter.wildcard == nil && segmentFilter.scval != nil {
-					encodedTopic, err := xdr.MarshalBase64(segmentFilter.scval)
+					encodedTopic, err := segmentFilter.scval.MarshalBinary()
 					if err != nil {
-						return [][]string{}, fmt.Errorf("failed to marshal segment: %w", err)
+						return [][][]byte{}, fmt.Errorf("failed to marshal segment: %w", err)
 					}
 					encodedTopicsList[i] = append(encodedTopicsList[i], encodedTopic)
 				}
