@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -20,6 +21,7 @@ import (
 	"github.com/stellar/go/clients/stellarcore"
 	"github.com/stellar/go/historyarchive"
 	"github.com/stellar/go/ingest/ledgerbackend"
+	"github.com/stellar/go/support/datastore"
 	supporthttp "github.com/stellar/go/support/http"
 	supportlog "github.com/stellar/go/support/log"
 	"github.com/stellar/go/support/storage"
@@ -241,16 +243,14 @@ func createIngestService(cfg *config.Config, logger *supportlog.Entry, daemon *D
 		logger.WithError(err).Error("could not run ingestion. Retrying")
 	}
 
+	readWrite, err := daemon.doBackfill(cfg)
+	if err != nil {
+		logger.WithError(err).Fatal("failed to backfill ledger range")
+	}
+
 	return ingest.NewService(ingest.Config{
-		Logger: logger,
-		DB: db.NewReadWriter(
-			logger,
-			daemon.db,
-			daemon,
-			maxLedgerEntryWriteBatchSize,
-			cfg.HistoryRetentionWindow,
-			cfg.NetworkPassphrase,
-		),
+		Logger:            logger,
+		DB:                readWrite,
 		NetworkPassPhrase: cfg.NetworkPassphrase,
 		Archive:           *historyArchive,
 		LedgerBackend:     daemon.core,
@@ -336,6 +336,115 @@ func createAdminMux(logger *supportlog.Entry, metricsRegistry *prometheus.Regist
 	}
 	adminMux.Handle("/metrics", promhttp.HandlerFor(metricsRegistry, promhttp.HandlerOpts{}))
 	return adminMux
+}
+
+func (d *Daemon) doBackfill(cfg *config.Config) (db.ReadWriter, error) {
+	rw := db.NewReadWriter(
+		d.logger,
+		d.GetDB(),
+		d,
+		maxLedgerEntryWriteBatchSize,
+		cfg.HistoryRetentionWindow,
+		cfg.NetworkPassphrase)
+
+	if cfg.BackfillLedgerCount < 0 {
+		return rw, nil
+	}
+
+	ctx := context.Background()
+	ds, err := datastore.NewGCSDataStore(
+		ctx,
+		"sdf-ledger-close-meta/ledgers/pubnet/",
+		datastore.DataStoreSchema{
+			LedgersPerFile:    1,
+			FilesPerPartition: 64000,
+		})
+	if err != nil {
+		return rw, err
+	}
+
+	backend, err := ledgerbackend.NewBufferedStorageBackend(
+		ledgerbackend.BufferedStorageBackendConfig{
+			BufferSize: 65535,
+			NumWorkers: 64,
+			RetryLimit: 4,
+			RetryWait:  time.Second,
+		},
+		ds,
+	)
+	if err != nil {
+		return rw, err
+	}
+
+	ledgerRange, err := db.NewLedgerReader(d.GetDB()).GetLedgerRange(ctx)
+	if err != nil {
+		return rw, err
+	}
+
+	first := uint32(0)
+	last := ledgerRange.LastLedger.Sequence
+	// If the DB is empty, this is an initial, pre-migration state.
+	if last == 0 {
+		first = 3
+		last = uint32(cfg.BackfillLedgerCount)
+	} else {
+		last = ledgerRange.FirstLedger.Sequence - 1
+		if cfg.BackfillLedgerCount == 0 {
+			// Ingest full history
+			first = 3
+		} else {
+			first = last - uint32(cfg.BackfillLedgerCount)
+		}
+	}
+
+	d.logger.Infof("Current database range: [%d,%d] (%d ledgers)",
+		ledgerRange.FirstLedger.Sequence, ledgerRange.LastLedger.Sequence,
+		ledgerRange.LastLedger.Sequence-ledgerRange.FirstLedger.Sequence)
+
+	backfillRange := ledgerbackend.BoundedRange(first, last)
+	d.logger.Infof("Backfilling ledger range: %v (%d ledgers)",
+		backfillRange, last-first)
+
+	if err := backend.PrepareRange(ctx, backfillRange); err != nil {
+		return rw, err
+	}
+
+	tx, err := rw.NewTx(ctx)
+	defer tx.Rollback()
+	if err != nil {
+		return rw, err
+	}
+
+	var lastLedger xdr.LedgerCloseMeta
+	for i := first; i <= last; i++ {
+		ledger, err := backend.GetLedger(ctx, i)
+		if i%4523 == 0 {
+			d.logger.Infof("Backfilled %d/%d ledgers", i-first, last-first)
+		}
+
+		if err != nil {
+			return rw, errors.Join(err, fmt.Errorf("backfill failed to retrieve ledger %d", i))
+		}
+
+		if err := tx.LedgerWriter().InsertLedger(ledger); err != nil {
+			return rw, errors.Join(err, fmt.Errorf("backfill ingestion failed on ledger %d", i))
+		}
+
+		if i == last {
+			lastLedger = ledger
+		}
+	}
+
+	if err := tx.Commit(lastLedger); err != nil {
+		d.logger.WithError(err).Info("Failed to commit changes to the database.")
+		return rw, err
+	}
+
+	if err := db.ClearMigrations(ctx, d.GetDB()); err != nil {
+		return rw, errors.Join(err, fmt.Errorf("backfill failed to reset migrations"))
+	}
+	d.logger.Infof("Backfilling %d ledgers complete.", last-first)
+	return rw, nil
 }
 
 // mustInitializeStorage initializes the storage using what was on the DB

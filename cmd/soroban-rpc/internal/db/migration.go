@@ -241,3 +241,22 @@ func BuildMigrations(
 		db:         db,
 	}, nil
 }
+
+func ClearMigrations(ctx context.Context, db *DB) error {
+	err := db.BeginTx(ctx, nil)
+	for _, migration := range []string{
+		transactionsMigrationName,
+		eventsMigrationName,
+	} {
+		if err != nil {
+			return err
+		}
+
+		if err := setMetaBool(ctx, db, migration, false); err != nil {
+			db.Rollback()
+			return err
+		}
+	}
+
+	return db.Commit()
+}

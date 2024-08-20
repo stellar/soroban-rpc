@@ -493,6 +493,13 @@ func (cfg *Config) options() Options {
 			ConfigKey:    &cfg.MaxGetFeeStatsExecutionDuration,
 			DefaultValue: 5 * time.Second,
 		},
+		{
+			Name:         "backfill",
+			TomlKey:      strutils.KebabToConstantCase("backfill"),
+			Usage:        "",
+			ConfigKey:    &cfg.BackfillLedgerCount,
+			DefaultValue: -1,
+		},
 	}
 	return *cfg.optionsCache
 }
