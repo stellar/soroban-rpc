@@ -23,6 +23,7 @@ const (
 	maxContractIDsLimit = 5
 	maxTopicsLimit      = 5
 	maxFiltersLimit     = 5
+	maxEventTypes       = 3
 )
 
 type eventTypeSet map[string]interface{}
@@ -354,14 +355,15 @@ func combineContractIDs(filters []EventFilter) ([][]byte, error) {
 }
 
 func combineEventTypes(filters []EventFilter) []int {
-	eventTypes := make(map[int]bool)
+	eventTypes := set.NewSet[int](maxEventTypes)
+
 	for _, filter := range filters {
 		for _, eventType := range filter.EventType.Keys() {
 			eventTypeXDR := getEventTypeXDRFromEventType()[eventType]
-			eventTypes[int(eventTypeXDR)] = true
+			eventTypes.Add(int(eventTypeXDR))
 		}
 	}
-	uniqueEventTypes := make([]int, 0, len(eventTypes))
+	uniqueEventTypes := make([]int, 0, maxEventTypes)
 	for eventType := range eventTypes {
 		uniqueEventTypes = append(uniqueEventTypes, eventType)
 	}

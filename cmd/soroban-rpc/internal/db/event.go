@@ -302,7 +302,7 @@ func (eventHandler *eventHandler) GetEvents(
 		WithField("duration", time.Since(start)).
 		Debugf("Fetched and decoded all the events with filters - contractIDs: %v ", contractIDs)
 
-	return nil
+	return rows.Err()
 }
 
 type eventTableMigration struct {

@@ -418,7 +418,7 @@ func TestGetEventsRequestValid(t *testing.T) {
 		StartLedger: 1,
 		Filters:     []EventFilter{},
 		Pagination:  &PaginationOptions{Cursor: &db.Cursor{}},
-	}).Valid(1000), "startLedger/endLedger and cursor cannot both be set")
+	}).Valid(1000), "ledger ranges and cursor cannot both be set")
 
 	assert.NoError(t, (&GetEventsRequest{
 		StartLedger: 1,
