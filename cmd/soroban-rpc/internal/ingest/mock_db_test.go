@@ -36,9 +36,13 @@ type MockTx struct {
 	mock.Mock
 }
 
-func (m MockTx) EventWriter() db.EventWriter {
+func (m *MockTx) EventWriter() db.EventWriter {
 	args := m.Called()
-	return args.Get(0).(db.EventWriter)
+	eventWriter, ok := args.Get(0).(db.EventWriter)
+	if !ok {
+		return nil
+	}
+	return eventWriter
 }
 
 func (m MockTx) LedgerEntryWriter() db.LedgerEntryWriter {
@@ -106,7 +110,7 @@ type MockEventWriter struct {
 	mock.Mock
 }
 
-func (m MockEventWriter) InsertEvents(ledger xdr.LedgerCloseMeta) error {
+func (m *MockEventWriter) InsertEvents(ledger xdr.LedgerCloseMeta) error {
 	args := m.Called(ledger)
 	return args.Error(0)
 }

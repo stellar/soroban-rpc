@@ -529,15 +529,6 @@ func eventInfoForEvent(
 		return EventInfo{}, fmt.Errorf("unknown XDR ContractEventType type: %d", event.Event.Type)
 	}
 
-	// base64-xdr encode the topic
-	topic := make([]string, 0, db.MaxTopicCount)
-	for _, segment := range v0.Topics {
-		seg, err := xdr.MarshalBase64(segment)
-		if err != nil {
-			return EventInfo{}, err
-		}
-		topic = append(topic, seg)
-	}
 	info := EventInfo{
 		EventType:                eventType,
 		Ledger:                   int32(cursor.Ledger),

@@ -47,8 +47,8 @@ func ledgerCloseMetaWithEvents(
 	closeTimestamp int64,
 	txMeta ...xdr.TransactionMeta,
 ) xdr.LedgerCloseMeta {
-	var txProcessing []xdr.TransactionResultMeta
-	var phases []xdr.TransactionPhase
+	txProcessing := make([]xdr.TransactionResultMeta, 0, len(txMeta))
+	phases := make([]xdr.TransactionPhase, 0, len(txMeta))
 
 	for _, item := range txMeta {
 		var operations []xdr.Operation
@@ -147,7 +147,7 @@ func TestInsertEvents(t *testing.T) {
 	contractID := xdr.Hash([32]byte{})
 	counter := xdr.ScSymbol("COUNTER")
 
-	var txMeta []xdr.TransactionMeta
+	txMeta := make([]xdr.TransactionMeta, 0, 10)
 	for range []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9} {
 		txMeta = append(txMeta, transactionMetaWithEvents(
 			contractEvent(

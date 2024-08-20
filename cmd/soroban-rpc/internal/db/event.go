@@ -8,7 +8,6 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/support/db"
@@ -41,11 +40,10 @@ type EventReader interface {
 }
 
 type eventHandler struct {
-	log                       *log.Entry
-	db                        db.SessionInterface
-	stmtCache                 *sq.StmtCache
-	passphrase                string
-	ingestMetric, countMetric prometheus.Observer
+	log        *log.Entry
+	db         db.SessionInterface
+	stmtCache  *sq.StmtCache
+	passphrase string
 }
 
 func NewEventReader(log *log.Entry, db db.SessionInterface, passphrase string) EventReader {
@@ -78,7 +76,7 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 	for {
 		var tx ingest.LedgerTransaction
 		tx, err = txReader.Read()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			err = nil
 			break
 		}
@@ -116,7 +114,6 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 			)
 
 		for index, e := range txEvents {
-
 			var contractID []byte
 			if e.Event.ContractId != nil {
 				contractID = e.Event.ContractId[:]
