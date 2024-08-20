@@ -19,6 +19,8 @@ import (
 const (
 	eventTableName = "events"
 	firstLedger    = uint32(2)
+	MinTopicCount  = 1
+	MaxTopicCount  = 4
 )
 
 // EventWriter is used during ingestion of events from LCM to DB
@@ -132,8 +134,7 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 			}
 
 			// Encode the topics
-			maxTopicCount := 4
-			topicList := make([][]byte, maxTopicCount)
+			topicList := make([][]byte, MaxTopicCount)
 			for index, segment := range v0.Topics {
 				seg, err := segment.MarshalBinary()
 				if err != nil {

@@ -230,16 +230,11 @@ func (e *EventFilter) matchesTopics(event xdr.ContractEvent) bool {
 
 type TopicFilter []SegmentFilter
 
-const (
-	minTopicCount = 1
-	maxTopicCount = 4
-)
-
 func (t *TopicFilter) Valid() error {
-	if len(*t) < minTopicCount {
+	if len(*t) < db.MinTopicCount {
 		return errors.New("topic must have at least one segment")
 	}
-	if len(*t) > maxTopicCount {
+	if len(*t) > db.MaxTopicCount {
 		return errors.New("topic cannot have more than 4 segments")
 	}
 	for i, segment := range *t {
@@ -374,7 +369,7 @@ func combineEventTypes(filters []EventFilter) []int {
 }
 
 func combineTopics(filters []EventFilter) ([][][]byte, error) {
-	encodedTopicsList := make([][][]byte, maxTopicCount)
+	encodedTopicsList := make([][][]byte, db.MaxTopicCount)
 
 	for _, filter := range filters {
 		if len(filter.Topics) == 0 {
@@ -522,7 +517,7 @@ func eventInfoForEvent(
 	}
 
 	// base64-xdr encode the topic
-	topic := make([]string, 0, maxTopicCount)
+	topic := make([]string, 0, db.MaxTopicCount)
 	for _, segment := range v0.Topics {
 		seg, err := xdr.MarshalBase64(segment)
 		if err != nil {
