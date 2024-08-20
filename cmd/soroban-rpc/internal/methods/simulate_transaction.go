@@ -398,13 +398,15 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 
 		switch request.Format {
 		case FormatJSON:
-			simResp.TransactionDataJSON, err = xdr2json.ConvertBytes(
-				xdr.SorobanTransactionData{},
-				result.TransactionData)
-			if err != nil {
-				return SimulateTransactionResponse{
-					Error:        err.Error(),
-					LatestLedger: latestLedger,
+			if len(result.TransactionData) > 0 {
+				simResp.TransactionDataJSON, err = xdr2json.ConvertBytes(
+					xdr.SorobanTransactionData{},
+					result.TransactionData)
+				if err != nil {
+					return SimulateTransactionResponse{
+						Error:        err.Error(),
+						LatestLedger: latestLedger,
+					}
 				}
 			}
 
