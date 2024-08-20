@@ -50,12 +50,18 @@ pub unsafe extern "C" fn xdr_to_json(
 ) -> *mut ConversionResult {
     let result = catch_json_to_xdr_panic(Box::new(move || {
         let type_str = unsafe { from_c_string(typename) };
-        let the_type = xdr::TypeVariant::from_str(&type_str).unwrap();
+        let the_type = match xdr::TypeVariant::from_str(&type_str) {
+            Ok(t) => t,
+            Err(e) => panic!("couldn't match type {type_str}: {}", e),
+        };
 
         let xdr_bytearray = unsafe { from_c_xdr(xdr) };
         let mut buffer = xdr::Limited::new(xdr_bytearray.as_slice(), DEFAULT_XDR_RW_LIMITS.clone());
 
-        let t = xdr::Type::read_xdr_to_end(the_type, &mut buffer).unwrap();
+        let t = match xdr::Type::read_xdr_to_end(the_type, &mut buffer) {
+            Ok(t) => t,
+            Err(e) => panic!("couldn't read {type_str}: {}", e),
+        };
 
         Ok(RustConversionResult {
             json: serde_json::to_string(&t).unwrap(),
