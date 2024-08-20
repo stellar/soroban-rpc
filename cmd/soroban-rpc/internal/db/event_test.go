@@ -166,5 +166,12 @@ func TestInsertEvents(t *testing.T) {
 	err = eventW.InsertEvents(ledgerCloseMeta)
 	assert.NoError(t, err)
 
-	// TODO: Call getEvents and validate events data.
+	eventReader := NewEventReader(log, db, passphrase)
+	start := Cursor{Ledger: 1}
+	end := Cursor{Ledger: 100}
+	cursorRange := CursorRange{Start: start, End: end}
+
+	err = eventReader.GetEvents(ctx, cursorRange, nil, nil, nil, nil)
+	require.NoError(t, err)
+
 }
