@@ -50,7 +50,7 @@ func NewEventReader(log *log.Entry, db db.SessionInterface, passphrase string) E
 	return &eventHandler{log: log, db: db, passphrase: passphrase}
 }
 
-//nolint:funlen
+//nolint:gocognit,funlen,cyclop
 func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 	txCount := lcm.CountTransactions()
 
@@ -108,10 +108,7 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 				"event_data",
 				"ledger_close_time",
 				"transaction_hash",
-				"topic1",
-				"topic2",
-				"topic3",
-				"topic4",
+				"topic1", "topic2", "topic3", "topic4",
 			)
 
 		for index, e := range txEvents {
@@ -148,10 +145,7 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 				eventBlob,
 				lcm.LedgerCloseTime(),
 				transactionHash,
-				topicList[0],
-				topicList[1],
-				topicList[2],
-				topicList[3],
+				topicList[0], topicList[1], topicList[2], topicList[3],
 			)
 		}
 
