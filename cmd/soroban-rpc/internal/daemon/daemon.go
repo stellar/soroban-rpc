@@ -322,8 +322,8 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	// Apply migration for events, transactions and fee stats
 	err = db.NewLedgerReader(d.db).StreamLedgerRange(
 		readTxMetaCtx,
-		ledgerSeqRange.FirstLedgerSeq,
-		ledgerSeqRange.LastLedgerSeq,
+		ledgerSeqRange.First,
+		ledgerSeqRange.Last,
 		func(txMeta xdr.LedgerCloseMeta) error {
 			currentSeq = txMeta.LedgerSequence()
 			if initialSeq == 0 {

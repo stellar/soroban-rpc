@@ -257,8 +257,8 @@ type transactionTableMigration struct {
 
 func (t *transactionTableMigration) ApplicableRange() *LedgerSeqRange {
 	return &LedgerSeqRange{
-		FirstLedgerSeq: t.firstLedger,
-		LastLedgerSeq:  t.lastLedger,
+		First: t.firstLedger,
+		Last:  t.lastLedger,
 	}
 }
 
@@ -280,8 +280,8 @@ func newTransactionTableMigration(
 			return nil, fmt.Errorf("couldn't delete table %q: %w", transactionTableName, err)
 		}
 		migration := transactionTableMigration{
-			firstLedger: ledgerSeqRange.FirstLedgerSeq,
-			lastLedger:  ledgerSeqRange.LastLedgerSeq,
+			firstLedger: ledgerSeqRange.First,
+			lastLedger:  ledgerSeqRange.Last,
 			writer: &transactionHandler{
 				log:        logger,
 				db:         db,

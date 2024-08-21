@@ -60,18 +60,15 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 		return nil
 	}
 
-	var txReader *ingest.LedgerTransactionReader
 	txReader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(eventHandler.passphrase, lcm)
 	if err != nil {
-		return fmt.Errorf(
-			"failed to open transaction reader for ledger %d: %w ",
-			lcm.LedgerSequence(), err)
+		return errors.Join(err,
+			fmt.Errorf("failed to open transaction reader for ledger %d", lcm.LedgerSequence()),
+		)
 	}
 	defer func() {
 		closeErr := txReader.Close()
-		if err == nil {
-			err = closeErr
-		}
+		err = errors.Join(err, closeErr)
 	}()
 
 	for {
@@ -80,8 +77,7 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 		if errors.Is(err, io.EOF) {
 			err = nil
 			break
-		}
-		if err != nil {
+		} else if err != nil {
 			return err
 		}
 
@@ -148,7 +144,7 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 				topicList[0], topicList[1], topicList[2], topicList[3],
 			)
 		}
-
+		// Ignore the last inserted ID as it is not needed
 		_, err = query.RunWith(eventHandler.stmtCache).Exec()
 		if err != nil {
 			return err
@@ -226,15 +222,18 @@ func (eventHandler *eventHandler) GetEvents(
 
 	rows, err := eventHandler.db.Query(ctx, rowQ)
 	if err != nil {
-		return fmt.Errorf(
-			"db read failed for start ledger cursor= %v end ledger cursor= %v "+
-				"contractIDs= %v eventTypes= %v topics= %v   : %w",
-			cursorRange.Start.String(),
-			cursorRange.End.String(),
-			contractIDs,
-			eventTypes,
-			topics,
-			err)
+		eventHandler.log.
+			WithField("duration", time.Since(start)).
+			WithField("start", cursorRange.Start.String()).
+			WithField("end", cursorRange.End.String()).
+			WithField("contracts", contractIDs).
+			WithField("eventTypes", eventTypes).
+			WithField("Topics", topics).
+			Debugf(
+				"db read failed for requested parameter",
+			)
+
+		return errors.Join(err, fmt.Errorf("db read failed for requested parameter"))
 	}
 
 	defer rows.Close()
@@ -258,13 +257,13 @@ func (eventHandler *eventHandler) GetEvents(
 		transactionHash := row.transactionHash
 		cur, err := ParseCursor(id)
 		if err != nil {
-			return fmt.Errorf("failed to parse cursor: %w", err)
+			return errors.Join(err, fmt.Errorf("failed to parse cursor"))
 		}
 
 		var eventXDR xdr.DiagnosticEvent
 		err = xdr.SafeUnmarshal(eventData, &eventXDR)
 		if err != nil {
-			return fmt.Errorf("failed to decode event: %w", err)
+			return errors.Join(err, fmt.Errorf("failed to decode event"))
 		}
 		txHash := xdr.Hash(transactionHash)
 		if !f(eventXDR, cur, ledgerCloseTime, &txHash) {
@@ -280,11 +279,7 @@ func (eventHandler *eventHandler) GetEvents(
 			WithField("eventTypes", eventTypes).
 			WithField("Topics", topics).
 			Debugf(
-				"No events found for ledger range: duration= %v start ledger cursor= %v - end ledger cursor= %v contractIDs= %v",
-				time.Since(start),
-				cursorRange.Start.String(),
-				cursorRange.End.String(),
-				contractIDs,
+				"No events found for ledger range",
 			)
 	}
 
@@ -305,8 +300,8 @@ type eventTableMigration struct {
 
 func (e *eventTableMigration) ApplicableRange() *LedgerSeqRange {
 	return &LedgerSeqRange{
-		FirstLedgerSeq: e.firstLedger,
-		LastLedgerSeq:  e.lastLedger,
+		First: e.firstLedger,
+		Last:  e.lastLedger,
 	}
 }
 
@@ -322,8 +317,8 @@ func newEventTableMigration(
 ) migrationApplierFactory {
 	return migrationApplierFactoryF(func(db *DB) (MigrationApplier, error) {
 		migration := eventTableMigration{
-			firstLedger: ledgerSeqRange.FirstLedgerSeq,
-			lastLedger:  ledgerSeqRange.LastLedgerSeq,
+			firstLedger: ledgerSeqRange.First,
+			lastLedger:  ledgerSeqRange.Last,
 			writer: &eventHandler{
 				log:        logger,
 				db:         db,

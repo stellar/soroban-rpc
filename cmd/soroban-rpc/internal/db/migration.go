@@ -15,15 +15,15 @@ const (
 )
 
 type LedgerSeqRange struct {
-	FirstLedgerSeq uint32
-	LastLedgerSeq  uint32
+	First uint32
+	Last  uint32
 }
 
 func (mlr *LedgerSeqRange) IsLedgerIncluded(ledgerSeq uint32) bool {
 	if mlr == nil {
 		return false
 	}
-	return ledgerSeq >= mlr.FirstLedgerSeq && ledgerSeq <= mlr.LastLedgerSeq
+	return ledgerSeq >= mlr.First && ledgerSeq <= mlr.Last
 }
 
 func (mlr *LedgerSeqRange) Merge(other *LedgerSeqRange) *LedgerSeqRange {
@@ -36,8 +36,8 @@ func (mlr *LedgerSeqRange) Merge(other *LedgerSeqRange) *LedgerSeqRange {
 	// TODO: using min/max can result in a much larger range than needed,
 	//       as an optimization, we should probably use a sequence of ranges instead.
 	return &LedgerSeqRange{
-		FirstLedgerSeq: min(mlr.FirstLedgerSeq, other.FirstLedgerSeq),
-		LastLedgerSeq:  max(mlr.LastLedgerSeq, other.LastLedgerSeq),
+		First: min(mlr.First, other.First),
+		Last:  max(mlr.Last, other.Last),
 	}
 }
 
@@ -175,8 +175,8 @@ func GetMigrationLedgerRange(ctx context.Context, db *DB, retentionWindow uint32
 		firstLedgerToMigrate = latestLedger - retentionWindow
 	}
 	return &LedgerSeqRange{
-		FirstLedgerSeq: firstLedgerToMigrate,
-		LastLedgerSeq:  latestLedger,
+		First: firstLedgerToMigrate,
+		Last:  latestLedger,
 	}, nil
 }
 
@@ -207,8 +207,8 @@ func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, networkPass
 
 		guardedM, err := newGuardedDataMigration(ctx, migrationName, migrationLogger, factory, db)
 		if err != nil {
-			return MultiMigration{}, errors.Join(fmt.Errorf(
-				"could not create guarded migration for %s: %w", migrationName, err), db.Rollback())
+			return MultiMigration{}, errors.Join(err, fmt.Errorf(
+				"could not create guarded migration for %s", migrationName), db.Rollback())
 		}
 		migrations = append(migrations, guardedM)
 	}

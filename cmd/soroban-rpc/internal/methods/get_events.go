@@ -119,7 +119,7 @@ func (g *GetEventsRequest) Valid(maxLimit uint) error {
 	// Validate the paging limit (if it exists)
 	if g.Pagination != nil && g.Pagination.Cursor != nil {
 		if g.StartLedger != 0 || g.EndLedger != 0 {
-			return errors.New("ledger ranges and cursor cannot both be set") //nolint:forbidigo
+			return fmt.Errorf("ledger ranges and cursor cannot both be set")
 		}
 	} else if g.StartLedger <= 0 {
 		return errors.New("startLedger must be positive")
@@ -346,22 +346,21 @@ type eventsRPCHandler struct {
 
 func combineContractIDs(filters []EventFilter) ([][]byte, error) {
 	contractIDSet := set.NewSet[string](maxFiltersLimit * maxContractIDsLimit)
+	contractIDs := make([][]byte, 0, len(contractIDSet))
 
 	for _, filter := range filters {
 		for _, contractID := range filter.ContractIDs {
-			contractIDSet.Add(contractID)
+			if !contractIDSet.Contains(contractID) {
+				contractIDSet.Add(contractID)
+				id, err := strkey.Decode(strkey.VersionByteContract, contractID)
+				if err != nil {
+					return nil, fmt.Errorf("invalid contract ID: %v", contractID)
+				}
+				contractIDs = append(contractIDs, id)
+			}
 		}
 	}
 
-	contractIDs := make([][]byte, 0, len(contractIDSet))
-	for contractID := range contractIDSet {
-		id, err := strkey.Decode(strkey.VersionByteContract, contractID)
-		if err != nil {
-			return nil, fmt.Errorf("invalid contract ID %v: ", contractID)
-		}
-
-		contractIDs = append(contractIDs, id)
-	}
 	return contractIDs, nil
 }
 
