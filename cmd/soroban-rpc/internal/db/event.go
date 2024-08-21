@@ -50,7 +50,6 @@ func NewEventReader(log *log.Entry, db db.SessionInterface, passphrase string) E
 	return &eventHandler{log: log, db: db, passphrase: passphrase}
 }
 
-//nolint:gocognit,funlen,cyclop
 func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 	txCount := lcm.CountTransactions()
 
@@ -233,7 +232,7 @@ func (eventHandler *eventHandler) GetEvents(
 				"db read failed for requested parameter",
 			)
 
-		return errors.Join(err, fmt.Errorf("db read failed for requested parameter"))
+		return errors.Join(err, errors.New("db read failed for requested parameter"))
 	}
 
 	defer rows.Close()
@@ -257,13 +256,13 @@ func (eventHandler *eventHandler) GetEvents(
 		transactionHash := row.transactionHash
 		cur, err := ParseCursor(id)
 		if err != nil {
-			return errors.Join(err, fmt.Errorf("failed to parse cursor"))
+			return errors.Join(err, errors.New("failed to parse cursor"))
 		}
 
 		var eventXDR xdr.DiagnosticEvent
 		err = xdr.SafeUnmarshal(eventData, &eventXDR)
 		if err != nil {
-			return errors.Join(err, fmt.Errorf("failed to decode event"))
+			return errors.Join(err, errors.New("failed to decode event"))
 		}
 		txHash := xdr.Hash(transactionHash)
 		if !f(eventXDR, cur, ledgerCloseTime, &txHash) {
