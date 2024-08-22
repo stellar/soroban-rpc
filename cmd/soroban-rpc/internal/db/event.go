@@ -10,6 +10,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 
 	"github.com/stellar/go/ingest"
+	"github.com/stellar/go/strkey"
 	"github.com/stellar/go/support/db"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
@@ -22,6 +23,8 @@ const (
 	MaxTopicCount  = 4
 )
 
+type NestedTopicArray [][][]byte
+
 // EventWriter is used during ingestion of events from LCM to DB
 type EventWriter interface {
 	InsertEvents(lcm xdr.LedgerCloseMeta) error
@@ -33,7 +36,7 @@ type EventReader interface {
 		ctx context.Context,
 		cursorRange CursorRange,
 		contractIDs [][]byte,
-		topics [][][]byte,
+		topics NestedTopicArray,
 		eventTypes []int,
 		f ScanFunction,
 	) error
@@ -126,7 +129,8 @@ func (eventHandler *eventHandler) InsertEvents(lcm xdr.LedgerCloseMeta) error {
 
 			// Encode the topics
 			topicList := make([][]byte, MaxTopicCount)
-			for index, segment := range v0.Topics {
+			for index := 0; index < len(v0.Topics) && index < MaxTopicCount; index++ {
+				segment := v0.Topics[index]
 				seg, err := segment.MarshalBinary()
 				if err != nil {
 					return err
@@ -182,12 +186,12 @@ func (eventHandler *eventHandler) trimEvents(latestLedgerSeq uint32, retentionWi
 // If f returns false, the scan terminates early (f will not be applied on
 // remaining events in the range).
 //
-//nolint:funlen
+//nolint:funlen,cyclop
 func (eventHandler *eventHandler) GetEvents(
 	ctx context.Context,
 	cursorRange CursorRange,
 	contractIDs [][]byte,
-	topics [][][]byte,
+	topics NestedTopicArray,
 	eventTypes []int,
 	f ScanFunction,
 ) error {
@@ -220,13 +224,22 @@ func (eventHandler *eventHandler) GetEvents(
 		}
 	}
 
+	encodedContractIDs := make([]string, 0, len(contractIDs))
+	for _, contractID := range contractIDs {
+		result, err := strkey.Encode(strkey.VersionByteContract, contractID)
+		if err != nil {
+			return errors.Join(err, errors.New("failed to encode contract id"))
+		}
+		encodedContractIDs = append(encodedContractIDs, result)
+	}
+
 	rows, err := eventHandler.db.Query(ctx, rowQ)
 	if err != nil {
 		eventHandler.log.
 			WithField("duration", time.Since(start)).
 			WithField("start", cursorRange.Start.String()).
 			WithField("end", cursorRange.End.String()).
-			WithField("contracts", contractIDs).
+			WithField("contractIds", encodedContractIDs).
 			WithField("eventTypes", eventTypes).
 			WithField("Topics", topics).
 			Debugf(
@@ -275,7 +288,7 @@ func (eventHandler *eventHandler) GetEvents(
 			WithField("duration", time.Since(start)).
 			WithField("start", cursorRange.Start.String()).
 			WithField("end", cursorRange.End.String()).
-			WithField("contracts", contractIDs).
+			WithField("contractIds", encodedContractIDs).
 			WithField("eventTypes", eventTypes).
 			WithField("Topics", topics).
 			Debugf(
@@ -287,7 +300,7 @@ func (eventHandler *eventHandler) GetEvents(
 		WithField("startLedgerSequence", cursorRange.Start.Ledger).
 		WithField("endLedgerSequence", cursorRange.End.Ledger).
 		WithField("duration", time.Since(start)).
-		Debugf("Fetched and decoded all the events with filters - contractIDs: %v ", contractIDs)
+		Debugf("Fetched and decoded all the events with filters - contractIDs: %v ", encodedContractIDs)
 
 	return rows.Err()
 }
