@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	LedgerScanLimit     = 8000
+	LedgerScanLimit     = 10000
 	maxContractIDsLimit = 5
 	maxTopicsLimit      = 5
 	maxFiltersLimit     = 5
