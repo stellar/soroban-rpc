@@ -32,7 +32,7 @@ func TestConversion(t *testing.T) {
 		require.Contains(t, dest, "credit_alphanum4")
 		require.Contains(t, dest["credit_alphanum4"], "asset_code")
 		require.Contains(t, dest["credit_alphanum4"], "issuer")
-		require.IsType(t, dest["credit_alphanum4"], map[string]interface{}{})
+		require.IsType(t, map[string]interface{}{}, dest["credit_alphanum4"])
 		require.Equal(t, pubkey.Address(),
 			dest["credit_alphanum4"].(map[string]interface{})["issuer"])
 	}
