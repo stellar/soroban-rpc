@@ -15,4 +15,4 @@ jobs:
             Dependency sanity checker*
             Go*
             Rust*
-            Soroban RPC*
+            Stellar RPC*
