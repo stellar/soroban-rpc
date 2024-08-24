@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Added
+
+- Add `EndLedger` in `GetEventsRequest`. This provides finer control and clarity on the range of ledgers being queried.
+- Disk-Based Event Storage: Events are now stored on disk instead of in memory. For context, storing approximately 3 million events will require around 1.5 GB of disk space.
+This change enhances the scalability and can now support a larger retention window (~7 days) for events.
+- Ledger Scanning Limitation: The getEvents RPC will now scan a maximum of `10,000` ledgers per request. This limits the resource usage and ensures more predictable performance, especially for queries spanning large ledger ranges.
+- A migration process has been introduced to transition event storage from in-memory to disk-based storage.
+
 * Add support for unpacked JSON responses of base64-encoded XDR fields via a new, optional parameter. When omitted, the behavior does not change and we encode fields as base64.
 ```typescript
 xdrFormat?: "" | "base64" | "json"
