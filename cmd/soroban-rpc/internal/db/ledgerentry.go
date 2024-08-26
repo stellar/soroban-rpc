@@ -373,10 +373,10 @@ func (r ledgerEntryReader) NewCachedTx(ctx context.Context) (LedgerEntryReadTx, 
 
 func (r ledgerEntryReader) NewTx(ctx context.Context) (LedgerEntryReadTx, error) {
 	txSession := r.db.Clone()
+	r.db.cache.RLock()
 	if err := txSession.BeginTx(ctx, &sql.TxOptions{ReadOnly: true}); err != nil {
 		return nil, err
 	}
-	r.db.cache.RLock()
 	defer r.db.cache.RUnlock()
 	return &ledgerEntryReadTx{
 		globalCache:          r.db.cache,
