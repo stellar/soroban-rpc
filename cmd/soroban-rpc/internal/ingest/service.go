@@ -19,7 +19,6 @@ import (
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/feewindow"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/util"
 )
@@ -33,7 +32,6 @@ var errEmptyArchives = fmt.Errorf("cannot start ingestion without history archiv
 type Config struct {
 	Logger            *log.Entry
 	DB                db.ReadWriter
-	EventStore        *events.MemoryStore
 	FeeWindows        *feewindow.FeeWindows
 	NetworkPassPhrase string
 	Archive           historyarchive.ArchiveInterface
@@ -81,7 +79,6 @@ func newService(cfg Config) *Service {
 	service := &Service{
 		logger:            cfg.Logger,
 		db:                cfg.DB,
-		eventStore:        cfg.EventStore,
 		feeWindows:        cfg.FeeWindows,
 		ledgerBackend:     cfg.LedgerBackend,
 		networkPassPhrase: cfg.NetworkPassPhrase,
@@ -133,7 +130,6 @@ type Metrics struct {
 type Service struct {
 	logger            *log.Entry
 	db                db.ReadWriter
-	eventStore        *events.MemoryStore
 	feeWindows        *feewindow.FeeWindows
 	ledgerBackend     backends.LedgerBackend
 	timeout           time.Duration
@@ -338,7 +334,7 @@ func (s *Service) ingestLedgerCloseMeta(tx db.WriteTx, ledgerCloseMeta xdr.Ledge
 		With(prometheus.Labels{"type": "transactions"}).
 		Observe(time.Since(startTime).Seconds())
 
-	if err := s.eventStore.IngestEvents(ledgerCloseMeta); err != nil {
+	if err := tx.EventWriter().InsertEvents(ledgerCloseMeta); err != nil {
 		return err
 	}
 

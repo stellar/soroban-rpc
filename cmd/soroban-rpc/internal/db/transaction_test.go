@@ -27,6 +27,43 @@ func TestTransactionNotFound(t *testing.T) {
 	require.ErrorIs(t, err, ErrNoTransaction)
 }
 
+func txMetaWithEvents(acctSeq uint32) xdr.LedgerCloseMeta {
+	meta := txMeta(acctSeq, true)
+
+	contractIDBytes, _ := hex.DecodeString("df06d62447fd25da07c0135eed7557e5a5497ee7d15b7fe345bd47e191d8f577")
+	var contractID xdr.Hash
+	copy(contractID[:], contractIDBytes)
+	counter := xdr.ScSymbol("COUNTER")
+
+	meta.V1.TxProcessing[0].TxApplyProcessing.V3 = &xdr.TransactionMetaV3{
+		SorobanMeta: &xdr.SorobanTransactionMeta{
+			Events: []xdr.ContractEvent{{
+				ContractId: &contractID,
+				Type:       xdr.ContractEventTypeContract,
+				Body: xdr.ContractEventBody{
+					V: 0,
+					V0: &xdr.ContractEventV0{
+						Topics: []xdr.ScVal{{
+							Type: xdr.ScValTypeScvSymbol,
+							Sym:  &counter,
+						}},
+						Data: xdr.ScVal{
+							Type: xdr.ScValTypeScvSymbol,
+							Sym:  &counter,
+						},
+					},
+				},
+			}},
+			ReturnValue: xdr.ScVal{
+				Type: xdr.ScValTypeScvSymbol,
+				Sym:  &counter,
+			},
+		},
+	}
+
+	return meta
+}
+
 func TestTransactionFound(t *testing.T) {
 	db := NewTestDB(t)
 	ctx := context.TODO()
@@ -38,16 +75,17 @@ func TestTransactionFound(t *testing.T) {
 	require.NoError(t, err)
 
 	lcms := []xdr.LedgerCloseMeta{
-		txMeta(1234, true),
-		txMeta(1235, true),
-		txMeta(1236, true),
-		txMeta(1237, true),
+		txMetaWithEvents(1234),
+		txMetaWithEvents(1235),
+		txMetaWithEvents(1236),
+		txMetaWithEvents(1237),
 	}
-
+	eventW := write.EventWriter()
 	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
 	for _, lcm := range lcms {
 		require.NoError(t, ledgerW.InsertLedger(lcm), "ingestion failed for ledger %+v", lcm.V1)
 		require.NoError(t, txW.InsertTransactions(lcm), "ingestion failed for ledger %+v", lcm.V1)
+		require.NoError(t, eventW.InsertEvents(lcm), "ingestion failed for ledger %+v", lcm.V1)
 	}
 	require.NoError(t, write.Commit(lcms[len(lcms)-1]))
 
@@ -55,6 +93,14 @@ func TestTransactionFound(t *testing.T) {
 	reader := NewTransactionReader(log, db, passphrase)
 	_, err = reader.GetTransaction(ctx, xdr.Hash{})
 	require.ErrorIs(t, err, ErrNoTransaction)
+
+	eventReader := NewEventReader(log, db, passphrase)
+	start := Cursor{Ledger: 1}
+	end := Cursor{Ledger: 1000}
+	cursorRange := CursorRange{Start: start, End: end}
+
+	err = eventReader.GetEvents(ctx, cursorRange, nil, nil, nil, nil)
+	require.NoError(t, err)
 
 	// check all 200 cases
 	for _, lcm := range lcms {

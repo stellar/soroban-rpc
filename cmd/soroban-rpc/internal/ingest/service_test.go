@@ -17,7 +17,6 @@ import (
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/daemon/interfaces"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
-	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/events"
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/feewindow"
 )
 
@@ -45,7 +44,6 @@ func TestRetryRunningIngestion(t *testing.T) {
 	config := Config{
 		Logger:            supportlog.New(),
 		DB:                &ErrorReadWriter{},
-		EventStore:        nil,
 		NetworkPassPhrase: "",
 		Archive:           nil,
 		LedgerBackend:     nil,
@@ -69,8 +67,7 @@ func TestIngestion(t *testing.T) {
 	config := Config{
 		Logger:            supportlog.New(),
 		DB:                mockDB,
-		EventStore:        events.NewMemoryStore(daemon, network.TestNetworkPassphrase, 1),
-		FeeWindows:        feewindow.NewFeeWindows(1, 1, network.TestNetworkPassphrase),
+		FeeWindows:        feewindow.NewFeeWindows(1, 1, network.TestNetworkPassphrase, nil),
 		LedgerBackend:     mockLedgerBackend,
 		Daemon:            daemon,
 		NetworkPassPhrase: network.TestNetworkPassphrase,
@@ -81,7 +78,15 @@ func TestIngestion(t *testing.T) {
 	mockLedgerEntryWriter := &MockLedgerEntryWriter{}
 	mockLedgerWriter := &MockLedgerWriter{}
 	mockTxWriter := &MockTransactionWriter{}
+	mockEventWriter := &MockEventWriter{}
 	ctx := context.Background()
+	mockDB.On("NewTx", ctx).Return(mockTx, nil).Once()
+	mockTx.On("Commit", sequence).Return(nil).Once()
+	mockTx.On("Rollback").Return(nil).Once()
+	mockTx.On("LedgerEntryWriter").Return(mockLedgerEntryWriter).Twice()
+	mockTx.On("LedgerWriter").Return(mockLedgerWriter).Once()
+	mockTx.On("TransactionWriter").Return(mockTxWriter).Once()
+	mockTx.On("EventWriter").Return(mockEventWriter).Once()
 
 	src := xdr.MustAddress("GBXGQJWVLWOYHFLVTKWV5FGHA3LNYY2JQKM7OAJAUEQFU6LPCSEFVXON")
 	firstTx := xdr.TransactionEnvelope{
@@ -255,6 +260,7 @@ func TestIngestion(t *testing.T) {
 		Return(nil).Once()
 	mockLedgerWriter.On("InsertLedger", ledger).Return(nil).Once()
 	mockTxWriter.On("InsertTransactions", ledger).Return(nil).Once()
+	mockEventWriter.On("InsertEvents", ledger).Return(nil).Once()
 	assert.NoError(t, service.ingest(ctx, sequence))
 
 	mockDB.AssertExpectations(t)
