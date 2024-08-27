@@ -1,4 +1,4 @@
-package events
+package db
 
 import (
 	"encoding/json"
@@ -25,6 +25,13 @@ type Cursor struct {
 	Op uint32
 	// Event is the index of the event within in the operation which emitted the event.
 	Event uint32
+}
+
+type CursorRange struct {
+	// Start defines the (inclusive) start of the range.
+	Start Cursor
+	// End defines the (exclusive) end of the range.
+	End Cursor
 }
 
 // String returns a string representation of this cursor

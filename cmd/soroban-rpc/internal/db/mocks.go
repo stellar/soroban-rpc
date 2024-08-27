@@ -101,6 +101,10 @@ func (m *MockLedgerReader) StreamAllLedgers(_ context.Context, _ StreamLedgerFn)
 	return nil
 }
 
+func (m *MockLedgerReader) StreamLedgerRange(_ context.Context, _ uint32, _ uint32, _ StreamLedgerFn) error {
+	return nil
+}
+
 func (m *MockLedgerReader) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
 	return m.txn.ledgerRange, nil
 }
