@@ -563,7 +563,7 @@ func TestGetEvents(t *testing.T) {
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(2, now.Unix(), txMeta...)
 		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
 		assert.NoError(t, eventW.InsertEvents(ledgerCloseMeta))
-		require.NoError(t, write.Commit(2))
+		require.NoError(t, write.Commit(ledgerCloseMeta))
 
 		handler := eventsRPCHandler{
 			dbReader:     store,
@@ -616,7 +616,7 @@ func TestGetEvents(t *testing.T) {
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)
 		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
 		assert.NoError(t, eventW.InsertEvents(ledgerCloseMeta))
-		require.NoError(t, write.Commit(1))
+		require.NoError(t, write.Commit(ledgerCloseMeta))
 
 		handler := eventsRPCHandler{
 			dbReader:     store,
@@ -695,7 +695,7 @@ func TestGetEvents(t *testing.T) {
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)
 		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
 		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
-		require.NoError(t, write.Commit(2))
+		require.NoError(t, write.Commit(ledgerCloseMeta))
 
 		handler := eventsRPCHandler{
 			dbReader:     store,
@@ -757,7 +757,7 @@ func TestGetEvents(t *testing.T) {
 
 		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
 		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
-		require.NoError(t, write.Commit(1))
+		require.NoError(t, write.Commit(ledgerCloseMeta))
 
 		number := xdr.Uint64(4)
 		handler := eventsRPCHandler{
@@ -902,7 +902,7 @@ func TestGetEvents(t *testing.T) {
 
 		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
 		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
-		require.NoError(t, write.Commit(1))
+		require.NoError(t, write.Commit(ledgerCloseMeta))
 
 		handler := eventsRPCHandler{
 			dbReader:     store,
@@ -990,7 +990,7 @@ func TestGetEvents(t *testing.T) {
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)
 		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
 		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
-		require.NoError(t, write.Commit(1))
+		require.NoError(t, write.Commit(ledgerCloseMeta))
 
 		handler := eventsRPCHandler{
 			dbReader:     store,
@@ -1054,7 +1054,7 @@ func TestGetEvents(t *testing.T) {
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)
 		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
 		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
-		require.NoError(t, write.Commit(1))
+		require.NoError(t, write.Commit(ledgerCloseMeta))
 
 		handler := eventsRPCHandler{
 			dbReader:     store,
@@ -1153,7 +1153,7 @@ func TestGetEvents(t *testing.T) {
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(5, now.Unix(), txMeta...)
 		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
 		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
-		require.NoError(t, write.Commit(4))
+		require.NoError(t, write.Commit(ledgerCloseMeta))
 
 		id := &db.Cursor{Ledger: 5, Tx: 1, Op: 0, Event: 0}
 		handler := eventsRPCHandler{
@@ -1230,8 +1230,8 @@ func BenchmarkGetEvents(b *testing.B) {
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(uint32(i), now.Unix(), txMeta...)
 		require.NoError(b, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
 		require.NoError(b, eventW.InsertEvents(ledgerCloseMeta), "ingestion failed for events ")
+		require.NoError(b, write.Commit(ledgerCloseMeta))
 	}
-	require.NoError(b, write.Commit(1))
 
 	handler := eventsRPCHandler{
 		dbReader:     store,
