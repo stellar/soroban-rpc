@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Breaking Change
+- Remove `GetLedgerEntry` endpoint. This endpoint was already deprecated earlier in favor of `GetLedgerEntries` and is completely removed in this release.
+
 ### Added
 
 - Add `EndLedger` in `GetEventsRequest`. This provides finer control and clarity on the range of ledgers being queried.
