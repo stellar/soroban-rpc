@@ -27,20 +27,24 @@ import (
 // and returns the raw JSON-formatted serialization of that object.
 // It can be unmarshalled to a proper JSON structure, but the raw bytes are
 // returned to avoid unnecessary round-trips. If there is an
-// error, it returns an empty JSON object.
+// error, it returns an empty string.
 //
 // The `xdr` object does not need to actually be initialized/valid:
 // we only use it to determine the name of the structure. We could just
 // accept a string, but that would make mistakes likelier than passing the
 // structure itself (by reference).
-func ConvertBytes(xdr interface{}, field []byte) ([]byte, error) {
+func ConvertBytes(xdr interface{}, field []byte) (json.RawMessage, error) {
+	if len(field) == 0 {
+		return []byte(""), nil
+	}
+
 	xdrTypeName := reflect.TypeOf(xdr).Name()
 	return convertAnyBytes(xdrTypeName, field)
 }
 
 // ConvertInterface takes a valid XDR object (`xdr`) and returns
 // the raw JSON-formatted serialization of that object. If there is an
-// error, it returns an empty JSON object.
+// error, it returns an empty string.
 //
 // Unlike `ConvertBytes`, the value here needs to be valid and
 // serializable.
@@ -48,7 +52,7 @@ func ConvertInterface(xdr encoding.BinaryMarshaler) (json.RawMessage, error) {
 	xdrTypeName := reflect.TypeOf(xdr).Name()
 	data, err := xdr.MarshalBinary()
 	if err != nil {
-		return []byte("{}"), errors.Wrapf(err, "failed to serialize XDR type '%s'", xdrTypeName)
+		return []byte(""), errors.Wrapf(err, "failed to serialize XDR type '%s'", xdrTypeName)
 	}
 
 	return convertAnyBytes(xdrTypeName, data)
