@@ -345,11 +345,11 @@ func (r ledgerEntryReader) GetLatestLedgerSequence(ctx context.Context) (uint32,
 }
 
 func (r ledgerEntryReader) newBaseTx(ctx context.Context) (db.SessionInterface, error) {
-	txSession := r.db.Clone()
-	if err := txSession.BeginTx(ctx, &sql.TxOptions{ReadOnly: true}); err != nil {
+	tx := r.db.Clone()
+	if err := tx.BeginTx(ctx, &sql.TxOptions{ReadOnly: true}); err != nil {
 		return nil, err
 	}
-	return txSession, nil
+	return tx, nil
 }
 
 // NewCachedTx() caches all accessed ledger entries and select statements. If many ledger entries are accessed, it will grow without bounds.
