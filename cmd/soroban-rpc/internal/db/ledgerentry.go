@@ -346,8 +346,6 @@ func (r ledgerEntryReader) GetLatestLedgerSequence(ctx context.Context) (uint32,
 
 func (r ledgerEntryReader) newBaseTx(ctx context.Context) (db.SessionInterface, error) {
 	txSession := r.db.Clone()
-	r.db.cache.RLock()
-	defer r.db.cache.RUnlock()
 	if err := txSession.BeginTx(ctx, &sql.TxOptions{ReadOnly: true}); err != nil {
 		return nil, err
 	}
@@ -362,6 +360,8 @@ func (r ledgerEntryReader) NewCachedTx(ctx context.Context) (LedgerEntryReadTx, 
 	// We need to make the parent cache access atomic with the read transaction creation.
 	// Otherwise, the cache can be made inconsistent if a write transaction finishes
 	// in between, updating the cache.
+	r.db.cache.RLock()
+	defer r.db.cache.RUnlock()
 	txSession, err := r.newBaseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -379,6 +379,8 @@ func (r ledgerEntryReader) NewCachedTx(ctx context.Context) (LedgerEntryReadTx, 
 }
 
 func (r ledgerEntryReader) NewTx(ctx context.Context) (LedgerEntryReadTx, error) {
+	r.db.cache.RLock()
+	defer r.db.cache.RUnlock()
 	txSession, err := r.newBaseTx(ctx)
 	if err != nil {
 		return nil, err
