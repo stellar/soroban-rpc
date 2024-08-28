@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
-
 	"github.com/stellar/go/support/db"
 	"github.com/stellar/go/xdr"
 )
@@ -345,18 +344,26 @@ func (r ledgerEntryReader) GetLatestLedgerSequence(ctx context.Context) (uint32,
 	return getLatestLedgerSequence(ctx, NewLedgerReader(r.db), r.db.cache)
 }
 
+func (r ledgerEntryReader) newBaseTx(ctx context.Context) (db.SessionInterface, error) {
+	txSession := r.db.Clone()
+	r.db.cache.RLock()
+	defer r.db.cache.RUnlock()
+	if err := txSession.BeginTx(ctx, &sql.TxOptions{ReadOnly: true}); err != nil {
+		return nil, err
+	}
+	return txSession, nil
+}
+
 // NewCachedTx() caches all accessed ledger entries and select statements. If many ledger entries are accessed, it will grow without bounds.
 func (r ledgerEntryReader) NewCachedTx(ctx context.Context) (LedgerEntryReadTx, error) {
-	txSession := r.db.Clone()
 	// We need to copy the cached ledger entries locally when we start the transaction
 	// since otherwise we would break the consistency between the transaction and the cache.
 
 	// We need to make the parent cache access atomic with the read transaction creation.
 	// Otherwise, the cache can be made inconsistent if a write transaction finishes
 	// in between, updating the cache.
-	r.db.cache.RLock()
-	defer r.db.cache.RUnlock()
-	if err := txSession.BeginTx(ctx, &sql.TxOptions{ReadOnly: true}); err != nil {
+	txSession, err := r.newBaseTx(ctx)
+	if err != nil {
 		return nil, err
 	}
 	cacheReadTx := r.db.cache.ledgerEntries.newReadTx()
@@ -372,12 +379,10 @@ func (r ledgerEntryReader) NewCachedTx(ctx context.Context) (LedgerEntryReadTx, 
 }
 
 func (r ledgerEntryReader) NewTx(ctx context.Context) (LedgerEntryReadTx, error) {
-	txSession := r.db.Clone()
-	r.db.cache.RLock()
-	if err := txSession.BeginTx(ctx, &sql.TxOptions{ReadOnly: true}); err != nil {
+	txSession, err := r.newBaseTx(ctx)
+	if err != nil {
 		return nil, err
 	}
-	defer r.db.cache.RUnlock()
 	return &ledgerEntryReadTx{
 		globalCache:          r.db.cache,
 		latestLedgerSeqCache: r.db.cache.latestLedgerSeq,
