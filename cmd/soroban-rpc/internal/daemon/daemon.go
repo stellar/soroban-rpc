@@ -298,8 +298,8 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 
 	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
 	defer cancelReadTxMeta()
-	var initialSeq uint32
-	var currentSeq uint32
+
+	var initialSeq, currentSeq uint32
 	applicableRange, err := db.GetMigrationLedgerRange(readTxMetaCtx, d.db, cfg.HistoryRetentionWindow)
 	if err != nil {
 		d.logger.WithError(err).Fatal("could not get ledger range for migration")
@@ -328,13 +328,11 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 			currentSeq = txMeta.LedgerSequence()
 			if initialSeq == 0 {
 				initialSeq = currentSeq
-				d.logger.WithFields(supportlog.F{
-					"seq": currentSeq,
-				}).Info("initializing in-memory store")
+				d.logger.WithField("seq", currentSeq).
+					Info("initializing in-memory store")
 			} else if (currentSeq-initialSeq)%inMemoryInitializationLedgerLogPeriod == 0 {
-				d.logger.WithFields(supportlog.F{
-					"seq": currentSeq,
-				}).Debug("still initializing in-memory store")
+				d.logger.WithField("seq", currentSeq).
+					Debug("still initializing in-memory store")
 			}
 
 			if err = feeWindows.IngestFees(txMeta); err != nil {
@@ -354,18 +352,15 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	}
 
 	if currentSeq != 0 {
-		d.logger.WithFields(supportlog.F{
-			"seq": currentSeq,
-		}).Info("finished initializing in-memory store and applying DB data migrations")
+		d.logger.WithField("seq", currentSeq).
+			Info("finished initializing in-memory store and applying DB data migrations")
 	}
 
 	return feeWindows
 }
 
 func (d *Daemon) Run() {
-	d.logger.WithFields(supportlog.F{
-		"addr": d.listener.Addr().String(),
-	}).Info("starting HTTP server")
+	d.logger.WithField("addr", d.listener.Addr().String()).Info("starting HTTP server")
 
 	panicGroup := util.UnrecoverablePanicGroup.Log(d.logger)
 	panicGroup.Go(func() {
@@ -375,9 +370,9 @@ func (d *Daemon) Run() {
 	})
 
 	if d.adminServer != nil {
-		d.logger.WithFields(supportlog.F{
-			"addr": d.adminListener.Addr().String(),
-		}).Info("starting Admin HTTP server")
+		d.logger.
+			WithField("addr", d.adminListener.Addr().String()).
+			Info("starting Admin HTTP server")
 		panicGroup.Go(func() {
 			if err := d.adminServer.Serve(d.adminListener); !errors.Is(err, http.ErrServerClosed) {
 				d.logger.WithError(err).Error("soroban admin server encountered fatal error")
@@ -385,9 +380,10 @@ func (d *Daemon) Run() {
 		})
 	}
 
-	// Shutdown gracefully when we receive an interrupt signal.
-	// First server.Shutdown closes all open listeners, then closes all idle connections.
-	// Finally, it waits a grace period (10s here) for connections to return to idle and then shut down.
+	// Shutdown gracefully when we receive an interrupt signal. First
+	// server.Shutdown closes all open listeners, then closes all idle
+	// connections. Finally, it waits a grace period (10s here) for connections
+	// to return to idle and then shut down.
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
