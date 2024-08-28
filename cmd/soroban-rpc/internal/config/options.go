@@ -17,7 +17,8 @@ import (
 
 const (
 	// OneDayOfLedgers is (roughly) a 24 hour window of ledgers.
-	OneDayOfLedgers = 17280
+	OneDayOfLedgers   = 17280
+	SevenDayOfLedgers = OneDayOfLedgers * 7
 
 	defaultHTTPEndpoint = "localhost:8000"
 )
