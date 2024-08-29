@@ -14,12 +14,6 @@ const (
 	eventsMigrationName       = "EventsTable"
 )
 
-// Add new migrations here:
-var CurrentMigrations = map[string]migrationApplierF{
-	transactionsMigrationName: newTransactionTableMigration,
-	eventsMigrationName:       newEventTableMigration,
-}
-
 type LedgerSeqRange struct {
 	First uint32
 	Last  uint32
@@ -143,6 +137,7 @@ func newGuardedDataMigration(
 		return nil, err
 	}
 	if previouslyMigrated {
+		//nolint:nilnil A sentinel value here would be stupid
 		return nil, nil
 	}
 	applier, err := factory.New(db)
@@ -214,8 +209,16 @@ func BuildMigrations(
 		return MultiMigration{}, applicableRange, errors.Join(err, db.Rollback())
 	}
 
-	migrations := make([]Migration, 0, len(CurrentMigrations))
-	for migrationName, migrationFunc := range CurrentMigrations {
+	//
+	// Add new migrations here:
+	//
+	var currentMigrations = map[string]migrationApplierF{
+		transactionsMigrationName: newTransactionTableMigration,
+		eventsMigrationName:       newEventTableMigration,
+	}
+
+	migrations := make([]Migration, 0, len(currentMigrations))
+	for migrationName, migrationFunc := range currentMigrations {
 		migrationLogger := logger.WithField("migration", migrationName)
 		factory := migrationFunc(
 			ctx,
