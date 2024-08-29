@@ -13,7 +13,7 @@ require (
 	github.com/montanaflynn/stats v0.7.1
 	github.com/pelletier/go-toml v1.9.5
 	github.com/prometheus/client_golang v1.17.0
-	github.com/rs/cors v1.10.1
+	github.com/rs/cors v1.11.0
 	github.com/rubenv/sql-migrate v1.5.2
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0
