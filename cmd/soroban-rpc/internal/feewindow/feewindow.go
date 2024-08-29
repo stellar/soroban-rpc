@@ -133,9 +133,9 @@ type FeeWindows struct {
 	db                        *db.DB
 }
 
-func NewFeeWindows(classicRetention uint32, sorobanRetetion uint32, networkPassPhrase string, db *db.DB) *FeeWindows {
+func NewFeeWindows(classicRetention uint32, sorobanRetention uint32, networkPassPhrase string, db *db.DB) *FeeWindows {
 	return &FeeWindows{
-		SorobanInclusionFeeWindow: NewFeeWindow(sorobanRetetion),
+		SorobanInclusionFeeWindow: NewFeeWindow(sorobanRetention),
 		ClassicFeeWindow:          NewFeeWindow(classicRetention),
 		networkPassPhrase:         networkPassPhrase,
 		db:                        db,

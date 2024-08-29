@@ -27,10 +27,10 @@ func (mlr *LedgerSeqRange) IsLedgerIncluded(ledgerSeq uint32) bool {
 }
 
 func (mlr *LedgerSeqRange) Merge(other *LedgerSeqRange) *LedgerSeqRange {
-	if mlr == nil {
+	if mlr.Empty() {
 		return other
 	}
-	if other == nil {
+	if other.Empty() {
 		return mlr
 	}
 	// TODO: using min/max can result in a much larger range than needed,
@@ -39,6 +39,17 @@ func (mlr *LedgerSeqRange) Merge(other *LedgerSeqRange) *LedgerSeqRange {
 		First: min(mlr.First, other.First),
 		Last:  max(mlr.Last, other.Last),
 	}
+}
+
+func (mlr *LedgerSeqRange) MergeInPlace(other LedgerSeqRange) {
+	// TODO: using min/max can result in a much larger range than needed,
+	//       as an optimization, we should probably use a sequence of ranges instead.
+	mlr.First = min(mlr.First, other.First)
+	mlr.Last = max(mlr.Last, other.Last)
+}
+
+func (mlr *LedgerSeqRange) Empty() bool {
+	return mlr == nil || (mlr.First == 0 && mlr.Last == 0)
 }
 
 type MigrationApplier interface {
@@ -117,12 +128,16 @@ type guardedMigration struct {
 }
 
 func newGuardedDataMigration(
-	ctx context.Context, uniqueMigrationName string, logger *log.Entry, factory migrationApplierFactory, db *DB,
+	ctx context.Context, uniqueMigrationName string,
+	logger *log.Entry, factory migrationApplierFactory, db *DB,
 ) (Migration, error) {
 	metaKey := "Migration" + uniqueMigrationName + "Done"
 	previouslyMigrated, err := getMetaBool(ctx, db, metaKey)
 	if err != nil && !errors.Is(err, ErrEmptyDB) {
 		return nil, err
+	}
+	if previouslyMigrated {
+		return nil, nil
 	}
 	applier, err := factory.New(db)
 	if err != nil {
@@ -145,7 +160,7 @@ func (g *guardedMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) 
 		return nil
 	}
 	if !g.applyLogged {
-		g.logger.WithField("ledger", meta.LedgerSequence()).Info("applying migration")
+		g.logger.WithField("ledger", meta.LedgerSequence()).Info("Applying migration")
 		g.applyLogged = true
 	}
 	return g.migration.Apply(ctx, meta)
@@ -165,28 +180,31 @@ func (g *guardedMigration) Commit(ctx context.Context) error {
 	return setMetaBool(ctx, g.db, g.guardMetaKey, true)
 }
 
-func GetMigrationLedgerRange(ctx context.Context, db *DB, retentionWindow uint32) (*LedgerSeqRange, error) {
+func GetMigrationLedgerRange(ctx context.Context, db *DB, retentionWindow uint32) (LedgerSeqRange, error) {
 	firstLedgerToMigrate := firstLedger
 	latestLedger, err := NewLedgerEntryReader(db).GetLatestLedgerSequence(ctx)
 	if err != nil && !errors.Is(err, ErrEmptyDB) {
-		return nil, fmt.Errorf("failed to get latest ledger sequence: %w", err)
+		return LedgerSeqRange{}, fmt.Errorf("failed to get latest ledger sequence: %w", err)
 	}
 	if latestLedger > retentionWindow {
 		firstLedgerToMigrate = latestLedger - retentionWindow
 	}
-	return &LedgerSeqRange{
+	return LedgerSeqRange{
 		First: firstLedgerToMigrate,
 		Last:  latestLedger,
 	}, nil
 }
 
-func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, networkPassphrase string,
-	ledgerSeqRange *LedgerSeqRange,
-) (MultiMigration, error) {
+func BuildMigrations(
+	ctx context.Context, logger *log.Entry, db *DB, networkPassphrase string,
+	ledgerSeqRange LedgerSeqRange,
+) (MultiMigration, LedgerSeqRange, error) {
+	applicableRange := LedgerSeqRange{}
+
 	// Start a common db transaction for the entire migration duration
 	err := db.Begin(ctx)
 	if err != nil {
-		return MultiMigration{}, errors.Join(err, db.Rollback())
+		return MultiMigration{}, applicableRange, errors.Join(err, db.Rollback())
 	}
 
 	migrationNameToFunc := map[string]migrationApplierF{
@@ -202,18 +220,26 @@ func BuildMigrations(ctx context.Context, logger *log.Entry, db *DB, networkPass
 			ctx,
 			migrationLogger,
 			networkPassphrase,
-			ledgerSeqRange,
+			&ledgerSeqRange,
 		)
 
 		guardedM, err := newGuardedDataMigration(ctx, migrationName, migrationLogger, factory, db)
 		if err != nil {
-			return MultiMigration{}, errors.Join(err, fmt.Errorf(
+			return MultiMigration{}, applicableRange, errors.Join(err, fmt.Errorf(
 				"could not create guarded migration for %s", migrationName), db.Rollback())
 		}
+
+		if guardedM == nil {
+			logger.Infof("Skipping completed migration %s", migrationName)
+			continue
+		}
+
+		applicableRange.MergeInPlace(ledgerSeqRange)
 		migrations = append(migrations, guardedM)
 	}
+
 	return MultiMigration{
 		migrations: migrations,
 		db:         db,
-	}, nil
+	}, applicableRange, nil
 }
