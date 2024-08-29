@@ -137,7 +137,7 @@ func newGuardedDataMigration(
 		return nil, err
 	}
 	if previouslyMigrated {
-		//nolint:nilnil A sentinel value here would be stupid
+		//nolint:nilnil // a sentinel value here would be stupid
 		return nil, nil
 	}
 	applier, err := factory.New(db)
@@ -212,7 +212,7 @@ func BuildMigrations(
 	//
 	// Add new migrations here:
 	//
-	var currentMigrations = map[string]migrationApplierF{
+	currentMigrations := map[string]migrationApplierF{
 		transactionsMigrationName: newTransactionTableMigration,
 		eventsMigrationName:       newEventTableMigration,
 	}
