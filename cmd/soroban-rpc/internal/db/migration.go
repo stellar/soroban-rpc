@@ -14,6 +14,12 @@ const (
 	eventsMigrationName       = "EventsTable"
 )
 
+// Add new migrations here:
+var CurrentMigrations = map[string]migrationApplierF{
+	transactionsMigrationName: newTransactionTableMigration,
+	eventsMigrationName:       newEventTableMigration,
+}
+
 type LedgerSeqRange struct {
 	First uint32
 	Last  uint32
@@ -199,6 +205,7 @@ func BuildMigrations(
 	ctx context.Context, logger *log.Entry, db *DB, networkPassphrase string,
 	ledgerSeqRange LedgerSeqRange,
 ) (MultiMigration, LedgerSeqRange, error) {
+	// Track ranges for which migrations are actually necessary
 	applicableRange := LedgerSeqRange{}
 
 	// Start a common db transaction for the entire migration duration
@@ -207,14 +214,8 @@ func BuildMigrations(
 		return MultiMigration{}, applicableRange, errors.Join(err, db.Rollback())
 	}
 
-	migrationNameToFunc := map[string]migrationApplierF{
-		transactionsMigrationName: newTransactionTableMigration,
-		eventsMigrationName:       newEventTableMigration,
-	}
-
-	migrations := make([]Migration, 0, len(migrationNameToFunc))
-
-	for migrationName, migrationFunc := range migrationNameToFunc {
+	migrations := make([]Migration, 0, len(CurrentMigrations))
+	for migrationName, migrationFunc := range CurrentMigrations {
 		migrationLogger := logger.WithField("migration", migrationName)
 		factory := migrationFunc(
 			ctx,
