@@ -9,20 +9,30 @@ fi
 
 CURL="curl -sL --fail-with-body"
 
-if ! CARGO_OUTPUT=$(cargo tree -p soroban-env-host 2>&1); then
-  echo "The project depends on multiple versions of the soroban-env-host Rust library, please unify them."
-  echo "Make sure the soroban-sdk dependency indirectly points to the same soroban-env-host dependency imported explicitly."
-  echo
-  echo "This is soroban-env-host version imported by soroban-sdk:"
-  cargo tree --depth 1  -p soroban-sdk | grep env-host
-  echo
-  echo
-  echo
-  echo "Full error:"
-  echo $CARGO_OUTPUT
+PROTOS=$($SED -n ':pkg; /"soroban-env-host"/ {n; /version/ { s/[^0-9]*\([0-9]\+\).*/\1/ p; b pkg;}}' Cargo.toml | tr '\n' ' ')
+if [ -z "$PROTOS" ]; then
+  echo "Cannot find soroban-env-host dependencies in Cargo.toml"
   exit 1
+else
+  echo "Found supported protocols: $PROTOS"
 fi
 
+for PROTO in $PROTOS
+do
+  if ! CARGO_OUTPUT=$(cargo tree -p soroban-env-host@$PROTO 2>&1); then
+    echo "The project depends on multiple versions of the soroban-env-host@$PROTO Rust library, please unify them."
+    echo "Make sure the soroban-sdk dependency indirectly points to the same soroban-env-host@$PROTO dependency imported explicitly."
+    echo
+    echo "This is soroban-env-host version imported by soroban-sdk:"
+    cargo tree --depth 1  -p soroban-sdk | grep env-host
+    echo
+    echo
+    echo
+    echo "Full error:"
+    echo $CARGO_OUTPUT
+    exit 1
+  fi
+done
 
 # revision of the https://github.com/stellar/rs-stellar-xdr library used by the Rust code
 RS_STELLAR_XDR_REVISION=""
