@@ -16,7 +16,7 @@ version = "=21.2.0"
 package = "soroban-env-host"
 version = "=22.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "b01e79899ceeeb3d39f9531bbc09b39bf0149da8"
+rev = "4b366a38798a84ca0ca4dde2aaef5ffdcc1cc4a4"
 
 [workspace.dependencies.soroban-simulation-prev]
 package = "soroban-simulation"
@@ -26,7 +26,7 @@ version = "=21.2.0"
 package = "soroban-simulation"
 version = "=22.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "b01e79899ceeeb3d39f9531bbc09b39bf0149da8"
+rev = "4b366a38798a84ca0ca4dde2aaef5ffdcc1cc4a4"
 
 [workspace.dependencies.stellar-xdr]
 version = "=21.2.0"
