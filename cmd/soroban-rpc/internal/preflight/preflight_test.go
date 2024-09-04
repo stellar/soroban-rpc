@@ -350,9 +350,9 @@ func getPreflightParameters(t testing.TB, dbConfig *preflightParametersDBConfig)
 		entryReader := db.NewLedgerEntryReader(dbConfig.dbInstance)
 		var err error
 		if dbConfig.disableCache {
-			ledgerEntryReadTx, err = entryReader.NewTx(context.Background())
+			ledgerEntryReadTx, err = entryReader.NewTx(context.Background(), false)
 		} else {
-			ledgerEntryReadTx, err = entryReader.NewCachedTx(context.Background())
+			ledgerEntryReadTx, err = entryReader.NewTx(context.Background(), true)
 		}
 		require.NoError(t, err)
 	} else {

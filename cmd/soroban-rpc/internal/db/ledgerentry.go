@@ -18,8 +18,7 @@ const (
 
 type LedgerEntryReader interface {
 	GetLatestLedgerSequence(ctx context.Context) (uint32, error)
-	NewTx(ctx context.Context) (LedgerEntryReadTx, error)
-	NewCachedTx(ctx context.Context) (LedgerEntryReadTx, error)
+	NewTx(ctx context.Context, cacheTx bool) (LedgerEntryReadTx, error)
 }
 
 type LedgerKeyAndEntry struct {
@@ -344,54 +343,36 @@ func (r ledgerEntryReader) GetLatestLedgerSequence(ctx context.Context) (uint32,
 	return getLatestLedgerSequence(ctx, NewLedgerReader(r.db), r.db.cache)
 }
 
-func (r ledgerEntryReader) newBaseTx(ctx context.Context) (db.SessionInterface, error) {
-	tx := r.db.Clone()
-	if err := tx.BeginTx(ctx, &sql.TxOptions{ReadOnly: true}); err != nil {
-		return nil, err
+// NewTx creates a new ledger entry read transaction. When cacheTx is set to True, it will cache all accessed
+// ledger entries and select statements. If many ledger entries are accessed, it will grow without bounds.
+func (r ledgerEntryReader) NewTx(ctx context.Context, cacheTx bool) (LedgerEntryReadTx, error) {
+	r.db.cache.RLock()
+	defer r.db.cache.RUnlock()
+	txSession := r.db.Clone()
+	if err := txSession.BeginTx(ctx, &sql.TxOptions{ReadOnly: true}); err != nil {
+		return nil, fmt.Errorf("failed to begin read transaction: %w", err)
 	}
-	return tx, nil
-}
+	tx := &ledgerEntryReadTx{
+		globalCache:          r.db.cache,
+		latestLedgerSeqCache: r.db.cache.latestLedgerSeq,
+		tx:                   txSession,
+		ledgerReader:         NewLedgerReader(r.db),
+		buffer:               xdr.NewEncodingBuffer(),
+	}
 
-// NewCachedTx() caches all accessed ledger entries and select statements. If many ledger entries are accessed, it will grow without bounds.
-func (r ledgerEntryReader) NewCachedTx(ctx context.Context) (LedgerEntryReadTx, error) {
 	// We need to copy the cached ledger entries locally when we start the transaction
 	// since otherwise we would break the consistency between the transaction and the cache.
 
 	// We need to make the parent cache access atomic with the read transaction creation.
 	// Otherwise, the cache can be made inconsistent if a write transaction finishes
 	// in between, updating the cache.
-	r.db.cache.RLock()
-	defer r.db.cache.RUnlock()
-	txSession, err := r.newBaseTx(ctx)
-	if err != nil {
-		return nil, err
+	if cacheTx {
+		tx.stmtCache = sq.NewStmtCache(txSession.GetTx())
+		cacheReadTx := r.db.cache.ledgerEntries.newReadTx()
+		tx.ledgerEntryCacheReadTx = &cacheReadTx
 	}
-	cacheReadTx := r.db.cache.ledgerEntries.newReadTx()
-	return &ledgerEntryReadTx{
-		globalCache:            r.db.cache,
-		stmtCache:              sq.NewStmtCache(txSession.GetTx()),
-		latestLedgerSeqCache:   r.db.cache.latestLedgerSeq,
-		ledgerEntryCacheReadTx: &cacheReadTx,
-		ledgerReader:           NewLedgerReader(r.db),
-		tx:                     txSession,
-		buffer:                 xdr.NewEncodingBuffer(),
-	}, nil
-}
 
-func (r ledgerEntryReader) NewTx(ctx context.Context) (LedgerEntryReadTx, error) {
-	r.db.cache.RLock()
-	defer r.db.cache.RUnlock()
-	txSession, err := r.newBaseTx(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &ledgerEntryReadTx{
-		globalCache:          r.db.cache,
-		latestLedgerSeqCache: r.db.cache.latestLedgerSeq,
-		tx:                   txSession,
-		ledgerReader:         NewLedgerReader(r.db),
-		buffer:               xdr.NewEncodingBuffer(),
-	}, nil
+	return tx, nil
 }
 
 func encodeLedgerKey(buffer *xdr.EncodingBuffer, key xdr.LedgerKey) (string, error) {

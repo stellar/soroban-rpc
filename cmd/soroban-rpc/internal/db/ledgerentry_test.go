@@ -18,7 +18,7 @@ import (
 )
 
 func getLedgerEntryAndLatestLedgerSequenceWithErr(db *DB, key xdr.LedgerKey) (bool, xdr.LedgerEntry, uint32, *uint32, error) {
-	tx, err := NewLedgerEntryReader(db).NewTx(context.Background())
+	tx, err := NewLedgerEntryReader(db).NewTx(context.Background(), false)
 	if err != nil {
 		return false, xdr.LedgerEntry{}, 0, nil, err
 	}
@@ -256,9 +256,9 @@ func TestReadTxsDuringWriteTx(t *testing.T) {
 	assert.NoError(t, writer.UpsertLedgerEntry(expLegerEntry))
 
 	// Before committing the changes, make sure multiple concurrent transactions can query the DB
-	readTx1, err := NewLedgerEntryReader(db).NewTx(context.Background())
+	readTx1, err := NewLedgerEntryReader(db).NewTx(context.Background(), false)
 	assert.NoError(t, err)
-	readTx2, err := NewLedgerEntryReader(db).NewTx(context.Background())
+	readTx2, err := NewLedgerEntryReader(db).NewTx(context.Background(), false)
 	assert.NoError(t, err)
 
 	_, err = readTx1.GetLatestLedgerSequence()
@@ -306,7 +306,7 @@ func TestWriteTxsDuringReadTxs(t *testing.T) {
 	// Create a multiple read transactions, interleaved with the writing process
 
 	// First read transaction, before the write transaction is created
-	readTx1, err := NewLedgerEntryReader(db).NewTx(context.Background())
+	readTx1, err := NewLedgerEntryReader(db).NewTx(context.Background(), false)
 	assert.NoError(t, err)
 
 	// Start filling the DB with a single entry (enforce flushing right away)
@@ -315,7 +315,7 @@ func TestWriteTxsDuringReadTxs(t *testing.T) {
 	writer := tx.LedgerEntryWriter()
 
 	// Second read transaction, after the write transaction is created
-	readTx2, err := NewLedgerEntryReader(db).NewTx(context.Background())
+	readTx2, err := NewLedgerEntryReader(db).NewTx(context.Background(), false)
 	assert.NoError(t, err)
 
 	four := xdr.Uint32(4)
@@ -344,7 +344,7 @@ func TestWriteTxsDuringReadTxs(t *testing.T) {
 	assert.NoError(t, writer.UpsertLedgerEntry(expLegerEntry))
 
 	// Third read transaction, after the first insert has happened in the write transaction
-	readTx3, err := NewLedgerEntryReader(db).NewTx(context.Background())
+	readTx3, err := NewLedgerEntryReader(db).NewTx(context.Background(), false)
 	assert.NoError(t, err)
 
 	// Make sure that all the read transactions get an emptyDB error before and after the write transaction is committed
@@ -532,9 +532,9 @@ func benchmarkLedgerEntry(b *testing.B, cached bool) {
 		var readTx LedgerEntryReadTx
 		var err error
 		if cached {
-			readTx, err = reader.NewCachedTx(context.Background())
+			readTx, err = reader.NewTx(context.Background(), true)
 		} else {
-			readTx, err = reader.NewTx(context.Background())
+			readTx, err = reader.NewTx(context.Background(), false)
 		}
 		assert.NoError(b, err)
 		for i := 0; i < numQueriesPerOp; i++ {
