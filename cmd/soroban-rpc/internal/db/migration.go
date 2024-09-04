@@ -19,49 +19,40 @@ type LedgerSeqRange struct {
 	Last  uint32
 }
 
-func (mlr *LedgerSeqRange) IsLedgerIncluded(ledgerSeq uint32) bool {
-	if mlr == nil {
-		return false
-	}
+func (mlr LedgerSeqRange) IsLedgerIncluded(ledgerSeq uint32) bool {
 	return ledgerSeq >= mlr.First && ledgerSeq <= mlr.Last
 }
 
-func (mlr *LedgerSeqRange) Merge(other *LedgerSeqRange) *LedgerSeqRange {
+func (mlr LedgerSeqRange) Merge(other LedgerSeqRange) LedgerSeqRange {
 	if mlr.Empty() {
 		return other
 	}
 	if other.Empty() {
 		return mlr
 	}
+
 	// TODO: using min/max can result in a much larger range than needed,
 	//       as an optimization, we should probably use a sequence of ranges instead.
-	return &LedgerSeqRange{
+	return LedgerSeqRange{
 		First: min(mlr.First, other.First),
 		Last:  max(mlr.Last, other.Last),
 	}
 }
 
-func (mlr *LedgerSeqRange) MergeInPlace(other LedgerSeqRange) {
-	// TODO: using min/max can result in a much larger range than needed,
-	//       as an optimization, we should probably use a sequence of ranges instead.
-	mlr.First = min(mlr.First, other.First)
-	mlr.Last = max(mlr.Last, other.Last)
-}
-
-func (mlr *LedgerSeqRange) Empty() bool {
-	return mlr == nil || (mlr.First == 0 && mlr.Last == 0)
+func (mlr LedgerSeqRange) Empty() bool {
+	return mlr.First == 0 && mlr.Last == 0
 }
 
 type MigrationApplier interface {
 	// ApplicableRange returns the closed ledger sequence interval,
-	// where Apply() should be called. A null result indicates the empty range
-	ApplicableRange() *LedgerSeqRange
+	// where Apply() should be called.
+	ApplicableRange() LedgerSeqRange
 	// Apply applies the migration on a ledger. It should never be applied
 	// in ledgers outside the ApplicableRange()
 	Apply(ctx context.Context, meta xdr.LedgerCloseMeta) error
 }
 
-type migrationApplierF func(context.Context, *log.Entry, string, *LedgerSeqRange) migrationApplierFactory
+type migrationApplierF func(context.Context, *log.Entry, string, LedgerSeqRange) migrationApplierFactory
 
 type migrationApplierFactory interface {
 	New(db *DB) (MigrationApplier, error)
@@ -83,8 +74,15 @@ type MultiMigration struct {
 	db         *DB
 }
 
-func (mm MultiMigration) ApplicableRange() *LedgerSeqRange {
-	var result *LedgerSeqRange
+func (mm *MultiMigration) Append(m Migration) {
+	r := m.ApplicableRange()
+	if !r.Empty() {
+		mm.migrations = append(mm.migrations, m)
+	}
+}
+
+func (mm MultiMigration) ApplicableRange() LedgerSeqRange {
+	var result LedgerSeqRange
 	for _, m := range mm.migrations {
 		result = m.ApplicableRange().Merge(result)
 	}
@@ -167,9 +165,9 @@ func (g *guardedMigration) Apply(ctx context.Context, meta xdr.LedgerCloseMeta) 
 	return g.migration.Apply(ctx, meta)
 }
 
-func (g *guardedMigration) ApplicableRange() *LedgerSeqRange {
+func (g *guardedMigration) ApplicableRange() LedgerSeqRange {
 	if g.alreadyMigrated {
-		return nil
+		return LedgerSeqRange{}
 	}
 	return g.migration.ApplicableRange()
 }
@@ -199,14 +197,11 @@ func GetMigrationLedgerRange(ctx context.Context, db *DB, retentionWindow uint32
 func BuildMigrations(
 	ctx context.Context, logger *log.Entry, db *DB, networkPassphrase string,
 	ledgerSeqRange LedgerSeqRange,
-) (MultiMigration, LedgerSeqRange, error) {
-	// Track ranges for which migrations are actually necessary
-	applicableRange := LedgerSeqRange{}
-
+) (MultiMigration, error) {
 	// Start a common db transaction for the entire migration duration
 	err := db.Begin(ctx)
 	if err != nil {
-		return MultiMigration{}, applicableRange, errors.Join(err, db.Rollback())
+		return MultiMigration{}, errors.Join(err, db.Rollback())
 	}
 
 	//
@@ -217,19 +212,23 @@ func BuildMigrations(
 		eventsMigrationName:       newEventTableMigration,
 	}
 
-	migrations := make([]Migration, 0, len(currentMigrations))
+	mm := MultiMigration{
+		migrations: make([]Migration, 0, len(currentMigrations)),
+		db:         db,
+	}
+
 	for migrationName, migrationFunc := range currentMigrations {
 		migrationLogger := logger.WithField("migration", migrationName)
 		factory := migrationFunc(
 			ctx,
 			migrationLogger,
 			networkPassphrase,
-			&ledgerSeqRange,
+			ledgerSeqRange,
 		)
 
 		guardedM, err := newGuardedDataMigration(ctx, migrationName, migrationLogger, factory, db)
 		if err != nil {
-			return MultiMigration{}, applicableRange, errors.Join(err, fmt.Errorf(
+			return MultiMigration{}, errors.Join(err, fmt.Errorf(
 				"could not create guarded migration for %s", migrationName), db.Rollback())
 		}
 
@@ -238,12 +237,8 @@ func BuildMigrations(
 			continue
 		}
 
-		applicableRange.MergeInPlace(ledgerSeqRange)
-		migrations = append(migrations, guardedM)
+		mm.Append(guardedM)
 	}
 
-	return MultiMigration{
-		migrations: migrations,
-		db:         db,
-	}, applicableRange, nil
+	return mm, nil
 }

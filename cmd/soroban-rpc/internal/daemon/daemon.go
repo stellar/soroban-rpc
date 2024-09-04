@@ -348,7 +348,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	//    will return the *applicable* range for the incomplete set of migrations.
 	//    That means **it may be empty** if all migrations have occurred.
 	//
-	dataMigrations, applicableRange, err := db.BuildMigrations(
+	dataMigrations, err := db.BuildMigrations(
 		readTxMetaCtx, d.logger, d.db, cfg.NetworkPassphrase, retentionRange)
 	if err != nil {
 		d.logger.WithError(err).Fatal("could not build migrations")
@@ -364,7 +364,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	if err != nil {
 		d.logger.WithError(err).Fatal("could not get ledger range for fee stats")
 	}
-	ledgerSeqRange := feeStatsRange.Merge(&applicableRange)
+	ledgerSeqRange := dataMigrations.ApplicableRange().Merge(feeStatsRange)
 
 	//
 	// 5. Apply migration for events & transactions, and perform fee stat analysis.
@@ -409,7 +409,9 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	}
 
 	if currentSeq != 0 {
-		d.logger.WithField("seq", currentSeq).
+		d.logger.
+			WithField("first", retentionRange.First).
+			WithField("last", retentionRange.Last).
 			Info("Finished initializing in-memory store and applying DB data migrations")
 	}
 

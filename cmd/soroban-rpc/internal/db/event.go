@@ -311,8 +311,8 @@ type eventTableMigration struct {
 	writer      EventWriter
 }
 
-func (e *eventTableMigration) ApplicableRange() *LedgerSeqRange {
-	return &LedgerSeqRange{
+func (e *eventTableMigration) ApplicableRange() LedgerSeqRange {
+	return LedgerSeqRange{
 		First: e.firstLedger,
 		Last:  e.lastLedger,
 	}
@@ -326,7 +326,7 @@ func newEventTableMigration(
 	_ context.Context,
 	logger *log.Entry,
 	passphrase string,
-	ledgerSeqRange *LedgerSeqRange,
+	ledgerSeqRange LedgerSeqRange,
 ) migrationApplierFactory {
 	return migrationApplierFactoryF(func(db *DB) (MigrationApplier, error) {
 		migration := eventTableMigration{
