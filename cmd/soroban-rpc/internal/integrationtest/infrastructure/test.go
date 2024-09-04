@@ -468,6 +468,11 @@ func (i *Test) getComposeCommand(args ...string) *exec.Cmd {
 	cmdline = append([]string{"-p", projectName}, cmdline...)
 	cmdline = append(cmdline, args...)
 	cmd := exec.Command("docker-compose", cmdline...)
+	_, err := exec.LookPath("docker-compose")
+	if err != nil {
+		cmdline = append([]string{"compose"}, cmdline...)
+		cmd = exec.Command("docker", cmdline...)
+	}
 
 	if img := os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_DOCKER_IMG"); img != "" {
 		cmd.Env = append(
