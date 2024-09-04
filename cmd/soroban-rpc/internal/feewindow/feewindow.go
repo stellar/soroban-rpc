@@ -225,4 +225,5 @@ func (fw *feeWindowMigration) Commit(_ context.Context) error {
 	return nil // no-op
 }
 
+// ensure we conform to the migration interface
 var _ db.Migration = &feeWindowMigration{}

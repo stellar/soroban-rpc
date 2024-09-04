@@ -205,18 +205,14 @@ func BuildMigrations(
 	}
 
 	//
-	// Add new migrations here:
+	// Add new DB migrations here:
 	//
 	currentMigrations := map[string]migrationApplierF{
 		transactionsMigrationName: newTransactionTableMigration,
 		eventsMigrationName:       newEventTableMigration,
 	}
 
-	mm := MultiMigration{
-		migrations: make([]Migration, 0, len(currentMigrations)),
-		db:         db,
-	}
-
+	migrations := make([]Migration, 0, len(currentMigrations))
 	for migrationName, migrationFunc := range currentMigrations {
 		migrationLogger := logger.WithField("migration", migrationName)
 		factory := migrationFunc(
@@ -237,8 +233,11 @@ func BuildMigrations(
 			continue
 		}
 
-		mm.Append(guardedM)
+		migrations = append(migrations, guardedM)
 	}
 
-	return mm, nil
+	return MultiMigration{
+		migrations: migrations,
+		db:         db,
+	}, nil
 }

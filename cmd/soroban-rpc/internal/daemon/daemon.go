@@ -294,8 +294,8 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 // mustInitializeStorage initializes the storage using what was on the DB
 func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows {
 	//
-	// There is a lot of complex "ledger window math" here so it's worth
-	// clarifying as a comment beforehand.
+	// There's some complex "ledger window math" here so we should clarify it
+	// beforehand.
 	//
 	// There are two windows in play here:
 	//  - the ledger retention window, which describes the range of txmeta
@@ -306,9 +306,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	// If the fee window *exceeds* the retention window, this doesn't make any
 	// sense since it implies the user wants to store N amount of actual
 	// historical data and M > N amount of ledgers just for fee processing,
-	// which is nonsense from a performance standpoint. So we should prevent
-	// this config on startup.
-	//
+	// which is nonsense from a performance standpoint. We prevent this:
 	maxFeeRetentionWindow := max(
 		cfg.ClassicFeeStatsLedgerRetentionWindow,
 		cfg.SorobanFeeStatsLedgerRetentionWindow)
@@ -328,48 +326,40 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
 	defer cancelReadTxMeta()
 
+	// To combine these windows, we launch as follows:
 	//
-	// With that in mind, it means we should launch as follows:
-	//
-	// 1. Based on the ledger retention window, identify the ledger range that
-	//    needs to migrated. We don't do "partial" migrations (a new migration to a
-	//    migrated table would have a different "Migrated<Table>" meta key in the
-	//    database), so this should represent the entire range of ledger meta we're
-	//    storing.
+	// 1. First, identify the ledger range for database migrations based on the
+	//    ledger retention window. Since we don't do "partial" migrations (all or
+	//    nothing), this represents the entire range of ledger metas we store.
 	//
 	retentionRange, err := db.GetMigrationLedgerRange(readTxMetaCtx, d.db, cfg.HistoryRetentionWindow)
 	if err != nil {
 		d.logger.WithError(err).Fatal("could not get ledger range for migration")
 	}
 
-	//
-	// 2. However, if we have already performed migrations, we don't want to
-	//    count those in the "to migrate" ledger range. Thus, db.BuildMigrations
-	//    will return the *applicable* range for the incomplete set of migrations.
-	//    That means **it may be empty** if all migrations have occurred.
-	//
 	dataMigrations, err := db.BuildMigrations(
 		readTxMetaCtx, d.logger, d.db, cfg.NetworkPassphrase, retentionRange)
 	if err != nil {
 		d.logger.WithError(err).Fatal("could not build migrations")
 	}
 
-	//
-	// 4. Finally, we can incorporate the fee analysis window. If there are
-	//    migrations to do, this will have no effect, since the migration window is
-	//    larger than the fee window. If there were *no* migrations, though, this
-	//    means the final range is only the fee stat analysis range.
+	// 2. Then, incorporate the fee analysis window. If there are migrations to
+	//    do, this has no effect, since migration windows are larger than the fee
+	//    window. In the absence of migrations, though, this means the ingestion
+	//    range is just the fee stat range.
 	//
 	feeStatsRange, err := db.GetMigrationLedgerRange(readTxMetaCtx, d.db, maxFeeRetentionWindow)
-	dataMigrations.Append(feeWindows.AsMigration(feeStatsRange))
 	if err != nil {
 		d.logger.WithError(err).Fatal("could not get ledger range for fee stats")
 	}
 
+	// Additionally, by treating the fee window *as if* it's a migration, we can
+	// make the interface here really clean.
+	dataMigrations.Append(feeWindows.AsMigration(feeStatsRange))
 	ledgerSeqRange := dataMigrations.ApplicableRange()
 
 	//
-	// 5. Apply migration for events & transactions, and perform fee stat analysis.
+	// 3. Apply all migrations, including fee stat analysis.
 	//
 	var initialSeq, currentSeq uint32
 	err = db.NewLedgerReader(d.db).StreamLedgerRange(
@@ -400,6 +390,7 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	if err != nil {
 		d.logger.WithError(err).Fatal("Could not obtain txmeta cache from the database")
 	}
+
 	if err := dataMigrations.Commit(readTxMetaCtx); err != nil {
 		d.logger.WithError(err).Fatal("Could not commit data migrations")
 	}
