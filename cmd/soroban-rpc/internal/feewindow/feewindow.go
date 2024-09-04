@@ -2,6 +2,7 @@
 package feewindow
 
 import (
+	"context"
 	"errors"
 	"io"
 	"slices"
@@ -194,3 +195,34 @@ func (fw *FeeWindows) IngestFees(meta xdr.LedgerCloseMeta) error {
 	}
 	return nil
 }
+
+func (fw *FeeWindows) AsMigration(seqRange db.LedgerSeqRange) db.Migration {
+	return &feeWindowMigration{
+		firstLedger: seqRange.First,
+		lastLedger:  seqRange.Last,
+		windows:     fw,
+	}
+}
+
+type feeWindowMigration struct {
+	firstLedger uint32
+	lastLedger  uint32
+	windows     *FeeWindows
+}
+
+func (fw *feeWindowMigration) ApplicableRange() db.LedgerSeqRange {
+	return db.LedgerSeqRange{
+		First: fw.firstLedger,
+		Last:  fw.lastLedger,
+	}
+}
+
+func (fw *feeWindowMigration) Apply(_ context.Context, meta xdr.LedgerCloseMeta) error {
+	return fw.windows.IngestFees(meta)
+}
+
+func (fw *feeWindowMigration) Commit(_ context.Context) error {
+	return nil // no-op
+}
+
+var _ db.Migration = &feeWindowMigration{}

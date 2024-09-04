@@ -361,10 +361,12 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	//    means the final range is only the fee stat analysis range.
 	//
 	feeStatsRange, err := db.GetMigrationLedgerRange(readTxMetaCtx, d.db, maxFeeRetentionWindow)
+	dataMigrations.Append(feeWindows.AsMigration(feeStatsRange))
 	if err != nil {
 		d.logger.WithError(err).Fatal("could not get ledger range for fee stats")
 	}
-	ledgerSeqRange := dataMigrations.ApplicableRange().Merge(feeStatsRange)
+
+	ledgerSeqRange := dataMigrations.ApplicableRange()
 
 	//
 	// 5. Apply migration for events & transactions, and perform fee stat analysis.
@@ -387,12 +389,6 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 					WithField("seq", currentSeq).
 					WithField("last", ledgerSeqRange.Last).
 					Debug("Still initializing in-memory store")
-			}
-
-			if feeStatsRange.IsLedgerIncluded(currentSeq) { // skip irrelevant ledgers
-				if err = feeWindows.IngestFees(txMeta); err != nil {
-					d.logger.WithError(err).Fatal("could not initialize fee stats")
-				}
 			}
 
 			if err := dataMigrations.Apply(readTxMetaCtx, txMeta); err != nil {
