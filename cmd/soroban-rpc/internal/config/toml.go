@@ -9,6 +9,11 @@ import (
 	"github.com/pelletier/go-toml"
 )
 
+const (
+	maxLineWidth  = 80
+	commentIndent = 2
+)
+
 func parseToml(r io.Reader, strict bool, cfg *Config) error {
 	tree, err := toml.LoadReader(r)
 	if err != nil {
@@ -73,7 +78,7 @@ func (cfg *Config) MarshalTOML() ([]byte, error) {
 			key,
 			toml.SetOptions{
 				Comment: strings.ReplaceAll(
-					wordWrap(option.Usage, 80-2),
+					wordWrap(option.Usage, maxLineWidth-commentIndent),
 					"\n",
 					"\n ",
 				),
