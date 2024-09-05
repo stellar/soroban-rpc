@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/creachadair/jrpc2"
+	"github.com/pkg/errors"
 
 	"github.com/stellar/go/strkey"
 	"github.com/stellar/go/support/collections/set"
-	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
