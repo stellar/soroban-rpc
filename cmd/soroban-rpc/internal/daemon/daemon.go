@@ -34,11 +34,15 @@ import (
 )
 
 const (
-	prometheusNamespace                   = "soroban_rpc"
-	maxLedgerEntryWriteBatchSize          = 150
-	defaultReadTimeout                    = 5 * time.Second
-	defaultShutdownGracePeriod            = 10 * time.Second
-	inMemoryInitializationLedgerLogPeriod = 1_000_000
+	prometheusNamespace          = "soroban_rpc"
+	maxLedgerEntryWriteBatchSize = 150
+	defaultReadTimeout           = 5 * time.Second
+	defaultShutdownGracePeriod   = 10 * time.Second
+
+	// Since our default retention window will be 7 days (7*17,280 ledgers),
+	// choose a random 5-digit prime to have irregular logging intervals at each
+	// halfish-day of processing
+	inMemoryInitializationLedgerLogPeriod = 10_099
 )
 
 type Daemon struct {
@@ -289,6 +293,29 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 
 // mustInitializeStorage initializes the storage using what was on the DB
 func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows {
+	//
+	// There's some complex "ledger window math" here so we should clarify it
+	// beforehand.
+	//
+	// There are two windows in play here:
+	//  - the ledger retention window, which describes the range of txmeta
+	//    to keep relative to the latest "ledger tip" of the network
+	//  - the fee stats window, which describes a *subset* of the prior
+	//    ledger retention window on which to perform fee analysis
+	//
+	// If the fee window *exceeds* the retention window, this doesn't make any
+	// sense since it implies the user wants to store N amount of actual
+	// historical data and M > N amount of ledgers just for fee processing,
+	// which is nonsense from a performance standpoint. We prevent this:
+	maxFeeRetentionWindow := max(
+		cfg.ClassicFeeStatsLedgerRetentionWindow,
+		cfg.SorobanFeeStatsLedgerRetentionWindow)
+	if maxFeeRetentionWindow > cfg.HistoryRetentionWindow {
+		d.logger.Fatalf(
+			"Fee stat analysis window (%d) cannot exceed history retention window (%d).",
+			maxFeeRetentionWindow, cfg.HistoryRetentionWindow)
+	}
+
 	feeWindows := feewindow.NewFeeWindows(
 		cfg.ClassicFeeStatsLedgerRetentionWindow,
 		cfg.SorobanFeeStatsLedgerRetentionWindow,
@@ -299,27 +326,42 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
 	defer cancelReadTxMeta()
 
-	var initialSeq, currentSeq uint32
-	applicableRange, err := db.GetMigrationLedgerRange(readTxMetaCtx, d.db, cfg.HistoryRetentionWindow)
+	// To combine these windows, we launch as follows:
+	//
+	// 1. First, identify the ledger range for database migrations based on the
+	//    ledger retention window. Since we don't do "partial" migrations (all or
+	//    nothing), this represents the entire range of ledger metas we store.
+	//
+	retentionRange, err := db.GetMigrationLedgerRange(readTxMetaCtx, d.db, cfg.HistoryRetentionWindow)
 	if err != nil {
 		d.logger.WithError(err).Fatal("could not get ledger range for migration")
 	}
 
-	maxFeeRetentionWindow := max(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow)
+	dataMigrations, err := db.BuildMigrations(
+		readTxMetaCtx, d.logger, d.db, cfg.NetworkPassphrase, retentionRange)
+	if err != nil {
+		d.logger.WithError(err).Fatal("could not build migrations")
+	}
+
+	// 2. Then, incorporate the fee analysis window. If there are migrations to
+	//    do, this has no effect, since migration windows are larger than the fee
+	//    window. In the absence of migrations, though, this means the ingestion
+	//    range is just the fee stat range.
+	//
 	feeStatsRange, err := db.GetMigrationLedgerRange(readTxMetaCtx, d.db, maxFeeRetentionWindow)
 	if err != nil {
 		d.logger.WithError(err).Fatal("could not get ledger range for fee stats")
 	}
 
-	// Combine the ledger range for fees, events and transactions
-	ledgerSeqRange := feeStatsRange.Merge(applicableRange)
+	// Additionally, by treating the fee window *as if* it's a migration, we can
+	// make the interface here really clean.
+	dataMigrations.Append(feeWindows.AsMigration(feeStatsRange))
+	ledgerSeqRange := dataMigrations.ApplicableRange()
 
-	dataMigrations, err := db.BuildMigrations(readTxMetaCtx, d.logger, d.db, cfg.NetworkPassphrase, ledgerSeqRange)
-	if err != nil {
-		d.logger.WithError(err).Fatal("could not build migrations")
-	}
-
-	// Apply migration for events, transactions and fee stats
+	//
+	// 3. Apply all migrations, including fee stat analysis.
+	//
+	var initialSeq, currentSeq uint32
 	err = db.NewLedgerReader(d.db).StreamLedgerRange(
 		readTxMetaCtx,
 		ledgerSeqRange.First,
@@ -328,32 +370,36 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 			currentSeq = txMeta.LedgerSequence()
 			if initialSeq == 0 {
 				initialSeq = currentSeq
-				d.logger.WithField("seq", currentSeq).
-					Info("initializing in-memory store")
+				d.logger.
+					WithField("first", initialSeq).
+					WithField("last", ledgerSeqRange.Last).
+					Info("Initializing in-memory store")
 			} else if (currentSeq-initialSeq)%inMemoryInitializationLedgerLogPeriod == 0 {
-				d.logger.WithField("seq", currentSeq).
-					Debug("still initializing in-memory store")
-			}
-
-			if err = feeWindows.IngestFees(txMeta); err != nil {
-				d.logger.WithError(err).Fatal("could not initialize fee stats")
+				d.logger.
+					WithField("seq", currentSeq).
+					WithField("last", ledgerSeqRange.Last).
+					Debug("Still initializing in-memory store")
 			}
 
 			if err := dataMigrations.Apply(readTxMetaCtx, txMeta); err != nil {
 				d.logger.WithError(err).Fatal("could not apply migration for ledger ", currentSeq)
 			}
+
 			return nil
 		})
 	if err != nil {
-		d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
+		d.logger.WithError(err).Fatal("Could not obtain txmeta cache from the database")
 	}
+
 	if err := dataMigrations.Commit(readTxMetaCtx); err != nil {
-		d.logger.WithError(err).Fatal("could not commit data migrations")
+		d.logger.WithError(err).Fatal("Could not commit data migrations")
 	}
 
 	if currentSeq != 0 {
-		d.logger.WithField("seq", currentSeq).
-			Info("finished initializing in-memory store and applying DB data migrations")
+		d.logger.
+			WithField("first", retentionRange.First).
+			WithField("last", retentionRange.Last).
+			Info("Finished initializing in-memory store and applying DB data migrations")
 	}
 
 	return feeWindows
