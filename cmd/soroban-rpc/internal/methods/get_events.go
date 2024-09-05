@@ -119,7 +119,7 @@ func (g *GetEventsRequest) Valid(maxLimit uint) error {
 	// Validate the paging limit (if it exists)
 	if g.Pagination != nil && g.Pagination.Cursor != nil {
 		if g.StartLedger != 0 || g.EndLedger != 0 {
-			return errors.New("ledger ranges and cursor cannot both be set") //nolint:forbidigo
+			return errors.New("ledger ranges and cursor cannot both be set")
 		}
 	} else if g.StartLedger <= 0 {
 		return errors.New("startLedger must be positive")
