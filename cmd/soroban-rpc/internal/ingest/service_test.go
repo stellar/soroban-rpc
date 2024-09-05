@@ -80,13 +80,6 @@ func TestIngestion(t *testing.T) {
 	mockTxWriter := &MockTransactionWriter{}
 	mockEventWriter := &MockEventWriter{}
 	ctx := context.Background()
-	mockDB.On("NewTx", ctx).Return(mockTx, nil).Once()
-	mockTx.On("Commit", sequence).Return(nil).Once()
-	mockTx.On("Rollback").Return(nil).Once()
-	mockTx.On("LedgerEntryWriter").Return(mockLedgerEntryWriter).Twice()
-	mockTx.On("LedgerWriter").Return(mockLedgerWriter).Once()
-	mockTx.On("TransactionWriter").Return(mockTxWriter).Once()
-	mockTx.On("EventWriter").Return(mockEventWriter).Once()
 
 	src := xdr.MustAddress("GBXGQJWVLWOYHFLVTKWV5FGHA3LNYY2JQKM7OAJAUEQFU6LPCSEFVXON")
 	firstTx := xdr.TransactionEnvelope{
@@ -242,6 +235,14 @@ func TestIngestion(t *testing.T) {
 			EvictedPersistentLedgerEntries: []xdr.LedgerEntry{evictedPersistentLedgerEntry},
 		},
 	}
+	mockDB.On("NewTx", ctx).Return(mockTx, nil).Once()
+	mockTx.On("Commit", ledger).Return(nil).Once()
+	mockTx.On("Rollback").Return(nil).Once()
+	mockTx.On("LedgerEntryWriter").Return(mockLedgerEntryWriter).Twice()
+	mockTx.On("LedgerWriter").Return(mockLedgerWriter).Once()
+	mockTx.On("TransactionWriter").Return(mockTxWriter).Once()
+	mockTx.On("EventWriter").Return(mockEventWriter).Once()
+
 	mockLedgerBackend.On("GetLedger", ctx, sequence).Return(ledger, nil).Once()
 	mockLedgerEntryWriter.On("UpsertLedgerEntry", operationChanges[1].MustUpdated()).
 		Return(nil).Once()
