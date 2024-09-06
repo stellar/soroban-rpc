@@ -83,10 +83,10 @@ func createMockLedgerCloseMeta(ledgerSequence uint32) xdr.LedgerCloseMeta {
 func NewTestDB(tb testing.TB) *db.DB {
 	tmp := tb.TempDir()
 	dbPath := path.Join(tmp, "db.sqlite")
-	db, err := db.OpenSQLiteDB(dbPath)
+	dbConn, err := db.OpenSQLiteDB(dbPath)
 	require.NoError(tb, err)
 	tb.Cleanup(func() {
-		require.NoError(tb, db.Close())
+		require.NoError(tb, dbConn.Close())
 	})
-	return db
+	return dbConn
 }
