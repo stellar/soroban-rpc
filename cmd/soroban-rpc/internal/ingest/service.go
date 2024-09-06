@@ -174,8 +174,8 @@ func (s *Service) maybeFillEntriesFromCheckpoint(ctx context.Context,
 	curLedgerSeq, err := s.db.GetLatestLedgerSequence(ctx)
 	if errors.Is(err, db.ErrEmptyDB) {
 		var checkpointLedger uint32
-		var root historyarchive.HistoryArchiveState
-		if root, rootErr := archive.GetRootHAS(); rootErr != nil {
+		root, rootErr := archive.GetRootHAS()
+		if rootErr != nil {
 			return 0, checkPointFillErr, rootErr
 		} else if root.CurrentLedger == 0 {
 			return 0, checkPointFillErr, errEmptyArchives
@@ -230,7 +230,7 @@ func (s *Service) fillEntriesFromCheckpoint(ctx context.Context, archive history
 		if !transactionCommitted {
 			// Internally, we might already have rolled back the transaction. We should
 			// not generate benign error/warning here in case the transaction was already rolled back.
-			if rollbackErr := tx.Rollback(); rollbackErr != nil && errors.Is(rollbackErr, supportdb.ErrAlreadyRolledback) {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, supportdb.ErrAlreadyRolledback) {
 				s.logger.WithError(rollbackErr).Warn("could not rollback fillEntriesFromCheckpoint write transactions")
 			}
 		}
