@@ -600,7 +600,5 @@ func NewGetEventsHandler(
 		logger:       logger,
 		ledgerReader: ledgerReader,
 	}
-	return NewHandler(func(ctx context.Context, request GetEventsRequest) (GetEventsResponse, error) {
-		return eventsHandler.getEvents(ctx, request)
-	})
+	return NewHandler(eventsHandler.getEvents)
 }

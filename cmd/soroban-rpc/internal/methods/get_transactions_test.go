@@ -69,7 +69,7 @@ func TestGetTransactions_DefaultLimit(t *testing.T) {
 	assert.Equal(t, toid.New(5, 2, 1).String(), response.Cursor)
 
 	// assert transactions result
-	assert.Len(t, 10, len(response.Transactions))
+	assert.Len(t, response.Transactions, 10)
 }
 
 func TestGetTransactions_DefaultLimitExceedsLatestLedger(t *testing.T) {
@@ -179,7 +179,7 @@ func TestGetTransactions_CustomLimitAndCursor(t *testing.T) {
 	assert.Equal(t, toid.New(3, 1, 1).String(), response.Cursor)
 
 	// assert transactions result
-	assert.Len(t, 3, len(response.Transactions))
+	assert.Len(t, response.Transactions, 3)
 	assert.Equal(t, uint32(2), response.Transactions[0].Ledger)
 	assert.Equal(t, uint32(2), response.Transactions[1].Ledger)
 	assert.Equal(t, uint32(3), response.Transactions[2].Ledger)
