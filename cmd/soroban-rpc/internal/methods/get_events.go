@@ -80,7 +80,7 @@ func (e eventTypeSet) matches(event xdr.ContractEvent) bool {
 	if len(e) == 0 {
 		return true
 	}
-	_, ok := e[eventTypeFromXDR[event.Type]]
+	_, ok := e[getEventTypeFromEventTypeXDR()[event.Type]]
 	return ok
 }
 
@@ -160,10 +160,12 @@ const (
 	EventTypeDiagnostic = "diagnostic"
 )
 
-var eventTypeFromXDR = map[xdr.ContractEventType]string{
-	xdr.ContractEventTypeSystem:     EventTypeSystem,
-	xdr.ContractEventTypeContract:   EventTypeContract,
-	xdr.ContractEventTypeDiagnostic: EventTypeDiagnostic,
+func getEventTypeFromEventTypeXDR() map[xdr.ContractEventType]string {
+	return map[xdr.ContractEventType]string{
+		xdr.ContractEventTypeSystem:     EventTypeSystem,
+		xdr.ContractEventTypeContract:   EventTypeContract,
+		xdr.ContractEventTypeDiagnostic: EventTypeDiagnostic,
+	}
 }
 
 func getEventTypeXDRFromEventType() map[string]xdr.ContractEventType {
@@ -523,7 +525,7 @@ func eventInfoForEvent(
 		return EventInfo{}, errors.New("unknown event version")
 	}
 
-	eventType, ok := eventTypeFromXDR[event.Event.Type]
+	eventType, ok := getEventTypeFromEventTypeXDR()[event.Event.Type]
 	if !ok {
 		return EventInfo{}, fmt.Errorf("unknown XDR ContractEventType type: %d", event.Event.Type)
 	}
