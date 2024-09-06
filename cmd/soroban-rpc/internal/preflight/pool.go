@@ -16,13 +16,17 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
+const (
+	dbMetricsDurationConversionValue = 1000.0
+)
+
 type workerResult struct {
 	preflight Preflight
 	err       error
 }
 
 type workerRequest struct {
-	ctx        context.Context
+	ctx        context.Context //nolint:containedctx
 	params     Parameters
 	resultChan chan<- workerResult
 }
@@ -84,14 +88,14 @@ func NewPreflightWorkerPool(cfg WorkerPoolConfig) *WorkerPool {
 		Subsystem:  "preflight_pool",
 		Name:       "request_ledger_get_duration_seconds",
 		Help:       "preflight request duration broken down by status",
-		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}, //nolint:mnd
 	}, []string{"status", "type"})
 	preflightWP.ledgerEntriesFetchedMetric = prometheus.NewSummary(prometheus.SummaryOpts{
 		Namespace:  cfg.Daemon.MetricsNamespace(),
 		Subsystem:  "preflight_pool",
 		Name:       "request_ledger_entries_fetched",
 		Help:       "ledger entries fetched by simulate transaction calls",
-		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}, //nolint:mnd
 	})
 	cfg.Daemon.MetricsRegistry().MustRegister(
 		requestQueueMetric,
@@ -180,7 +184,7 @@ func (pwp *WorkerPool) GetPreflight(ctx context.Context, params GetterParameters
 			}
 			pwp.durationMetric.With(
 				prometheus.Labels{"type": "db", "status": status},
-			).Observe(float64(wrappedTx.totalDurationMs) / 1000.0)
+			).Observe(float64(wrappedTx.totalDurationMs) / dbMetricsDurationConversionValue)
 		}
 		pwp.ledgerEntriesFetchedMetric.Observe(float64(wrappedTx.ledgerEntriesFetched))
 		return result.preflight, result.err

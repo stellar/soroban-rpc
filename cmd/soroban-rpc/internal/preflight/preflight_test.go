@@ -26,7 +26,7 @@ var (
 var contractCostParams = func() *xdr.ContractCostParams {
 	var result xdr.ContractCostParams
 
-	for i := 0; i < 23; i++ {
+	for i := range 23 {
 		result = append(result, xdr.ContractCostParamEntry{
 			Ext:        xdr.ExtensionPoint{},
 			ConstTerm:  xdr.Int64((i + 1) * 10),
@@ -476,6 +476,10 @@ func benchmark(b *testing.B, config benchmarkConfig) {
 func BenchmarkGetPreflight(b *testing.B) {
 	b.Run("In-memory storage", func(b *testing.B) { benchmark(b, benchmarkConfig{}) })
 	b.Run("DB storage", func(b *testing.B) { benchmark(b, benchmarkConfig{useDB: &benchmarkDBConfig{}}) })
-	b.Run("DB storage, restarting", func(b *testing.B) { benchmark(b, benchmarkConfig{useDB: &benchmarkDBConfig{restart: true}}) })
-	b.Run("DB storage, no cache", func(b *testing.B) { benchmark(b, benchmarkConfig{useDB: &benchmarkDBConfig{disableCache: true}}) })
+	b.Run("DB storage, restarting", func(b *testing.B) {
+		benchmark(b, benchmarkConfig{useDB: &benchmarkDBConfig{restart: true}})
+	})
+	b.Run("DB storage, no cache", func(b *testing.B) {
+		benchmark(b, benchmarkConfig{useDB: &benchmarkDBConfig{disableCache: true}})
+	})
 }
