@@ -276,7 +276,7 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 			}
 		}
 
-		readTx, err := ledgerEntryReader.NewCachedTx(ctx)
+		readTx, err := ledgerEntryReader.NewTx(ctx, true)
 		if err != nil {
 			return SimulateTransactionResponse{
 				Error: "Cannot create read transaction",

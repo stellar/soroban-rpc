@@ -27,8 +27,7 @@ var sqlMigrations embed.FS
 var ErrEmptyDB = errors.New("DB is empty")
 
 const (
-	metaTableName               = "metadata"
-	latestLedgerSequenceMetaKey = "LatestLedgerSequence"
+	metaTableName = "metadata"
 )
 
 type ReadWriter interface {
@@ -42,13 +41,14 @@ type WriteTx interface {
 	LedgerEntryWriter() LedgerEntryWriter
 	LedgerWriter() LedgerWriter
 
-	Commit(ledgerSeq uint32) error
+	Commit(ledgerCloseMeta xdr.LedgerCloseMeta) error
 	Rollback() error
 }
 
 type dbCache struct {
-	latestLedgerSeq uint32
-	ledgerEntries   transactionalCache // Just like the DB: compress-encoded ledger key -> ledger entry XDR
+	latestLedgerSeq       uint32
+	latestLedgerCloseTime int64
+	ledgerEntries         transactionalCache // Just like the DB: compress-encoded ledger key -> ledger entry XDR
 	sync.RWMutex
 }
 
@@ -129,33 +129,37 @@ func getMetaValue(ctx context.Context, q db.SessionInterface, key string) (strin
 	case 1:
 		// expected length on an initialized DB
 	default:
-		return "", fmt.Errorf("multiple entries (%d) for key %q in table %q", len(results), latestLedgerSequenceMetaKey, metaTableName)
+		return "", fmt.Errorf("multiple entries (%d) for key %q in table %q", len(results), key, metaTableName)
 	}
 	return results[0], nil
 }
 
-func getLatestLedgerSequence(ctx context.Context, q db.SessionInterface, cache *dbCache) (uint32, error) {
-	latestLedgerStr, err := getMetaValue(ctx, q, latestLedgerSequenceMetaKey)
-	if err != nil {
-		return 0, err
-	}
-	latestLedger, err := strconv.ParseUint(latestLedgerStr, 10, 32)
-	if err != nil {
-		return 0, err
-	}
-	result := uint32(latestLedger)
+func getLatestLedgerSequence(ctx context.Context, ledgerReader LedgerReader, cache *dbCache) (uint32, error) {
+	cache.RLock()
+	latestLedgerSeqCache := cache.latestLedgerSeq
+	cache.RUnlock()
 
-	// Add missing ledger sequence to the top cache.
+	if latestLedgerSeqCache != 0 {
+		return latestLedgerSeqCache, nil
+	}
+
+	ledgerRange, err := ledgerReader.GetLedgerRange(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	// Add missing ledger sequence and close time to the top cache.
 	// Otherwise, the write-through cache won't get updated until the first ingestion commit
 	cache.Lock()
 	if cache.latestLedgerSeq == 0 {
 		// Only update the cache if the value is missing (0), otherwise
 		// we may end up overwriting the entry with an older version
-		cache.latestLedgerSeq = result
+		cache.latestLedgerSeq = ledgerRange.LastLedger.Sequence
+		cache.latestLedgerCloseTime = ledgerRange.LastLedger.CloseTime
 	}
 	cache.Unlock()
 
-	return result, nil
+	return ledgerRange.LastLedger.Sequence, nil
 }
 
 type ReadWriterMetrics struct {
@@ -216,7 +220,7 @@ func NewReadWriter(
 }
 
 func (rw *readWriter) GetLatestLedgerSequence(ctx context.Context) (uint32, error) {
-	return getLatestLedgerSequence(ctx, rw.db, rw.db.cache)
+	return getLatestLedgerSequence(ctx, NewLedgerReader(rw.db), rw.db.cache)
 }
 
 func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
@@ -293,7 +297,10 @@ func (w writeTx) EventWriter() EventWriter {
 	return &w.eventWriter
 }
 
-func (w writeTx) Commit(ledgerSeq uint32) error {
+func (w writeTx) Commit(ledgerCloseMeta xdr.LedgerCloseMeta) error {
+	ledgerSeq := ledgerCloseMeta.LedgerSequence()
+	ledgerCloseTime := ledgerCloseMeta.LedgerCloseTime()
+
 	if err := w.ledgerEntryWriter.flush(); err != nil {
 		return err
 	}
@@ -309,24 +316,17 @@ func (w writeTx) Commit(ledgerSeq uint32) error {
 		return err
 	}
 
-	_, err := sq.Replace(metaTableName).
-		Values(latestLedgerSequenceMetaKey, strconv.FormatUint(uint64(ledgerSeq), 10)).
-		RunWith(w.stmtCache).
-		Exec()
-	if err != nil {
-		return err
-	}
-
 	// We need to make the cache update atomic with the transaction commit.
 	// Otherwise, the cache can be made inconsistent if a write transaction finishes
 	// in between, updating the cache in the wrong order.
 	commitAndUpdateCache := func() error {
 		w.globalCache.Lock()
 		defer w.globalCache.Unlock()
-		if err = w.tx.Commit(); err != nil {
+		if err := w.tx.Commit(); err != nil {
 			return err
 		}
 		w.globalCache.latestLedgerSeq = ledgerSeq
+		w.globalCache.latestLedgerCloseTime = ledgerCloseTime
 		w.ledgerEntryWriter.ledgerEntryCacheWriteTx.commit()
 		return nil
 	}

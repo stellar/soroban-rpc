@@ -18,7 +18,7 @@ import (
 )
 
 func getLedgerEntryAndLatestLedgerSequenceWithErr(db *DB, key xdr.LedgerKey) (bool, xdr.LedgerEntry, uint32, *uint32, error) {
-	tx, err := NewLedgerEntryReader(db).NewTx(context.Background())
+	tx, err := NewLedgerEntryReader(db).NewTx(context.Background(), false)
 	if err != nil {
 		return false, xdr.LedgerEntry{}, 0, nil, err
 	}
@@ -88,7 +88,9 @@ func TestGoldenPath(t *testing.T) {
 	assert.NoError(t, writer.UpsertLedgerEntry(expLegerEntry))
 
 	ledgerSequence := uint32(23)
-	assert.NoError(t, tx.Commit(ledgerSequence))
+	ledgerCloseMeta := createLedger(ledgerSequence)
+	assert.NoError(t, tx.LedgerWriter().InsertLedger(ledgerCloseMeta))
+	assert.NoError(t, tx.Commit(ledgerCloseMeta))
 
 	present, obtainedEntry, obtainedLedgerSequence, liveUntilSeq := getLedgerEntryAndLatestLedgerSequence(t, db, key)
 	assert.True(t, present)
@@ -113,7 +115,9 @@ func TestGoldenPath(t *testing.T) {
 	assert.NoError(t, writer.UpsertLedgerEntry(entry))
 
 	ledgerSequence = uint32(24)
-	assert.NoError(t, tx.Commit(ledgerSequence))
+	ledgerCloseMeta = createLedger(ledgerSequence)
+	assert.NoError(t, tx.LedgerWriter().InsertLedger(ledgerCloseMeta))
+	assert.NoError(t, tx.Commit(ledgerCloseMeta))
 
 	present, obtainedEntry, obtainedLedgerSequence, liveUntilSeq = getLedgerEntryAndLatestLedgerSequence(t, db, key)
 	assert.True(t, present)
@@ -129,7 +133,9 @@ func TestGoldenPath(t *testing.T) {
 
 	assert.NoError(t, writer.DeleteLedgerEntry(key))
 	ledgerSequence = uint32(25)
-	assert.NoError(t, tx.Commit(ledgerSequence))
+	ledgerCloseMeta = createLedger(ledgerSequence)
+	assert.NoError(t, tx.LedgerWriter().InsertLedger(ledgerCloseMeta))
+	assert.NoError(t, tx.Commit(ledgerCloseMeta))
 
 	present, _, obtainedLedgerSequence, liveUntilSeq = getLedgerEntryAndLatestLedgerSequence(t, db, key)
 	assert.False(t, present)
@@ -170,7 +176,9 @@ func TestDeleteNonExistentLedgerEmpty(t *testing.T) {
 	key, _ := getContractDataLedgerEntry(t, data)
 	assert.NoError(t, writer.DeleteLedgerEntry(key))
 	ledgerSequence := uint32(23)
-	assert.NoError(t, tx.Commit(ledgerSequence))
+	ledgerCloseMeta := createLedger(ledgerSequence)
+	assert.NoError(t, tx.LedgerWriter().InsertLedger(ledgerCloseMeta))
+	assert.NoError(t, tx.Commit(ledgerCloseMeta))
 
 	// Make sure that the ledger number was submitted
 	obtainedLedgerSequence, err := NewLedgerEntryReader(db).GetLatestLedgerSequence(context.Background())
@@ -248,9 +256,9 @@ func TestReadTxsDuringWriteTx(t *testing.T) {
 	assert.NoError(t, writer.UpsertLedgerEntry(expLegerEntry))
 
 	// Before committing the changes, make sure multiple concurrent transactions can query the DB
-	readTx1, err := NewLedgerEntryReader(db).NewTx(context.Background())
+	readTx1, err := NewLedgerEntryReader(db).NewTx(context.Background(), false)
 	assert.NoError(t, err)
-	readTx2, err := NewLedgerEntryReader(db).NewTx(context.Background())
+	readTx2, err := NewLedgerEntryReader(db).NewTx(context.Background(), false)
 	assert.NoError(t, err)
 
 	_, err = readTx1.GetLatestLedgerSequence()
@@ -271,7 +279,9 @@ func TestReadTxsDuringWriteTx(t *testing.T) {
 
 	// Finish the write transaction and check that the results are present
 	ledgerSequence := uint32(23)
-	assert.NoError(t, tx.Commit(ledgerSequence))
+	ledgerCloseMeta := createLedger(ledgerSequence)
+	assert.NoError(t, tx.LedgerWriter().InsertLedger(ledgerCloseMeta))
+	assert.NoError(t, tx.Commit(ledgerCloseMeta))
 
 	obtainedLedgerSequence, err := NewLedgerEntryReader(db).GetLatestLedgerSequence(context.Background())
 	assert.NoError(t, err)
@@ -296,7 +306,7 @@ func TestWriteTxsDuringReadTxs(t *testing.T) {
 	// Create a multiple read transactions, interleaved with the writing process
 
 	// First read transaction, before the write transaction is created
-	readTx1, err := NewLedgerEntryReader(db).NewTx(context.Background())
+	readTx1, err := NewLedgerEntryReader(db).NewTx(context.Background(), false)
 	assert.NoError(t, err)
 
 	// Start filling the DB with a single entry (enforce flushing right away)
@@ -305,7 +315,7 @@ func TestWriteTxsDuringReadTxs(t *testing.T) {
 	writer := tx.LedgerEntryWriter()
 
 	// Second read transaction, after the write transaction is created
-	readTx2, err := NewLedgerEntryReader(db).NewTx(context.Background())
+	readTx2, err := NewLedgerEntryReader(db).NewTx(context.Background(), false)
 	assert.NoError(t, err)
 
 	four := xdr.Uint32(4)
@@ -334,7 +344,7 @@ func TestWriteTxsDuringReadTxs(t *testing.T) {
 	assert.NoError(t, writer.UpsertLedgerEntry(expLegerEntry))
 
 	// Third read transaction, after the first insert has happened in the write transaction
-	readTx3, err := NewLedgerEntryReader(db).NewTx(context.Background())
+	readTx3, err := NewLedgerEntryReader(db).NewTx(context.Background(), false)
 	assert.NoError(t, err)
 
 	// Make sure that all the read transactions get an emptyDB error before and after the write transaction is committed
@@ -348,11 +358,11 @@ func TestWriteTxsDuringReadTxs(t *testing.T) {
 
 	// commit the write transaction
 	ledgerSequence := uint32(23)
-	assert.NoError(t, tx.Commit(ledgerSequence))
+	ledgerCloseMeta := createLedger(ledgerSequence)
+	assert.NoError(t, tx.LedgerWriter().InsertLedger(ledgerCloseMeta))
+	assert.NoError(t, tx.Commit(ledgerCloseMeta))
 
 	for _, readTx := range []LedgerEntryReadTx{readTx1, readTx2, readTx3} {
-		_, err = readTx.GetLatestLedgerSequence()
-		assert.Equal(t, ErrEmptyDB, err)
 		present, _, _, err := GetLedgerEntry(readTx, key)
 		assert.NoError(t, err)
 		assert.False(t, present)
@@ -416,7 +426,9 @@ func TestConcurrentReadersAndWriter(t *testing.T) {
 				expLegerEntry := getTTLLedgerEntry(expLedgerKey)
 				assert.NoError(t, writer.UpsertLedgerEntry(expLegerEntry))
 			}
-			assert.NoError(t, tx.Commit(ledgerSequence))
+			ledgerCloseMeta := createLedger(ledgerSequence)
+			assert.NoError(t, tx.LedgerWriter().InsertLedger(ledgerCloseMeta))
+			assert.NoError(t, tx.Commit(ledgerCloseMeta))
 			logMessageCh <- fmt.Sprintf("Wrote ledger %d", ledgerSequence)
 			time.Sleep(time.Duration(rand.Int31n(30)) * time.Millisecond)
 		}
@@ -511,7 +523,7 @@ func benchmarkLedgerEntry(b *testing.B, cached bool) {
 	expLedgerKey, err := entryKeyToTTLEntryKey(key)
 	assert.NoError(b, err)
 	assert.NoError(b, tx.LedgerEntryWriter().UpsertLedgerEntry(getTTLLedgerEntry(expLedgerKey)))
-	assert.NoError(b, tx.Commit(2))
+	assert.NoError(b, tx.Commit(createLedger(2)))
 	reader := NewLedgerEntryReader(db)
 	const numQueriesPerOp = 15
 	b.ResetTimer()
@@ -520,9 +532,9 @@ func benchmarkLedgerEntry(b *testing.B, cached bool) {
 		var readTx LedgerEntryReadTx
 		var err error
 		if cached {
-			readTx, err = reader.NewCachedTx(context.Background())
+			readTx, err = reader.NewTx(context.Background(), true)
 		} else {
-			readTx, err = reader.NewTx(context.Background())
+			readTx, err = reader.NewTx(context.Background(), false)
 		}
 		assert.NoError(b, err)
 		for i := 0; i < numQueriesPerOp; i++ {
@@ -570,6 +582,6 @@ func BenchmarkLedgerUpdate(b *testing.B) {
 			keyUint32 = xdr.Uint32(j)
 			assert.NoError(b, writer.UpsertLedgerEntry(entry))
 		}
-		assert.NoError(b, tx.Commit(uint32(i+1)))
+		assert.NoError(b, tx.Commit(createLedger(uint32(i+1))))
 	}
 }

@@ -63,7 +63,7 @@ func NewGetLedgerEntryHandler(logger *log.Entry, ledgerEntryReader db.LedgerEntr
 			}
 		}
 
-		tx, err := ledgerEntryReader.NewTx(ctx)
+		tx, err := ledgerEntryReader.NewTx(ctx, false)
 		if err != nil {
 			return GetLedgerEntryResponse{}, &jrpc2.Error{
 				Code:    jrpc2.InternalError,
