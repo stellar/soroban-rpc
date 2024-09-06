@@ -2,13 +2,13 @@ package integrationtest
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"io"
 	"net/http"
 	"net/url"
 	"runtime"
 	"testing"
 
+	"github.com/pkg/errors"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
