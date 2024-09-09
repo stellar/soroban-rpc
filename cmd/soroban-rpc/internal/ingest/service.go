@@ -177,7 +177,8 @@ func (s *Service) maybeFillEntriesFromCheckpoint(ctx context.Context,
 		root, rootErr := archive.GetRootHAS()
 		if rootErr != nil {
 			return 0, checkPointFillErr, rootErr
-		} else if root.CurrentLedger == 0 {
+		}
+		if root.CurrentLedger == 0 {
 			return 0, checkPointFillErr, errEmptyArchives
 		}
 		checkpointLedger = root.CurrentLedger
