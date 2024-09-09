@@ -655,7 +655,8 @@ func TestGetEvents(t *testing.T) {
 				TransactionHash:          ledgerCloseMeta.TransactionHash(i).HexString(),
 			})
 		}
-		assert.Equal(t, GetEventsResponse{expected, 1}, results)
+		endLedger := uint32(1 + LedgerScanLimit)
+		assert.Equal(t, GetEventsResponse{expected, 1, endLedger}, results)
 	})
 
 	t.Run("filtering by contract id", func(t *testing.T) {
@@ -801,7 +802,9 @@ func TestGetEvents(t *testing.T) {
 				TransactionHash:          ledgerCloseMeta.TransactionHash(4).HexString(),
 			},
 		}
-		assert.Equal(t, GetEventsResponse{expected, 1}, results)
+		endLedger := uint32(1 + LedgerScanLimit)
+
+		assert.Equal(t, GetEventsResponse{expected, 1, endLedger}, results)
 
 		results, err = handler.getEvents(ctx, GetEventsRequest{
 			StartLedger: 1,
@@ -835,7 +838,7 @@ func TestGetEvents(t *testing.T) {
 
 		expected[0].ValueJSON = valueJs
 		expected[0].TopicJSON = topicsJs
-		require.Equal(t, GetEventsResponse{expected, 1}, results)
+		require.Equal(t, GetEventsResponse{expected, 1, endLedger}, results)
 	})
 
 	t.Run("filtering by both contract id and topic", func(t *testing.T) {
@@ -946,7 +949,9 @@ func TestGetEvents(t *testing.T) {
 				TransactionHash:          ledgerCloseMeta.TransactionHash(3).HexString(),
 			},
 		}
-		assert.Equal(t, GetEventsResponse{expected, 1}, results)
+		endLedger := uint32(1 + LedgerScanLimit)
+
+		assert.Equal(t, GetEventsResponse{expected, 1, endLedger}, results)
 	})
 
 	t.Run("filtering by event type", func(t *testing.T) {
@@ -1021,7 +1026,8 @@ func TestGetEvents(t *testing.T) {
 				TransactionHash:          ledgerCloseMeta.TransactionHash(0).HexString(),
 			},
 		}
-		assert.Equal(t, GetEventsResponse{expected, 1}, results)
+		endLedger := uint32(1 + LedgerScanLimit)
+		assert.Equal(t, GetEventsResponse{expected, 1, endLedger}, results)
 	})
 
 	t.Run("with limit", func(t *testing.T) {
@@ -1092,7 +1098,9 @@ func TestGetEvents(t *testing.T) {
 				TransactionHash:          ledgerCloseMeta.TransactionHash(i).HexString(),
 			})
 		}
-		assert.Equal(t, GetEventsResponse{expected, 1}, results)
+		endLedger := uint32(1 + LedgerScanLimit)
+
+		assert.Equal(t, GetEventsResponse{expected, 1, endLedger}, results)
 	})
 
 	t.Run("with cursor", func(t *testing.T) {
@@ -1192,7 +1200,8 @@ func TestGetEvents(t *testing.T) {
 				TransactionHash:          ledgerCloseMeta.TransactionHash(i).HexString(),
 			})
 		}
-		assert.Equal(t, GetEventsResponse{expected, 5}, results)
+		endLedger := uint32(LedgerScanLimit)
+		assert.Equal(t, GetEventsResponse{expected, 5, endLedger}, results)
 
 		results, err = handler.getEvents(context.TODO(), GetEventsRequest{
 			Pagination: &PaginationOptions{
@@ -1201,7 +1210,8 @@ func TestGetEvents(t *testing.T) {
 			},
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, GetEventsResponse{[]EventInfo{}, 5}, results)
+
+		assert.Equal(t, GetEventsResponse{[]EventInfo{}, 5, endLedger}, results)
 	})
 }
 

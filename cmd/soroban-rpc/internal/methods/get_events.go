@@ -334,6 +334,8 @@ type PaginationOptions struct {
 type GetEventsResponse struct {
 	Events       []EventInfo `json:"events"`
 	LatestLedger uint32      `json:"latestLedger"`
+	// All the events until the endLedger (exclusive) is reached
+	EndLedger uint32 `json:"endLedger"`
 }
 
 type eventsRPCHandler struct {
@@ -510,6 +512,7 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 	return GetEventsResponse{
 		LatestLedger: ledgerRange.LastLedger.Sequence,
 		Events:       results,
+		EndLedger:    endLedger,
 	}, nil
 }
 
