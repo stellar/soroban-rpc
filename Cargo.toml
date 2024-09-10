@@ -22,7 +22,7 @@ rev = "5ed156b7fb5dd3e46635aa0f818d5db33dfd6b6a"
 [workspace.dependencies.stellar-xdr]
 version = "=22.0.0"
 git = "https://github.com/stellar/rs-stellar-xdr"
-rev = "39d7dbb0c12bd422ee43a6e2e3277789da4eaac8"
+rev = "550743b50cd3ca5a63f03f9d7175b4cfdfd9c4ac"
 features = [ "serde" ]
 
 [workspace.dependencies]
