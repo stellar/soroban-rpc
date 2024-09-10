@@ -158,7 +158,7 @@ func TestEventTypeSetValid(t *testing.T) {
 			if testCase.expectedError {
 				assert.Error(t, set.valid())
 			} else {
-				assert.NoError(t, set.valid())
+				require.NoError(t, set.valid())
 			}
 		})
 	}
@@ -189,9 +189,9 @@ func TestEventTypeSetMarshaling(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			var set eventTypeSet
 			input, err := json.Marshal(testCase.input)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			err = set.UnmarshalJSON(input)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, len(testCase.expected), len(set))
 			for _, val := range testCase.expected {
 				_, ok := set[val]
@@ -369,18 +369,18 @@ func TestTopicFilterMatches(t *testing.T) {
 func TestTopicFilterJSON(t *testing.T) {
 	var got TopicFilter
 
-	assert.NoError(t, json.Unmarshal([]byte("[]"), &got))
+	require.NoError(t, json.Unmarshal([]byte("[]"), &got))
 	assert.Equal(t, TopicFilter{}, got)
 
 	star := "*"
-	assert.NoError(t, json.Unmarshal([]byte("[\"*\"]"), &got))
+	require.NoError(t, json.Unmarshal([]byte("[\"*\"]"), &got))
 	assert.Equal(t, TopicFilter{{wildcard: &star}}, got)
 
 	sixtyfour := xdr.Uint64(64)
 	scval := xdr.ScVal{Type: xdr.ScValTypeScvU64, U64: &sixtyfour}
 	scvalstr, err := xdr.MarshalBase64(scval)
-	assert.NoError(t, err)
-	assert.NoError(t, json.Unmarshal([]byte(fmt.Sprintf("[%q]", scvalstr)), &got))
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal([]byte(fmt.Sprintf("[%q]", scvalstr)), &got))
 	assert.Equal(t, TopicFilter{{scval: &scval}}, got)
 }
 
@@ -408,38 +408,38 @@ func topicFilterToString(t TopicFilter) string {
 func TestGetEventsRequestValid(t *testing.T) {
 	// omit startLedger but include cursor
 	var request GetEventsRequest
-	assert.NoError(t, json.Unmarshal(
+	require.NoError(t, json.Unmarshal(
 		[]byte("{ \"filters\": [], \"pagination\": { \"cursor\": \"0000000021474840576-0000000000\"} }"),
 		&request,
 	))
 	assert.Equal(t, uint32(0), request.StartLedger)
-	assert.NoError(t, request.Valid(1000))
+	require.NoError(t, request.Valid(1000))
 
-	assert.EqualError(t, (&GetEventsRequest{
+	require.EqualError(t, (&GetEventsRequest{
 		StartLedger: 1,
 		Filters:     []EventFilter{},
 		Pagination:  &PaginationOptions{Cursor: &db.Cursor{}},
 	}).Valid(1000), "ledger ranges and cursor cannot both be set")
 
-	assert.NoError(t, (&GetEventsRequest{
+	require.NoError(t, (&GetEventsRequest{
 		StartLedger: 1,
 		Filters:     []EventFilter{},
 		Pagination:  nil,
 	}).Valid(1000))
 
-	assert.EqualError(t, (&GetEventsRequest{
+	require.EqualError(t, (&GetEventsRequest{
 		StartLedger: 1,
 		Filters:     []EventFilter{},
 		Pagination:  &PaginationOptions{Limit: 1001},
 	}).Valid(1000), "limit must not exceed 1000")
 
-	assert.EqualError(t, (&GetEventsRequest{
+	require.EqualError(t, (&GetEventsRequest{
 		StartLedger: 0,
 		Filters:     []EventFilter{},
 		Pagination:  nil,
 	}).Valid(1000), "startLedger must be positive")
 
-	assert.EqualError(t, (&GetEventsRequest{
+	require.EqualError(t, (&GetEventsRequest{
 		StartLedger: 1,
 		Filters: []EventFilter{
 			{}, {}, {}, {}, {}, {},
@@ -447,7 +447,7 @@ func TestGetEventsRequestValid(t *testing.T) {
 		Pagination: nil,
 	}).Valid(1000), "maximum 5 filters per request")
 
-	assert.EqualError(t, (&GetEventsRequest{
+	require.EqualError(t, (&GetEventsRequest{
 		StartLedger: 1,
 		Filters: []EventFilter{
 			{EventType: map[string]interface{}{"foo": nil}},
@@ -455,7 +455,7 @@ func TestGetEventsRequestValid(t *testing.T) {
 		Pagination: nil,
 	}).Valid(1000), "filter 1 invalid: filter type invalid: if set, type must be either 'system', 'contract' or 'diagnostic'")
 
-	assert.EqualError(t, (&GetEventsRequest{
+	require.EqualError(t, (&GetEventsRequest{
 		StartLedger: 1,
 		Filters: []EventFilter{
 			{ContractIDs: []string{
@@ -470,7 +470,7 @@ func TestGetEventsRequestValid(t *testing.T) {
 		Pagination: nil,
 	}).Valid(1000), "filter 1 invalid: maximum 5 contract IDs per filter")
 
-	assert.EqualError(t, (&GetEventsRequest{
+	require.EqualError(t, (&GetEventsRequest{
 		StartLedger: 1,
 		Filters: []EventFilter{
 			{ContractIDs: []string{"a"}},
@@ -478,7 +478,7 @@ func TestGetEventsRequestValid(t *testing.T) {
 		Pagination: nil,
 	}).Valid(1000), "filter 1 invalid: contract ID 1 invalid")
 
-	assert.EqualError(t, (&GetEventsRequest{
+	require.EqualError(t, (&GetEventsRequest{
 		StartLedger: 1,
 		Filters: []EventFilter{
 			{ContractIDs: []string{"CCVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVKVINVALID"}},
@@ -486,7 +486,7 @@ func TestGetEventsRequestValid(t *testing.T) {
 		Pagination: nil,
 	}).Valid(1000), "filter 1 invalid: contract ID 1 invalid")
 
-	assert.EqualError(t, (&GetEventsRequest{
+	require.EqualError(t, (&GetEventsRequest{
 		StartLedger: 1,
 		Filters: []EventFilter{
 			{
@@ -498,7 +498,7 @@ func TestGetEventsRequestValid(t *testing.T) {
 		Pagination: nil,
 	}).Valid(1000), "filter 1 invalid: maximum 5 topics per filter")
 
-	assert.EqualError(t, (&GetEventsRequest{
+	require.EqualError(t, (&GetEventsRequest{
 		StartLedger: 1,
 		Filters: []EventFilter{
 			{Topics: []TopicFilter{
@@ -508,7 +508,7 @@ func TestGetEventsRequestValid(t *testing.T) {
 		Pagination: nil,
 	}).Valid(1000), "filter 1 invalid: topic 1 invalid: topic must have at least one segment")
 
-	assert.EqualError(t, (&GetEventsRequest{
+	require.EqualError(t, (&GetEventsRequest{
 		StartLedger: 1,
 		Filters: []EventFilter{
 			{Topics: []TopicFilter{
@@ -530,7 +530,7 @@ func TestGetEvents(t *testing.T) {
 	counter := xdr.ScSymbol("COUNTER")
 	counterScVal := xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &counter}
 	counterXdr, err := xdr.MarshalBase64(counterScVal)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	t.Run("startLedger validation", func(t *testing.T) {
 		contractID := xdr.Hash([32]byte{})
@@ -562,7 +562,7 @@ func TestGetEvents(t *testing.T) {
 
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(2, now.Unix(), txMeta...)
 		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
-		assert.NoError(t, eventW.InsertEvents(ledgerCloseMeta))
+		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta))
 		require.NoError(t, write.Commit(ledgerCloseMeta))
 
 		handler := eventsRPCHandler{
@@ -615,7 +615,7 @@ func TestGetEvents(t *testing.T) {
 
 		ledgerCloseMeta := ledgerCloseMetaWithEvents(1, now.Unix(), txMeta...)
 		require.NoError(t, ledgerW.InsertLedger(ledgerCloseMeta), "ingestion failed for ledger ")
-		assert.NoError(t, eventW.InsertEvents(ledgerCloseMeta))
+		require.NoError(t, eventW.InsertEvents(ledgerCloseMeta))
 		require.NoError(t, write.Commit(ledgerCloseMeta))
 
 		handler := eventsRPCHandler{
@@ -627,7 +627,7 @@ func TestGetEvents(t *testing.T) {
 		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		var expected []EventInfo
 		for i := range txMeta {
@@ -641,7 +641,7 @@ func TestGetEvents(t *testing.T) {
 				Type: xdr.ScValTypeScvSymbol,
 				Sym:  &counter,
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			expected = append(expected, EventInfo{
 				EventType:                EventTypeContract,
 				Ledger:                   1,
@@ -676,7 +676,7 @@ func TestGetEvents(t *testing.T) {
 			xdr.Hash([32]byte{}),
 			xdr.Hash([32]byte{1}),
 		}
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			txMeta = append(txMeta, transactionMetaWithEvents(
 				contractEvent(
 					contractIDs[i%len(contractIDs)],
@@ -709,7 +709,7 @@ func TestGetEvents(t *testing.T) {
 				{ContractIDs: []string{strkey.MustEncode(strkey.VersionByteContract, contractIDs[0][:])}},
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, uint32(1), results.LatestLedger)
 
 		expectedIds := []string{
@@ -777,16 +777,16 @@ func TestGetEvents(t *testing.T) {
 				}},
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		id := db.Cursor{Ledger: 1, Tx: 5, Op: 0, Event: 0}.String()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		scVal := xdr.ScVal{
 			Type: xdr.ScValTypeScvU64,
 			U64:  &number,
 		}
 		value, err := xdr.MarshalBase64(scVal)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		expected := []EventInfo{
 			{
 				EventType:                EventTypeContract,
@@ -924,14 +924,14 @@ func TestGetEvents(t *testing.T) {
 				},
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		id := db.Cursor{Ledger: 1, Tx: 4, Op: 0, Event: 0}.String()
 		value, err := xdr.MarshalBase64(xdr.ScVal{
 			Type: xdr.ScValTypeScvU64,
 			U64:  &number,
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		expected := []EventInfo{
 			{
 				EventType:                EventTypeContract,
@@ -1004,7 +1004,7 @@ func TestGetEvents(t *testing.T) {
 				{EventType: map[string]interface{}{EventTypeSystem: nil}},
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		id := db.Cursor{Ledger: 1, Tx: 1, Op: 0, Event: 1}.String()
 		expected := []EventInfo{
@@ -1039,7 +1039,7 @@ func TestGetEvents(t *testing.T) {
 
 		contractID := xdr.Hash([32]byte{})
 		var txMeta []xdr.TransactionMeta
-		for i := 0; i < 180; i++ {
+		for i := range 180 {
 			number := xdr.Uint64(i)
 			txMeta = append(txMeta, transactionMetaWithEvents(
 				contractEvent(
@@ -1067,10 +1067,10 @@ func TestGetEvents(t *testing.T) {
 			Filters:     []EventFilter{},
 			Pagination:  &PaginationOptions{Limit: 10},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		var expected []EventInfo
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			id := db.Cursor{
 				Ledger: 1,
 				Tx:     uint32(i + 1),
@@ -1078,7 +1078,7 @@ func TestGetEvents(t *testing.T) {
 				Event:  0,
 			}.String()
 			value, err := xdr.MarshalBase64(txMeta[i].MustV3().SorobanMeta.Events[0].Body.MustV0().Data)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			expected = append(expected, EventInfo{
 				EventType:                EventTypeContract,
 				Ledger:                   1,
@@ -1168,7 +1168,7 @@ func TestGetEvents(t *testing.T) {
 				Limit:  2,
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		var expected []EventInfo
 		expectedIDs := []string{
@@ -1178,7 +1178,7 @@ func TestGetEvents(t *testing.T) {
 		symbols := datas[1:3]
 		for i, id := range expectedIDs {
 			expectedXdr, err := xdr.MarshalBase64(xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &symbols[i]})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			expected = append(expected, EventInfo{
 				EventType:                EventTypeContract,
 				Ledger:                   5,
@@ -1200,7 +1200,7 @@ func TestGetEvents(t *testing.T) {
 				Limit:  2,
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, GetEventsResponse{[]EventInfo{}, 5}, results)
 	})
 }
@@ -1427,7 +1427,7 @@ func newTestDB(tb testing.TB) *db.DB {
 	db, err := db.OpenSQLiteDB(dbPath)
 	require.NoError(tb, err)
 	tb.Cleanup(func() {
-		assert.NoError(tb, db.Close())
+		require.NoError(tb, db.Close())
 	})
 	return db
 }
