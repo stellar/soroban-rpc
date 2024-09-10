@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
+
 	"github.com/stellar/go/support/db"
 	"github.com/stellar/go/xdr"
 )
