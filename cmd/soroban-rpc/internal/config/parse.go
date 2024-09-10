@@ -94,7 +94,11 @@ func parseString(option *Option, i interface{}) error {
 	case nil:
 		return nil
 	case string:
-		*option.ConfigKey.(*string) = v
+		if strPtr, ok := option.ConfigKey.(*string); ok {
+			*strPtr = v
+		} else {
+			return fmt.Errorf("invalid type for %s: expected *string", option.Name)
+		}
 	default:
 		return fmt.Errorf("could not parse string %s: %v", option.Name, i)
 	}
@@ -128,6 +132,11 @@ func parseUint32(option *Option, i interface{}) error {
 }
 
 func parseDuration(option *Option, i interface{}) error {
+	durationPtr, ok := option.ConfigKey.(*time.Duration)
+	if !ok {
+		return fmt.Errorf("invalid type for %s: expected *time.Duration", option.Name)
+	}
+
 	switch v := i.(type) {
 	case nil:
 		return nil
@@ -136,11 +145,11 @@ func parseDuration(option *Option, i interface{}) error {
 		if err != nil {
 			return fmt.Errorf("could not parse duration: %q: %w", v, err)
 		}
-		*option.ConfigKey.(*time.Duration) = d
+		*durationPtr = d
 	case time.Duration:
-		*option.ConfigKey.(*time.Duration) = v
+		*durationPtr = v
 	case *time.Duration:
-		*option.ConfigKey.(*time.Duration) = *v
+		*durationPtr = *v
 	default:
 		return fmt.Errorf("%s is not a duration", option.Name)
 	}
@@ -148,31 +157,34 @@ func parseDuration(option *Option, i interface{}) error {
 }
 
 func parseStringSlice(option *Option, i interface{}) error {
+	stringSlicePtr, ok := option.ConfigKey.(*[]string)
+	if !ok {
+		return fmt.Errorf("invalid type for %s: expected *[]string", option.Name)
+	}
+
 	switch v := i.(type) {
 	case nil:
 		return nil
 	case string:
 		if v == "" {
-			*option.ConfigKey.(*[]string) = nil
+			*stringSlicePtr = nil
 		} else {
-			*option.ConfigKey.(*[]string) = strings.Split(v, ",")
+			*stringSlicePtr = strings.Split(v, ",")
 		}
-		return nil
 	case []string:
-		*option.ConfigKey.(*[]string) = v
-		return nil
+		*stringSlicePtr = v
 	case []interface{}:
-		*option.ConfigKey.(*[]string) = make([]string, len(v))
+		result := make([]string, len(v))
 		for i, s := range v {
-			switch s := s.(type) {
-			case string:
-				(*option.ConfigKey.(*[]string))[i] = s
-			default:
-				return fmt.Errorf("could not parse %s: %v", option.Name, v)
+			str, ok := s.(string)
+			if !ok {
+				return fmt.Errorf("could not parse %s: element %d is not a string", option.Name, i)
 			}
+			result[i] = str
 		}
-		return nil
+		*stringSlicePtr = result
 	default:
 		return fmt.Errorf("could not parse %s: %v", option.Name, v)
 	}
+	return nil
 }

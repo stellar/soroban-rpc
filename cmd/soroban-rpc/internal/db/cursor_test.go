@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseCursor(t *testing.T) {
@@ -30,7 +31,7 @@ func TestParseCursor(t *testing.T) {
 		},
 	} {
 		parsed, err := ParseCursor(cursor.String())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, cursor, parsed)
 	}
 }
@@ -51,9 +52,9 @@ func TestCursorJSON(t *testing.T) {
 		}, 100},
 	} {
 		result, err := json.Marshal(testCase)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		var parsed options
-		assert.NoError(t, json.Unmarshal(result, &parsed))
+		require.NoError(t, json.Unmarshal(result, &parsed))
 		assert.Equal(t, testCase, parsed)
 	}
 }
