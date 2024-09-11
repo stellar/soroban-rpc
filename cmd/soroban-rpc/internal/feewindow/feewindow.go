@@ -152,7 +152,7 @@ func (fw *FeeWindows) IngestFees(meta xdr.LedgerCloseMeta) error {
 	var classicFees []uint64
 	for {
 		tx, err := reader.Read()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -165,7 +165,7 @@ func (fw *FeeWindows) IngestFees(meta xdr.LedgerCloseMeta) error {
 			continue
 		}
 		if len(ops) == 1 {
-			switch ops[0].Body.Type {
+			switch ops[0].Body.Type { //nolint:exhaustive
 			case xdr.OperationTypeInvokeHostFunction, xdr.OperationTypeExtendFootprintTtl, xdr.OperationTypeRestoreFootprint:
 				if tx.UnsafeMeta.V != 3 || tx.UnsafeMeta.V3.SorobanMeta == nil || tx.UnsafeMeta.V3.SorobanMeta.Ext.V != 1 {
 					continue

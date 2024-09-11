@@ -46,7 +46,10 @@ const (
 //
 //export SnapshotSourceGet
 func SnapshotSourceGet(handle C.uintptr_t, cLedgerKey C.xdr_t) C.xdr_t {
-	h := cgo.Handle(handle).Value().(snapshotSourceHandle)
+	h, ok := cgo.Handle(handle).Value().(snapshotSourceHandle)
+	if !ok {
+		panic("invalid handle type: expected snapshotSourceHandle")
+	}
 	ledgerKeyXDR := GoXDR(cLedgerKey)
 	var ledgerKey xdr.LedgerKey
 	if err := xdr.SafeUnmarshal(ledgerKeyXDR, &ledgerKey); err != nil {

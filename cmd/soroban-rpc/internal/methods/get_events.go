@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/creachadair/jrpc2"
+	"github.com/pkg/errors"
 
 	"github.com/stellar/go/strkey"
 	"github.com/stellar/go/support/collections/set"
-	"github.com/stellar/go/support/errors"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 
@@ -81,7 +81,7 @@ func (e eventTypeSet) matches(event xdr.ContractEvent) bool {
 	if len(e) == 0 {
 		return true
 	}
-	_, ok := e[eventTypeFromXDR[event.Type]]
+	_, ok := e[getEventTypeFromEventTypeXDR()[event.Type]]
 	return ok
 }
 
@@ -122,7 +122,7 @@ func (g *GetEventsRequest) Valid(maxLimit uint) error {
 	// Validate the paging limit (if it exists)
 	if g.Pagination != nil && g.Pagination.Cursor != nil {
 		if g.StartLedger != 0 || g.EndLedger != 0 {
-			return errors.New("ledger ranges and cursor cannot both be set") //nolint:forbidigo
+			return errors.New("ledger ranges and cursor cannot both be set")
 		}
 	} else if g.StartLedger <= 0 {
 		return errors.New("startLedger must be positive")
@@ -163,10 +163,12 @@ const (
 	EventTypeDiagnostic = "diagnostic"
 )
 
-var eventTypeFromXDR = map[xdr.ContractEventType]string{
-	xdr.ContractEventTypeSystem:     EventTypeSystem,
-	xdr.ContractEventTypeContract:   EventTypeContract,
-	xdr.ContractEventTypeDiagnostic: EventTypeDiagnostic,
+func getEventTypeFromEventTypeXDR() map[xdr.ContractEventType]string {
+	return map[xdr.ContractEventType]string{
+		xdr.ContractEventTypeSystem:     EventTypeSystem,
+		xdr.ContractEventTypeContract:   EventTypeContract,
+		xdr.ContractEventTypeDiagnostic: EventTypeDiagnostic,
+	}
 }
 
 func getEventTypeXDRFromEventType() map[string]xdr.ContractEventType {
@@ -543,7 +545,7 @@ func eventInfoForEvent(
 		return EventInfo{}, errors.New("unknown event version")
 	}
 
-	eventType, ok := eventTypeFromXDR[event.Event.Type]
+	eventType, ok := getEventTypeFromEventTypeXDR()[event.Event.Type]
 	if !ok {
 		return EventInfo{}, fmt.Errorf("unknown XDR ContractEventType type: %d", event.Event.Type)
 	}
@@ -620,7 +622,5 @@ func NewGetEventsHandler(
 		logger:       logger,
 		ledgerReader: ledgerReader,
 	}
-	return NewHandler(func(ctx context.Context, request GetEventsRequest) (GetEventsResponse, error) {
-		return eventsHandler.getEvents(ctx, request)
-	})
+	return NewHandler(eventsHandler.getEvents)
 }

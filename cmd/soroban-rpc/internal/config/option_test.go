@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -51,15 +50,15 @@ func TestValidateRequired(t *testing.T) {
 	}
 
 	// unset
-	assert.ErrorContains(t, o.Validate(o), "required-option is required")
+	require.ErrorContains(t, o.Validate(o), "required-option is required")
 
 	// set with blank value
 	require.NoError(t, o.setValue(""))
-	assert.ErrorContains(t, o.Validate(o), "required-option is required")
+	require.ErrorContains(t, o.Validate(o), "required-option is required")
 
 	// set with valid value
 	require.NoError(t, o.setValue("not-blank"))
-	assert.NoError(t, o.Validate(o))
+	require.NoError(t, o.Validate(o))
 }
 
 func TestValidatePositiveUint32(t *testing.T) {
@@ -71,15 +70,15 @@ func TestValidatePositiveUint32(t *testing.T) {
 	}
 
 	// unset
-	assert.ErrorContains(t, o.Validate(o), "positive-option must be positive")
+	require.ErrorContains(t, o.Validate(o), "positive-option must be positive")
 
 	// set with 0 value
 	require.NoError(t, o.setValue(uint32(0)))
-	assert.ErrorContains(t, o.Validate(o), "positive-option must be positive")
+	require.ErrorContains(t, o.Validate(o), "positive-option must be positive")
 
 	// set with valid value
 	require.NoError(t, o.setValue(uint32(1)))
-	assert.NoError(t, o.Validate(o))
+	require.NoError(t, o.Validate(o))
 }
 
 func TestValidatePositiveInt(t *testing.T) {
@@ -91,19 +90,19 @@ func TestValidatePositiveInt(t *testing.T) {
 	}
 
 	// unset
-	assert.ErrorContains(t, o.Validate(o), "positive-option must be positive")
+	require.ErrorContains(t, o.Validate(o), "positive-option must be positive")
 
 	// set with 0 value
 	require.NoError(t, o.setValue(0))
-	assert.ErrorContains(t, o.Validate(o), "positive-option must be positive")
+	require.ErrorContains(t, o.Validate(o), "positive-option must be positive")
 
 	// set with negative value
 	require.NoError(t, o.setValue(-1))
-	assert.ErrorContains(t, o.Validate(o), "positive-option must be positive")
+	require.ErrorContains(t, o.Validate(o), "positive-option must be positive")
 
 	// set with valid value
 	require.NoError(t, o.setValue(1))
-	assert.NoError(t, o.Validate(o))
+	require.NoError(t, o.Validate(o))
 }
 
 func TestUnassignableField(t *testing.T) {
@@ -126,143 +125,105 @@ func TestNoParserForFlag(t *testing.T) {
 	require.Contains(t, err.Error(), "no parser for flag mykey")
 }
 
-func TestSetValue(t *testing.T) {
+func TestSetValueBool(t *testing.T) {
 	var b bool
-	var i int
-	var u32 uint32
-	var u64 uint64
-	var f64 float64
-	var s string
-
-	for _, scenario := range []struct {
+	testCases := []struct {
 		name  string
-		key   interface{}
 		value interface{}
-		err   error
+		err   string
 	}{
-		{
-			name:  "valid-bool",
-			key:   &b,
-			value: true,
-			err:   nil,
-		},
-		{
-			name:  "valid-bool-string",
-			key:   &b,
-			value: "true",
-			err:   nil,
-		},
-		{
-			name:  "valid-bool-string-false",
-			key:   &b,
-			value: "false",
-			err:   nil,
-		},
-		{
-			name:  "valid-bool-string-uppercase",
-			key:   &b,
-			value: "TRUE",
-			err:   nil,
-		},
-		{
-			name:  "invalid-bool-string",
-			key:   &b,
-			value: "foobar",
-			err:   fmt.Errorf("invalid boolean value invalid-bool-string: foobar"),
-		},
-		{
-			name:  "invalid-bool-string",
-			key:   &b,
-			value: "foobar",
-			err:   fmt.Errorf("invalid boolean value invalid-bool-string: foobar"),
-		},
-		{
-			name:  "valid-int",
-			key:   &i,
-			value: 1,
-			err:   nil,
-		},
-		{
-			name:  "valid-int-string",
-			key:   &i,
-			value: "1",
-			err:   nil,
-		},
-		{
-			name:  "invalid-int-string",
-			key:   &i,
-			value: "abcd",
-			err:   fmt.Errorf("strconv.ParseInt: parsing \"abcd\": invalid syntax"),
-		},
-		{
-			name:  "valid-uint32",
-			key:   &u32,
-			value: 1,
-			err:   nil,
-		},
-		{
-			name:  "overflow-uint32",
-			key:   &u32,
-			value: uint64(math.MaxUint32) + 1,
-			err:   fmt.Errorf("overflow-uint32 overflows uint32"),
-		},
-		{
-			name:  "negative-uint32",
-			key:   &u32,
-			value: -1,
-			err:   fmt.Errorf("negative-uint32 cannot be negative"),
-		},
-		{
-			name:  "valid-uint",
-			key:   &u64,
-			value: 1,
-			err:   nil,
-		},
-		{
-			name:  "negative-uint",
-			key:   &u64,
-			value: -1,
-			err:   fmt.Errorf("negative-uint cannot be negative"),
-		},
-		{
-			name:  "valid-float",
-			key:   &f64,
-			value: 1.05,
-			err:   nil,
-		},
-		{
-			name:  "valid-float-int",
-			key:   &f64,
-			value: int64(1234),
-			err:   nil,
-		},
-		{
-			name:  "valid-float-string",
-			key:   &f64,
-			value: "1.05",
-			err:   nil,
-		},
-		{
-			name:  "invalid-float-string",
-			key:   &f64,
-			value: "foobar",
-			err:   fmt.Errorf("strconv.ParseFloat: parsing \"foobar\": invalid syntax"),
-		},
-		{
-			name:  "valid-string",
-			key:   &s,
-			value: "foobar",
-			err:   nil,
-		},
-	} {
-		t.Run(scenario.name, func(t *testing.T) {
+		{"valid-bool", true, ""},
+		{"valid-bool-string", "true", ""},
+		{"valid-bool-string-false", "false", ""},
+		{"valid-bool-string-uppercase", "TRUE", ""},
+		{"invalid-bool-string", "foobar", "invalid boolean value invalid-bool-string: foobar"},
+	}
+	runTestCases(t, &b, testCases)
+}
+
+func TestSetValueInt(t *testing.T) {
+	var i int
+	testCases := []struct {
+		name  string
+		value interface{}
+		err   string
+	}{
+		{"valid-int", 1, ""},
+		{"valid-int-string", "1", ""},
+		{"invalid-int-string", "abcd", "strconv.ParseInt: parsing \"abcd\": invalid syntax"},
+	}
+	runTestCases(t, &i, testCases)
+}
+
+func TestSetValueUint32(t *testing.T) {
+	var u32 uint32
+	testCases := []struct {
+		name  string
+		value interface{}
+		err   string
+	}{
+		{"valid-uint32", 1, ""},
+		{"overflow-uint32", uint64(math.MaxUint32) + 1, "overflow-uint32 overflows uint32"},
+		{"negative-uint32", -1, "negative-uint32 cannot be negative"},
+	}
+	runTestCases(t, &u32, testCases)
+}
+
+func TestSetValueUint64(t *testing.T) {
+	var u64 uint64
+	testCases := []struct {
+		name  string
+		value interface{}
+		err   string
+	}{
+		{"valid-uint", 1, ""},
+		{"negative-uint", -1, "negative-uint cannot be negative"},
+	}
+	runTestCases(t, &u64, testCases)
+}
+
+func TestSetValueFloat64(t *testing.T) {
+	var f64 float64
+	testCases := []struct {
+		name  string
+		value interface{}
+		err   string
+	}{
+		{"valid-float", 1.05, ""},
+		{"valid-float-int", int64(1234), ""},
+		{"valid-float-string", "1.05", ""},
+		{"invalid-float-string", "foobar", "strconv.ParseFloat: parsing \"foobar\": invalid syntax"},
+	}
+	runTestCases(t, &f64, testCases)
+}
+
+func TestSetValueString(t *testing.T) {
+	var s string
+	testCases := []struct {
+		name  string
+		value interface{}
+		err   string
+	}{
+		{"valid-string", "foobar", ""},
+	}
+	runTestCases(t, &s, testCases)
+}
+
+func runTestCases(t *testing.T, key interface{}, testCases []struct {
+	name  string
+	value interface{}
+	err   string
+},
+) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			co := Option{
-				Name:      scenario.name,
-				ConfigKey: scenario.key,
+				Name:      tc.name,
+				ConfigKey: key,
 			}
-			err := co.setValue(scenario.value)
-			if scenario.err != nil {
-				require.EqualError(t, err, scenario.err.Error())
+			err := co.setValue(tc.value)
+			if tc.err != "" {
+				require.EqualError(t, err, tc.err)
 			} else {
 				require.NoError(t, err)
 			}

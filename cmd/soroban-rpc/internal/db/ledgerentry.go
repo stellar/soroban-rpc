@@ -8,12 +8,14 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
+
 	"github.com/stellar/go/support/db"
 	"github.com/stellar/go/xdr"
 )
 
 const (
-	ledgerEntriesTableName = "ledger_entries"
+	ledgerEntriesTableName    = "ledger_entries"
+	numEncodedLedgerEntryKeys = 2
 )
 
 type LedgerEntryReader interface {
@@ -95,7 +97,7 @@ func (l ledgerEntryWriter) flush() error {
 			}
 			encodedEntryStr := string(encodedEntry)
 			upsertSQL = upsertSQL.Values(key, encodedEntryStr)
-			upsertCount += 1
+			upsertCount++
 			// Only cache Config entries for now
 			if entry.Data.Type == xdr.LedgerEntryTypeConfigSetting {
 				upsertCacheUpdates[key] = &encodedEntryStr
@@ -240,9 +242,25 @@ func hasTTLKey(key xdr.LedgerKey) bool {
 		return true
 	case xdr.LedgerEntryTypeContractCode:
 		return true
-	default:
+	case xdr.LedgerEntryTypeAccount:
+		return false
+	case xdr.LedgerEntryTypeTrustline:
+		return false
+	case xdr.LedgerEntryTypeOffer:
+		return false
+	case xdr.LedgerEntryTypeData:
+		return false
+	case xdr.LedgerEntryTypeClaimableBalance:
+		return false
+	case xdr.LedgerEntryTypeLiquidityPool:
+		return false
+	case xdr.LedgerEntryTypeConfigSetting:
+		return false
+	case xdr.LedgerEntryTypeTtl:
+		return false
 	}
-	return false
+	// This line should never be reached if all enum values are handled
+	panic(fmt.Sprintf("unknown LedgerEntryType: %v", key.Type))
 }
 
 func entryKeyToTTLEntryKey(key xdr.LedgerKey) (xdr.LedgerKey, error) {
@@ -259,7 +277,7 @@ func entryKeyToTTLEntryKey(key xdr.LedgerKey) (xdr.LedgerKey, error) {
 }
 
 func (l *ledgerEntryReadTx) GetLedgerEntries(keys ...xdr.LedgerKey) ([]LedgerKeyAndEntry, error) {
-	encodedKeys := make([]string, 0, 2*len(keys))
+	encodedKeys := make([]string, 0, numEncodedLedgerEntryKeys*len(keys))
 	type keyToEncoded struct {
 		key           xdr.LedgerKey
 		encodedKey    string

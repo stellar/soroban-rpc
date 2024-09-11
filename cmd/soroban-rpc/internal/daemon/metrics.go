@@ -62,12 +62,12 @@ func newCoreClientWithMetrics(client stellarcore.Client, registry *prometheus.Re
 	submitMetric := prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Namespace: prometheusNamespace, Subsystem: "txsub", Name: "submission_duration_seconds",
 		Help:       "submission durations to Stellar-Core, sliding window = 10m",
-		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}, //nolint:mnd
 	}, []string{"status"})
 	opCountMetric := prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Namespace: prometheusNamespace, Subsystem: "txsub", Name: "operation_count",
 		Help:       "number of operations included in a transaction, sliding window = 10m",
-		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}, //nolint:mnd
 	}, []string{"status"})
 	registry.MustRegister(submitMetric, opCountMetric)
 
@@ -78,7 +78,9 @@ func newCoreClientWithMetrics(client stellarcore.Client, registry *prometheus.Re
 	}
 }
 
-func (c *CoreClientWithMetrics) SubmitTransaction(ctx context.Context, envelopeBase64 string) (*proto.TXResponse, error) {
+func (c *CoreClientWithMetrics) SubmitTransaction(ctx context.Context,
+	envelopeBase64 string,
+) (*proto.TXResponse, error) {
 	var envelope xdr.TransactionEnvelope
 	err := xdr.SafeUnmarshalBase64(envelopeBase64, &envelope)
 	if err != nil {
@@ -89,15 +91,17 @@ func (c *CoreClientWithMetrics) SubmitTransaction(ctx context.Context, envelopeB
 	response, err := c.Client.SubmitTransaction(ctx, envelopeBase64)
 	duration := time.Since(startTime).Seconds()
 
-	var label prometheus.Labels
-	if err != nil {
-		label = prometheus.Labels{"status": "request_error"}
-	} else if response.IsException() {
-		label = prometheus.Labels{"status": "exception"}
-	} else {
-		label = prometheus.Labels{"status": response.Status}
+	var status string
+	switch {
+	case err != nil:
+		status = "request_error"
+	case response.IsException():
+		status = "exception"
+	default:
+		status = response.Status
 	}
 
+	label := prometheus.Labels{"status": status}
 	c.submitMetric.With(label).Observe(duration)
 	c.opCountMetric.With(label).Observe(float64(len(envelope.Operations())))
 	return response, err

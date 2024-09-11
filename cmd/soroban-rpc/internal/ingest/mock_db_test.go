@@ -24,12 +24,12 @@ type MockDB struct {
 
 func (m *MockDB) NewTx(ctx context.Context) (db.WriteTx, error) {
 	args := m.Called(ctx)
-	return args.Get(0).(db.WriteTx), args.Error(1)
+	return args.Get(0).(db.WriteTx), args.Error(1) //nolint:forcetypeassert
 }
 
 func (m *MockDB) GetLatestLedgerSequence(ctx context.Context) (uint32, error) {
 	args := m.Called(ctx)
-	return args.Get(0).(uint32), args.Error(1)
+	return args.Get(0).(uint32), args.Error(1) //nolint:forcetypeassert
 }
 
 type MockTx struct {
@@ -47,17 +47,17 @@ func (m *MockTx) EventWriter() db.EventWriter {
 
 func (m *MockTx) LedgerEntryWriter() db.LedgerEntryWriter {
 	args := m.Called()
-	return args.Get(0).(db.LedgerEntryWriter)
+	return args.Get(0).(db.LedgerEntryWriter) //nolint:forcetypeassert
 }
 
 func (m *MockTx) LedgerWriter() db.LedgerWriter {
 	args := m.Called()
-	return args.Get(0).(db.LedgerWriter)
+	return args.Get(0).(db.LedgerWriter) //nolint:forcetypeassert
 }
 
 func (m *MockTx) TransactionWriter() db.TransactionWriter {
 	args := m.Called()
-	return args.Get(0).(db.TransactionWriter)
+	return args.Get(0).(db.TransactionWriter) //nolint:forcetypeassert
 }
 
 func (m *MockTx) Commit(ledgerCloseMeta xdr.LedgerCloseMeta) error {
