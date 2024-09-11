@@ -1,16 +1,19 @@
 # Changelog
 
-## Unreleased
+## [v21.5.0](https://github.com/stellar/soroban-rpc/compare/v21.4.1...release/v21.5.0)
+
+**Note**: The DB backed events change will trigger a one-time migration on RPC startup and will take approximately 
+**20-25** mins on a machine comparable to 4 vCPU and 8 GB RAM. 
 
 ### Added
 
-- Add `EndLedger` in `GetEventsRequest`. This provides finer control and clarity on the range of ledgers being queried.
+- Add `EndLedger` in `GetEventsRequest`. This provides finer control and clarity on the range of ledgers being queried. ([#230](https://github.com/stellar/soroban-rpc/pull/230))
 - Disk-Based Event Storage: Events are now stored on disk instead of in memory. For context, storing approximately 3 million events will require around 1.5 GB of disk space.
-This change enhances the scalability and can now support a larger retention window (~7 days) for events.
-- Ledger Scanning Limitation: The getEvents RPC will now scan a maximum of `10,000` ledgers per request. This limits the resource usage and ensures more predictable performance, especially for queries spanning large ledger ranges.
-- A migration process has been introduced to transition event storage from in-memory to disk-based storage.
+This change enhances the scalability and can now support a larger retention window (~7 days) for events. ([#230](https://github.com/stellar/soroban-rpc/pull/230))
+  - Ledger Scanning Limitation: The getEvents RPC will now scan a maximum of `10,000` ledgers per request. This limits the resource usage and ensures more predictable performance, especially for queries spanning large ledger ranges.
+  - A migration process has been introduced to transition event storage from in-memory to disk-based storage.
 
-* Add support for unpacked JSON responses of base64-encoded XDR fields via a new, optional parameter. When omitted, the behavior does not change and we encode fields as base64.
+* Add support for unpacked JSON responses of base64-encoded XDR fields via a new, optional parameter. When omitted, the behavior does not change and we encode fields as base64.([#249](https://github.com/stellar/soroban-rpc/pull/249))
 ```typescript
 xdrFormat?: "" | "base64" | "json"
 ```
