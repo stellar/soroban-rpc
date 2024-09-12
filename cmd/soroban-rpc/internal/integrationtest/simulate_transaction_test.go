@@ -130,7 +130,8 @@ func TestSimulateTransactionWithAuth(t *testing.T) {
 	client := test.GetRPCLient()
 	response := infrastructure.SimulateTransactionFromTxParams(t, client, deployContractParams)
 	require.NotEmpty(t, response.Results)
-	require.Len(t, response.Results[0].AuthXDR, 1)
+	require.NotNil(t, response.Results[0].AuthXDR)
+	require.Len(t, *response.Results[0].AuthXDR, 1)
 	require.Empty(t, deployContractOp.Auth)
 
 	var auth xdr.SorobanAuthorizationEntry
@@ -225,7 +226,8 @@ func TestSimulateInvokeContractTransactionSucceeds(t *testing.T) {
 	require.NotZero(t, obtainedTransactionData.Resources.WriteBytes)
 
 	// check the auth
-	require.Len(t, response.Results[0].AuthXDR, 1)
+	require.NotNil(t, response.Results[0].AuthXDR)
+	require.Len(t, *response.Results[0].AuthXDR, 1)
 	var obtainedAuth xdr.SorobanAuthorizationEntry
 	err = xdr.SafeUnmarshalBase64((*response.Results[0].AuthXDR)[0], &obtainedAuth)
 	require.NoError(t, err)
