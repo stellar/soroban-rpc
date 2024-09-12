@@ -8,6 +8,7 @@ members = [
 
 [workspace.package]
 rust-version = "1.74.0"
+
 [workspace.dependencies.soroban-env-host-prev]
 package = "soroban-env-host"
 version = "=21.2.0"
@@ -16,7 +17,7 @@ version = "=21.2.0"
 package = "soroban-env-host"
 version = "=22.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "4b366a38798a84ca0ca4dde2aaef5ffdcc1cc4a4"
+rev = "75b782119942a4c8be8003f2901db38b30b6db2d"
 
 [workspace.dependencies.soroban-simulation-prev]
 package = "soroban-simulation"
@@ -26,10 +27,12 @@ version = "=21.2.0"
 package = "soroban-simulation"
 version = "=22.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "4b366a38798a84ca0ca4dde2aaef5ffdcc1cc4a4"
+rev = "75b782119942a4c8be8003f2901db38b30b6db2d"
 
 [workspace.dependencies.stellar-xdr]
-version = "=21.2.0"
+version = "=22.0.0"
+git = "https://github.com/stellar/rs-stellar-xdr.git"
+rev = "5315f4c583784860c0accbb8d3bd234055a19751"
 features = [ "serde" ]
 
 [workspace.dependencies]
