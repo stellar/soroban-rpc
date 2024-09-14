@@ -33,10 +33,10 @@ type SimulateTransactionCost struct {
 // SimulateHostFunctionResult contains the simulation result of each HostFunction
 // within the single InvokeHostFunctionOp allowed in a Transaction
 type SimulateHostFunctionResult struct {
-	AuthXDR  []string          `json:"auth,omitempty"`
+	AuthXDR  *[]string         `json:"auth,omitempty"`
 	AuthJSON []json.RawMessage `json:"authJson,omitempty"`
 
-	ReturnValueXDR  string          `json:"xdr,omitempty"`
+	ReturnValueXDR  *string         `json:"xdr,omitempty"`
 	ReturnValueJSON json.RawMessage `json:"returnValueJson,omitempty"`
 }
 
@@ -345,9 +345,11 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 				})
 
 			default:
+				rv := base64.StdEncoding.EncodeToString(result.Result)
+				auth := base64EncodeSlice(result.Auth)
 				results = append(results, SimulateHostFunctionResult{
-					ReturnValueXDR: base64.StdEncoding.EncodeToString(result.Result),
-					AuthXDR:        base64EncodeSlice(result.Auth),
+					ReturnValueXDR: &rv,
+					AuthXDR:        &auth,
 				})
 			}
 		}
