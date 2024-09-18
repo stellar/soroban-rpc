@@ -25,13 +25,7 @@ type SimulateTransactionRequest struct {
 	Format         string                    `json:"xdrFormat,omitempty"`
 }
 
-type SimulateTransactionCost struct {
-	CPUInstructions uint64 `json:"cpuInsns,string"`
-	MemoryBytes     uint64 `json:"memBytes,string"`
-}
-
-// SimulateHostFunctionResult contains the simulation result of each HostFunction
-// within the single InvokeHostFunctionOp allowed in a Transaction
+// SimulateHostFunctionResult contains the simulation result of each HostFunction within the single InvokeHostFunctionOp allowed in a Transaction
 type SimulateHostFunctionResult struct {
 	AuthXDR  *[]string         `json:"auth,omitempty"`
 	AuthJSON []json.RawMessage `json:"authJson,omitempty"`
@@ -217,8 +211,6 @@ type SimulateTransactionResponse struct {
 	MinResourceFee int64 `json:"minResourceFee,string,omitempty"`
 	// an array of the individual host function call results
 	Results []SimulateHostFunctionResult `json:"results,omitempty"`
-	// the effective cpu and memory cost of the invoked transaction execution.
-	Cost SimulateTransactionCost `json:"cost,omitempty"`
 	// If present, it indicates that a prior RestoreFootprint is required
 	RestorePreamble *RestorePreamble `json:"restorePreamble,omitempty"`
 	// If present, it indicates how the state (ledger entries) will change as a result of the transaction execution.
@@ -392,13 +384,9 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 		}
 
 		simResp := SimulateTransactionResponse{
-			Error:          result.Error,
-			Results:        results,
-			MinResourceFee: result.MinFee,
-			Cost: SimulateTransactionCost{
-				CPUInstructions: result.CPUInstructions,
-				MemoryBytes:     result.MemoryBytes,
-			},
+			Error:           result.Error,
+			Results:         results,
+			MinResourceFee:  result.MinFee,
 			LatestLedger:    latestLedger,
 			RestorePreamble: restorePreamble,
 			StateChanges:    stateChanges,
