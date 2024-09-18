@@ -656,7 +656,7 @@ func TestGetEvents(t *testing.T) {
 				TransactionHash:          ledgerCloseMeta.TransactionHash(i).HexString(),
 			})
 		}
-		cursor := expected[len(expected)-1].ID
+		cursor := db.Cursor{Ledger: 1, Tx: math.MaxUint32, Event: math.MaxUint32 - 1}.String()
 		assert.Equal(t, GetEventsResponse{expected, 1, cursor}, results)
 	})
 
@@ -803,7 +803,7 @@ func TestGetEvents(t *testing.T) {
 				TransactionHash:          ledgerCloseMeta.TransactionHash(4).HexString(),
 			},
 		}
-		cursor := expected[len(expected)-1].ID
+		cursor := db.Cursor{Ledger: 1, Tx: math.MaxUint32, Event: math.MaxUint32 - 1}.String()
 
 		assert.Equal(t, GetEventsResponse{expected, 1, cursor}, results)
 
@@ -950,7 +950,7 @@ func TestGetEvents(t *testing.T) {
 				TransactionHash:          ledgerCloseMeta.TransactionHash(3).HexString(),
 			},
 		}
-		cursor := expected[len(expected)-1].ID
+		cursor := db.Cursor{Ledger: 1, Tx: math.MaxUint32, Event: math.MaxUint32 - 1}.String()
 
 		assert.Equal(t, GetEventsResponse{expected, 1, cursor}, results)
 	})
@@ -1027,7 +1027,8 @@ func TestGetEvents(t *testing.T) {
 				TransactionHash:          ledgerCloseMeta.TransactionHash(0).HexString(),
 			},
 		}
-		cursor := expected[len(expected)-1].ID
+		cursor := db.Cursor{Ledger: 1, Tx: math.MaxUint32, Event: math.MaxUint32 - 1}.String()
+
 		assert.Equal(t, GetEventsResponse{expected, 1, cursor}, results)
 	})
 

@@ -518,11 +518,11 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 	}
 
 	var cursor string
-	if len(results) > 0 {
+	if uint(len(results)) == limit {
 		lastEvent := results[len(results)-1]
 		cursor = lastEvent.ID
 	} else {
-		// cursor represents end of the search window if no events are found
+		// cursor represents end of the search window if events does not reach limit
 		// here endLedger is always exclusive when fetching events
 		// so search window is max Cursor value with endLedger - 1
 		cursor = db.Cursor{Ledger: endLedger - 1, Tx: math.MaxUint32, Event: math.MaxUint32 - 1}.String()
