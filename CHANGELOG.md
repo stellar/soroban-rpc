@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+
+## [v21.5.1](https://github.com/stellar/soroban-rpc/compare/v21.5.0...v21.5.1)
+
+### Fixed
+* Preserve field omission behavior of `simulateTransaction` ([#291](https://github.com/stellar/soroban-rpc/pull/291)).
+
+## [v21.5.0](https://github.com/stellar/soroban-rpc/compare/v21.4.1...v21.5.0)
+
 ### Added
 
 - Add `EndLedger` in `GetEventsResponse`. This tells the client until what ledger events are being queried. e.g.: `startLEdger` (inclusive) - `endLedger` (exclusive)
