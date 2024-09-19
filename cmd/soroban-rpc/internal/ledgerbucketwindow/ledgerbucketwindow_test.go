@@ -98,7 +98,8 @@ func TestAppendError(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, evicted)
 
-	evicted, err = m.Append(bucket(1))
+	_, err = m.Append(bucket(1))
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "error appending ledgers: ledgers not contiguous: expected ledger sequence 6 but received 1")
+	require.Contains(t, err.Error(), "error appending ledgers: ledgers not contiguous: "+
+		"expected ledger sequence 6 but received 1")
 }

@@ -34,9 +34,11 @@ func TestLoadConfigPathPrecedence(t *testing.T) {
 	}))
 	require.NoError(t, cfg.Validate())
 
-	assert.Equal(t, "/opt/stellar/soroban-rpc/etc/stellar-captive-core.cfg", cfg.CaptiveCoreConfigPath, "should read values from the config path file")
+	assert.Equal(t, "/opt/stellar/soroban-rpc/etc/stellar-captive-core.cfg", cfg.CaptiveCoreConfigPath,
+		"should read values from the config path file")
 	assert.Equal(t, "CLI test passphrase", cfg.NetworkPassphrase, "cli flags should override --config-path values")
-	assert.Equal(t, "/usr/overridden/stellar-core", cfg.StellarCoreBinaryPath, "cli flags should override --config-path values and env vars")
+	assert.Equal(t, "/usr/overridden/stellar-core", cfg.StellarCoreBinaryPath,
+		"cli flags should override --config-path values and env vars")
 	assert.Equal(t, "/env/overridden/db", cfg.SQLiteDBPath, "env var should override config file")
 	assert.Equal(t, 2*time.Second, cfg.CoreRequestTimeout, "default value should be used, if not set anywhere else")
 }

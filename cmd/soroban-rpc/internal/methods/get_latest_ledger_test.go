@@ -34,11 +34,7 @@ func (entryReader *ConstantLedgerEntryReader) GetLatestLedgerSequence(_ context.
 	return expectedLatestLedgerSequence, nil
 }
 
-func (entryReader *ConstantLedgerEntryReader) NewTx(_ context.Context) (db.LedgerEntryReadTx, error) {
-	return ConstantLedgerEntryReaderTx{}, nil
-}
-
-func (entryReader *ConstantLedgerEntryReader) NewCachedTx(_ context.Context) (db.LedgerEntryReadTx, error) {
+func (entryReader *ConstantLedgerEntryReader) NewTx(_ context.Context, _ bool) (db.LedgerEntryReadTx, error) {
 	return ConstantLedgerEntryReaderTx{}, nil
 }
 

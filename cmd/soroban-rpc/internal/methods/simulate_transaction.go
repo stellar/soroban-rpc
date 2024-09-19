@@ -30,12 +30,13 @@ type SimulateTransactionCost struct {
 	MemoryBytes     uint64 `json:"memBytes,string"`
 }
 
-// SimulateHostFunctionResult contains the simulation result of each HostFunction within the single InvokeHostFunctionOp allowed in a Transaction
+// SimulateHostFunctionResult contains the simulation result of each HostFunction
+// within the single InvokeHostFunctionOp allowed in a Transaction
 type SimulateHostFunctionResult struct {
-	AuthXDR  []string          `json:"auth,omitempty"`
+	AuthXDR  *[]string         `json:"auth,omitempty"`
 	AuthJSON []json.RawMessage `json:"authJson,omitempty"`
 
-	ReturnValueXDR  string          `json:"xdr,omitempty"`
+	ReturnValueXDR  *string         `json:"xdr,omitempty"`
 	ReturnValueJSON json.RawMessage `json:"returnValueJson,omitempty"`
 }
 
@@ -213,12 +214,16 @@ type SimulateTransactionResponse struct {
 	EventsXDR  []string          `json:"events,omitempty"` // DiagnosticEvent XDR in base64
 	EventsJSON []json.RawMessage `json:"eventsJson,omitempty"`
 
-	MinResourceFee  int64                        `json:"minResourceFee,string,omitempty"`
-	Results         []SimulateHostFunctionResult `json:"results,omitempty"`         // an array of the individual host function call results
-	Cost            SimulateTransactionCost      `json:"cost,omitempty"`            // the effective cpu and memory cost of the invoked transaction execution.
-	RestorePreamble *RestorePreamble             `json:"restorePreamble,omitempty"` // If present, it indicates that a prior RestoreFootprint is required
-	StateChanges    []LedgerEntryChange          `json:"stateChanges,omitempty"`    // If present, it indicates how the state (ledger entries) will change as a result of the transaction execution.
-	LatestLedger    uint32                       `json:"latestLedger"`
+	MinResourceFee int64 `json:"minResourceFee,string,omitempty"`
+	// an array of the individual host function call results
+	Results []SimulateHostFunctionResult `json:"results,omitempty"`
+	// the effective cpu and memory cost of the invoked transaction execution.
+	Cost SimulateTransactionCost `json:"cost,omitempty"`
+	// If present, it indicates that a prior RestoreFootprint is required
+	RestorePreamble *RestorePreamble `json:"restorePreamble,omitempty"`
+	// If present, it indicates how the state (ledger entries) will change as a result of the transaction execution.
+	StateChanges []LedgerEntryChange `json:"stateChanges,omitempty"`
+	LatestLedger uint32              `json:"latestLedger"`
 }
 
 type PreflightGetter interface {
@@ -260,7 +265,8 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 		case xdr.OperationTypeExtendFootprintTtl, xdr.OperationTypeRestoreFootprint:
 			if txEnvelope.Type != xdr.EnvelopeTypeEnvelopeTypeTx && txEnvelope.V1.Tx.Ext.V != 1 {
 				return SimulateTransactionResponse{
-					Error: "To perform a SimulateTransaction for ExtendFootprintTtl or RestoreFootprint operations, SorobanTransactionData must be provided",
+					Error: "To perform a SimulateTransaction for ExtendFootprintTtl or RestoreFootprint operations," +
+						" SorobanTransactionData must be provided",
 				}
 			}
 			footprint = txEnvelope.V1.Tx.Ext.SorobanData.Resources.Footprint
@@ -270,7 +276,7 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 			}
 		}
 
-		readTx, err := ledgerEntryReader.NewCachedTx(ctx)
+		readTx, err := ledgerEntryReader.NewTx(ctx, true)
 		if err != nil {
 			return SimulateTransactionResponse{
 				Error: "Cannot create read transaction",
@@ -339,9 +345,11 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 				})
 
 			default:
+				rv := base64.StdEncoding.EncodeToString(result.Result)
+				auth := base64EncodeSlice(result.Auth)
 				results = append(results, SimulateHostFunctionResult{
-					ReturnValueXDR: base64.StdEncoding.EncodeToString(result.Result),
-					AuthXDR:        base64EncodeSlice(result.Auth),
+					ReturnValueXDR: &rv,
+					AuthXDR:        &auth,
 				})
 			}
 		}
@@ -374,7 +382,7 @@ func NewSimulateTransactionHandler(logger *log.Entry, ledgerEntryReader db.Ledge
 		}
 
 		stateChanges := make([]LedgerEntryChange, len(result.LedgerEntryDiff))
-		for i := 0; i < len(stateChanges); i++ {
+		for i := range stateChanges {
 			if err := stateChanges[i].FromXDRDiff(result.LedgerEntryDiff[i], request.Format); err != nil {
 				return SimulateTransactionResponse{
 					Error:        err.Error(),
