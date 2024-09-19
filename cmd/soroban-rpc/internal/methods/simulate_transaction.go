@@ -25,7 +25,8 @@ type SimulateTransactionRequest struct {
 	Format         string                    `json:"xdrFormat,omitempty"`
 }
 
-// SimulateHostFunctionResult contains the simulation result of each HostFunction within the single InvokeHostFunctionOp allowed in a Transaction
+// SimulateHostFunctionResult contains the simulation result of each HostFunction within the single
+// InvokeHostFunctionOp allowed in a Transaction
 type SimulateHostFunctionResult struct {
 	AuthXDR  *[]string         `json:"auth,omitempty"`
 	AuthJSON []json.RawMessage `json:"authJson,omitempty"`
