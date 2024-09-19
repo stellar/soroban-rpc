@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// Init adds the CLI flags to the command. This lets the command output the
+// AddFlags Init adds the CLI flags to the command. This lets the command output the
 // flags as part of the --help output.
 func (cfg *Config) AddFlags(cmd *cobra.Command) error {
 	cfg.flagset = cmd.PersistentFlags()

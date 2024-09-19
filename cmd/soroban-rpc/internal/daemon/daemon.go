@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-chi/chi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -34,11 +35,15 @@ import (
 )
 
 const (
-	prometheusNamespace                   = "soroban_rpc"
-	maxLedgerEntryWriteBatchSize          = 150
-	defaultReadTimeout                    = 5 * time.Second
-	defaultShutdownGracePeriod            = 10 * time.Second
-	inMemoryInitializationLedgerLogPeriod = 1_000_000
+	prometheusNamespace          = "soroban_rpc"
+	maxLedgerEntryWriteBatchSize = 150
+	defaultReadTimeout           = 5 * time.Second
+	defaultShutdownGracePeriod   = 10 * time.Second
+
+	// Since our default retention window will be 7 days (7*17,280 ledgers),
+	// choose a random 5-digit prime to have irregular logging intervals at each
+	// halfish-day of processing
+	inMemoryInitializationLedgerLogPeriod = 10_099
 )
 
 type Daemon struct {
@@ -145,21 +150,53 @@ func newCaptiveCore(cfg *config.Config, logger *supportlog.Entry) (*ledgerbacken
 }
 
 func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
+	logger = setupLogger(cfg, logger)
+	core := mustCreateCaptiveCore(cfg, logger)
+	historyArchive := mustCreateHistoryArchive(cfg, logger)
+	metricsRegistry := prometheus.NewRegistry()
+
+	daemon := &Daemon{
+		logger:          logger,
+		core:            core,
+		db:              mustOpenDatabase(cfg, logger, metricsRegistry),
+		done:            make(chan struct{}),
+		metricsRegistry: metricsRegistry,
+		coreClient:      newCoreClientWithMetrics(createStellarCoreClient(cfg), metricsRegistry),
+	}
+
+	feewindows := daemon.mustInitializeStorage(cfg)
+
+	daemon.ingestService = createIngestService(cfg, logger, daemon, feewindows, historyArchive)
+	daemon.preflightWorkerPool = createPreflightWorkerPool(cfg, logger, daemon)
+	daemon.jsonRPCHandler = createJSONRPCHandler(cfg, logger, daemon, feewindows)
+
+	daemon.setupHTTPServers(cfg)
+	daemon.registerMetrics()
+
+	return daemon
+}
+
+func setupLogger(cfg *config.Config, logger *supportlog.Entry) *supportlog.Entry {
 	logger.SetLevel(cfg.LogLevel)
 	if cfg.LogFormat == config.LogFormatJSON {
 		logger.UseJSONFormatter()
 	}
-
 	logger.WithFields(supportlog.F{
 		"version": config.Version,
 		"commit":  config.CommitHash,
 	}).Info("starting Soroban RPC")
+	return logger
+}
 
+func mustCreateCaptiveCore(cfg *config.Config, logger *supportlog.Entry) *ledgerbackend.CaptiveStellarCore {
 	core, err := newCaptiveCore(cfg, logger)
 	if err != nil {
 		logger.WithError(err).Fatal("could not create captive core")
 	}
+	return core
+}
 
+func mustCreateHistoryArchive(cfg *config.Config, logger *supportlog.Entry) *historyarchive.ArchiveInterface {
 	if len(cfg.HistoryArchiveURLs) == 0 {
 		logger.Fatal("no history archives URLs were provided")
 	}
@@ -179,52 +216,54 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 	if err != nil {
 		logger.WithError(err).Fatal("could not connect to history archive")
 	}
+	return &historyArchive
+}
 
-	metricsRegistry := prometheus.NewRegistry()
+func mustOpenDatabase(cfg *config.Config, logger *supportlog.Entry, metricsRegistry *prometheus.Registry) *db.DB {
 	dbConn, err := db.OpenSQLiteDBWithPrometheusMetrics(cfg.SQLiteDBPath, prometheusNamespace, "db", metricsRegistry)
 	if err != nil {
 		logger.WithError(err).Fatal("could not open database")
 	}
+	return dbConn
+}
 
-	daemon := &Daemon{
-		logger:          logger,
-		core:            core,
-		db:              dbConn,
-		done:            make(chan struct{}),
-		metricsRegistry: metricsRegistry,
-		coreClient: newCoreClientWithMetrics(stellarcore.Client{
-			URL:  cfg.StellarCoreURL,
-			HTTP: &http.Client{Timeout: cfg.CoreRequestTimeout},
-		}, metricsRegistry),
+func createStellarCoreClient(cfg *config.Config) stellarcore.Client {
+	return stellarcore.Client{
+		URL:  cfg.StellarCoreURL,
+		HTTP: &http.Client{Timeout: cfg.CoreRequestTimeout},
 	}
+}
 
-	feewindows := daemon.mustInitializeStorage(cfg)
-
-	onIngestionRetry := func(err error, dur time.Duration) {
+func createIngestService(cfg *config.Config, logger *supportlog.Entry, daemon *Daemon,
+	feewindows *feewindow.FeeWindows, historyArchive *historyarchive.ArchiveInterface,
+) *ingest.Service {
+	onIngestionRetry := func(err error, _ time.Duration) {
 		logger.WithError(err).Error("could not run ingestion. Retrying")
 	}
 
-	ingestService := ingest.NewService(ingest.Config{
+	return ingest.NewService(ingest.Config{
 		Logger: logger,
 		DB: db.NewReadWriter(
 			logger,
-			dbConn,
+			daemon.db,
 			daemon,
 			maxLedgerEntryWriteBatchSize,
 			cfg.HistoryRetentionWindow,
 			cfg.NetworkPassphrase,
 		),
 		NetworkPassPhrase: cfg.NetworkPassphrase,
-		Archive:           historyArchive,
-		LedgerBackend:     core,
+		Archive:           *historyArchive,
+		LedgerBackend:     daemon.core,
 		Timeout:           cfg.IngestionTimeout,
 		OnIngestionRetry:  onIngestionRetry,
 		Daemon:            daemon,
 		FeeWindows:        feewindows,
 	})
+}
 
-	ledgerEntryReader := db.NewLedgerEntryReader(dbConn)
-	preflightWorkerPool := preflight.NewPreflightWorkerPool(
+func createPreflightWorkerPool(cfg *config.Config, logger *supportlog.Entry, daemon *Daemon) *preflight.WorkerPool {
+	ledgerEntryReader := db.NewLedgerEntryReader(daemon.db)
+	return preflight.NewPreflightWorkerPool(
 		preflight.WorkerPoolConfig{
 			Daemon:            daemon,
 			WorkerCount:       cfg.PreflightWorkerCount,
@@ -235,60 +274,75 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 			Logger:            logger,
 		},
 	)
+}
 
-	jsonRPCHandler := internal.NewJSONRPCHandler(cfg, internal.HandlerParams{
+func createJSONRPCHandler(cfg *config.Config, logger *supportlog.Entry, daemon *Daemon,
+	feewindows *feewindow.FeeWindows,
+) *internal.Handler {
+	rpcHandler := internal.NewJSONRPCHandler(cfg, internal.HandlerParams{
 		Daemon:            daemon,
 		FeeStatWindows:    feewindows,
 		Logger:            logger,
-		LedgerReader:      db.NewLedgerReader(dbConn),
-		LedgerEntryReader: db.NewLedgerEntryReader(dbConn),
-		TransactionReader: db.NewTransactionReader(logger, dbConn, cfg.NetworkPassphrase),
-		EventReader:       db.NewEventReader(logger, dbConn, cfg.NetworkPassphrase),
-		PreflightGetter:   preflightWorkerPool,
+		LedgerReader:      db.NewLedgerReader(daemon.db),
+		LedgerEntryReader: db.NewLedgerEntryReader(daemon.db),
+		TransactionReader: db.NewTransactionReader(logger, daemon.db, cfg.NetworkPassphrase),
+		EventReader:       db.NewEventReader(logger, daemon.db, cfg.NetworkPassphrase),
+		PreflightGetter:   daemon.preflightWorkerPool,
 	})
+	return &rpcHandler
+}
 
-	httpHandler := supporthttp.NewAPIMux(logger)
-	httpHandler.Handle("/", jsonRPCHandler)
-
-	daemon.preflightWorkerPool = preflightWorkerPool
-	daemon.ingestService = ingestService
-	daemon.jsonRPCHandler = &jsonRPCHandler
-
-	// Use a separate listener in order to obtain the actual TCP port
-	// when using dynamic ports during testing (e.g. endpoint="localhost:0")
-	daemon.listener, err = net.Listen("tcp", cfg.Endpoint)
+func (d *Daemon) setupHTTPServers(cfg *config.Config) {
+	var err error
+	d.listener, err = net.Listen("tcp", cfg.Endpoint)
 	if err != nil {
-		daemon.logger.WithError(err).WithField("endpoint", cfg.Endpoint).Fatal("cannot listen on endpoint")
+		d.logger.WithError(err).WithField("endpoint", cfg.Endpoint).Fatal("cannot listen on endpoint")
 	}
-	daemon.server = &http.Server{
-		Handler:     httpHandler,
+	d.server = &http.Server{
+		Handler:     createHTTPHandler(d.logger, d.jsonRPCHandler),
 		ReadTimeout: defaultReadTimeout,
 	}
+
 	if cfg.AdminEndpoint != "" {
-		adminMux := supporthttp.NewMux(logger)
-		adminMux.HandleFunc("/debug/pprof/", pprof.Index)
-		adminMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-		adminMux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-		adminMux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		adminMux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-		// add the entry points for:
-		// goroutine, threadcreate, heap, allocs, block, mutex
-		for _, profile := range runtimePprof.Profiles() {
-			adminMux.Handle("/debug/pprof/"+profile.Name(), pprof.Handler(profile.Name()))
-		}
-		adminMux.Handle("/metrics", promhttp.HandlerFor(metricsRegistry, promhttp.HandlerOpts{}))
-		daemon.adminListener, err = net.Listen("tcp", cfg.AdminEndpoint)
-		if err != nil {
-			daemon.logger.WithError(err).WithField("endpoint", cfg.Endpoint).Fatal("cannot listen on admin endpoint")
-		}
-		daemon.adminServer = &http.Server{Handler: adminMux}
+		d.setupAdminServer(cfg)
 	}
-	daemon.registerMetrics()
-	return daemon
+}
+
+func createHTTPHandler(logger *supportlog.Entry, jsonRPCHandler *internal.Handler) http.Handler {
+	httpHandler := supporthttp.NewAPIMux(logger)
+	httpHandler.Handle("/", jsonRPCHandler)
+	return httpHandler
+}
+
+func (d *Daemon) setupAdminServer(cfg *config.Config) {
+	var err error
+	adminMux := createAdminMux(d.logger, d.metricsRegistry)
+	d.adminListener, err = net.Listen("tcp", cfg.AdminEndpoint)
+	if err != nil {
+		d.logger.WithError(err).WithField("endpoint", cfg.AdminEndpoint).Fatal("cannot listen on admin endpoint")
+	}
+	d.adminServer = &http.Server{Handler: adminMux} //nolint:gosec
+}
+
+func createAdminMux(logger *supportlog.Entry, metricsRegistry *prometheus.Registry) *chi.Mux {
+	adminMux := supporthttp.NewMux(logger)
+	adminMux.HandleFunc("/debug/pprof/", pprof.Index)
+	adminMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	adminMux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	adminMux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	adminMux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	for _, profile := range runtimePprof.Profiles() {
+		adminMux.Handle("/debug/pprof/"+profile.Name(), pprof.Handler(profile.Name()))
+	}
+	adminMux.Handle("/metrics", promhttp.HandlerFor(metricsRegistry, promhttp.HandlerOpts{}))
+	return adminMux
 }
 
 // mustInitializeStorage initializes the storage using what was on the DB
 func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows {
+	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
+	defer cancelReadTxMeta()
+
 	feeWindows := feewindow.NewFeeWindows(
 		cfg.ClassicFeeStatsLedgerRetentionWindow,
 		cfg.SorobanFeeStatsLedgerRetentionWindow,
@@ -296,30 +350,25 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 		d.db,
 	)
 
-	readTxMetaCtx, cancelReadTxMeta := context.WithTimeout(context.Background(), cfg.IngestionTimeout)
-	defer cancelReadTxMeta()
-
-	var initialSeq, currentSeq uint32
-	applicableRange, err := db.GetMigrationLedgerRange(readTxMetaCtx, d.db, cfg.HistoryRetentionWindow)
+	// 1. First, identify the ledger range for database migrations based on the
+	//    ledger retention window. Since we don't do "partial" migrations (all or
+	//    nothing), this represents the entire range of ledger metas we store.
+	retentionRange, err := db.GetMigrationLedgerRange(readTxMetaCtx, d.db, cfg.HistoryRetentionWindow)
 	if err != nil {
 		d.logger.WithError(err).Fatal("could not get ledger range for migration")
 	}
 
-	maxFeeRetentionWindow := max(cfg.ClassicFeeStatsLedgerRetentionWindow, cfg.SorobanFeeStatsLedgerRetentionWindow)
-	feeStatsRange, err := db.GetMigrationLedgerRange(readTxMetaCtx, d.db, maxFeeRetentionWindow)
-	if err != nil {
-		d.logger.WithError(err).Fatal("could not get ledger range for fee stats")
-	}
+	// 2. Then, we build migrations for transactions and events, also incorporating the fee windows.
+	//    If there are migrations to do, this has no effect, since migration windows are larger than
+	//    the fee window. In the absence of migrations, though, this means the ingestion
+	//    range is just the fee stat range.
+	dataMigrations := d.buildMigrations(readTxMetaCtx, cfg, retentionRange, feeWindows)
+	ledgerSeqRange := dataMigrations.ApplicableRange()
 
-	// Combine the ledger range for fees, events and transactions
-	ledgerSeqRange := feeStatsRange.Merge(applicableRange)
-
-	dataMigrations, err := db.BuildMigrations(readTxMetaCtx, d.logger, d.db, cfg.NetworkPassphrase, ledgerSeqRange)
-	if err != nil {
-		d.logger.WithError(err).Fatal("could not build migrations")
-	}
-
-	// Apply migration for events, transactions and fee stats
+	//
+	// 3. Apply all migrations, including fee stat analysis.
+	//
+	var initialSeq, currentSeq uint32
 	err = db.NewLedgerReader(d.db).StreamLedgerRange(
 		readTxMetaCtx,
 		ledgerSeqRange.First,
@@ -328,35 +377,77 @@ func (d *Daemon) mustInitializeStorage(cfg *config.Config) *feewindow.FeeWindows
 			currentSeq = txMeta.LedgerSequence()
 			if initialSeq == 0 {
 				initialSeq = currentSeq
-				d.logger.WithField("seq", currentSeq).
-					Info("initializing in-memory store")
+				d.logger.
+					WithField("first", initialSeq).
+					WithField("last", ledgerSeqRange.Last).
+					Info("Initializing in-memory store")
 			} else if (currentSeq-initialSeq)%inMemoryInitializationLedgerLogPeriod == 0 {
-				d.logger.WithField("seq", currentSeq).
-					Debug("still initializing in-memory store")
-			}
-
-			if err = feeWindows.IngestFees(txMeta); err != nil {
-				d.logger.WithError(err).Fatal("could not initialize fee stats")
+				d.logger.
+					WithField("seq", currentSeq).
+					WithField("last", ledgerSeqRange.Last).
+					Debug("Still initializing in-memory store")
 			}
 
 			if err := dataMigrations.Apply(readTxMetaCtx, txMeta); err != nil {
 				d.logger.WithError(err).Fatal("could not apply migration for ledger ", currentSeq)
 			}
+
 			return nil
 		})
 	if err != nil {
-		d.logger.WithError(err).Fatal("could not obtain txmeta cache from the database")
+		d.logger.WithError(err).Fatal("Could not obtain txmeta cache from the database")
 	}
+
 	if err := dataMigrations.Commit(readTxMetaCtx); err != nil {
-		d.logger.WithError(err).Fatal("could not commit data migrations")
+		d.logger.WithError(err).Fatal("Could not commit data migrations")
 	}
 
 	if currentSeq != 0 {
-		d.logger.WithField("seq", currentSeq).
-			Info("finished initializing in-memory store and applying DB data migrations")
+		d.logger.
+			WithField("first", retentionRange.First).
+			WithField("last", retentionRange.Last).
+			Info("Finished initializing in-memory store and applying DB data migrations")
 	}
 
 	return feeWindows
+}
+
+func (d *Daemon) buildMigrations(ctx context.Context, cfg *config.Config, retentionRange db.LedgerSeqRange,
+	feeWindows *feewindow.FeeWindows,
+) db.MultiMigration {
+	// There are two windows in play here:
+	//  - the ledger retention window, which describes the range of txmeta
+	//    to keep relative to the latest "ledger tip" of the network
+	//  - the fee stats window, which describes a *subset* of the prior
+	//    ledger retention window on which to perform fee analysis
+	//
+	// If the fee window *exceeds* the retention window, this doesn't make any
+	// sense since it implies the user wants to store N amount of actual
+	// historical data and M > N amount of ledgers just for fee processing,
+	// which is nonsense from a performance standpoint. We prevent this:
+	maxFeeRetentionWindow := max(
+		cfg.ClassicFeeStatsLedgerRetentionWindow,
+		cfg.SorobanFeeStatsLedgerRetentionWindow)
+	if maxFeeRetentionWindow > cfg.HistoryRetentionWindow {
+		d.logger.Fatalf(
+			"Fee stat analysis window (%d) cannot exceed history retention window (%d).",
+			maxFeeRetentionWindow, cfg.HistoryRetentionWindow)
+	}
+
+	dataMigrations, err := db.BuildMigrations(
+		ctx, d.logger, d.db, cfg.NetworkPassphrase, retentionRange)
+	if err != nil {
+		d.logger.WithError(err).Fatal("could not build migrations")
+	}
+
+	feeStatsRange, err := db.GetMigrationLedgerRange(ctx, d.db, maxFeeRetentionWindow)
+	if err != nil {
+		d.logger.WithError(err).Fatal("could not get ledger range for fee stats")
+	}
+
+	// By treating the fee window *as if* it's a migration, we can make the interface here clean.
+	dataMigrations.Append(feeWindows.AsMigration(feeStatsRange))
+	return dataMigrations
 }
 
 func (d *Daemon) Run() {

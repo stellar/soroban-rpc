@@ -106,25 +106,26 @@ func TestRoundTrip(t *testing.T) {
 	// Generate test values for every option, so we can round-trip test them all.
 	for _, option := range cfg.options() {
 		optType := reflect.ValueOf(option.ConfigKey).Elem().Type()
-		switch option.ConfigKey.(type) {
+		switch v := option.ConfigKey.(type) {
 		case *bool:
-			*option.ConfigKey.(*bool) = true
+			*v = true
 		case *string:
-			*option.ConfigKey.(*string) = "test"
+			*v = "test"
 		case *uint:
-			*option.ConfigKey.(*uint) = 42
+			*v = 42
 		case *uint32:
-			*option.ConfigKey.(*uint32) = 32
+			*v = 32
 		case *time.Duration:
-			*option.ConfigKey.(*time.Duration) = 5 * time.Second
+			*v = 5 * time.Second
 		case *[]string:
-			*option.ConfigKey.(*[]string) = []string{"a", "b"}
+			*v = []string{"a", "b"}
 		case *logrus.Level:
-			*option.ConfigKey.(*logrus.Level) = logrus.InfoLevel
+			*v = logrus.InfoLevel
 		case *LogFormat:
-			*option.ConfigKey.(*LogFormat) = LogFormatText
+			*v = LogFormatText
 		default:
-			t.Fatalf("TestRoundTrip not implemented for type %s, on option %s, please add a test value", optType.Kind(), option.Name)
+			t.Fatalf("TestRoundTrip not implemented for type %s, on option %s, "+
+				"please add a test value", optType.Kind(), option.Name)
 		}
 	}
 

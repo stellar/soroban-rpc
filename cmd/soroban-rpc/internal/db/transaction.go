@@ -255,8 +255,8 @@ type transactionTableMigration struct {
 	writer      TransactionWriter
 }
 
-func (t *transactionTableMigration) ApplicableRange() *LedgerSeqRange {
-	return &LedgerSeqRange{
+func (t *transactionTableMigration) ApplicableRange() LedgerSeqRange {
+	return LedgerSeqRange{
 		First: t.firstLedger,
 		Last:  t.lastLedger,
 	}
@@ -270,7 +270,7 @@ func newTransactionTableMigration(
 	ctx context.Context,
 	logger *log.Entry,
 	passphrase string,
-	ledgerSeqRange *LedgerSeqRange,
+	ledgerSeqRange LedgerSeqRange,
 ) migrationApplierFactory {
 	return migrationApplierFactoryF(func(db *DB) (MigrationApplier, error) {
 		// Truncate the table, since it may contain data, causing insert conflicts later on.

@@ -2,6 +2,7 @@
 package feewindow
 
 import (
+	"context"
 	"errors"
 	"io"
 	"slices"
@@ -133,9 +134,9 @@ type FeeWindows struct {
 	db                        *db.DB
 }
 
-func NewFeeWindows(classicRetention uint32, sorobanRetetion uint32, networkPassPhrase string, db *db.DB) *FeeWindows {
+func NewFeeWindows(classicRetention uint32, sorobanRetention uint32, networkPassPhrase string, db *db.DB) *FeeWindows {
 	return &FeeWindows{
-		SorobanInclusionFeeWindow: NewFeeWindow(sorobanRetetion),
+		SorobanInclusionFeeWindow: NewFeeWindow(sorobanRetention),
 		ClassicFeeWindow:          NewFeeWindow(classicRetention),
 		networkPassPhrase:         networkPassPhrase,
 		db:                        db,
@@ -151,7 +152,7 @@ func (fw *FeeWindows) IngestFees(meta xdr.LedgerCloseMeta) error {
 	var classicFees []uint64
 	for {
 		tx, err := reader.Read()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -164,7 +165,7 @@ func (fw *FeeWindows) IngestFees(meta xdr.LedgerCloseMeta) error {
 			continue
 		}
 		if len(ops) == 1 {
-			switch ops[0].Body.Type {
+			switch ops[0].Body.Type { //nolint:exhaustive
 			case xdr.OperationTypeInvokeHostFunction, xdr.OperationTypeExtendFootprintTtl, xdr.OperationTypeRestoreFootprint:
 				if tx.UnsafeMeta.V != 3 || tx.UnsafeMeta.V3.SorobanMeta == nil || tx.UnsafeMeta.V3.SorobanMeta.Ext.V != 1 {
 					continue
@@ -194,3 +195,35 @@ func (fw *FeeWindows) IngestFees(meta xdr.LedgerCloseMeta) error {
 	}
 	return nil
 }
+
+func (fw *FeeWindows) AsMigration(seqRange db.LedgerSeqRange) db.Migration {
+	return &feeWindowMigration{
+		firstLedger: seqRange.First,
+		lastLedger:  seqRange.Last,
+		windows:     fw,
+	}
+}
+
+type feeWindowMigration struct {
+	firstLedger uint32
+	lastLedger  uint32
+	windows     *FeeWindows
+}
+
+func (fw *feeWindowMigration) ApplicableRange() db.LedgerSeqRange {
+	return db.LedgerSeqRange{
+		First: fw.firstLedger,
+		Last:  fw.lastLedger,
+	}
+}
+
+func (fw *feeWindowMigration) Apply(_ context.Context, meta xdr.LedgerCloseMeta) error {
+	return fw.windows.IngestFees(meta)
+}
+
+func (fw *feeWindowMigration) Commit(_ context.Context) error {
+	return nil // no-op
+}
+
+// ensure we conform to the migration interface
+var _ db.Migration = &feeWindowMigration{}

@@ -485,15 +485,12 @@ func (e missingRequiredOptionError) Error() string {
 }
 
 func required(option *Option) error {
-	switch reflect.ValueOf(option.ConfigKey).Elem().Kind() {
-	case reflect.Slice:
-		if reflect.ValueOf(option.ConfigKey).Elem().Len() > 0 {
-			return nil
-		}
-	default:
-		if !reflect.ValueOf(option.ConfigKey).Elem().IsZero() {
-			return nil
-		}
+	value := reflect.ValueOf(option.ConfigKey).Elem()
+
+	isSet := value.Kind() == reflect.Slice && value.Len() > 0 || value.Kind() != reflect.Slice && !value.IsZero()
+
+	if isSet {
+		return nil
 	}
 
 	var waysToSet []string
