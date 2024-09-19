@@ -36,6 +36,10 @@ endif
 # (libpreflight.a is put at target/release-with-panic-unwind/ when not cross compiling)
 CARGO_BUILD_TARGET ?= $(shell rustc -vV | sed -n 's|host: ||p')
 
+SOROBAN_RPC_BINARY := soroban-rpc
+STELLAR_RPC_BINARY := stellar-rpc
+
+
 # update the Cargo.lock every time the Cargo.toml changes.
 Cargo.lock: Cargo.toml
 	cargo update --workspace
@@ -77,11 +81,19 @@ clean:
 	cargo clean
 	go clean ./...
 
+# DEPRECATED - please use build-stellar-rpc instead
 # the build-soroban-rpc build target is an optimized build target used by
-# https://github.com/stellar/pipelines/stellar-horizon/Jenkinsfile-soroban-rpc-package-builder
+# https://github.com/stellar/pipelines/blob/master/soroban-rpc/Jenkinsfile-soroban-rpc-package-builder
 # as part of the package building.
 build-soroban-rpc: build-libs
-	go build -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} -o soroban-rpc -trimpath -v ./cmd/soroban-rpc
+	go build -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} -o ${SOROBAN_RPC_BINARY} -trimpath -v ./cmd/soroban-rpc
+
+# the build-stellar-rpc build target is an optimized build target used by
+# https://github.com/stellar/pipelines/blob/master/soroban-rpc/Jenkinsfile-soroban-rpc-package-builder
+# as part of the package building.
+build-stellar-rpc: build-libs
+	go build -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} -o ${STELLAR_RPC_BINARY} -trimpath -v ./cmd/soroban-rpc
+
 
 go-check-branch:
 	golangci-lint run ./... --new-from-rev $$(git rev-parse origin/main)
