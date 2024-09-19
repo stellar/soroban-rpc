@@ -58,3 +58,20 @@ func transactionToJSON(tx db.Transaction) (
 
 	return result, envelope, resultMeta, nil
 }
+
+func ledgerToJSON(meta, header []byte) ([]byte, []byte, error) {
+	var err error
+	var closeMetaJSON, headerJSON []byte
+
+	closeMetaJSON, err = xdr2json.ConvertBytes(xdr.LedgerCloseMeta{}, meta)
+	if err != nil {
+		return closeMetaJSON, headerJSON, err
+	}
+
+	headerJSON, err = xdr2json.ConvertBytes(xdr.LedgerHeaderHistoryEntry{}, header)
+	if err != nil {
+		return closeMetaJSON, headerJSON, err
+	}
+
+	return closeMetaJSON, headerJSON, nil
+}
