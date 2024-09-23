@@ -22,12 +22,14 @@ type GetLedgersRequest struct {
 	Format      string                         `json:"xdrFormat,omitempty"`
 }
 
-func (req *GetLedgersRequest) isValid(maxLimit uint, ledgerRange ledgerbucketwindow.LedgerRange) error {
-	if req.Pagination != nil && req.Pagination.Cursor != "" {
+// validate checks the validity of the request parameters.
+func (req *GetLedgersRequest) validate(maxLimit uint, ledgerRange ledgerbucketwindow.LedgerRange) error {
+	switch {
+	case req.Pagination != nil && req.Pagination.Cursor != "":
 		if req.StartLedger != 0 {
 			return errors.New("startLedger and cursor cannot both be set")
 		}
-	} else if req.StartLedger < ledgerRange.FirstLedger.Sequence || req.StartLedger > ledgerRange.LastLedger.Sequence {
+	case req.StartLedger < ledgerRange.FirstLedger.Sequence || req.StartLedger > ledgerRange.LastLedger.Sequence:
 		return fmt.Errorf(
 			"start ledger must be between the oldest ledger: %d and the latest ledger: %d for this rpc instance",
 			ledgerRange.FirstLedger.Sequence,
@@ -80,7 +82,8 @@ func NewGetLedgersHandler(ledgerReader db.LedgerReader, maxLimit, defaultLimit u
 	}).getLedgers)
 }
 
-func (h *ledgersHandler) getLedgers(ctx context.Context, request GetLedgersRequest) (GetLedgersResponse, error) {
+// getLedgers fetch ledgers and relevant metadata from DB.
+func (h ledgersHandler) getLedgers(ctx context.Context, request GetLedgersRequest) (GetLedgersResponse, error) {
 	ledgerRange, err := h.ledgerReader.GetLedgerRange(ctx)
 	if err != nil {
 		return GetLedgersResponse{}, &jrpc2.Error{
@@ -89,8 +92,9 @@ func (h *ledgersHandler) getLedgers(ctx context.Context, request GetLedgersReque
 		}
 	}
 
-	if err := request.isValid(h.maxLimit, ledgerRange); err != nil {
+	if err := request.validate(h.maxLimit, ledgerRange); err != nil {
 		return GetLedgersResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InvalidRequest,
 			Message: err.Error(),
 		}
 	}
@@ -98,15 +102,14 @@ func (h *ledgersHandler) getLedgers(ctx context.Context, request GetLedgersReque
 	start, limit, err := h.initializePagination(request)
 	if err != nil {
 		return GetLedgersResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InvalidParams,
 			Message: err.Error(),
 		}
 	}
 
 	ledgers, err := h.fetchLedgers(ctx, start, limit, request.Format)
 	if err != nil {
-		return GetLedgersResponse{}, &jrpc2.Error{
-			Message: err.Error(),
-		}
+		return GetLedgersResponse{}, err
 	}
 	cursor := strconv.FormatUint(uint64(ledgers[len(ledgers)-1].Sequence), 10)
 
@@ -120,16 +123,15 @@ func (h *ledgersHandler) getLedgers(ctx context.Context, request GetLedgersReque
 	}, nil
 }
 
-func (h *ledgersHandler) initializePagination(request GetLedgersRequest) (uint32, uint, error) {
+// initializePagination parses the request pagination details initializes the cursor.
+func (h ledgersHandler) initializePagination(request GetLedgersRequest) (uint32, uint, error) {
 	start := request.StartLedger
 	limit := h.defaultLimit
 	if request.Pagination != nil {
 		if request.Pagination.Cursor != "" {
 			cursorInt, err := strconv.ParseUint(request.Pagination.Cursor, 10, 32)
 			if err != nil {
-				return 0, 0, &jrpc2.Error{
-					Message: err.Error(),
-				}
+				return 0, 0, err
 			}
 			start = uint32(cursorInt) + 1
 		}
@@ -140,28 +142,40 @@ func (h *ledgersHandler) initializePagination(request GetLedgersRequest) (uint32
 	return start, limit, nil
 }
 
-func (h *ledgersHandler) fetchLedgers(ctx context.Context, start uint32,
+// fetchLedgers fetches ledgers from the DB beginning with the start request ledger until the max request limit.
+func (h ledgersHandler) fetchLedgers(ctx context.Context, start uint32,
 	limit uint, format string,
 ) ([]LedgerResponse, error) {
-	var ledgers []LedgerResponse
-	for seq := start; uint(len(ledgers)) < limit; seq++ {
-		ledger, found, err := h.ledgerReader.GetLedger(ctx, seq)
+	ledgers := make([]LedgerResponse, 0, limit)
+	for ledgerSeq := start; uint(len(ledgers)) < limit; ledgerSeq++ {
+		ledger, found, err := h.ledgerReader.GetLedger(ctx, ledgerSeq)
 		if err != nil {
-			return nil, err
+			return nil, &jrpc2.Error{
+				Code:    jrpc2.InternalError,
+				Message: err.Error(),
+			}
 		}
 		if !found {
-			break
+			return nil, &jrpc2.Error{
+				Code:    jrpc2.InvalidParams,
+				Message: fmt.Sprintf("database does not contain metadata for ledger: %d", ledgerSeq),
+			}
 		}
-		ledgerResponse, err := h.convertLedger(ledger, format)
+
+		ledgerResponse, err := h.getMetaAndHeaderInfo(ledger, format)
 		if err != nil {
-			return nil, err
+			return nil, &jrpc2.Error{
+				Code:    jrpc2.InternalError,
+				Message: err.Error(),
+			}
 		}
 		ledgers = append(ledgers, ledgerResponse)
 	}
 	return ledgers, nil
 }
 
-func (h *ledgersHandler) convertLedger(ledger xdr.LedgerCloseMeta, format string) (LedgerResponse, error) {
+// getMetaAndHeaderInfo extracts and formats the ledger metadata and header information.
+func (h ledgersHandler) getMetaAndHeaderInfo(ledger xdr.LedgerCloseMeta, format string) (LedgerResponse, error) {
 	ledgerResponse := LedgerResponse{
 		Hash:            ledger.LedgerHash().HexString(),
 		Sequence:        ledger.LedgerSequence(),
@@ -170,19 +184,21 @@ func (h *ledgersHandler) convertLedger(ledger xdr.LedgerCloseMeta, format string
 
 	closeMetaB, err := ledger.MarshalBinary()
 	if err != nil {
-		return LedgerResponse{}, err
+		return LedgerResponse{}, fmt.Errorf("error marshaling ledger close meta: %w", err)
 	}
 
 	headerB, err := ledger.LedgerHeaderHistoryEntry().MarshalBinary()
 	if err != nil {
-		return LedgerResponse{}, err
+		return LedgerResponse{}, fmt.Errorf("error marshaling ledger header: %w", err)
 	}
 
+	// Format the data according to the requested format (JSON or XDR)
 	switch format {
 	case FormatJSON:
 		closeMetaJSON, headerJSON, convErr := ledgerToJSON(closeMetaB, headerB)
 		if convErr != nil {
-			return LedgerResponse{}, convErr
+			return LedgerResponse{}, fmt.Errorf("could not convert ledger metadata and "+
+				"header to JSON: %v", convErr)
 		}
 		ledgerResponse.LedgerCloseMetaJSON = closeMetaJSON
 		ledgerResponse.LedgerHeaderJSON = headerJSON

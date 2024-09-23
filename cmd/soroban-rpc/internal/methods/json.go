@@ -65,12 +65,12 @@ func ledgerToJSON(meta, header []byte) ([]byte, []byte, error) {
 
 	closeMetaJSON, err = xdr2json.ConvertBytes(xdr.LedgerCloseMeta{}, meta)
 	if err != nil {
-		return closeMetaJSON, headerJSON, err
+		return nil, nil, err
 	}
 
 	headerJSON, err = xdr2json.ConvertBytes(xdr.LedgerHeaderHistoryEntry{}, header)
 	if err != nil {
-		return closeMetaJSON, headerJSON, err
+		return nil, nil, err
 	}
 
 	return closeMetaJSON, headerJSON, nil
