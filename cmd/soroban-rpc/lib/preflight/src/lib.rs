@@ -50,7 +50,8 @@ mod prev {
     pub(crate) mod shared;
 
     pub(crate) const PROTOCOL: u32 = soroban_env_host::meta::get_ledger_protocol_version(
-        soroban_env_host::meta::INTERFACE_VERSION);
+        soroban_env_host::meta::INTERFACE_VERSION,
+    );
 }
 
 use std::cell::RefCell;
