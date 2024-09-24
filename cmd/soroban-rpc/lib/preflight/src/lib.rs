@@ -38,6 +38,8 @@ mod curr {
     pub(crate) use soroban_simulation_curr as soroban_simulation;
     #[allow(clippy::duplicate_mod)]
     pub(crate) mod shared;
+
+    pub(crate) const PROTOCOL: u32 = soroban_env_host::meta::INTERFACE_VERSION.protocol;
 }
 
 #[path = "."]
@@ -46,6 +48,9 @@ mod prev {
     pub(crate) use soroban_simulation_prev as soroban_simulation;
     #[allow(clippy::duplicate_mod)]
     pub(crate) mod shared;
+
+    pub(crate) const PROTOCOL: u32 = soroban_env_host::meta::get_ledger_protocol_version(
+        soroban_env_host::meta::INTERFACE_VERSION);
 }
 
 use std::cell::RefCell;
@@ -164,7 +169,7 @@ pub extern "C" fn preflight_invoke_hf_op(
 ) -> *mut CPreflightResult {
     let proto = ledger_info.protocol_version;
     catch_preflight_panic(Box::new(move || {
-        if proto <= prev::shared::PROTOCOL {
+        if proto <= prev::PROTOCOL {
             prev::shared::preflight_invoke_hf_op_or_maybe_panic(
                 handle,
                 invoke_hf_op,
@@ -173,7 +178,7 @@ pub extern "C" fn preflight_invoke_hf_op(
                 resource_config,
                 enable_debug,
             )
-        } else if proto == curr::shared::PROTOCOL {
+        } else if proto == curr::PROTOCOL {
             curr::shared::preflight_invoke_hf_op_or_maybe_panic(
                 handle,
                 invoke_hf_op,
@@ -197,14 +202,14 @@ pub extern "C" fn preflight_footprint_ttl_op(
 ) -> *mut CPreflightResult {
     let proto = ledger_info.protocol_version;
     catch_preflight_panic(Box::new(move || {
-        if proto <= prev::shared::PROTOCOL {
+        if proto <= prev::PROTOCOL {
             prev::shared::preflight_footprint_ttl_op_or_maybe_panic(
                 handle,
                 op_body,
                 footprint,
                 ledger_info,
             )
-        } else if proto == curr::shared::PROTOCOL {
+        } else if proto == curr::PROTOCOL {
             curr::shared::preflight_footprint_ttl_op_or_maybe_panic(
                 handle,
                 op_body,

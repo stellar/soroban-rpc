@@ -18,7 +18,7 @@ use super::soroban_env_host::xdr::{
     LedgerFootprint, LedgerKey, LedgerKeyTtl, OperationBody, ReadXdr, ScErrorCode, ScErrorType,
     SorobanTransactionData, TtlEntry, WriteXdr,
 };
-use super::soroban_env_host::{meta, HostError, LedgerInfo, DEFAULT_XDR_RW_LIMITS};
+use super::soroban_env_host::{HostError, LedgerInfo, DEFAULT_XDR_RW_LIMITS};
 use super::soroban_simulation::simulation::{
     simulate_extend_ttl_op, simulate_invoke_host_function_op, simulate_restore_op,
     InvokeHostFunctionSimulationResult, LedgerEntryDiff, RestoreOpSimulationResult,
@@ -40,8 +40,6 @@ use crate::{
 use std::convert::TryFrom;
 use std::ptr::null_mut;
 use std::rc::Rc;
-
-pub(crate) const PROTOCOL: u32 = meta::get_ledger_protocol_version(meta::INTERFACE_VERSION);
 
 fn fill_ledger_info(c_ledger_info: CLedgerInfo, network_config: &NetworkConfig) -> LedgerInfo {
     let network_passphrase = unsafe { from_c_string(c_ledger_info.network_passphrase) };
