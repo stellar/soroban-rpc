@@ -22,10 +22,6 @@ ifndef STELLAR_CORE_VERSION
         $(error STELLAR_CORE_VERSION environment variable must be set. For example 19.10.1-1310.6649f5173.focal~soroban)
 endif
 
-BINARY_NAME ?= soroban-rpc
-TAG ?= stellar/stellar-soroban-rpc:$(SOROBAN_RPC_VERSION_PACKAGE_VERSION)
-
-
 # Set default value for BINARY_NAME if not provided
 BINARY_NAME ?= soroban-rpc
 
