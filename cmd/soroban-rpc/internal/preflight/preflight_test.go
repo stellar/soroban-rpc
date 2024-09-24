@@ -26,7 +26,7 @@ var (
 var contractCostParams = func() *xdr.ContractCostParams {
 	var result xdr.ContractCostParams
 
-	for i := 0; i < 23; i++ {
+	for i := range 23 {
 		result = append(result, xdr.ContractCostParamEntry{
 			Ext:        xdr.ExtensionPoint{},
 			ConstTerm:  xdr.Int64((i + 1) * 10),
@@ -294,6 +294,24 @@ func (m inMemoryLedgerEntryReadTx) Done() error {
 	return nil
 }
 
+func createLedger(ledgerSequence uint32) xdr.LedgerCloseMeta {
+	return xdr.LedgerCloseMeta{
+		V: 1,
+		V1: &xdr.LedgerCloseMetaV1{
+			LedgerHeader: xdr.LedgerHeaderHistoryEntry{
+				Hash: xdr.Hash{},
+				Header: xdr.LedgerHeader{
+					LedgerSeq: xdr.Uint32(ledgerSequence),
+				},
+			},
+			TxSet: xdr.GeneralizedTransactionSet{
+				V:       1,
+				V1TxSet: &xdr.TransactionSetV1{},
+			},
+		},
+	}
+}
+
 func getDB(t testing.TB, restartDB bool) *db.DB {
 	dbPath := path.Join(t.TempDir(), "soroban_rpc.sqlite")
 	dbInstance, err := db.OpenSQLiteDB(dbPath)
@@ -308,7 +326,9 @@ func getDB(t testing.TB, restartDB bool) *db.DB {
 		err := tx.LedgerEntryWriter().UpsertLedgerEntry(e)
 		require.NoError(t, err)
 	}
-	require.NoError(t, tx.Commit(2))
+	ledgerCloseMeta := createLedger(uint32(2))
+	require.NoError(t, tx.LedgerWriter().InsertLedger(ledgerCloseMeta))
+	require.NoError(t, tx.Commit(ledgerCloseMeta))
 
 	if restartDB {
 		// Restarting the DB resets the ledger entries write-through cache
@@ -330,9 +350,9 @@ func getPreflightParameters(t testing.TB, dbConfig *preflightParametersDBConfig)
 		entryReader := db.NewLedgerEntryReader(dbConfig.dbInstance)
 		var err error
 		if dbConfig.disableCache {
-			ledgerEntryReadTx, err = entryReader.NewTx(context.Background())
+			ledgerEntryReadTx, err = entryReader.NewTx(context.Background(), false)
 		} else {
-			ledgerEntryReadTx, err = entryReader.NewCachedTx(context.Background())
+			ledgerEntryReadTx, err = entryReader.NewTx(context.Background(), true)
 		}
 		require.NoError(t, err)
 	} else {
@@ -456,6 +476,10 @@ func benchmark(b *testing.B, config benchmarkConfig) {
 func BenchmarkGetPreflight(b *testing.B) {
 	b.Run("In-memory storage", func(b *testing.B) { benchmark(b, benchmarkConfig{}) })
 	b.Run("DB storage", func(b *testing.B) { benchmark(b, benchmarkConfig{useDB: &benchmarkDBConfig{}}) })
-	b.Run("DB storage, restarting", func(b *testing.B) { benchmark(b, benchmarkConfig{useDB: &benchmarkDBConfig{restart: true}}) })
-	b.Run("DB storage, no cache", func(b *testing.B) { benchmark(b, benchmarkConfig{useDB: &benchmarkDBConfig{disableCache: true}}) })
+	b.Run("DB storage, restarting", func(b *testing.B) {
+		benchmark(b, benchmarkConfig{useDB: &benchmarkDBConfig{restart: true}})
+	})
+	b.Run("DB storage, no cache", func(b *testing.B) {
+		benchmark(b, benchmarkConfig{useDB: &benchmarkDBConfig{disableCache: true}})
+	})
 }

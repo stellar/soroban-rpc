@@ -1,3 +1,4 @@
+//nolint:revive
 package db
 
 import (
@@ -27,8 +28,7 @@ var sqlMigrations embed.FS
 var ErrEmptyDB = errors.New("DB is empty")
 
 const (
-	metaTableName               = "metadata"
-	latestLedgerSequenceMetaKey = "LatestLedgerSequence"
+	metaTableName = "metadata"
 )
 
 type ReadWriter interface {
@@ -42,13 +42,14 @@ type WriteTx interface {
 	LedgerEntryWriter() LedgerEntryWriter
 	LedgerWriter() LedgerWriter
 
-	Commit(ledgerSeq uint32) error
+	Commit(ledgerCloseMeta xdr.LedgerCloseMeta) error
 	Rollback() error
 }
 
 type dbCache struct {
-	latestLedgerSeq uint32
-	ledgerEntries   transactionalCache // Just like the DB: compress-encoded ledger key -> ledger entry XDR
+	latestLedgerSeq       uint32
+	latestLedgerCloseTime int64
+	ledgerEntries         transactionalCache // Just like the DB: compress-encoded ledger key -> ledger entry XDR
 	sync.RWMutex
 }
 
@@ -62,7 +63,8 @@ func openSQLiteDB(dbFilePath string) (*db.Session, error) {
 	// 2. Disable WAL auto-checkpointing (we will do the checkpointing ourselves with wal_checkpoint pragmas
 	//    after every write transaction).
 	// 3. Use synchronous=NORMAL, which is faster and still safe in WAL mode.
-	session, err := db.Open("sqlite3", fmt.Sprintf("file:%s?_journal_mode=WAL&_wal_autocheckpoint=0&_synchronous=NORMAL", dbFilePath))
+	session, err := db.Open("sqlite3",
+		fmt.Sprintf("file:%s?_journal_mode=WAL&_wal_autocheckpoint=0&_synchronous=NORMAL", dbFilePath))
 	if err != nil {
 		return nil, fmt.Errorf("open failed: %w", err)
 	}
@@ -74,7 +76,9 @@ func openSQLiteDB(dbFilePath string) (*db.Session, error) {
 	return session, nil
 }
 
-func OpenSQLiteDBWithPrometheusMetrics(dbFilePath string, namespace string, sub db.Subservice, registry *prometheus.Registry) (*DB, error) {
+func OpenSQLiteDBWithPrometheusMetrics(dbFilePath string, namespace string, sub db.Subservice,
+	registry *prometheus.Registry,
+) (*DB, error) {
 	session, err := openSQLiteDB(dbFilePath)
 	if err != nil {
 		return nil, err
@@ -129,33 +133,38 @@ func getMetaValue(ctx context.Context, q db.SessionInterface, key string) (strin
 	case 1:
 		// expected length on an initialized DB
 	default:
-		return "", fmt.Errorf("multiple entries (%d) for key %q in table %q", len(results), latestLedgerSequenceMetaKey, metaTableName)
+		return "", fmt.Errorf("multiple entries (%d) for key %q in table %q",
+			len(results), key, metaTableName)
 	}
 	return results[0], nil
 }
 
-func getLatestLedgerSequence(ctx context.Context, q db.SessionInterface, cache *dbCache) (uint32, error) {
-	latestLedgerStr, err := getMetaValue(ctx, q, latestLedgerSequenceMetaKey)
-	if err != nil {
-		return 0, err
-	}
-	latestLedger, err := strconv.ParseUint(latestLedgerStr, 10, 32)
-	if err != nil {
-		return 0, err
-	}
-	result := uint32(latestLedger)
+func getLatestLedgerSequence(ctx context.Context, ledgerReader LedgerReader, cache *dbCache) (uint32, error) {
+	cache.RLock()
+	latestLedgerSeqCache := cache.latestLedgerSeq
+	cache.RUnlock()
 
-	// Add missing ledger sequence to the top cache.
+	if latestLedgerSeqCache != 0 {
+		return latestLedgerSeqCache, nil
+	}
+
+	ledgerRange, err := ledgerReader.GetLedgerRange(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	// Add missing ledger sequence and close time to the top cache.
 	// Otherwise, the write-through cache won't get updated until the first ingestion commit
 	cache.Lock()
 	if cache.latestLedgerSeq == 0 {
 		// Only update the cache if the value is missing (0), otherwise
 		// we may end up overwriting the entry with an older version
-		cache.latestLedgerSeq = result
+		cache.latestLedgerSeq = ledgerRange.LastLedger.Sequence
+		cache.latestLedgerCloseTime = ledgerRange.LastLedger.CloseTime
 	}
 	cache.Unlock()
 
-	return result, nil
+	return ledgerRange.LastLedger.Sequence, nil
 }
 
 type ReadWriterMetrics struct {
@@ -163,11 +172,11 @@ type ReadWriterMetrics struct {
 }
 
 type readWriter struct {
-	log                   *log.Entry
-	db                    *DB
-	maxBatchSize          int
-	ledgerRetentionWindow uint32
-	passphrase            string
+	log                    *log.Entry
+	db                     *DB
+	maxBatchSize           int
+	historyRetentionWindow uint32
+	passphrase             string
 
 	metrics ReadWriterMetrics
 }
@@ -181,7 +190,7 @@ func NewReadWriter(
 	db *DB,
 	daemon interfaces.Daemon,
 	maxBatchSize int,
-	ledgerRetentionWindow uint32,
+	historyRetentionWindow uint32,
 	networkPassphrase string,
 ) ReadWriter {
 	// a metric for measuring latency of transaction store operations
@@ -189,7 +198,7 @@ func NewReadWriter(
 		Namespace: daemon.MetricsNamespace(), Subsystem: "transactions",
 		Name:       "operation_duration_seconds",
 		Help:       "transaction store operation durations, sliding window = 10m",
-		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}, //nolint:mnd
 	},
 		[]string{"operation"},
 	)
@@ -197,17 +206,17 @@ func NewReadWriter(
 		Namespace: daemon.MetricsNamespace(), Subsystem: "transactions",
 		Name:       "count",
 		Help:       "count of transactions ingested, sliding window = 10m",
-		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}, //nolint:mnd
 	})
 
 	daemon.MetricsRegistry().MustRegister(txDurationMetric, txCountMetric)
 
 	return &readWriter{
-		log:                   log,
-		db:                    db,
-		maxBatchSize:          maxBatchSize,
-		ledgerRetentionWindow: ledgerRetentionWindow,
-		passphrase:            networkPassphrase,
+		log:                    log,
+		db:                     db,
+		maxBatchSize:           maxBatchSize,
+		historyRetentionWindow: historyRetentionWindow,
+		passphrase:             networkPassphrase,
 		metrics: ReadWriterMetrics{
 			TxIngestDuration: txDurationMetric.With(prometheus.Labels{"operation": "ingest"}),
 			TxCount:          txCountMetric,
@@ -216,7 +225,7 @@ func NewReadWriter(
 }
 
 func (rw *readWriter) GetLatestLedgerSequence(ctx context.Context) (uint32, error) {
-	return getLatestLedgerSequence(ctx, rw.db, rw.db.cache)
+	return getLatestLedgerSequence(ctx, NewLedgerReader(rw.db), rw.db.cache)
 }
 
 func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
@@ -234,10 +243,10 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 			_, err := db.ExecRaw(ctx, "PRAGMA wal_checkpoint(TRUNCATE)")
 			return err
 		},
-		tx:                    txSession,
-		stmtCache:             stmtCache,
-		ledgerRetentionWindow: rw.ledgerRetentionWindow,
-		ledgerWriter:          ledgerWriter{stmtCache: stmtCache},
+		tx:                     txSession,
+		stmtCache:              stmtCache,
+		historyRetentionWindow: rw.historyRetentionWindow,
+		ledgerWriter:           ledgerWriter{stmtCache: stmtCache},
 		ledgerEntryWriter: ledgerEntryWriter{
 			stmtCache:               stmtCache,
 			buffer:                  xdr.NewEncodingBuffer(),
@@ -266,15 +275,15 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 }
 
 type writeTx struct {
-	globalCache           *dbCache
-	postCommit            func() error
-	tx                    db.SessionInterface
-	stmtCache             *sq.StmtCache
-	ledgerEntryWriter     ledgerEntryWriter
-	ledgerWriter          ledgerWriter
-	txWriter              transactionHandler
-	eventWriter           eventHandler
-	ledgerRetentionWindow uint32
+	globalCache            *dbCache
+	postCommit             func() error
+	tx                     db.SessionInterface
+	stmtCache              *sq.StmtCache
+	ledgerEntryWriter      ledgerEntryWriter
+	ledgerWriter           ledgerWriter
+	txWriter               transactionHandler
+	eventWriter            eventHandler
+	historyRetentionWindow uint32
 }
 
 func (w writeTx) LedgerEntryWriter() LedgerEntryWriter {
@@ -293,27 +302,22 @@ func (w writeTx) EventWriter() EventWriter {
 	return &w.eventWriter
 }
 
-func (w writeTx) Commit(ledgerSeq uint32) error {
+func (w writeTx) Commit(ledgerCloseMeta xdr.LedgerCloseMeta) error {
+	ledgerSeq := ledgerCloseMeta.LedgerSequence()
+	ledgerCloseTime := ledgerCloseMeta.LedgerCloseTime()
+
 	if err := w.ledgerEntryWriter.flush(); err != nil {
 		return err
 	}
 
-	if err := w.ledgerWriter.trimLedgers(ledgerSeq, w.ledgerRetentionWindow); err != nil {
+	if err := w.ledgerWriter.trimLedgers(ledgerSeq, w.historyRetentionWindow); err != nil {
 		return err
 	}
-	if err := w.txWriter.trimTransactions(ledgerSeq, w.ledgerRetentionWindow); err != nil {
-		return err
-	}
-
-	if err := w.eventWriter.trimEvents(ledgerSeq, w.ledgerRetentionWindow); err != nil {
+	if err := w.txWriter.trimTransactions(ledgerSeq, w.historyRetentionWindow); err != nil {
 		return err
 	}
 
-	_, err := sq.Replace(metaTableName).
-		Values(latestLedgerSequenceMetaKey, strconv.FormatUint(uint64(ledgerSeq), 10)).
-		RunWith(w.stmtCache).
-		Exec()
-	if err != nil {
+	if err := w.eventWriter.trimEvents(ledgerSeq, w.historyRetentionWindow); err != nil {
 		return err
 	}
 
@@ -323,10 +327,11 @@ func (w writeTx) Commit(ledgerSeq uint32) error {
 	commitAndUpdateCache := func() error {
 		w.globalCache.Lock()
 		defer w.globalCache.Unlock()
-		if err = w.tx.Commit(); err != nil {
+		if err := w.tx.Commit(); err != nil {
 			return err
 		}
 		w.globalCache.latestLedgerSeq = ledgerSeq
+		w.globalCache.latestLedgerCloseTime = ledgerCloseTime
 		w.ledgerEntryWriter.ledgerEntryCacheWriteTx.commit()
 		return nil
 	}
@@ -341,11 +346,11 @@ func (w writeTx) Rollback() error {
 	// errors.New("not in transaction") is returned when rolling back a transaction which has
 	// already been committed or rolled back. We can ignore those errors
 	// because we allow rolling back after commits in defer statements.
-	if err := w.tx.Rollback(); err == nil || err.Error() == "not in transaction" {
+	var err error
+	if err = w.tx.Rollback(); err == nil || err.Error() == "not in transaction" {
 		return nil
-	} else {
-		return err
 	}
+	return err
 }
 
 func runSQLMigrations(db *sql.DB, dialect string) error {

@@ -2,7 +2,10 @@ package ingest
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
+	"reflect"
 	"strings"
 	"time"
 
@@ -14,14 +17,16 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
-func (s *Service) ingestLedgerEntryChanges(ctx context.Context, reader ingest.ChangeReader, tx db.WriteTx, progressLogPeriod int) error {
+func (s *Service) ingestLedgerEntryChanges(ctx context.Context, reader ingest.ChangeReader,
+	tx db.WriteTx, progressLogPeriod int,
+) error {
 	entryCount := 0
 	startTime := time.Now()
 	writer := tx.LedgerEntryWriter()
 
 	changeStatsProcessor := ingest.StatsChangeProcessor{}
 	for ctx.Err() == nil {
-		if change, err := reader.Read(); err == io.EOF {
+		if change, err := reader.Read(); errors.Is(err, io.EOF) {
 			return nil
 		} else if err != nil {
 			return err
@@ -39,8 +44,14 @@ func (s *Service) ingestLedgerEntryChanges(ctx context.Context, reader ingest.Ch
 	results := changeStatsProcessor.GetResults()
 	for stat, value := range results.Map() {
 		stat = strings.Replace(stat, "stats_", "change_", 1)
-		s.metrics.ledgerStatsMetric.
-			With(prometheus.Labels{"type": stat}).Add(float64(value.(int64)))
+		if intValue, ok := value.(int64); ok {
+			s.metrics.ledgerStatsMetric.
+				With(prometheus.Labels{"type": stat}).Add(float64(intValue))
+		} else {
+			// Handle the case where the type assertion failed
+			return fmt.Errorf("unexpected type for ledger stats metric. Expected int64, "+
+				"got %s", reflect.TypeOf(value))
+		}
 	}
 	s.metrics.ingestionDurationMetric.
 		With(prometheus.Labels{"type": "ledger_entries"}).Observe(time.Since(startTime).Seconds())
@@ -82,7 +93,6 @@ func ingestLedgerEntryChange(writer db.LedgerEntryWriter, change ingest.Change) 
 			return err
 		}
 		return writer.DeleteLedgerEntry(ledgerKey)
-	} else {
-		return writer.UpsertLedgerEntry(*change.Post)
 	}
+	return writer.UpsertLedgerEntry(*change.Post)
 }

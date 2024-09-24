@@ -9,7 +9,7 @@ import (
 	proto "github.com/stellar/go/protocols/stellarcore"
 )
 
-// The noOpDeamon is a dummy daemon implementation, supporting the Daemon interface.
+// NoOpDaemon The noOpDeamon is a dummy daemon implementation, supporting the Daemon interface.
 // Used only in testing.
 type NoOpDaemon struct {
 	metricsRegistry  *prometheus.Registry

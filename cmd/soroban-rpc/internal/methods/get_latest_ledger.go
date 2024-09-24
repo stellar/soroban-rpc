@@ -20,18 +20,7 @@ type GetLatestLedgerResponse struct {
 // NewGetLatestLedgerHandler returns a JSON RPC handler to retrieve the latest ledger entry from Stellar core.
 func NewGetLatestLedgerHandler(ledgerEntryReader db.LedgerEntryReader, ledgerReader db.LedgerReader) jrpc2.Handler {
 	return NewHandler(func(ctx context.Context) (GetLatestLedgerResponse, error) {
-		tx, err := ledgerEntryReader.NewTx(ctx)
-		if err != nil {
-			return GetLatestLedgerResponse{}, &jrpc2.Error{
-				Code:    jrpc2.InternalError,
-				Message: "could not create read transaction",
-			}
-		}
-		defer func() {
-			_ = tx.Done()
-		}()
-
-		latestSequence, err := tx.GetLatestLedgerSequence()
+		latestSequence, err := ledgerEntryReader.GetLatestLedgerSequence(ctx)
 		if err != nil {
 			return GetLatestLedgerResponse{}, &jrpc2.Error{
 				Code:    jrpc2.InternalError,

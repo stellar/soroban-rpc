@@ -3,7 +3,6 @@ package ingest
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -25,9 +24,11 @@ import (
 
 const (
 	ledgerEntryBaselineProgressLogPeriod = 10000
+	maxRetries                           = 5
 )
 
-var errEmptyArchives = fmt.Errorf("cannot start ingestion without history archives, wait until first history archives are published")
+var errEmptyArchives = errors.New("cannot start ingestion without history archives, " +
+	"wait until first history archives are published")
 
 type Config struct {
 	Logger            *log.Entry
@@ -52,7 +53,7 @@ func newService(cfg Config) *Service {
 	ingestionDurationMetric := prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Namespace: cfg.Daemon.MetricsNamespace(), Subsystem: "ingest", Name: "ledger_ingestion_duration_seconds",
 		Help:       "ledger ingestion durations, sliding window = 10m",
-		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}, //nolint:mnd
 	},
 		[]string{"type"},
 	)
@@ -101,7 +102,7 @@ func startService(service *Service, cfg Config) {
 	panicGroup.Go(func() {
 		defer service.wg.Done()
 		// Retry running ingestion every second for 5 seconds.
-		constantBackoff := backoff.WithMaxRetries(backoff.NewConstantBackOff(1*time.Second), 5)
+		constantBackoff := backoff.WithMaxRetries(backoff.NewConstantBackOff(1*time.Second), maxRetries)
 		// Don't want to keep retrying if the context gets canceled.
 		contextBackoff := backoff.WithContext(constantBackoff, ctx)
 		err := backoff.RetryNotify(
@@ -165,23 +166,27 @@ func (s *Service) run(ctx context.Context, archive historyarchive.ArchiveInterfa
 	}
 }
 
-func (s *Service) maybeFillEntriesFromCheckpoint(ctx context.Context, archive historyarchive.ArchiveInterface) (uint32, chan error, error) {
+func (s *Service) maybeFillEntriesFromCheckpoint(ctx context.Context,
+	archive historyarchive.ArchiveInterface,
+) (uint32, chan error, error) {
 	checkPointFillErr := make(chan error, 1)
 	// Skip creating a ledger-entry baseline if the DB was initialized
 	curLedgerSeq, err := s.db.GetLatestLedgerSequence(ctx)
-	if err == db.ErrEmptyDB {
+	if errors.Is(err, db.ErrEmptyDB) {
 		var checkpointLedger uint32
-		if root, rootErr := archive.GetRootHAS(); rootErr != nil {
+		root, rootErr := archive.GetRootHAS()
+		if rootErr != nil {
 			return 0, checkPointFillErr, rootErr
-		} else if root.CurrentLedger == 0 {
-			return 0, checkPointFillErr, errEmptyArchives
-		} else {
-			checkpointLedger = root.CurrentLedger
 		}
+		if root.CurrentLedger == 0 {
+			return 0, checkPointFillErr, errEmptyArchives
+		}
+		checkpointLedger = root.CurrentLedger
 
 		// DB is empty, let's fill it from the History Archive, using the latest available checkpoint
 		// Do it in parallel with the upcoming captive core preparation to save time
-		s.logger.Infof("found an empty database, creating ledger-entry baseline from the most recent checkpoint (%d). This can take up to 30 minutes, depending on the network", checkpointLedger)
+		s.logger.Infof("found an empty database, creating ledger-entry baseline from the most recent "+
+			"checkpoint (%d). This can take up to 30 minutes, depending on the network", checkpointLedger)
 		panicGroup := util.UnrecoverablePanicGroup.Log(s.logger)
 		panicGroup.Go(func() {
 			checkPointFillErr <- s.fillEntriesFromCheckpoint(ctx, archive, checkpointLedger)
@@ -189,18 +194,19 @@ func (s *Service) maybeFillEntriesFromCheckpoint(ctx context.Context, archive hi
 		return checkpointLedger + 1, checkPointFillErr, nil
 	} else if err != nil {
 		return 0, checkPointFillErr, err
-	} else {
-		checkPointFillErr <- nil
-		nextLedgerSeq := curLedgerSeq + 1
-		prepareRangeCtx, cancelPrepareRange := context.WithTimeout(ctx, s.timeout)
-		defer cancelPrepareRange()
-		return nextLedgerSeq,
-			checkPointFillErr,
-			s.ledgerBackend.PrepareRange(prepareRangeCtx, backends.UnboundedRange(nextLedgerSeq))
 	}
+	checkPointFillErr <- nil
+	nextLedgerSeq := curLedgerSeq + 1
+	prepareRangeCtx, cancelPrepareRange := context.WithTimeout(ctx, s.timeout)
+	defer cancelPrepareRange()
+	return nextLedgerSeq,
+		checkPointFillErr,
+		s.ledgerBackend.PrepareRange(prepareRangeCtx, backends.UnboundedRange(nextLedgerSeq))
 }
 
-func (s *Service) fillEntriesFromCheckpoint(ctx context.Context, archive historyarchive.ArchiveInterface, checkpointLedger uint32) error {
+func (s *Service) fillEntriesFromCheckpoint(ctx context.Context, archive historyarchive.ArchiveInterface,
+	checkpointLedger uint32,
+) error {
 	var cancel context.CancelFunc
 	ctx, cancel = context.WithTimeout(ctx, s.timeout)
 	defer cancel()
@@ -225,7 +231,7 @@ func (s *Service) fillEntriesFromCheckpoint(ctx context.Context, archive history
 		if !transactionCommitted {
 			// Internally, we might already have rolled back the transaction. We should
 			// not generate benign error/warning here in case the transaction was already rolled back.
-			if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != supportdb.ErrAlreadyRolledback {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, supportdb.ErrAlreadyRolledback) {
 				s.logger.WithError(rollbackErr).Warn("could not rollback fillEntriesFromCheckpoint write transactions")
 			}
 		}
@@ -241,14 +247,15 @@ func (s *Service) fillEntriesFromCheckpoint(ctx context.Context, archive history
 	if err := <-prepareRangeErr; err != nil {
 		return err
 	}
-	if ledgerCloseMeta, err := s.ledgerBackend.GetLedger(ctx, checkpointLedger); err != nil {
+	var ledgerCloseMeta xdr.LedgerCloseMeta
+	if ledgerCloseMeta, err = s.ledgerBackend.GetLedger(ctx, checkpointLedger); err != nil {
 		return err
 	} else if err = reader.VerifyBucketList(ledgerCloseMeta.BucketListHash()); err != nil {
 		return err
 	}
 
 	s.logger.Info("committing checkpoint ledger entries")
-	err = tx.Commit(checkpointLedger)
+	err = tx.Commit(ledgerCloseMeta)
 	transactionCommitted = true
 	if err != nil {
 		return err
@@ -302,7 +309,7 @@ func (s *Service) ingest(ctx context.Context, sequence uint32) error {
 		return err
 	}
 
-	if err := tx.Commit(sequence); err != nil {
+	if err := tx.Commit(ledgerCloseMeta); err != nil {
 		return err
 	}
 	s.logger.

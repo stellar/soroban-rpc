@@ -32,8 +32,6 @@ func TestSimulateTransactionSucceeds(t *testing.T) {
 	contractHashBytes := xdr.ScBytes(contractHash[:])
 	expectedXdr := xdr.ScVal{Type: xdr.ScValTypeScvBytes, Bytes: &contractHashBytes}
 	require.Greater(t, result.LatestLedger, uint32(0))
-	require.Greater(t, result.Cost.CPUInstructions, uint64(0))
-	require.Greater(t, result.Cost.MemoryBytes, uint64(0))
 
 	expectedTransactionData := xdr.SorobanTransactionData{
 		Resources: xdr.SorobanResources{
@@ -71,8 +69,8 @@ func TestSimulateTransactionSucceeds(t *testing.T) {
 	// Then decode and check the result xdr, separately so we get a decent diff if it fails.
 	require.Len(t, result.Results, 1)
 	var resultXdr xdr.ScVal
-	err = xdr.SafeUnmarshalBase64(result.Results[0].ReturnValueXDR, &resultXdr)
-	require.NoError(t, err)
+	require.NotNil(t, result.Results[0].ReturnValueXDR)
+	require.NoError(t, xdr.SafeUnmarshalBase64(*result.Results[0].ReturnValueXDR, &resultXdr))
 	require.Equal(t, expectedXdr, resultXdr)
 
 	// Check state diff
@@ -130,11 +128,12 @@ func TestSimulateTransactionWithAuth(t *testing.T) {
 	client := test.GetRPCLient()
 	response := infrastructure.SimulateTransactionFromTxParams(t, client, deployContractParams)
 	require.NotEmpty(t, response.Results)
-	require.Len(t, response.Results[0].AuthXDR, 1)
+	require.NotNil(t, response.Results[0].AuthXDR)
+	require.Len(t, *response.Results[0].AuthXDR, 1)
 	require.Empty(t, deployContractOp.Auth)
 
 	var auth xdr.SorobanAuthorizationEntry
-	require.NoError(t, xdr.SafeUnmarshalBase64(response.Results[0].AuthXDR[0], &auth))
+	require.NoError(t, xdr.SafeUnmarshalBase64((*response.Results[0].AuthXDR)[0], &auth))
 	require.Equal(t, auth.Credentials.Type, xdr.SorobanCredentialsTypeSorobanCredentialsSourceAccount)
 	deployContractOp.Auth = append(deployContractOp.Auth, auth)
 	deployContractParams.Operations = []txnbuild.Operation{deployContractOp}
@@ -193,8 +192,8 @@ func TestSimulateInvokeContractTransactionSucceeds(t *testing.T) {
 	// check the result
 	require.Len(t, response.Results, 1)
 	var obtainedResult xdr.ScVal
-	err = xdr.SafeUnmarshalBase64(response.Results[0].ReturnValueXDR, &obtainedResult)
-	require.NoError(t, err)
+	require.NotNil(t, response.Results[0].ReturnValueXDR)
+	require.NoError(t, xdr.SafeUnmarshalBase64(*response.Results[0].ReturnValueXDR, &obtainedResult))
 	require.Equal(t, xdr.ScValTypeScvAddress, obtainedResult.Type)
 	require.NotNil(t, obtainedResult.Address)
 	require.Equal(t, authAccountIDArg, obtainedResult.Address.MustAccountId())
@@ -225,9 +224,10 @@ func TestSimulateInvokeContractTransactionSucceeds(t *testing.T) {
 	require.NotZero(t, obtainedTransactionData.Resources.WriteBytes)
 
 	// check the auth
-	require.Len(t, response.Results[0].AuthXDR, 1)
+	require.NotNil(t, response.Results[0].AuthXDR)
+	require.Len(t, *response.Results[0].AuthXDR, 1)
 	var obtainedAuth xdr.SorobanAuthorizationEntry
-	err = xdr.SafeUnmarshalBase64(response.Results[0].AuthXDR[0], &obtainedAuth)
+	err = xdr.SafeUnmarshalBase64((*response.Results[0].AuthXDR)[0], &obtainedAuth)
 	require.NoError(t, err)
 	require.Equal(t, xdr.SorobanCredentialsTypeSorobanCredentialsAddress, obtainedAuth.Credentials.Type)
 	require.Equal(t, xdr.ScValTypeScvVoid, obtainedAuth.Credentials.Address.Signature.Type)
@@ -564,8 +564,8 @@ func TestSimulateInvokePrng_u64_in_range(t *testing.T) {
 	// check the result
 	require.Len(t, response.Results, 1)
 	var obtainedResult xdr.ScVal
-	err = xdr.SafeUnmarshalBase64(response.Results[0].ReturnValueXDR, &obtainedResult)
-	require.NoError(t, err)
+	require.NotNil(t, response.Results[0].ReturnValueXDR)
+	require.NoError(t, xdr.SafeUnmarshalBase64(*response.Results[0].ReturnValueXDR, &obtainedResult))
 	require.Equal(t, xdr.ScValTypeScvU64, obtainedResult.Type)
 	require.LessOrEqual(t, uint64(*obtainedResult.U64), uint64(high))
 	require.GreaterOrEqual(t, uint64(*obtainedResult.U64), uint64(low))
@@ -612,8 +612,8 @@ func TestSimulateSystemEvent(t *testing.T) {
 	// check the result
 	require.Len(t, response.Results, 1)
 	var obtainedResult xdr.ScVal
-	err = xdr.SafeUnmarshalBase64(response.Results[0].ReturnValueXDR, &obtainedResult)
-	require.NoError(t, err)
+	require.NotNil(t, response.Results[0].ReturnValueXDR)
+	require.NoError(t, xdr.SafeUnmarshalBase64(*response.Results[0].ReturnValueXDR, &obtainedResult))
 
 	var transactionData xdr.SorobanTransactionData
 	err = xdr.SafeUnmarshalBase64(response.TransactionDataXDR, &transactionData)

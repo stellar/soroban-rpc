@@ -10,6 +10,10 @@ import (
 	"github.com/stellar/go/toid"
 )
 
+const (
+	numCursorParts = 2
+)
+
 // Cursor represents the position of a Soroban event.
 // Soroban events are sorted in ascending order by
 // ledger sequence, transaction index, operation index,
@@ -65,8 +69,8 @@ func (c *Cursor) UnmarshalJSON(b []byte) error {
 
 // ParseCursor parses the given string and returns the corresponding cursor
 func ParseCursor(input string) (Cursor, error) {
-	parts := strings.SplitN(input, "-", 2)
-	if len(parts) != 2 {
+	parts := strings.SplitN(input, "-", numCursorParts)
+	if len(parts) != numCursorParts {
 		return Cursor{}, fmt.Errorf("invalid event id %s", input)
 	}
 
