@@ -25,6 +25,7 @@ const (
 var ErrNoTransaction = errors.New("no transaction with this hash exists")
 
 type Transaction struct {
+	TransactionHash  string
 	Result           []byte   // XDR encoded xdr.TransactionResult
 	Meta             []byte   // XDR encoded xdr.TransactionMeta
 	Envelope         []byte   // XDR encoded xdr.TransactionEnvelope
@@ -223,6 +224,7 @@ func ParseTransaction(lcm xdr.LedgerCloseMeta, ingestTx ingest.LedgerTransaction
 		Sequence:  lcm.LedgerSequence(),
 		CloseTime: lcm.LedgerCloseTime(),
 	}
+	tx.TransactionHash = ingestTx.Result.TransactionHash.HexString()
 
 	if tx.Result, err = ingestTx.Result.Result.MarshalBinary(); err != nil {
 		return tx, fmt.Errorf("couldn't encode transaction Result: %w", err)
