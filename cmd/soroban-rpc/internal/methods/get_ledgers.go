@@ -23,9 +23,9 @@ func isStartLedgerWithinBounds(startLedger uint32, ledgerRange ledgerbucketwindo
 
 // GetLedgersRequest represents the request parameters for fetching ledgers.
 type GetLedgersRequest struct {
-	StartLedger uint32                         `json:"startLedger"`
-	Pagination  *TransactionsPaginationOptions `json:"pagination,omitempty"`
-	Format      string                         `json:"xdrFormat,omitempty"`
+	StartLedger uint32             `json:"startLedger"`
+	Pagination  *PaginationOptions `json:"pagination,omitempty"`
+	Format      string             `json:"xdrFormat,omitempty"`
 }
 
 // validate checks the validity of the request parameters.
@@ -231,7 +231,7 @@ func (h ledgersHandler) getMetaAndHeaderInfo(ledger xdr.LedgerCloseMeta, format 
 		closeMetaJSON, headerJSON, convErr := ledgerToJSON(closeMetaB, headerB)
 		if convErr != nil {
 			return LedgerInfo{}, fmt.Errorf("could not convert ledger metadata and "+
-				"header to JSON: %v", convErr)
+				"header to JSON: %w", convErr)
 		}
 		ledgerResponse.LedgerCloseMetaJSON = closeMetaJSON
 		ledgerResponse.LedgerHeaderJSON = headerJSON

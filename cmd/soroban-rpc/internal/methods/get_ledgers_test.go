@@ -70,7 +70,7 @@ func TestGetLedgers_CustomLimit(t *testing.T) {
 
 	request := GetLedgersRequest{
 		StartLedger: 1,
-		Pagination: &TransactionsPaginationOptions{
+		Pagination: &PaginationOptions{
 			Limit: 3,
 		},
 	}
@@ -94,7 +94,7 @@ func TestGetLedgers_WithCursor(t *testing.T) {
 	}
 
 	request := GetLedgersRequest{
-		Pagination: &TransactionsPaginationOptions{
+		Pagination: &PaginationOptions{
 			Cursor: "5",
 			Limit:  3,
 		},
@@ -137,7 +137,7 @@ func TestGetLedgers_LimitExceedsMaxLimit(t *testing.T) {
 
 	request := GetLedgersRequest{
 		StartLedger: 1,
-		Pagination: &TransactionsPaginationOptions{
+		Pagination: &PaginationOptions{
 			Limit: 101,
 		},
 	}
@@ -156,7 +156,7 @@ func TestGetLedgers_InvalidCursor(t *testing.T) {
 	}
 
 	request := GetLedgersRequest{
-		Pagination: &TransactionsPaginationOptions{
+		Pagination: &PaginationOptions{
 			Cursor: "invalid",
 		},
 	}
@@ -227,7 +227,7 @@ func TestGetLedgers_CursorGreaterThanLatestLedger(t *testing.T) {
 	}
 
 	request := GetLedgersRequest{
-		Pagination: &TransactionsPaginationOptions{
+		Pagination: &PaginationOptions{
 			Cursor: "15",
 		},
 	}

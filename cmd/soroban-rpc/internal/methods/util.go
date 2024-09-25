@@ -7,6 +7,11 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
 )
 
+type PaginationOptions struct {
+	Cursor string `json:"cursor,omitempty"`
+	Limit  uint   `json:"limit,omitempty"`
+}
+
 func getProtocolVersion(
 	ctx context.Context,
 	ledgerEntryReader db.LedgerEntryReader,

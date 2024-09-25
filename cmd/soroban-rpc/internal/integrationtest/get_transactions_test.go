@@ -71,7 +71,7 @@ func TestGetTransactions(t *testing.T) {
 	// Get transactions with limit
 	request = methods.GetTransactionsRequest{
 		StartLedger: ledgers[0],
-		Pagination: &methods.TransactionsPaginationOptions{
+		Pagination: &methods.PaginationOptions{
 			Limit: 1,
 		},
 	}
@@ -82,7 +82,7 @@ func TestGetTransactions(t *testing.T) {
 
 	// Get transactions using previous result's cursor
 	request = methods.GetTransactionsRequest{
-		Pagination: &methods.TransactionsPaginationOptions{
+		Pagination: &methods.PaginationOptions{
 			Cursor: result.Cursor,
 			Limit:  5,
 		},
