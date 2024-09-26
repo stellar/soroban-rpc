@@ -20,6 +20,19 @@ const (
 	NetworkPassphrase string = "passphrase"
 )
 
+var expectedTransactionInfo = TransactionInfo{
+	Status:              "SUCCESS",
+	TransactionHash:     "b0d0b35dcaed0152d62fbbaa28ed3fa4991c87e7e169a8fca2687b17ee26ca2d",
+	ApplicationOrder:    1,
+	FeeBump:             false,
+	Ledger:              1,
+	LedgerCloseTime:     125,
+	EnvelopeXDR:         "AAAAAgAAAQCAAAAAAAAAAD8MNL+TrQ2ZcdBMzJD3BVEcg4qtlzSkovsNegP8f+iaAAAAAQAAAAD///+dAAAAAAAAAAAAAAAAAAAAAAAAAAA=", //nolint:lll
+	ResultMetaXDR:       "AAAAAwAAAAAAAAAAAAAAAAAAAAAAAAAA",
+	ResultXDR:           "AAAAAAAAAGQAAAAAAAAAAAAAAAA=",
+	DiagnosticEventsXDR: []string{},
+}
+
 // createTestLedger Creates a test ledger with 2 transactions
 func createTestLedger(sequence uint32) xdr.LedgerCloseMeta {
 	sequence -= 100
@@ -70,6 +83,9 @@ func TestGetTransactions_DefaultLimit(t *testing.T) {
 
 	// assert transactions result
 	assert.Len(t, response.Transactions, 10)
+
+	// assert the transaction structure. We will match only 1 tx for sanity purposes.
+	assert.Equal(t, expectedTransactionInfo, response.Transactions[0])
 }
 
 func TestGetTransactions_DefaultLimitExceedsLatestLedger(t *testing.T) {
@@ -104,6 +120,9 @@ func TestGetTransactions_DefaultLimitExceedsLatestLedger(t *testing.T) {
 
 	// assert transactions result
 	assert.Len(t, response.Transactions, 6)
+
+	// assert the transaction structure. We will match only 1 tx for sanity purposes.
+	assert.Equal(t, expectedTransactionInfo, response.Transactions[0])
 }
 
 func TestGetTransactions_CustomLimit(t *testing.T) {
@@ -143,6 +162,9 @@ func TestGetTransactions_CustomLimit(t *testing.T) {
 	assert.Len(t, response.Transactions, 2)
 	assert.Equal(t, uint32(1), response.Transactions[0].Ledger)
 	assert.Equal(t, uint32(1), response.Transactions[1].Ledger)
+
+	// assert the transaction structure. We will match only 1 tx for sanity purposes.
+	assert.Equal(t, expectedTransactionInfo, response.Transactions[0])
 }
 
 func TestGetTransactions_CustomLimitAndCursor(t *testing.T) {

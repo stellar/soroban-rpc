@@ -2,8 +2,18 @@
 
 ## Unreleased
 
+
+## [v21.5.1](https://github.com/stellar/soroban-rpc/compare/v21.5.0...v21.5.1)
+
+### Fixed
+* Preserve field omission behavior of `simulateTransaction` ([#291](https://github.com/stellar/soroban-rpc/pull/291)).
+
+## [v21.5.0](https://github.com/stellar/soroban-rpc/compare/v21.4.1...v21.5.0)
+
 ### Added
 
+- Add `Cursor` in `GetEventsResponse`. This tells the client until what ledger events are being queried. e.g.: `startLEdger` (inclusive) - `endLedger` (exclusive)
+- Limitation: getEvents are capped by 10K `LedgerScanLimit` which means you can query events for 10K ledger at maximum for a given request.
 - Add `EndLedger` in `GetEventsRequest`. This provides finer control and clarity on the range of ledgers being queried.
 - Disk-Based Event Storage: Events are now stored on disk instead of in memory. For context, storing approximately 3 million events will require around 1.5 GB of disk space.
 This change enhances the scalability and can now support a larger retention window (~7 days) for events.

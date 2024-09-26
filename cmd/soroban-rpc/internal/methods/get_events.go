@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -85,11 +86,13 @@ func (e eventTypeSet) matches(event xdr.ContractEvent) bool {
 }
 
 type EventInfo struct {
-	EventType                string `json:"type"`
-	Ledger                   int32  `json:"ledger"`
-	LedgerClosedAt           string `json:"ledgerClosedAt"`
-	ContractID               string `json:"contractId"`
-	ID                       string `json:"id"`
+	EventType      string `json:"type"`
+	Ledger         int32  `json:"ledger"`
+	LedgerClosedAt string `json:"ledgerClosedAt"`
+	ContractID     string `json:"contractId"`
+	ID             string `json:"id"`
+
+	// Deprecated: PagingToken field is deprecated, please use Cursor at top level for pagination
 	PagingToken              string `json:"pagingToken"`
 	InSuccessfulContractCall bool   `json:"inSuccessfulContractCall"`
 	TransactionHash          string `json:"txHash"`
@@ -336,6 +339,8 @@ type EventPaginationOptions struct {
 type GetEventsResponse struct {
 	Events       []EventInfo `json:"events"`
 	LatestLedger uint32      `json:"latestLedger"`
+	// Cursor represents last populated event ID if total events reach the limit or end of the search window
+	Cursor string `json:"cursor"`
 }
 
 type eventsRPCHandler struct {
@@ -439,7 +444,10 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 			limit = request.Pagination.Limit
 		}
 	}
-	endLedger := request.StartLedger + LedgerScanLimit
+	endLedger := start.Ledger + LedgerScanLimit
+
+	// endLedger should not exceed ledger retention window
+	endLedger = min(ledgerRange.LastLedger.Sequence+1, endLedger)
 
 	if request.EndLedger != 0 {
 		endLedger = min(request.EndLedger, endLedger)
@@ -509,9 +517,21 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		results = append(results, info)
 	}
 
+	var cursor string
+	if uint(len(results)) == limit {
+		lastEvent := results[len(results)-1]
+		cursor = lastEvent.ID
+	} else {
+		// cursor represents end of the search window if events does not reach limit
+		// here endLedger is always exclusive when fetching events
+		// so search window is max Cursor value with endLedger - 1
+		cursor = db.Cursor{Ledger: endLedger - 1, Tx: math.MaxUint32, Event: math.MaxUint32 - 1}.String()
+	}
+
 	return GetEventsResponse{
 		LatestLedger: ledgerRange.LastLedger.Sequence,
 		Events:       results,
+		Cursor:       cursor,
 	}, nil
 }
 
