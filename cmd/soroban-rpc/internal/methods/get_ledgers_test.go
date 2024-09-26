@@ -148,6 +148,31 @@ func TestGetLedgers_LimitExceedsMaxLimit(t *testing.T) {
 	assert.Contains(t, err.Error(), "limit must not exceed 100")
 }
 
+func TestGetLedgers_LimitExceedsLatestLedger(t *testing.T) {
+	testDB := setupTestDB(t, 10)
+	handler := ledgersHandler{
+		ledgerReader: db.NewLedgerReader(testDB),
+		maxLimit:     100,
+		defaultLimit: 5,
+	}
+
+	request := GetLedgersRequest{
+		StartLedger: 1,
+		Pagination: &PaginationOptions{
+			Limit: 50,
+		},
+	}
+
+	response, err := handler.getLedgers(context.TODO(), request)
+	require.NoError(t, err)
+
+	assert.Equal(t, uint32(10), response.LatestLedger)
+	assert.Equal(t, "10", response.Cursor)
+	assert.Len(t, response.Ledgers, 10)
+	assert.Equal(t, uint32(1), response.Ledgers[0].Sequence)
+	assert.Equal(t, uint32(10), response.Ledgers[9].Sequence)
+}
+
 func TestGetLedgers_InvalidCursor(t *testing.T) {
 	testDB := setupTestDB(t, 10)
 	handler := ledgersHandler{
@@ -241,7 +266,8 @@ func TestGetLedgers_CursorGreaterThanLatestLedger(t *testing.T) {
 func BenchmarkGetLedgers(b *testing.B) {
 	testDB := NewTestDB(b)
 	logger := log.DefaultLogger
-	writer := db.NewReadWriter(logger, testDB, interfaces.MakeNoOpDeamon(), 100, 1_000_000, passphrase)
+	writer := db.NewReadWriter(logger, testDB, interfaces.MakeNoOpDeamon(),
+		100, 1_000_000, passphrase)
 	write, err := writer.NewTx(context.TODO())
 	require.NoError(b, err)
 
