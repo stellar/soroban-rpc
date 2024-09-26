@@ -175,41 +175,48 @@ func (h ledgersHandler) handleLimit(limit uint) uint {
 	return h.defaultLimit
 }
 
-// fetchLedgers fetches ledgers from the DB beginning with the start request ledger until the max request limit.
+// fetchLedgers fetches ledgers from the DB for the range [start, start+limit-1]
 func (h ledgersHandler) fetchLedgers(ctx context.Context, start uint32,
 	limit uint, format string,
 ) ([]LedgerInfo, error) {
-	ledgers := make([]LedgerInfo, 0, limit)
-	for ledgerSeq := start; uint(len(ledgers)) < limit; ledgerSeq++ {
-		ledger, found, err := h.ledgerReader.GetLedger(ctx, ledgerSeq)
-		if err != nil {
-			return nil, &jrpc2.Error{
-				Code:    jrpc2.InternalError,
-				Message: err.Error(),
-			}
+	ledgers, err := h.ledgerReader.BatchGetLedgers(ctx, start, limit)
+	if err != nil {
+		return nil, &jrpc2.Error{
+			Code:    jrpc2.InternalError,
+			Message: fmt.Sprintf("error fetching ledgers from db: %v", err),
 		}
-		if !found {
-			return nil, &jrpc2.Error{
-				Code:    jrpc2.InvalidParams,
-				Message: fmt.Sprintf("database does not contain metadata for ledger: %d", ledgerSeq),
-			}
+	}
+
+	// No more ledgers available
+	if len(ledgers) == 0 {
+		return nil, &jrpc2.Error{
+			Code:    jrpc2.InvalidParams,
+			Message: fmt.Sprintf("no ledgers found starting from sequence: %d", start),
+		}
+	}
+
+	result := make([]LedgerInfo, 0, limit)
+	for _, ledger := range ledgers {
+		if uint(len(result)) >= limit {
+			break
 		}
 
-		ledgerResponse, err := h.getMetaAndHeaderInfo(ledger, format)
+		ledgerInfo, err := h.parseLedgerInfo(ledger, format)
 		if err != nil {
 			return nil, &jrpc2.Error{
 				Code:    jrpc2.InternalError,
-				Message: err.Error(),
+				Message: fmt.Sprintf("error processing ledger %d: %v", ledger.LedgerSequence(), err),
 			}
 		}
-		ledgers = append(ledgers, ledgerResponse)
+		result = append(result, ledgerInfo)
 	}
-	return ledgers, nil
+
+	return result, nil
 }
 
-// getMetaAndHeaderInfo extracts and formats the ledger metadata and header information.
-func (h ledgersHandler) getMetaAndHeaderInfo(ledger xdr.LedgerCloseMeta, format string) (LedgerInfo, error) {
-	ledgerResponse := LedgerInfo{
+// parseLedgerInfo extracts and formats the ledger metadata and header information.
+func (h ledgersHandler) parseLedgerInfo(ledger xdr.LedgerCloseMeta, format string) (LedgerInfo, error) {
+	ledgerInfo := LedgerInfo{
 		Hash:            ledger.LedgerHash().HexString(),
 		Sequence:        ledger.LedgerSequence(),
 		LedgerCloseTime: ledger.LedgerCloseTime(),
@@ -233,11 +240,11 @@ func (h ledgersHandler) getMetaAndHeaderInfo(ledger xdr.LedgerCloseMeta, format 
 			return LedgerInfo{}, fmt.Errorf("could not convert ledger metadata and "+
 				"header to JSON: %w", convErr)
 		}
-		ledgerResponse.LedgerCloseMetaJSON = closeMetaJSON
-		ledgerResponse.LedgerHeaderJSON = headerJSON
+		ledgerInfo.LedgerCloseMetaJSON = closeMetaJSON
+		ledgerInfo.LedgerHeaderJSON = headerJSON
 	default:
-		ledgerResponse.LedgerCloseMeta = base64.StdEncoding.EncodeToString(closeMetaB)
-		ledgerResponse.LedgerHeader = base64.StdEncoding.EncodeToString(headerB)
+		ledgerInfo.LedgerCloseMeta = base64.StdEncoding.EncodeToString(closeMetaB)
+		ledgerInfo.LedgerHeader = base64.StdEncoding.EncodeToString(headerB)
 	}
-	return ledgerResponse, nil
+	return ledgerInfo, nil
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stellar/go/support/log"
+	"github.com/stellar/go/xdr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -24,9 +25,9 @@ var expectedLedgerInfo = LedgerInfo{
 func setupTestDB(t *testing.T, numLedgers int) *db.DB {
 	testDB := NewTestDB(t)
 	daemon := interfaces.MakeNoOpDeamon()
-	for sequence := range numLedgers {
+	for sequence := 1; sequence <= numLedgers; sequence++ {
 		ledgerCloseMeta := txMeta(uint32(sequence)-100, true)
-		tx, err := db.NewReadWriter(log.DefaultLogger, testDB, daemon, 150, 15, passphrase).NewTx(context.Background())
+		tx, err := db.NewReadWriter(log.DefaultLogger, testDB, daemon, 150, 100, passphrase).NewTx(context.Background())
 		require.NoError(t, err)
 		require.NoError(t, tx.LedgerWriter().InsertLedger(ledgerCloseMeta))
 		require.NoError(t, tx.Commit(ledgerCloseMeta))
@@ -35,7 +36,7 @@ func setupTestDB(t *testing.T, numLedgers int) *db.DB {
 }
 
 func TestGetLedgers_DefaultLimit(t *testing.T) {
-	testDB := setupTestDB(t, 11)
+	testDB := setupTestDB(t, 50)
 	handler := ledgersHandler{
 		ledgerReader: db.NewLedgerReader(testDB),
 		maxLimit:     100,
@@ -49,8 +50,8 @@ func TestGetLedgers_DefaultLimit(t *testing.T) {
 	response, err := handler.getLedgers(context.TODO(), request)
 	require.NoError(t, err)
 
-	assert.Equal(t, uint32(10), response.LatestLedger)
-	assert.Equal(t, ledgerCloseTime(10), response.LatestLedgerCloseTime)
+	assert.Equal(t, uint32(50), response.LatestLedger)
+	assert.Equal(t, ledgerCloseTime(50), response.LatestLedgerCloseTime)
 	assert.Equal(t, "5", response.Cursor)
 	assert.Len(t, response.Ledgers, 5)
 	assert.Equal(t, uint32(1), response.Ledgers[0].Sequence)
@@ -61,7 +62,7 @@ func TestGetLedgers_DefaultLimit(t *testing.T) {
 }
 
 func TestGetLedgers_CustomLimit(t *testing.T) {
-	testDB := setupTestDB(t, 11)
+	testDB := setupTestDB(t, 50)
 	handler := ledgersHandler{
 		ledgerReader: db.NewLedgerReader(testDB),
 		maxLimit:     100,
@@ -71,22 +72,22 @@ func TestGetLedgers_CustomLimit(t *testing.T) {
 	request := GetLedgersRequest{
 		StartLedger: 1,
 		Pagination: &PaginationOptions{
-			Limit: 3,
+			Limit: 41,
 		},
 	}
 
 	response, err := handler.getLedgers(context.TODO(), request)
 	require.NoError(t, err)
 
-	assert.Equal(t, uint32(10), response.LatestLedger)
-	assert.Equal(t, "3", response.Cursor)
-	assert.Len(t, response.Ledgers, 3)
+	assert.Equal(t, uint32(50), response.LatestLedger)
+	assert.Equal(t, "41", response.Cursor)
+	assert.Len(t, response.Ledgers, 41)
 	assert.Equal(t, uint32(1), response.Ledgers[0].Sequence)
-	assert.Equal(t, uint32(3), response.Ledgers[2].Sequence)
+	assert.Equal(t, uint32(41), response.Ledgers[40].Sequence)
 }
 
 func TestGetLedgers_WithCursor(t *testing.T) {
-	testDB := setupTestDB(t, 11)
+	testDB := setupTestDB(t, 10)
 	handler := ledgersHandler{
 		ledgerReader: db.NewLedgerReader(testDB),
 		maxLimit:     100,
@@ -111,7 +112,7 @@ func TestGetLedgers_WithCursor(t *testing.T) {
 }
 
 func TestGetLedgers_InvalidStartLedger(t *testing.T) {
-	testDB := setupTestDB(t, 11)
+	testDB := setupTestDB(t, 10)
 	handler := ledgersHandler{
 		ledgerReader: db.NewLedgerReader(testDB),
 		maxLimit:     100,
@@ -128,7 +129,7 @@ func TestGetLedgers_InvalidStartLedger(t *testing.T) {
 }
 
 func TestGetLedgers_LimitExceedsMaxLimit(t *testing.T) {
-	testDB := setupTestDB(t, 11)
+	testDB := setupTestDB(t, 10)
 	handler := ledgersHandler{
 		ledgerReader: db.NewLedgerReader(testDB),
 		maxLimit:     100,
@@ -148,7 +149,7 @@ func TestGetLedgers_LimitExceedsMaxLimit(t *testing.T) {
 }
 
 func TestGetLedgers_InvalidCursor(t *testing.T) {
-	testDB := setupTestDB(t, 11)
+	testDB := setupTestDB(t, 10)
 	handler := ledgersHandler{
 		ledgerReader: db.NewLedgerReader(testDB),
 		maxLimit:     100,
@@ -167,7 +168,7 @@ func TestGetLedgers_InvalidCursor(t *testing.T) {
 }
 
 func TestGetLedgers_JSONFormat(t *testing.T) {
-	testDB := setupTestDB(t, 11)
+	testDB := setupTestDB(t, 10)
 	handler := ledgersHandler{
 		ledgerReader: db.NewLedgerReader(testDB),
 		maxLimit:     100,
@@ -219,7 +220,7 @@ func TestGetLedgers_NoLedgers(t *testing.T) {
 }
 
 func TestGetLedgers_CursorGreaterThanLatestLedger(t *testing.T) {
-	testDB := setupTestDB(t, 11)
+	testDB := setupTestDB(t, 10)
 	handler := ledgersHandler{
 		ledgerReader: db.NewLedgerReader(testDB),
 		maxLimit:     100,
@@ -235,4 +236,45 @@ func TestGetLedgers_CursorGreaterThanLatestLedger(t *testing.T) {
 	_, err := handler.getLedgers(context.TODO(), request)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cursor must be between")
+}
+
+func BenchmarkGetLedgers(b *testing.B) {
+	testDB := NewTestDB(b)
+	logger := log.DefaultLogger
+	writer := db.NewReadWriter(logger, testDB, interfaces.MakeNoOpDeamon(), 100, 1_000_000, passphrase)
+	write, err := writer.NewTx(context.TODO())
+	require.NoError(b, err)
+
+	lcms := make([]xdr.LedgerCloseMeta, 0, 100_000)
+	for i := range cap(lcms) {
+		lcms = append(lcms, txMeta(uint32(1234+i), i%2 == 0))
+	}
+
+	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
+	for _, lcm := range lcms {
+		require.NoError(b, ledgerW.InsertLedger(lcm))
+		require.NoError(b, txW.InsertTransactions(lcm))
+	}
+	require.NoError(b, write.Commit(lcms[len(lcms)-1]))
+
+	handler := ledgersHandler{
+		ledgerReader: db.NewLedgerReader(testDB),
+		maxLimit:     200,
+		defaultLimit: 5,
+	}
+
+	request := GetLedgersRequest{
+		StartLedger: 1334,
+		Pagination: &PaginationOptions{
+			Limit: 200, // using the current maximum request limit for getLedgers endpoint
+		},
+	}
+
+	b.ResetTimer()
+	for range b.N {
+		response, err := handler.getLedgers(context.TODO(), request)
+		require.NoError(b, err)
+		assert.Equal(b, uint32(1334), response.Ledgers[0].Sequence)
+		assert.Equal(b, uint32(1533), response.Ledgers[199].Sequence)
+	}
 }

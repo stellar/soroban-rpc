@@ -19,6 +19,7 @@ type StreamLedgerFn func(xdr.LedgerCloseMeta) error
 
 type LedgerReader interface {
 	GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error)
+	BatchGetLedgers(ctx context.Context, sequence uint32, batchSize uint) ([]xdr.LedgerCloseMeta, error)
 	StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error
 	GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error)
 	StreamLedgerRange(ctx context.Context, startLedger uint32, endLedger uint32, f StreamLedgerFn) error
@@ -101,6 +102,25 @@ func (r ledgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.Ledge
 		return xdr.LedgerCloseMeta{}, false, fmt.Errorf("multiple lcm entries (%d) for sequence %d in table %q",
 			len(results), sequence, ledgerCloseMetaTableName)
 	}
+}
+
+// BatchGetLedgers fetches ledgers in batches from the db.
+func (r ledgerReader) BatchGetLedgers(ctx context.Context, sequence uint32,
+	batchSize uint,
+) ([]xdr.LedgerCloseMeta, error) {
+	sql := sq.Select("meta").
+		From(ledgerCloseMetaTableName).
+		Where(sq.And{
+			sq.GtOrEq{"sequence": sequence},
+			sq.LtOrEq{"sequence": sequence + uint32(batchSize) - 1},
+		})
+
+	var results []xdr.LedgerCloseMeta
+	if err := r.db.Select(ctx, &results, sql); err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }
 
 // GetLedgerRange pulls the min/max ledger sequence numbers from the meta table.
