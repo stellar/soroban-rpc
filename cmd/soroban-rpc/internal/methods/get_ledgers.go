@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/creachadair/jrpc2"
+
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/db"
