@@ -55,7 +55,7 @@ func (req *GetLedgersRequest) validate(maxLimit uint, ledgerRange ledgerbucketwi
 type LedgerInfo struct {
 	Hash            string `json:"hash"`
 	Sequence        uint32 `json:"sequence"`
-	LedgerCloseTime int64  `json:"ledgerCloseTime"`
+	LedgerCloseTime int64  `json:"ledgerCloseTime,string"`
 
 	LedgerHeader     string          `json:"headerXdr"`
 	LedgerHeaderJSON json.RawMessage `json:"headerJson,omitempty"`
