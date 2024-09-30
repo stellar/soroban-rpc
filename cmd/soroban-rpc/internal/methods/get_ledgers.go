@@ -118,7 +118,7 @@ func (h ledgersHandler) getLedgers(ctx context.Context, request GetLedgersReques
 	if err != nil {
 		return GetLedgersResponse{}, err
 	}
-	cursor := fmt.Sprintf("%d", ledgers[len(ledgers)-1].Sequence)
+	cursor := strconv.Itoa(int(ledgers[len(ledgers)-1].Sequence))
 
 	return GetLedgersResponse{
 		Ledgers:               ledgers,
