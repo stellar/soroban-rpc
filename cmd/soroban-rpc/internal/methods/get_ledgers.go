@@ -238,8 +238,7 @@ func (h ledgersHandler) parseLedgerInfo(ledger xdr.LedgerCloseMeta, format strin
 	case FormatJSON:
 		closeMetaJSON, headerJSON, convErr := ledgerToJSON(closeMetaB, headerB)
 		if convErr != nil {
-			return LedgerInfo{}, fmt.Errorf("could not convert ledger metadata and "+
-				"header to JSON: %w", convErr)
+			return LedgerInfo{}, convErr
 		}
 		ledgerInfo.LedgerCloseMetaJSON = closeMetaJSON
 		ledgerInfo.LedgerHeaderJSON = headerJSON
