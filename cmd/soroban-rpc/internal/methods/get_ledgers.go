@@ -55,7 +55,7 @@ func (req *GetLedgersRequest) validate(maxLimit uint, ledgerRange ledgerbucketwi
 type LedgerInfo struct {
 	Hash            string `json:"hash"`
 	Sequence        uint32 `json:"sequence"`
-	LedgerCloseTime int64  `json:"ledgerCloseTime"`
+	LedgerCloseTime int64  `json:"ledgerCloseTime,string"`
 
 	LedgerHeader     string          `json:"headerXdr"`
 	LedgerHeaderJSON json.RawMessage `json:"headerJson,omitempty"`
@@ -118,7 +118,7 @@ func (h ledgersHandler) getLedgers(ctx context.Context, request GetLedgersReques
 	if err != nil {
 		return GetLedgersResponse{}, err
 	}
-	cursor := strconv.FormatUint(uint64(ledgers[len(ledgers)-1].Sequence), 10)
+	cursor := fmt.Sprintf("%d", ledgers[len(ledgers)-1].Sequence)
 
 	return GetLedgersResponse{
 		Ledgers:               ledgers,
