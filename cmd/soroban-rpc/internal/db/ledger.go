@@ -115,7 +115,7 @@ func (r ledgerReader) BatchGetLedgers(ctx context.Context, sequence uint32,
 			sq.LtOrEq{"sequence": sequence + uint32(batchSize) - 1},
 		})
 
-	var results []xdr.LedgerCloseMeta
+	results := make([]xdr.LedgerCloseMeta, 0, batchSize)
 	if err := r.db.Select(ctx, &results, sql); err != nil {
 		return nil, err
 	}
