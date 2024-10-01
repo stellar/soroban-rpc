@@ -265,25 +265,7 @@ func TestGetLedgers_CursorGreaterThanLatestLedger(t *testing.T) {
 }
 
 func BenchmarkGetLedgers(b *testing.B) {
-	testDB := NewTestDB(b)
-	logger := log.DefaultLogger
-	writer := db.NewReadWriter(logger, testDB, interfaces.MakeNoOpDeamon(),
-		100, 1_000_000, passphrase)
-	write, err := writer.NewTx(context.TODO())
-	require.NoError(b, err)
-
-	lcms := make([]xdr.LedgerCloseMeta, 0, 100_000)
-	for i := range cap(lcms) {
-		lcms = append(lcms, txMeta(uint32(1234+i), i%2 == 0))
-	}
-
-	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
-	for _, lcm := range lcms {
-		require.NoError(b, ledgerW.InsertLedger(lcm))
-		require.NoError(b, txW.InsertTransactions(lcm))
-	}
-	require.NoError(b, write.Commit(lcms[len(lcms)-1]))
-
+	testDB := setupBenchmarkingDB(b)
 	handler := ledgersHandler{
 		ledgerReader: db.NewLedgerReader(testDB),
 		maxLimit:     200,
@@ -304,4 +286,26 @@ func BenchmarkGetLedgers(b *testing.B) {
 		assert.Equal(b, uint32(1334), response.Ledgers[0].Sequence)
 		assert.Equal(b, uint32(1533), response.Ledgers[199].Sequence)
 	}
+}
+
+func setupBenchmarkingDB(b *testing.B) *db.DB {
+	testDB := NewTestDB(b)
+	logger := log.DefaultLogger
+	writer := db.NewReadWriter(logger, testDB, interfaces.MakeNoOpDeamon(),
+		100, 1_000_000, passphrase)
+	write, err := writer.NewTx(context.TODO())
+	require.NoError(b, err)
+
+	lcms := make([]xdr.LedgerCloseMeta, 0, 100_000)
+	for i := range cap(lcms) {
+		lcms = append(lcms, txMeta(uint32(1234+i), i%2 == 0))
+	}
+
+	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
+	for _, lcm := range lcms {
+		require.NoError(b, ledgerW.InsertLedger(lcm))
+		require.NoError(b, txW.InsertTransactions(lcm))
+	}
+	require.NoError(b, write.Commit(lcms[len(lcms)-1]))
+	return testDB
 }
