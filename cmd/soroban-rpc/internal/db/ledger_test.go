@@ -183,25 +183,8 @@ func TestGetLedgerRange_EmptyDB(t *testing.T) {
 }
 
 func BenchmarkGetLedgerRange(b *testing.B) {
-	db := NewTestDB(b)
-	logger := log.DefaultLogger
-	writer := NewReadWriter(logger, db, interfaces.MakeNoOpDeamon(), 100, 1_000_000, passphrase)
-	write, err := writer.NewTx(context.TODO())
-	require.NoError(b, err)
-
-	// create 100k tx rows
-	lcms := make([]xdr.LedgerCloseMeta, 0, 100_000)
-	for i := range cap(lcms) {
-		lcms = append(lcms, txMeta(uint32(1234+i), i%2 == 0))
-	}
-
-	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
-	for _, lcm := range lcms {
-		require.NoError(b, ledgerW.InsertLedger(lcm))
-		require.NoError(b, txW.InsertTransactions(lcm))
-	}
-	require.NoError(b, write.Commit(lcms[len(lcms)-1]))
-	reader := NewLedgerReader(db)
+	testDB, lcms := setupBenchmarkingDB(b)
+	reader := NewLedgerReader(testDB)
 
 	b.ResetTimer()
 	for range b.N {
@@ -209,6 +192,19 @@ func BenchmarkGetLedgerRange(b *testing.B) {
 		require.NoError(b, err)
 		assert.Equal(b, lcms[0].LedgerSequence(), ledgerRange.FirstLedger.Sequence)
 		assert.Equal(b, lcms[len(lcms)-1].LedgerSequence(), ledgerRange.LastLedger.Sequence)
+	}
+}
+
+func BenchmarkBatchGetLedgers(b *testing.B) {
+	testDB, lcms := setupBenchmarkingDB(b)
+	reader := NewLedgerReader(testDB)
+	batchSize := uint(200) // using the current maximum value for getLedgers endpoint
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		startSequence := uint32(1234 + (i % len(lcms))) // select random start ledger
+		_, err := reader.BatchGetLedgers(context.TODO(), startSequence, batchSize)
+		require.NoError(b, err)
 	}
 }
 
@@ -221,4 +217,26 @@ func NewTestDB(tb testing.TB) *DB {
 		require.NoError(tb, db.Close())
 	})
 	return db
+}
+
+func setupBenchmarkingDB(b *testing.B) (*DB, []xdr.LedgerCloseMeta) {
+	testDB := NewTestDB(b)
+	logger := log.DefaultLogger
+	writer := NewReadWriter(logger, testDB, interfaces.MakeNoOpDeamon(),
+		100, 1_000_000, passphrase)
+	write, err := writer.NewTx(context.TODO())
+	require.NoError(b, err)
+
+	lcms := make([]xdr.LedgerCloseMeta, 0, 100_000)
+	for i := range cap(lcms) {
+		lcms = append(lcms, txMeta(uint32(1234+i), i%2 == 0))
+	}
+
+	ledgerW, txW := write.LedgerWriter(), write.TransactionWriter()
+	for _, lcm := range lcms {
+		require.NoError(b, ledgerW.InsertLedger(lcm))
+		require.NoError(b, txW.InsertTransactions(lcm))
+	}
+	require.NoError(b, write.Commit(lcms[len(lcms)-1]))
+	return testDB, lcms
 }
