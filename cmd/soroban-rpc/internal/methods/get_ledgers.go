@@ -32,19 +32,15 @@ type GetLedgersRequest struct {
 // validate checks the validity of the request parameters.
 func (req *GetLedgersRequest) validate(maxLimit uint, ledgerRange ledgerbucketwindow.LedgerRange) error {
 	switch {
-	case req.Pagination != nil && req.Pagination.Cursor != "":
-		if req.StartLedger != 0 {
-			return errors.New("startLedger and cursor cannot both be set")
-		}
+	case req.Pagination != nil && req.Pagination.Cursor != "" && req.StartLedger != 0:
+		return errors.New("startLedger and cursor cannot both be set")
 	case !isStartLedgerWithinBounds(req.StartLedger, ledgerRange):
 		return fmt.Errorf(
 			"start ledger must be between the oldest ledger: %d and the latest ledger: %d for this rpc instance",
 			ledgerRange.FirstLedger.Sequence,
 			ledgerRange.LastLedger.Sequence,
 		)
-	}
-
-	if req.Pagination != nil && req.Pagination.Limit > maxLimit {
+	case req.Pagination != nil && req.Pagination.Limit > maxLimit:
 		return fmt.Errorf("limit must not exceed %d", maxLimit)
 	}
 
@@ -188,14 +184,6 @@ func (h ledgersHandler) fetchLedgers(ctx context.Context, start uint32,
 		}
 	}
 
-	// No more ledgers available
-	if len(ledgers) == 0 {
-		return nil, &jrpc2.Error{
-			Code:    jrpc2.InvalidParams,
-			Message: fmt.Sprintf("no ledgers found starting from sequence: %d", start),
-		}
-	}
-
 	result := make([]LedgerInfo, 0, limit)
 	for _, ledger := range ledgers {
 		if uint(len(result)) >= limit {
@@ -222,27 +210,28 @@ func (h ledgersHandler) parseLedgerInfo(ledger xdr.LedgerCloseMeta, format strin
 		Sequence:        ledger.LedgerSequence(),
 		LedgerCloseTime: ledger.LedgerCloseTime(),
 	}
-
-	closeMetaB, err := ledger.MarshalBinary()
-	if err != nil {
-		return LedgerInfo{}, fmt.Errorf("error marshaling ledger close meta: %w", err)
-	}
-
-	headerB, err := ledger.LedgerHeaderHistoryEntry().MarshalBinary()
-	if err != nil {
-		return LedgerInfo{}, fmt.Errorf("error marshaling ledger header: %w", err)
-	}
+	ledgerHeader := ledger.LedgerHeaderHistoryEntry()
 
 	// Format the data according to the requested format (JSON or XDR)
 	switch format {
 	case FormatJSON:
-		closeMetaJSON, headerJSON, convErr := ledgerToJSON(closeMetaB, headerB)
+		closeMetaJSON, headerJSON, convErr := ledgerToJSON(ledger, ledgerHeader)
 		if convErr != nil {
 			return LedgerInfo{}, convErr
 		}
 		ledgerInfo.LedgerCloseMetaJSON = closeMetaJSON
 		ledgerInfo.LedgerHeaderJSON = headerJSON
 	default:
+		closeMetaB, err := ledger.MarshalBinary()
+		if err != nil {
+			return LedgerInfo{}, fmt.Errorf("error marshaling ledger close meta: %w", err)
+		}
+
+		headerB, err := ledger.LedgerHeaderHistoryEntry().MarshalBinary()
+		if err != nil {
+			return LedgerInfo{}, fmt.Errorf("error marshaling ledger header: %w", err)
+		}
+
 		ledgerInfo.LedgerCloseMeta = base64.StdEncoding.EncodeToString(closeMetaB)
 		ledgerInfo.LedgerHeader = base64.StdEncoding.EncodeToString(headerB)
 	}
