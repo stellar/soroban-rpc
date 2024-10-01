@@ -40,8 +40,8 @@ func (req *GetLedgersRequest) validate(maxLimit uint, ledgerRange ledgerbucketwi
 			ledgerRange.FirstLedger.Sequence,
 			ledgerRange.LastLedger.Sequence,
 		)
-	case req.Pagination != nil && req.Pagination.Limit > maxLimit:
-		return fmt.Errorf("limit must not exceed %d", maxLimit)
+	case req.Pagination != nil && (req.Pagination.Limit <= 0 || req.Pagination.Limit > maxLimit):
+		return fmt.Errorf("limit must be between [1, %d]", maxLimit)
 	}
 
 	return IsValidFormat(req.Format)
@@ -131,11 +131,7 @@ func (h ledgersHandler) initializePagination(request GetLedgersRequest,
 	ledgerRange ledgerbucketwindow.LedgerRange,
 ) (uint32, uint, error) {
 	start := request.StartLedger
-	limit := h.defaultLimit
-	if request.Pagination == nil {
-		return start, limit, nil
-	}
-
+	limit := request.Pagination.Limit
 	var err error
 	if request.Pagination.Cursor != "" {
 		start, err = h.parseCursor(request.Pagination.Cursor, ledgerRange)
@@ -143,7 +139,6 @@ func (h ledgersHandler) initializePagination(request GetLedgersRequest,
 			return 0, 0, err
 		}
 	}
-	limit = h.handleLimit(request.Pagination.Limit)
 	return start, limit, nil
 }
 
@@ -163,13 +158,6 @@ func (h ledgersHandler) parseCursor(cursor string, ledgerRange ledgerbucketwindo
 	}
 
 	return start, nil
-}
-
-func (h ledgersHandler) handleLimit(limit uint) uint {
-	if limit > 0 {
-		return limit
-	}
-	return h.defaultLimit
 }
 
 // fetchLedgers fetches ledgers from the DB for the range [start, start+limit-1]

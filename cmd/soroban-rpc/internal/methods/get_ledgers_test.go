@@ -146,7 +146,7 @@ func TestGetLedgers_LimitExceedsMaxLimit(t *testing.T) {
 
 	_, err := handler.getLedgers(context.TODO(), request)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "limit must not exceed 100")
+	assert.Contains(t, err.Error(), "limit must be between [1, 100]")
 }
 
 func TestGetLedgers_LimitExceedsLatestLedger(t *testing.T) {
