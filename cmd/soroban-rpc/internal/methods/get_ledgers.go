@@ -32,16 +32,19 @@ type GetLedgersRequest struct {
 // validate checks the validity of the request parameters.
 func (req *GetLedgersRequest) validate(maxLimit uint, ledgerRange ledgerbucketwindow.LedgerRange) error {
 	switch {
-	case req.Pagination != nil && req.Pagination.Cursor != "" && req.StartLedger != 0:
-		return errors.New("startLedger and cursor cannot both be set")
-	case !isStartLedgerWithinBounds(req.StartLedger, ledgerRange):
+	case req.Pagination != nil:
+		switch {
+		case req.Pagination.Cursor != "" && req.StartLedger != 0:
+			return errors.New("startLedger and cursor cannot both be set")
+		case req.Pagination.Limit > maxLimit:
+			return fmt.Errorf("limit must not exceed %d", maxLimit)
+		}
+	case req.StartLedger != 0 && !isStartLedgerWithinBounds(req.StartLedger, ledgerRange):
 		return fmt.Errorf(
 			"start ledger must be between the oldest ledger: %d and the latest ledger: %d for this rpc instance",
 			ledgerRange.FirstLedger.Sequence,
 			ledgerRange.LastLedger.Sequence,
 		)
-	case req.Pagination != nil && (req.Pagination.Limit <= 0 || req.Pagination.Limit > maxLimit):
-		return fmt.Errorf("limit must be between [1, %d]", maxLimit)
 	}
 
 	return IsValidFormat(req.Format)
@@ -130,14 +133,22 @@ func (h ledgersHandler) getLedgers(ctx context.Context, request GetLedgersReques
 func (h ledgersHandler) initializePagination(request GetLedgersRequest,
 	ledgerRange ledgerbucketwindow.LedgerRange,
 ) (uint32, uint, error) {
+	if request.Pagination == nil {
+		return request.StartLedger, h.defaultLimit, nil
+	}
+
 	start := request.StartLedger
-	limit := request.Pagination.Limit
 	var err error
 	if request.Pagination.Cursor != "" {
 		start, err = h.parseCursor(request.Pagination.Cursor, ledgerRange)
 		if err != nil {
 			return 0, 0, err
 		}
+	}
+
+	limit := request.Pagination.Limit
+	if limit <= 0 {
+		limit = h.defaultLimit
 	}
 	return start, limit, nil
 }

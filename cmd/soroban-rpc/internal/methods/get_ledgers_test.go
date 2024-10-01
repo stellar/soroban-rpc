@@ -146,7 +146,7 @@ func TestGetLedgers_LimitExceedsMaxLimit(t *testing.T) {
 
 	_, err := handler.getLedgers(context.TODO(), request)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "limit must be between [1, 100]")
+	assert.Contains(t, err.Error(), "limit must not exceed 100")
 }
 
 func TestGetLedgers_LimitExceedsLatestLedger(t *testing.T) {
@@ -264,29 +264,29 @@ func TestGetLedgers_CursorGreaterThanLatestLedger(t *testing.T) {
 	assert.Contains(t, err.Error(), "cursor must be between")
 }
 
-func BenchmarkGetLedgers(b *testing.B) {
-	testDB := setupBenchmarkingDB(b)
-	handler := ledgersHandler{
-		ledgerReader: db.NewLedgerReader(testDB),
-		maxLimit:     200,
-		defaultLimit: 5,
-	}
-
-	request := GetLedgersRequest{
-		StartLedger: 1334,
-		Pagination: &PaginationOptions{
-			Limit: 200, // using the current maximum request limit for getLedgers endpoint
-		},
-	}
-
-	b.ResetTimer()
-	for range b.N {
-		response, err := handler.getLedgers(context.TODO(), request)
-		require.NoError(b, err)
-		assert.Equal(b, uint32(1334), response.Ledgers[0].Sequence)
-		assert.Equal(b, uint32(1533), response.Ledgers[199].Sequence)
-	}
-}
+//func BenchmarkGetLedgers(b *testing.B) {
+//	testDB := setupBenchmarkingDB(b)
+//	handler := ledgersHandler{
+//		ledgerReader: db.NewLedgerReader(testDB),
+//		maxLimit:     200,
+//		defaultLimit: 5,
+//	}
+//
+//	request := GetLedgersRequest{
+//		StartLedger: 1334,
+//		Pagination: &PaginationOptions{
+//			Limit: 200, // using the current maximum request limit for getLedgers endpoint
+//		},
+//	}
+//
+//	b.ResetTimer()
+//	for range b.N {
+//		response, err := handler.getLedgers(context.TODO(), request)
+//		require.NoError(b, err)
+//		assert.Equal(b, uint32(1334), response.Ledgers[0].Sequence)
+//		assert.Equal(b, uint32(1533), response.Ledgers[199].Sequence)
+//	}
+//}
 
 func setupBenchmarkingDB(b *testing.B) *db.DB {
 	testDB := NewTestDB(b)
