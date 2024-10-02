@@ -114,7 +114,9 @@ for P in $PROTOCOL_VERSIONS; do
     # We obtain it from src/rust/src/host-dep-tree-curr.txt but Alternatively/in addition we could:
     #  * Check the rs-stellar-xdr revision of host-dep-tree-prev.txt
     #  * Check the stellar-xdr revision
-    CORE_HOST_DEP_TREE_CURR=$($CURL https://raw.githubusercontent.com/stellar/stellar-core/${CORE_CONTAINER_REVISION}/src/rust/src/host-dep-tree-curr.txt)
+
+    # FIXME: we shouldn't hardcode the protocol number in the file being checked
+    CORE_HOST_DEP_TREE_CURR=$($CURL https://raw.githubusercontent.com/stellar/stellar-core/${CORE_CONTAINER_REVISION}/src/rust/src/dep-trees/p22-expect.txt)
 
 
     RS_STELLAR_XDR_REVISION_FROM_CORE=$(echo "$CORE_HOST_DEP_TREE_CURR" | stellar_xdr_version_from_rust_dep_tree)
