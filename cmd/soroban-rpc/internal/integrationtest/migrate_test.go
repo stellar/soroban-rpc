@@ -66,7 +66,7 @@ func testMigrateFromVersion(t *testing.T, version string) {
 	var transactionsResult methods.GetTransactionsResponse
 	getTransactions := methods.GetTransactionsRequest{
 		StartLedger: submitTransactionResponse.Ledger,
-		Pagination: &methods.PaginationOptions{
+		Pagination: &methods.TransactionsPaginationOptions{
 			Limit: 1,
 		},
 	}
@@ -78,7 +78,7 @@ func testMigrateFromVersion(t *testing.T, version string) {
 	var eventsResult methods.GetEventsResponse
 	getEventsRequest := methods.GetEventsRequest{
 		StartLedger: submitTransactionResponse.Ledger,
-		Pagination: &methods.EventPaginationOptions{
+		Pagination: &methods.PaginationOptions{
 			Limit: 1,
 		},
 	}
