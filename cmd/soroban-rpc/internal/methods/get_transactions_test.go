@@ -143,7 +143,7 @@ func TestGetTransactions_CustomLimit(t *testing.T) {
 
 	request := GetTransactionsRequest{
 		StartLedger: 1,
-		Pagination: &PaginationOptions{
+		Pagination: &TransactionPaginationOptions{
 			Limit: 2,
 		},
 	}
@@ -184,7 +184,7 @@ func TestGetTransactions_CustomLimitAndCursor(t *testing.T) {
 	}
 
 	request := GetTransactionsRequest{
-		Pagination: &PaginationOptions{
+		Pagination: &TransactionPaginationOptions{
 			Cursor: toid.New(1, 2, 1).String(),
 			Limit:  3,
 		},
@@ -284,7 +284,7 @@ func TestGetTransactions_LimitGreaterThanMaxLimit(t *testing.T) {
 
 	request := GetTransactionsRequest{
 		StartLedger: 1,
-		Pagination: &PaginationOptions{
+		Pagination: &TransactionPaginationOptions{
 			Limit: 200,
 		},
 	}
@@ -311,7 +311,7 @@ func TestGetTransactions_InvalidCursorString(t *testing.T) {
 	}
 
 	request := GetTransactionsRequest{
-		Pagination: &PaginationOptions{
+		Pagination: &TransactionPaginationOptions{
 			Cursor: "abc",
 		},
 	}
