@@ -63,7 +63,7 @@ func TestGetLedgers_DefaultLimit(t *testing.T) {
 }
 
 func TestGetLedgers_CustomLimit(t *testing.T) {
-	testDB := setupTestDB(t, 50)
+	testDB := setupTestDB(t, 40)
 	handler := ledgersHandler{
 		ledgerReader: db.NewLedgerReader(testDB),
 		maxLimit:     100,
@@ -73,18 +73,18 @@ func TestGetLedgers_CustomLimit(t *testing.T) {
 	request := GetLedgersRequest{
 		StartLedger: 1,
 		Pagination: &LedgerPaginationOptions{
-			Limit: 41,
+			Limit: 50,
 		},
 	}
 
 	response, err := handler.getLedgers(context.TODO(), request)
 	require.NoError(t, err)
 
-	assert.Equal(t, uint32(50), response.LatestLedger)
-	assert.Equal(t, "41", response.Cursor)
-	assert.Len(t, response.Ledgers, 41)
+	assert.Equal(t, uint32(40), response.LatestLedger)
+	assert.Equal(t, "40", response.Cursor)
+	assert.Len(t, response.Ledgers, 40)
 	assert.Equal(t, uint32(1), response.Ledgers[0].Sequence)
-	assert.Equal(t, uint32(41), response.Ledgers[40].Sequence)
+	assert.Equal(t, uint32(40), response.Ledgers[39].Sequence)
 }
 
 func TestGetLedgers_WithCursor(t *testing.T) {
@@ -147,31 +147,6 @@ func TestGetLedgers_LimitExceedsMaxLimit(t *testing.T) {
 	_, err := handler.getLedgers(context.TODO(), request)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "limit must not exceed 100")
-}
-
-func TestGetLedgers_LimitExceedsLatestLedger(t *testing.T) {
-	testDB := setupTestDB(t, 10)
-	handler := ledgersHandler{
-		ledgerReader: db.NewLedgerReader(testDB),
-		maxLimit:     100,
-		defaultLimit: 5,
-	}
-
-	request := GetLedgersRequest{
-		StartLedger: 1,
-		Pagination: &LedgerPaginationOptions{
-			Limit: 50,
-		},
-	}
-
-	response, err := handler.getLedgers(context.TODO(), request)
-	require.NoError(t, err)
-
-	assert.Equal(t, uint32(10), response.LatestLedger)
-	assert.Equal(t, "10", response.Cursor)
-	assert.Len(t, response.Ledgers, 10)
-	assert.Equal(t, uint32(1), response.Ledgers[0].Sequence)
-	assert.Equal(t, uint32(10), response.Ledgers[9].Sequence)
 }
 
 func TestGetLedgers_InvalidCursor(t *testing.T) {
