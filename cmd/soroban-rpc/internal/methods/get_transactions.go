@@ -21,16 +21,16 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
-type TransactionPaginationOptions struct {
+type TransactionsPaginationOptions struct {
 	Cursor string `json:"cursor,omitempty"`
 	Limit  uint   `json:"limit,omitempty"`
 }
 
 // GetTransactionsRequest represents the request parameters for fetching transactions within a range of ledgers.
 type GetTransactionsRequest struct {
-	StartLedger uint32                        `json:"startLedger"`
-	Pagination  *TransactionPaginationOptions `json:"pagination,omitempty"`
-	Format      string                        `json:"xdrFormat,omitempty"`
+	StartLedger uint32                         `json:"startLedger"`
+	Pagination  *TransactionsPaginationOptions `json:"pagination,omitempty"`
+	Format      string                         `json:"xdrFormat,omitempty"`
 }
 
 // isValid checks the validity of the request parameters.
