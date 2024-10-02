@@ -16,6 +16,11 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
+type LedgerPaginationOptions struct {
+	Cursor string `json:"cursor,omitempty"`
+	Limit  uint   `json:"limit,omitempty"`
+}
+
 // isStartLedgerWithinBounds checks whether the request start ledger/cursor is within the max/min ledger
 // for the current RPC instance.
 func isStartLedgerWithinBounds(startLedger uint32, ledgerRange ledgerbucketwindow.LedgerRange) bool {
@@ -24,9 +29,9 @@ func isStartLedgerWithinBounds(startLedger uint32, ledgerRange ledgerbucketwindo
 
 // GetLedgersRequest represents the request parameters for fetching ledgers.
 type GetLedgersRequest struct {
-	StartLedger uint32             `json:"startLedger"`
-	Pagination  *PaginationOptions `json:"pagination,omitempty"`
-	Format      string             `json:"xdrFormat,omitempty"`
+	StartLedger uint32                   `json:"startLedger"`
+	Pagination  *LedgerPaginationOptions `json:"pagination,omitempty"`
+	Format      string                   `json:"xdrFormat,omitempty"`
 }
 
 // validate checks the validity of the request parameters.

@@ -18,7 +18,7 @@ func TestGetLedgers(t *testing.T) {
 	// Get all ledgers
 	request := methods.GetLedgersRequest{
 		StartLedger: 8,
-		Pagination: &methods.PaginationOptions{
+		Pagination: &methods.LedgerPaginationOptions{
 			Limit: 3,
 		},
 	}
@@ -30,7 +30,7 @@ func TestGetLedgers(t *testing.T) {
 
 	// Get ledgers using previous result's cursor
 	request = methods.GetLedgersRequest{
-		Pagination: &methods.PaginationOptions{
+		Pagination: &methods.LedgerPaginationOptions{
 			Cursor: result.Cursor,
 			Limit:  2,
 		},
@@ -43,7 +43,7 @@ func TestGetLedgers(t *testing.T) {
 	// Test with JSON format
 	request = methods.GetLedgersRequest{
 		StartLedger: 8,
-		Pagination: &methods.PaginationOptions{
+		Pagination: &methods.LedgerPaginationOptions{
 			Limit: 1,
 		},
 		Format: methods.FormatJSON,
@@ -58,7 +58,7 @@ func TestGetLedgers(t *testing.T) {
 		{StartLedger: result.OldestLedger - 1},
 		{StartLedger: result.LatestLedger + 1},
 		{
-			Pagination: &methods.PaginationOptions{
+			Pagination: &methods.LedgerPaginationOptions{
 				Cursor: "invalid",
 			},
 		},

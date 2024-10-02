@@ -419,7 +419,7 @@ func TestGetEventsRequestValid(t *testing.T) {
 	require.EqualError(t, (&GetEventsRequest{
 		StartLedger: 1,
 		Filters:     []EventFilter{},
-		Pagination:  &EventPaginationOptions{Cursor: &db.Cursor{}},
+		Pagination:  &PaginationOptions{Cursor: &db.Cursor{}},
 	}).Valid(1000), "ledger ranges and cursor cannot both be set")
 
 	require.NoError(t, (&GetEventsRequest{
@@ -431,7 +431,7 @@ func TestGetEventsRequestValid(t *testing.T) {
 	require.EqualError(t, (&GetEventsRequest{
 		StartLedger: 1,
 		Filters:     []EventFilter{},
-		Pagination:  &EventPaginationOptions{Limit: 1001},
+		Pagination:  &PaginationOptions{Limit: 1001},
 	}).Valid(1000), "limit must not exceed 1000")
 
 	require.EqualError(t, (&GetEventsRequest{
@@ -1073,7 +1073,7 @@ func TestGetEvents(t *testing.T) {
 		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
 			StartLedger: 1,
 			Filters:     []EventFilter{},
-			Pagination:  &EventPaginationOptions{Limit: 10},
+			Pagination:  &PaginationOptions{Limit: 10},
 		})
 		require.NoError(t, err)
 
@@ -1173,7 +1173,7 @@ func TestGetEvents(t *testing.T) {
 			ledgerReader: db.NewLedgerReader(dbx),
 		}
 		results, err := handler.getEvents(context.TODO(), GetEventsRequest{
-			Pagination: &EventPaginationOptions{
+			Pagination: &PaginationOptions{
 				Cursor: id,
 				Limit:  2,
 			},
@@ -1206,7 +1206,7 @@ func TestGetEvents(t *testing.T) {
 		assert.Equal(t, GetEventsResponse{expected, 5, cursor}, results)
 
 		results, err = handler.getEvents(context.TODO(), GetEventsRequest{
-			Pagination: &EventPaginationOptions{
+			Pagination: &PaginationOptions{
 				Cursor: &db.Cursor{Ledger: 5, Tx: 2, Op: 0, Event: 1},
 				Limit:  2,
 			},
