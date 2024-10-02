@@ -21,6 +21,7 @@ import (
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
 )
 
+// TransactionsPaginationOptions defines the available options for paginating through transactions.
 type TransactionsPaginationOptions struct {
 	Cursor string `json:"cursor,omitempty"`
 	Limit  uint   `json:"limit,omitempty"`
