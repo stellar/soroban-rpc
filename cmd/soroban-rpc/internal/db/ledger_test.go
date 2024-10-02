@@ -201,10 +201,11 @@ func BenchmarkBatchGetLedgers(b *testing.B) {
 	batchSize := uint(200) // using the current maximum value for getLedgers endpoint
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		startSequence := uint32(1234 + (i % len(lcms))) // select random start ledger
-		_, err := reader.BatchGetLedgers(context.TODO(), startSequence, batchSize)
+	for range b.N {
+		ledgers, err := reader.BatchGetLedgers(context.TODO(), 1334, batchSize)
 		require.NoError(b, err)
+		assert.Equal(b, lcms[0].LedgerSequence(), ledgers[0].LedgerSequence())
+		assert.Equal(b, lcms[batchSize-1].LedgerSequence(), ledgers[batchSize-1].LedgerSequence())
 	}
 }
 
