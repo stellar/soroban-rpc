@@ -58,6 +58,9 @@ func (req GetTransactionsRequest) isValid(maxLimit uint, ledgerRange ledgerbucke
 type TransactionInfo struct {
 	// Status is one of: TransactionSuccess, TransactionFailed, TransactionNotFound.
 	Status string `json:"status"`
+	// TransactionHash is the hex encoded hash of the transaction. Note that for fee-bump transaction
+	// this will be the hash of the fee-bump transaction instead of the inner transaction hash.
+	TransactionHash string `json:"txHash"`
 	// ApplicationOrder is the index of the transaction among all the transactions
 	// for that ledger.
 	ApplicationOrder int32 `json:"applicationOrder"`
@@ -194,6 +197,7 @@ func (h transactionsRPCHandler) processTransactionsInLedger(
 		}
 
 		txInfo := TransactionInfo{
+			TransactionHash:  tx.TransactionHash,
 			ApplicationOrder: tx.ApplicationOrder,
 			FeeBump:          tx.FeeBump,
 			Ledger:           tx.Ledger.Sequence,

@@ -14,6 +14,8 @@
 
 ### Added
 
+- Add `Cursor` in `GetEventsResponse`. This tells the client until what ledger events are being queried. e.g.: `startLEdger` (inclusive) - `endLedger` (exclusive)
+- Limitation: getEvents are capped by 10K `LedgerScanLimit` which means you can query events for 10K ledger at maximum for a given request.
 - Add `EndLedger` in `GetEventsRequest`. This provides finer control and clarity on the range of ledgers being queried.
 - Disk-Based Event Storage: Events are now stored on disk instead of in memory. For context, storing approximately 3 million events will require around 1.5 GB of disk space.
 This change enhances the scalability and can now support a larger retention window (~7 days) for events.

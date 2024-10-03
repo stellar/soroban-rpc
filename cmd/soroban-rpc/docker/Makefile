@@ -22,12 +22,22 @@ ifndef STELLAR_CORE_VERSION
         $(error STELLAR_CORE_VERSION environment variable must be set. For example 19.10.1-1310.6649f5173.focal~soroban)
 endif
 
-TAG ?= stellar/stellar-soroban-rpc:$(SOROBAN_RPC_VERSION_PACKAGE_VERSION)
+# Set default value for BINARY_NAME if not provided
+BINARY_NAME ?= soroban-rpc
+
+# Set the TAG based on the value of BINARY_NAME
+ifeq ($(BINARY_NAME),stellar-rpc)
+    TAG := stellar/stellar-rpc:$(SOROBAN_RPC_VERSION_PACKAGE_VERSION)
+else
+    TAG := stellar/stellar-soroban-rpc:$(SOROBAN_RPC_VERSION_PACKAGE_VERSION)
+endif
+
 
 docker-build:
 	$(SUDO) docker build --pull --platform linux/amd64 $(DOCKER_OPTS) \
 	--label org.opencontainers.image.created="$(BUILD_DATE)" \
 	--build-arg STELLAR_CORE_VERSION=$(STELLAR_CORE_VERSION) --build-arg SOROBAN_RPC_VERSION=$(SOROBAN_RPC_VERSION_PACKAGE_VERSION) \
+	--build-arg BINARY_NAME=$(BINARY_NAME) \
 	-t $(TAG) -f Dockerfile.release .
 
 docker-push:
