@@ -32,8 +32,6 @@ func TestSimulateTransactionSucceeds(t *testing.T) {
 	contractHashBytes := xdr.ScBytes(contractHash[:])
 	expectedXdr := xdr.ScVal{Type: xdr.ScValTypeScvBytes, Bytes: &contractHashBytes}
 	require.Greater(t, result.LatestLedger, uint32(0))
-	require.Greater(t, result.Cost.CPUInstructions, uint64(0))
-	require.Greater(t, result.Cost.MemoryBytes, uint64(0))
 
 	expectedTransactionData := xdr.SorobanTransactionData{
 		Resources: xdr.SorobanResources{

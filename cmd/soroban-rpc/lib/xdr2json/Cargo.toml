@@ -16,4 +16,3 @@ serde_json = { workspace = true }
 rand = { workspace = true }
 
 stellar-xdr = { workspace = true }
-soroban-env-host = { workspace = true, features = ["unstable-next-api"]}

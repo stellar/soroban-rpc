@@ -56,7 +56,7 @@ func (req GetTransactionsRequest) isValid(maxLimit uint, ledgerRange ledgerbucke
 }
 
 type TransactionInfo struct {
-	// Status is one of: TransactionSuccess, TransactionFailed.
+	// Status is one of: TransactionSuccess, TransactionFailed, TransactionNotFound.
 	Status string `json:"status"`
 	// ApplicationOrder is the index of the transaction among all the transactions
 	// for that ledger.
@@ -79,7 +79,7 @@ type TransactionInfo struct {
 	// Ledger is the sequence of the ledger which included the transaction.
 	Ledger uint32 `json:"ledger"`
 	// LedgerCloseTime is the unix timestamp of when the transaction was included in the ledger.
-	LedgerCloseTime int64 `json:"createdAt"`
+	LedgerCloseTime int64 `json:"createdAt,string"`
 }
 
 // GetTransactionsResponse encapsulates the response structure for getTransactions queries.

@@ -98,16 +98,17 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-20.04, ubuntu-22.04 ]
-        protocol-version: [ 20, 21 ]
+        protocol-version: [ 21, 22 ]
     runs-on: ${{ matrix.os }}
     env:
       SOROBAN_RPC_INTEGRATION_TESTS_ENABLED: true
       SOROBAN_RPC_INTEGRATION_TESTS_CORE_MAX_SUPPORTED_PROTOCOL: ${{ matrix.protocol-version }}
       SOROBAN_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN: /usr/bin/stellar-core
-      PROTOCOL_20_CORE_DEBIAN_PKG_VERSION: 21.1.0-1909.rc1.b3aeb14cc.focal
-      PROTOCOL_20_CORE_DOCKER_IMG: stellar/stellar-core:21.1.0-1909.rc1.b3aeb14cc.focal
-      PROTOCOL_21_CORE_DEBIAN_PKG_VERSION: 21.1.0-1909.rc1.b3aeb14cc.focal
-      PROTOCOL_21_CORE_DOCKER_IMG: stellar/stellar-core:21.1.0-1909.rc1.b3aeb14cc.focal
+      PROTOCOL_21_CORE_DEBIAN_PKG_VERSION: 22.0.0-2088.rc1.2d8d764cd.focal
+      PROTOCOL_21_CORE_DOCKER_IMG: stellar/stellar-core:22.0.0-2088.rc1.2d8d764cd.focal
+      PROTOCOL_22_CORE_DEBIAN_PKG_VERSION: 22.0.0-2088.rc1.2d8d764cd.focal
+      PROTOCOL_22_CORE_DOCKER_IMG: stellar/stellar-core:22.0.0-2088.rc1.2d8d764cd.focal
+
     steps:
       - uses: actions/checkout@v4
         with:

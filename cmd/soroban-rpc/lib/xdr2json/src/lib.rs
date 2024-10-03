@@ -1,16 +1,30 @@
 extern crate anyhow;
 extern crate ffi;
-extern crate soroban_env_host;
 extern crate stellar_xdr;
 
 use std::{panic, str::FromStr};
+use stellar_xdr::curr as xdr;
 
 use anyhow::Result;
 
 // We really do need everything.
 #[allow(clippy::wildcard_imports)]
 use ffi::*;
-use soroban_env_host::{xdr, DEFAULT_XDR_RW_LIMITS};
+
+// This is the same limit as the soroban serialization limit
+// but we redefine it here for two reasons:
+//
+//   1. To depend only on the XDR crate, not the soroban host.
+//   2. To allow customizing it here, since this function may
+//      serialize many XDR types that are larger than the types
+//      soroban allows serializing (eg. transaction sets or ledger
+//      entries or whatever). Soroban is conservative and stops
+//      at 32MiB.
+
+const DEFAULT_XDR_RW_LIMITS: xdr::Limits = xdr::Limits {
+    depth: 500,
+    len: 32 * 1024 * 1024,
+};
 
 #[repr(C)]
 pub struct ConversionResult {
