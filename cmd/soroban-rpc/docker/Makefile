@@ -25,12 +25,14 @@ endif
 # Set default value for BINARY_NAME if not provided
 BINARY_NAME ?= soroban-rpc
 
-# Set the TAG based on the value of BINARY_NAME
-ifeq ($(BINARY_NAME),stellar-rpc)
-    TAG := stellar/stellar-rpc:$(SOROBAN_RPC_VERSION_PACKAGE_VERSION)
-else
-    TAG := stellar/stellar-soroban-rpc:$(SOROBAN_RPC_VERSION_PACKAGE_VERSION)
-endif
+ifndef TAG
+    # Set the TAG based on the value of BINARY_NAME
+    ifeq ($(BINARY_NAME),stellar-rpc)
+        TAG := stellar/stellar-rpc:$(SOROBAN_RPC_VERSION_PACKAGE_VERSION)
+    else
+        TAG := stellar/stellar-soroban-rpc:$(SOROBAN_RPC_VERSION_PACKAGE_VERSION)
+    endif
+endif # TAG
 
 
 docker-build:
