@@ -652,6 +652,11 @@ func (i *Test) UploadHelloWorldContract() (methods.GetTransactionResponse, xdr.H
 	return i.uploadContract(contractBinary)
 }
 
+func (i *Test) UploadNoArgConstructorContract() (methods.GetTransactionResponse, xdr.Hash) {
+	contractBinary := GetNoArgConstructorContract()
+	return i.uploadContract(contractBinary)
+}
+
 func (i *Test) uploadContract(contractBinary []byte) (methods.GetTransactionResponse, xdr.Hash) {
 	contractHash := xdr.Hash(sha256.Sum256(contractBinary))
 	op := CreateUploadWasmOperation(i.MasterAccount().GetAccountID(), contractBinary)

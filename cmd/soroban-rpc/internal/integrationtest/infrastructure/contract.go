@@ -15,16 +15,26 @@ import (
 
 var testSalt = sha256.Sum256([]byte("a1"))
 
-func GetHelloWorldContract() []byte {
-	contractFile := path.Join(GetCurrentDirectory(), "../../../../../wasms/test_hello_world.wasm")
+func getTestContract(name string) []byte {
+	contractFile := path.Join(GetCurrentDirectory(), "../../../../../wasms/test_"+name+".wasm")
 	ret, err := os.ReadFile(contractFile)
 	if err != nil {
 		str := fmt.Sprintf(
-			"unable to read test_hello_world.wasm (%v) please run `make build-test-wasms` at the project root directory",
-			err)
+			"unable to read %s.wasm (%v) please run `make build-test-wasms` at the project root directory",
+			name,
+			err,
+		)
 		panic(str)
 	}
 	return ret
+}
+
+func GetHelloWorldContract() []byte {
+	return getTestContract("hello_world")
+}
+
+func GetNoArgConstructorContract() []byte {
+	return getTestContract("no_arg_constructor")
 }
 
 func CreateInvokeHostOperation(sourceAccount string, contractID xdr.Hash, method string, args ...xdr.ScVal) *txnbuild.InvokeHostFunction {
@@ -110,6 +120,42 @@ func createCreateContractOperation(sourceAccount string, salt xdr.Uint256, contr
 					Type:     xdr.ContractExecutableTypeContractExecutableWasm,
 					WasmHash: &contractHash,
 				},
+			},
+		},
+		Auth:          []xdr.SorobanAuthorizationEntry{},
+		SourceAccount: sourceAccount,
+	}
+}
+
+func CreateCreateNoArgConstructorContractOperation(sourceAccount string) *txnbuild.InvokeHostFunction {
+	contractHash := xdr.Hash(sha256.Sum256(GetNoArgConstructorContract()))
+	salt := xdr.Uint256(testSalt)
+	return createCreateContractV2Operation(sourceAccount, salt, contractHash)
+}
+
+func createCreateContractV2Operation(
+	sourceAccount string, salt xdr.Uint256, contractHash xdr.Hash,
+) *txnbuild.InvokeHostFunction {
+	sourceAccountID := xdr.MustAddress(sourceAccount)
+	return &txnbuild.InvokeHostFunction{
+		HostFunction: xdr.HostFunction{
+			Type: xdr.HostFunctionTypeHostFunctionTypeCreateContractV2,
+			CreateContractV2: &xdr.CreateContractArgsV2{
+				ContractIdPreimage: xdr.ContractIdPreimage{
+					Type: xdr.ContractIdPreimageTypeContractIdPreimageFromAddress,
+					FromAddress: &xdr.ContractIdPreimageFromAddress{
+						Address: xdr.ScAddress{
+							Type:      xdr.ScAddressTypeScAddressTypeAccount,
+							AccountId: &sourceAccountID,
+						},
+						Salt: salt,
+					},
+				},
+				Executable: xdr.ContractExecutable{
+					Type:     xdr.ContractExecutableTypeContractExecutableWasm,
+					WasmHash: &contractHash,
+				},
+				ConstructorArgs: nil,
 			},
 		},
 		Auth:          []xdr.SorobanAuthorizationEntry{},
