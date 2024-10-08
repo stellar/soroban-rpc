@@ -204,7 +204,6 @@ func TestSendTransactionFailedInvalidXDR(t *testing.T) {
 }
 
 func TestContractCreationWithConstructor(t *testing.T) {
-
 	if infrastructure.GetCoreMaxSupportedProtocol() < 22 {
 		t.Skip("Only test this for protocol >= 22")
 	}
@@ -224,5 +223,4 @@ func TestContractCreationWithConstructor(t *testing.T) {
 	tx, err := txnbuild.NewTransaction(params)
 	require.NoError(t, err)
 	infrastructure.SendSuccessfulTransaction(t, client, test.MasterKey(), tx)
-
 }

@@ -133,7 +133,9 @@ func CreateCreateNoArgConstructorContractOperation(sourceAccount string) *txnbui
 	return createCreateContractV2Operation(sourceAccount, salt, contractHash)
 }
 
-func createCreateContractV2Operation(sourceAccount string, salt xdr.Uint256, contractHash xdr.Hash) *txnbuild.InvokeHostFunction {
+func createCreateContractV2Operation(
+	sourceAccount string, salt xdr.Uint256, contractHash xdr.Hash,
+) *txnbuild.InvokeHostFunction {
 	sourceAccountID := xdr.MustAddress(sourceAccount)
 	return &txnbuild.InvokeHostFunction{
 		HostFunction: xdr.HostFunction{
