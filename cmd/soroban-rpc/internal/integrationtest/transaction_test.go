@@ -204,6 +204,10 @@ func TestSendTransactionFailedInvalidXDR(t *testing.T) {
 }
 
 func TestContractCreationWithConstructor(t *testing.T) {
+
+	if infrastructure.GetCoreMaxSupportedProtocol() < 22 {
+		t.Skip("Only test this for protocol >= 22")
+	}
 	test := infrastructure.NewTest(t, nil)
 
 	test.UploadNoArgConstructorContract()
