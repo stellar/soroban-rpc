@@ -117,6 +117,7 @@ func GetTransaction(
 	response.FeeBump = tx.FeeBump
 	response.Ledger = tx.Ledger.Sequence
 	response.LedgerCloseTime = tx.Ledger.CloseTime
+	response.TransactionHash = tx.TransactionHash
 
 	switch request.Format {
 	case FormatJSON:
