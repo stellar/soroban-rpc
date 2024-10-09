@@ -100,6 +100,7 @@ func GetTransaction(
 		OldestLedger:          storeRange.FirstLedger.Sequence,
 		OldestLedgerCloseTime: storeRange.FirstLedger.CloseTime,
 	}
+	response.TransactionHash = request.Hash
 	if errors.Is(err, db.ErrNoTransaction) {
 		response.Status = TransactionStatusNotFound
 		return response, nil
@@ -117,7 +118,6 @@ func GetTransaction(
 	response.FeeBump = tx.FeeBump
 	response.Ledger = tx.Ledger.Sequence
 	response.LedgerCloseTime = tx.Ledger.CloseTime
-	response.TransactionHash = tx.TransactionHash
 
 	switch request.Format {
 	case FormatJSON:
