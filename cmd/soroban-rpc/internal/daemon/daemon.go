@@ -20,6 +20,7 @@ import (
 	"github.com/stellar/go/clients/stellarcore"
 	"github.com/stellar/go/historyarchive"
 	"github.com/stellar/go/ingest/ledgerbackend"
+	"github.com/stellar/go/support/datastore"
 	supporthttp "github.com/stellar/go/support/http"
 	supportlog "github.com/stellar/go/support/log"
 	"github.com/stellar/go/support/storage"
@@ -54,6 +55,7 @@ type Daemon struct {
 	jsonRPCHandler      *internal.Handler
 	logger              *supportlog.Entry
 	preflightWorkerPool *preflight.WorkerPool
+	cdpBackend          datastore.DataStore
 	listener            net.Listener
 	server              *http.Server
 	adminListener       net.Listener
@@ -169,6 +171,11 @@ func MustNew(cfg *config.Config, logger *supportlog.Entry) *Daemon {
 	daemon.ingestService = createIngestService(cfg, logger, daemon, feewindows, historyArchive)
 	daemon.preflightWorkerPool = createPreflightWorkerPool(cfg, logger, daemon)
 	daemon.jsonRPCHandler = createJSONRPCHandler(cfg, logger, daemon, feewindows)
+	b, err := db.MakeDatastore(context.Background())
+	if err != nil {
+		panic(err)
+	}
+	daemon.cdpBackend = b
 
 	daemon.setupHTTPServers(cfg)
 	daemon.registerMetrics()

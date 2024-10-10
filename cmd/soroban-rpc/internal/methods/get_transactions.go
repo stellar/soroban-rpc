@@ -1,6 +1,7 @@
 package methods
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -8,11 +9,14 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"time"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/handler"
 
 	"github.com/stellar/go/ingest"
+	"github.com/stellar/go/support/compressxdr"
+	"github.com/stellar/go/support/datastore"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/toid"
 	"github.com/stellar/go/xdr"
@@ -40,13 +44,14 @@ func (req GetTransactionsRequest) isValid(maxLimit uint, ledgerRange ledgerbucke
 		if req.StartLedger != 0 {
 			return errors.New("startLedger and cursor cannot both be set")
 		}
-	} else if req.StartLedger < ledgerRange.FirstLedger.Sequence || req.StartLedger > ledgerRange.LastLedger.Sequence {
-		return fmt.Errorf(
-			"start ledger must be between the oldest ledger: %d and the latest ledger: %d for this rpc instance",
-			ledgerRange.FirstLedger.Sequence,
-			ledgerRange.LastLedger.Sequence,
-		)
 	}
+	// } else if req.StartLedger < ledgerRange.FirstLedger.Sequence || req.StartLedger > ledgerRange.LastLedger.Sequence {
+	// 	return fmt.Errorf(
+	// 		"start ledger must be between the oldest ledger: %d and the latest ledger: %d for this rpc instance",
+	// 		ledgerRange.FirstLedger.Sequence,
+	// 		ledgerRange.LastLedger.Sequence,
+	// 	)
+	// }
 
 	if req.Pagination != nil && req.Pagination.Limit > maxLimit {
 		return fmt.Errorf("limit must not exceed %d", maxLimit)
@@ -96,7 +101,9 @@ type GetTransactionsResponse struct {
 }
 
 type transactionsRPCHandler struct {
-	ledgerReader      db.LedgerReader
+	ledgerReader db.LedgerReader
+	cdpBackend   datastore.DataStore
+
 	maxLimit          uint
 	defaultLimit      uint
 	logger            *log.Entry
@@ -137,9 +144,47 @@ func (h transactionsRPCHandler) fetchLedgerData(ctx context.Context, ledgerSeq u
 			Message: err.Error(),
 		}
 	} else if !found {
-		return ledger, &jrpc2.Error{
-			Code:    jrpc2.InvalidParams,
-			Message: fmt.Sprintf("database does not contain metadata for ledger: %d", ledgerSeq),
+		if h.cdpBackend != nil {
+			h.logger.Infof("Ledger %d not found, reading from datastore...", ledgerSeq)
+
+			start := time.Now()
+			key := h.cdpBackend.GetSchema().GetObjectKeyFromSequenceNumber(ledgerSeq)
+			reader, err := h.cdpBackend.GetFile(ctx, key)
+			if err != nil {
+				panic(err)
+			}
+
+			data, err := io.ReadAll(reader)
+			if err != nil {
+				panic(err)
+			}
+
+			lcmb := xdr.LedgerCloseMetaBatch{}
+			decoder := compressxdr.NewXDRDecoder(compressxdr.DefaultCompressor, &lcmb)
+			_, err = decoder.ReadFrom(bytes.NewReader(data))
+			if err != nil {
+				panic(err)
+			}
+
+			lcm, err := lcmb.GetLedger(ledgerSeq)
+
+			h.logger.
+				WithError(err).
+				WithField("duration", time.Since(start)).
+				Infof("Ledger metadata fetched: %x", lcm.LedgerHash())
+			if err != nil {
+				return lcm, &jrpc2.Error{
+					Code:    jrpc2.InvalidParams,
+					Message: err.Error(),
+				}
+			}
+
+			ledger = lcm
+		} else {
+			return ledger, &jrpc2.Error{
+				Code:    jrpc2.InvalidParams,
+				Message: fmt.Sprintf("database does not contain metadata for ledger: %d", ledgerSeq),
+			}
 		}
 	}
 	return ledger, nil
@@ -304,15 +349,23 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 	}, nil
 }
 
-func NewGetTransactionsHandler(logger *log.Entry, ledgerReader db.LedgerReader, maxLimit,
-	defaultLimit uint, networkPassphrase string,
+func NewGetTransactionsHandler(
+	logger *log.Entry, ledgerReader db.LedgerReader,
+	maxLimit, defaultLimit uint,
+	networkPassphrase string,
 ) jrpc2.Handler {
+	cdp, err := db.MakeDatastore(context.Background())
+	if err != nil {
+		panic(err)
+	}
+
 	transactionsHandler := transactionsRPCHandler{
 		ledgerReader:      ledgerReader,
 		maxLimit:          maxLimit,
 		defaultLimit:      defaultLimit,
 		logger:            logger,
 		networkPassphrase: networkPassphrase,
+		cdpBackend:        cdp,
 	}
 
 	return handler.New(transactionsHandler.getTransactionsByLedgerSequence)
