@@ -7,7 +7,7 @@ members = [
 ]
 
 [workspace.package]
-rust-version = "1.81.0"
+rust-version = "1.79.0"
 
 [workspace.dependencies.soroban-env-host-prev]
 package = "soroban-env-host"
