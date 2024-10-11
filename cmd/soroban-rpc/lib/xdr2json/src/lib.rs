@@ -1,16 +1,30 @@
 extern crate anyhow;
 extern crate ffi;
-extern crate soroban_env_host;
 extern crate stellar_xdr;
 
 use std::{panic, str::FromStr};
+use stellar_xdr::curr as xdr;
 
 use anyhow::Result;
 
 // We really do need everything.
 #[allow(clippy::wildcard_imports)]
 use ffi::*;
-use soroban_env_host::{xdr, DEFAULT_XDR_RW_LIMITS};
+
+// This is the same limit as the soroban serialization limit
+// but we redefine it here for two reasons:
+//
+//   1. To depend only on the XDR crate, not the soroban host.
+//   2. To allow customizing it here, since this function may
+//      serialize many XDR types that are larger than the types
+//      soroban allows serializing (eg. transaction sets or ledger
+//      entries or whatever). Soroban is conservative and stops
+//      at 32MiB.
+
+const DEFAULT_XDR_RW_LIMITS: xdr::Limits = xdr::Limits {
+    depth: 500,
+    len: 32 * 1024 * 1024,
+};
 
 #[repr(C)]
 pub struct ConversionResult {
@@ -52,7 +66,7 @@ pub unsafe extern "C" fn xdr_to_json(
         let type_str = unsafe { from_c_string(typename) };
         let the_type = match xdr::TypeVariant::from_str(&type_str) {
             Ok(t) => t,
-            Err(e) => panic!("couldn't match type {type_str}: {}", e),
+            Err(e) => panic!("couldn't match type {type_str}: {e}"),
         };
 
         let xdr_bytearray = unsafe { from_c_xdr(xdr) };
@@ -60,7 +74,7 @@ pub unsafe extern "C" fn xdr_to_json(
 
         let t = match xdr::Type::read_xdr_to_end(the_type, &mut buffer) {
             Ok(t) => t,
-            Err(e) => panic!("couldn't read {type_str}: {}", e),
+            Err(e) => panic!("couldn't read {type_str}: {e}"),
         };
 
         Ok(RustConversionResult {

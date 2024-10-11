@@ -26,7 +26,6 @@ type Config struct {
 	CoreRequestTimeout                             time.Duration
 	DefaultEventsLimit                             uint
 	DefaultTransactionsLimit                       uint
-	EventLedgerRetentionWindow                     uint32
 	FriendbotURL                                   string
 	HistoryArchiveURLs                             []string
 	HistoryArchiveUserAgent                        string
@@ -42,7 +41,6 @@ type Config struct {
 	PreflightEnableDebug                           bool
 	SQLiteDBPath                                   string
 	HistoryRetentionWindow                         uint32
-	TransactionLedgerRetentionWindow               uint32
 	SorobanFeeStatsLedgerRetentionWindow           uint32
 	ClassicFeeStatsLedgerRetentionWindow           uint32
 	RequestBacklogGlobalQueueLimit                 uint
@@ -114,13 +112,6 @@ func (cfg *Config) SetValues(lookupEnv func(string) (string, bool)) error {
 			return err
 		}
 	}
-
-	// Set to the maximum as a compromise until we deprecate the transaction/event flags
-	cfg.HistoryRetentionWindow = max(
-		cfg.HistoryRetentionWindow,
-		cfg.EventLedgerRetentionWindow,
-		cfg.TransactionLedgerRetentionWindow,
-	)
 
 	return nil
 }

@@ -35,7 +35,7 @@ import (
 
 const (
 	StandaloneNetworkPassphrase = "Standalone Network ; February 2017"
-	MaxSupportedProtocolVersion = 21
+	MaxSupportedProtocolVersion = 22
 	FriendbotURL                = "http://localhost:8000/friendbot"
 	// Needed when Core is run with ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING=true
 	checkpointFrequency               = 8
@@ -649,6 +649,11 @@ func (i *Test) PreflightAndSendMasterOperation(op txnbuild.Operation) methods.Ge
 
 func (i *Test) UploadHelloWorldContract() (methods.GetTransactionResponse, xdr.Hash) {
 	contractBinary := GetHelloWorldContract()
+	return i.uploadContract(contractBinary)
+}
+
+func (i *Test) UploadNoArgConstructorContract() (methods.GetTransactionResponse, xdr.Hash) {
+	contractBinary := GetNoArgConstructorContract()
 	return i.uploadContract(contractBinary)
 }
 

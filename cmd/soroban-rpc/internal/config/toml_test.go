@@ -93,9 +93,9 @@ func TestBasicTomlWriting(t *testing.T) {
 	// comment when outputting multi-line comments, which go-toml does *not* do
 	// by default.
 	assert.Contains(t, out,
-		`# (Deprecated, overidden by history-retention-window) configures the event
-# retention window expressed in number of ledgers, the default value is 17280
-# which corresponds to about 24 hours of history`)
+		`# configures history retention window for transactions and events, expressed in
+# number of ledgers, the default value is 120960 which corresponds to about 7
+# days of history`)
 }
 
 func TestRoundTrip(t *testing.T) {

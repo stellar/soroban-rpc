@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+### Breaking Change
+- Remove `GetLedgerEntry` endpoint. This endpoint was already deprecated earlier in favor of `GetLedgerEntries` and is completely removed in this release.
 
 ## [v21.5.1](https://github.com/stellar/soroban-rpc/compare/v21.5.0...v21.5.1)
 

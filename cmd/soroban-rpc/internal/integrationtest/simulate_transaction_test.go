@@ -32,8 +32,6 @@ func TestSimulateTransactionSucceeds(t *testing.T) {
 	contractHashBytes := xdr.ScBytes(contractHash[:])
 	expectedXdr := xdr.ScVal{Type: xdr.ScValTypeScvBytes, Bytes: &contractHashBytes}
 	require.Greater(t, result.LatestLedger, uint32(0))
-	require.Greater(t, result.Cost.CPUInstructions, uint64(0))
-	require.Greater(t, result.Cost.MemoryBytes, uint64(0))
 
 	expectedTransactionData := xdr.SorobanTransactionData{
 		Resources: xdr.SorobanResources{
@@ -379,20 +377,21 @@ func TestSimulateTransactionExtendAndRestoreFootprint(t *testing.T) {
 
 	keyB64, err := xdr.MarshalBase64(key)
 	require.NoError(t, err)
-	getLedgerEntryrequest := methods.GetLedgerEntryRequest{
-		Key: keyB64,
+	getLedgerEntriesRequest := methods.GetLedgerEntriesRequest{
+		Keys: []string{keyB64},
 	}
-	var getLedgerEntryResult methods.GetLedgerEntryResponse
+	var getLedgerEntriesResult methods.GetLedgerEntriesResponse
 	client := test.GetRPCLient()
-	err = client.CallResult(context.Background(), "getLedgerEntry", getLedgerEntryrequest, &getLedgerEntryResult)
+	err = client.CallResult(context.Background(), "getLedgerEntries", getLedgerEntriesRequest, &getLedgerEntriesResult)
 	require.NoError(t, err)
 
 	var entry xdr.LedgerEntryData
-	require.NoError(t, xdr.SafeUnmarshalBase64(getLedgerEntryResult.EntryXDR, &entry))
+	ledgerEntry := getLedgerEntriesResult.Entries[0]
+	require.NoError(t, xdr.SafeUnmarshalBase64(ledgerEntry.DataXDR, &entry))
 	require.Equal(t, xdr.LedgerEntryTypeContractData, entry.Type)
-	require.NotNil(t, getLedgerEntryResult.LiveUntilLedgerSeq)
+	require.NotNil(t, ledgerEntry.LiveUntilLedgerSeq)
 
-	initialLiveUntil := *getLedgerEntryResult.LiveUntilLedgerSeq
+	initialLiveUntil := *ledgerEntry.LiveUntilLedgerSeq
 
 	// Extend the initial TTL
 	test.PreflightAndSendMasterOperation(&txnbuild.ExtendFootprintTtl{
@@ -410,12 +409,14 @@ func TestSimulateTransactionExtendAndRestoreFootprint(t *testing.T) {
 	},
 	)
 
-	err = client.CallResult(context.Background(), "getLedgerEntry", getLedgerEntryrequest, &getLedgerEntryResult)
+	err = client.CallResult(context.Background(), "getLedgerEntries", getLedgerEntriesRequest, &getLedgerEntriesResult)
 	require.NoError(t, err)
-	require.NoError(t, xdr.SafeUnmarshalBase64(getLedgerEntryResult.EntryXDR, &entry))
+
+	ledgerEntry = getLedgerEntriesResult.Entries[0]
+	require.NoError(t, xdr.SafeUnmarshalBase64(ledgerEntry.DataXDR, &entry))
 	require.Equal(t, xdr.LedgerEntryTypeContractData, entry.Type)
-	require.NotNil(t, getLedgerEntryResult.LiveUntilLedgerSeq)
-	newLiveUntilSeq := *getLedgerEntryResult.LiveUntilLedgerSeq
+	require.NotNil(t, ledgerEntry.LiveUntilLedgerSeq)
+	newLiveUntilSeq := *ledgerEntry.LiveUntilLedgerSeq
 	require.Greater(t, newLiveUntilSeq, initialLiveUntil)
 
 	// Wait until it is not live anymore

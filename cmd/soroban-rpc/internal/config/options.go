@@ -218,32 +218,10 @@ func (cfg *Config) options() Options {
 			Name: "history-retention-window",
 			Usage: fmt.Sprintf(
 				"configures history retention window for transactions and events, expressed in number of ledgers,"+
-					" the default value is %d which corresponds to about 24 hours of history",
-				OneDayOfLedgers),
+					" the default value is %d which corresponds to about 7 days of history",
+				SevenDayOfLedgers),
 			ConfigKey:    &cfg.HistoryRetentionWindow,
-			DefaultValue: uint32(OneDayOfLedgers),
-			Validate:     positive,
-		},
-		// TODO: remove
-		{
-			Name: "event-retention-window",
-			Usage: fmt.Sprintf(
-				"(Deprecated, overidden by history-retention-window) configures the event retention window expressed in number of ledgers,"+
-					" the default value is %d which corresponds to about 24 hours of history",
-				OneDayOfLedgers),
-			ConfigKey:    &cfg.EventLedgerRetentionWindow,
-			DefaultValue: uint32(OneDayOfLedgers),
-			Validate:     positive,
-		},
-		// TODO: remove
-		{
-			Name: "transaction-retention-window",
-			Usage: fmt.Sprintf(
-				"(Deprecated, overidden by history-retention-window) configures the transaction retention window expressed in number of ledgers,"+
-					" the default value is %d which corresponds to about 24 hours of history",
-				OneDayOfLedgers),
-			ConfigKey:    &cfg.TransactionLedgerRetentionWindow,
-			DefaultValue: uint32(OneDayOfLedgers),
+			DefaultValue: uint32(SevenDayOfLedgers),
 			Validate:     positive,
 		},
 		{

@@ -172,11 +172,11 @@ type ReadWriterMetrics struct {
 }
 
 type readWriter struct {
-	log                   *log.Entry
-	db                    *DB
-	maxBatchSize          int
-	ledgerRetentionWindow uint32
-	passphrase            string
+	log                    *log.Entry
+	db                     *DB
+	maxBatchSize           int
+	historyRetentionWindow uint32
+	passphrase             string
 
 	metrics ReadWriterMetrics
 }
@@ -190,7 +190,7 @@ func NewReadWriter(
 	db *DB,
 	daemon interfaces.Daemon,
 	maxBatchSize int,
-	ledgerRetentionWindow uint32,
+	historyRetentionWindow uint32,
 	networkPassphrase string,
 ) ReadWriter {
 	// a metric for measuring latency of transaction store operations
@@ -212,11 +212,11 @@ func NewReadWriter(
 	daemon.MetricsRegistry().MustRegister(txDurationMetric, txCountMetric)
 
 	return &readWriter{
-		log:                   log,
-		db:                    db,
-		maxBatchSize:          maxBatchSize,
-		ledgerRetentionWindow: ledgerRetentionWindow,
-		passphrase:            networkPassphrase,
+		log:                    log,
+		db:                     db,
+		maxBatchSize:           maxBatchSize,
+		historyRetentionWindow: historyRetentionWindow,
+		passphrase:             networkPassphrase,
 		metrics: ReadWriterMetrics{
 			TxIngestDuration: txDurationMetric.With(prometheus.Labels{"operation": "ingest"}),
 			TxCount:          txCountMetric,
@@ -243,10 +243,10 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 			_, err := db.ExecRaw(ctx, "PRAGMA wal_checkpoint(TRUNCATE)")
 			return err
 		},
-		tx:                    txSession,
-		stmtCache:             stmtCache,
-		ledgerRetentionWindow: rw.ledgerRetentionWindow,
-		ledgerWriter:          ledgerWriter{stmtCache: stmtCache},
+		tx:                     txSession,
+		stmtCache:              stmtCache,
+		historyRetentionWindow: rw.historyRetentionWindow,
+		ledgerWriter:           ledgerWriter{stmtCache: stmtCache},
 		ledgerEntryWriter: ledgerEntryWriter{
 			stmtCache:               stmtCache,
 			buffer:                  xdr.NewEncodingBuffer(),
@@ -275,15 +275,15 @@ func (rw *readWriter) NewTx(ctx context.Context) (WriteTx, error) {
 }
 
 type writeTx struct {
-	globalCache           *dbCache
-	postCommit            func() error
-	tx                    db.SessionInterface
-	stmtCache             *sq.StmtCache
-	ledgerEntryWriter     ledgerEntryWriter
-	ledgerWriter          ledgerWriter
-	txWriter              transactionHandler
-	eventWriter           eventHandler
-	ledgerRetentionWindow uint32
+	globalCache            *dbCache
+	postCommit             func() error
+	tx                     db.SessionInterface
+	stmtCache              *sq.StmtCache
+	ledgerEntryWriter      ledgerEntryWriter
+	ledgerWriter           ledgerWriter
+	txWriter               transactionHandler
+	eventWriter            eventHandler
+	historyRetentionWindow uint32
 }
 
 func (w writeTx) LedgerEntryWriter() LedgerEntryWriter {
@@ -310,14 +310,14 @@ func (w writeTx) Commit(ledgerCloseMeta xdr.LedgerCloseMeta) error {
 		return err
 	}
 
-	if err := w.ledgerWriter.trimLedgers(ledgerSeq, w.ledgerRetentionWindow); err != nil {
+	if err := w.ledgerWriter.trimLedgers(ledgerSeq, w.historyRetentionWindow); err != nil {
 		return err
 	}
-	if err := w.txWriter.trimTransactions(ledgerSeq, w.ledgerRetentionWindow); err != nil {
+	if err := w.txWriter.trimTransactions(ledgerSeq, w.historyRetentionWindow); err != nil {
 		return err
 	}
 
-	if err := w.eventWriter.trimEvents(ledgerSeq, w.ledgerRetentionWindow); err != nil {
+	if err := w.eventWriter.trimEvents(ledgerSeq, w.historyRetentionWindow); err != nil {
 		return err
 	}
 
