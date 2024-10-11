@@ -56,6 +56,12 @@ func (ledgerReader *ConstantLedgerReader) GetLedger(_ context.Context,
 	return createLedger(sequence, expectedLatestLedgerProtocolVersion, expectedLatestLedgerHashBytes), true, nil
 }
 
+func (ledgerReader *ConstantLedgerReader) BatchGetLedgers(_ context.Context, _ uint32,
+	_ uint,
+) ([]xdr.LedgerCloseMeta, error) {
+	return []xdr.LedgerCloseMeta{}, nil
+}
+
 func (ledgerReader *ConstantLedgerReader) StreamAllLedgers(_ context.Context, _ db.StreamLedgerFn) error {
 	return nil
 }

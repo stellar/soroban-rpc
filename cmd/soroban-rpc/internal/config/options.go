@@ -305,6 +305,28 @@ func (cfg *Config) options() Options {
 			},
 		},
 		{
+			Name:         "max-ledgers-limit",
+			Usage:        "Maximum amount of ledgers allowed in a single getLedgers response",
+			ConfigKey:    &cfg.MaxLedgersLimit,
+			DefaultValue: uint(200),
+		},
+		{
+			Name:         "default-ledgers-limit",
+			Usage:        "Default cap on the amount of ledgers included in a single getLedgers response",
+			ConfigKey:    &cfg.DefaultLedgersLimit,
+			DefaultValue: uint(50),
+			Validate: func(_ *Option) error {
+				if cfg.DefaultLedgersLimit > cfg.MaxLedgersLimit {
+					return fmt.Errorf(
+						"default-ledgers-limit (%v) cannot exceed max-ledgers-limit (%v)",
+						cfg.DefaultLedgersLimit,
+						cfg.MaxLedgersLimit,
+					)
+				}
+				return nil
+			},
+		},
+		{
 			Name: "max-healthy-ledger-latency",
 			Usage: "maximum ledger latency (i.e. time elapsed since the last known ledger closing time) considered to be healthy" +
 				" (used for the /health endpoint)",
@@ -395,6 +417,13 @@ func (cfg *Config) options() Options {
 			Validate:     positive,
 		},
 		{
+			TomlKey:      strutils.KebabToConstantCase("request-backlog-get-ledgers-queue-limit"),
+			Usage:        "Maximum number of outstanding getLedgers requests",
+			ConfigKey:    &cfg.RequestBacklogGetLedgersQueueLimit,
+			DefaultValue: uint(1000),
+			Validate:     positive,
+		},
+		{
 			TomlKey:      strutils.KebabToConstantCase("request-backlog-send-transaction-queue-limit"),
 			Usage:        "Maximum number of outstanding SendTransaction requests",
 			ConfigKey:    &cfg.RequestBacklogSendTransactionQueueLimit,
@@ -473,6 +502,12 @@ func (cfg *Config) options() Options {
 			TomlKey:      strutils.KebabToConstantCase("max-get-transactions-execution-duration"),
 			Usage:        "The maximum duration of time allowed for processing a getTransactions request. When that time elapses, the rpc server would return -32001 and abort the request's execution",
 			ConfigKey:    &cfg.MaxGetTransactionsExecutionDuration,
+			DefaultValue: 5 * time.Second,
+		},
+		{
+			TomlKey:      strutils.KebabToConstantCase("max-get-ledgers-execution-duration"),
+			Usage:        "The maximum duration of time allowed for processing a getLedgers request. When that time elapses, the rpc server would return -32001 and abort the request's execution",
+			ConfigKey:    &cfg.MaxGetLedgersExecutionDuration,
 			DefaultValue: 5 * time.Second,
 		},
 		{
