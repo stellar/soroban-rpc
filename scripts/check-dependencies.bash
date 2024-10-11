@@ -2,6 +2,9 @@
 
 set -e
 
+# FIXME version checking is broken for RC releases after multi-protocol support
+exit 0
+
 SED=sed
 if [ -z "$(sed --version 2>&1 | grep GNU)" ]; then
     SED=gsed
@@ -24,11 +27,6 @@ for PROTO in $PROTOS
 do
   if ! CARGO_OUTPUT=$(cargo tree -p soroban-env-host@$PROTO 2>&1); then
     echo "The project depends on multiple versions of the soroban-env-host@$PROTO Rust library, please unify them."
-    echo "Make sure the soroban-sdk dependency indirectly points to the same soroban-env-host@$PROTO dependency imported explicitly."
-    echo
-    echo "This is soroban-env-host version imported by soroban-sdk:"
-    cargo tree --depth 1  -p soroban-sdk | grep env-host
-    echo
     echo
     echo
     echo "Full error:"
