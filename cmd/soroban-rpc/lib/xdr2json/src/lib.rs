@@ -66,7 +66,7 @@ pub unsafe extern "C" fn xdr_to_json(
         let type_str = unsafe { from_c_string(typename) };
         let the_type = match xdr::TypeVariant::from_str(&type_str) {
             Ok(t) => t,
-            Err(e) => panic!("couldn't match type {type_str}: {}", e),
+            Err(e) => panic!("couldn't match type {type_str}: {e}"),
         };
 
         let xdr_bytearray = unsafe { from_c_xdr(xdr) };
@@ -74,7 +74,7 @@ pub unsafe extern "C" fn xdr_to_json(
 
         let t = match xdr::Type::read_xdr_to_end(the_type, &mut buffer) {
             Ok(t) => t,
-            Err(e) => panic!("couldn't read {type_str}: {}", e),
+            Err(e) => panic!("couldn't read {type_str}: {e}"),
         };
 
         Ok(RustConversionResult {
