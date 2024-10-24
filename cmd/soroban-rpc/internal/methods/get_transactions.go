@@ -55,14 +55,15 @@ func (req GetTransactionsRequest) isValid(maxLimit uint, ledgerRange ledgerbucke
 	return IsValidFormat(req.Format)
 }
 
-type TransactionInfo struct {
+type TransactionDetails struct {
 	// Status is one of: TransactionSuccess, TransactionFailed, TransactionNotFound.
 	Status string `json:"status"`
-	// TransactionHash is the hex encoded hash of the transaction. Note that for fee-bump transaction
-	// this will be the hash of the fee-bump transaction instead of the inner transaction hash.
+	// TransactionHash is the hex encoded hash of the transaction. Note that for
+	// fee-bump transaction this will be the hash of the fee-bump transaction
+	// instead of the inner transaction hash.
 	TransactionHash string `json:"txHash"`
-	// ApplicationOrder is the index of the transaction among all the transactions
-	// for that ledger.
+	// ApplicationOrder is the index of the transaction among all the
+	// transactions for that ledger.
 	ApplicationOrder int32 `json:"applicationOrder"`
 	// FeeBump indicates whether the transaction is a feebump transaction
 	FeeBump bool `json:"feeBump"`
@@ -81,7 +82,13 @@ type TransactionInfo struct {
 	DiagnosticEventsJSON []json.RawMessage `json:"diagnosticEventsJson,omitempty"`
 	// Ledger is the sequence of the ledger which included the transaction.
 	Ledger uint32 `json:"ledger"`
-	// LedgerCloseTime is the unix timestamp of when the transaction was included in the ledger.
+}
+
+type TransactionInfo struct {
+	TransactionDetails
+
+	// LedgerCloseTime is the unix timestamp of when the transaction was
+	// included in the ledger.
 	LedgerCloseTime int64 `json:"createdAt"`
 }
 
@@ -197,11 +204,13 @@ func (h transactionsRPCHandler) processTransactionsInLedger(
 		}
 
 		txInfo := TransactionInfo{
-			TransactionHash:  tx.TransactionHash,
-			ApplicationOrder: tx.ApplicationOrder,
-			FeeBump:          tx.FeeBump,
-			Ledger:           tx.Ledger.Sequence,
-			LedgerCloseTime:  tx.Ledger.CloseTime,
+			TransactionDetails: TransactionDetails{
+				TransactionHash:  tx.TransactionHash,
+				ApplicationOrder: tx.ApplicationOrder,
+				FeeBump:          tx.FeeBump,
+				Ledger:           tx.Ledger.Sequence,
+			},
+			LedgerCloseTime: tx.Ledger.CloseTime,
 		}
 
 		switch format {

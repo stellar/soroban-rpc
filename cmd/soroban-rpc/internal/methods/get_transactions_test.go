@@ -21,16 +21,18 @@ const (
 )
 
 var expectedTransactionInfo = TransactionInfo{
-	Status:              "SUCCESS",
-	TransactionHash:     "b0d0b35dcaed0152d62fbbaa28ed3fa4991c87e7e169a8fca2687b17ee26ca2d",
-	ApplicationOrder:    1,
-	FeeBump:             false,
-	Ledger:              1,
-	LedgerCloseTime:     125,
-	EnvelopeXDR:         "AAAAAgAAAQCAAAAAAAAAAD8MNL+TrQ2ZcdBMzJD3BVEcg4qtlzSkovsNegP8f+iaAAAAAQAAAAD///+dAAAAAAAAAAAAAAAAAAAAAAAAAAA=", //nolint:lll
-	ResultMetaXDR:       "AAAAAwAAAAAAAAAAAAAAAAAAAAAAAAAA",
-	ResultXDR:           "AAAAAAAAAGQAAAAAAAAAAAAAAAA=",
-	DiagnosticEventsXDR: []string{},
+	TransactionDetails{
+		Status:              "SUCCESS",
+		TransactionHash:     "b0d0b35dcaed0152d62fbbaa28ed3fa4991c87e7e169a8fca2687b17ee26ca2d",
+		ApplicationOrder:    1,
+		FeeBump:             false,
+		Ledger:              1,
+		EnvelopeXDR:         "AAAAAgAAAQCAAAAAAAAAAD8MNL+TrQ2ZcdBMzJD3BVEcg4qtlzSkovsNegP8f+iaAAAAAQAAAAD///+dAAAAAAAAAAAAAAAAAAAAAAAAAAA=", //nolint:lll
+		ResultMetaXDR:       "AAAAAwAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		ResultXDR:           "AAAAAAAAAGQAAAAAAAAAAAAAAAA=",
+		DiagnosticEventsXDR: []string{},
+	},
+	125,
 }
 
 // createTestLedger Creates a test ledger with 2 transactions
