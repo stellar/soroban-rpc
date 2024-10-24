@@ -31,6 +31,10 @@ func TestMigrate(t *testing.T) {
 			// This version of RPC wasn't published as a docker container
 			continue
 		}
+		if originVersion == "22.0.0-rc2" {
+			// This version of RPC wasn't published without a deb build number suffix.
+			originVersion = "22.0.0-rc2-100"
+		}
 		t.Run(originVersion, func(t *testing.T) {
 			testMigrateFromVersion(t, originVersion)
 		})
