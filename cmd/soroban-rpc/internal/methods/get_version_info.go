@@ -19,6 +19,14 @@ type GetVersionInfoResponse struct {
 	BuildTimestamp     string `json:"buildTimestamp"`
 	CaptiveCoreVersion string `json:"captiveCoreVersion"`
 	ProtocolVersion    uint32 `json:"protocolVersion"`
+	//nolint:tagliatelle
+	CommitHashDeprecated string `json:"commit_hash"`
+	//nolint:tagliatelle
+	BuildTimestampDeprecated string `json:"build_timestamp"`
+	//nolint:tagliatelle
+	CaptiveCoreVersionDeprecated string `json:"captive_core_version"`
+	//nolint:tagliatelle
+	ProtocolVersionDeprecated uint32 `json:"protocol_version"`
 }
 
 func NewGetVersionInfoHandler(
@@ -37,11 +45,15 @@ func NewGetVersionInfoHandler(
 		}
 
 		return GetVersionInfoResponse{
-			Version:            config.Version,
-			CommitHash:         config.CommitHash,
-			BuildTimestamp:     config.BuildTimestamp,
-			CaptiveCoreVersion: captiveCoreVersion,
-			ProtocolVersion:    protocolVersion,
+			Version:                      config.Version,
+			CommitHash:                   config.CommitHash,
+			CommitHashDeprecated:         config.CommitHash,
+			BuildTimestamp:               config.BuildTimestamp,
+			BuildTimestampDeprecated:     config.BuildTimestamp,
+			CaptiveCoreVersion:           captiveCoreVersion,
+			CaptiveCoreVersionDeprecated: captiveCoreVersion,
+			ProtocolVersion:              protocolVersion,
+			ProtocolVersionDeprecated:    protocolVersion,
 		}, nil
 	})
 }

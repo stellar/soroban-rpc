@@ -92,6 +92,8 @@ type EventInfo struct {
 	ContractID     string `json:"contractId"`
 	ID             string `json:"id"`
 
+	// Deprecated: PagingToken field is deprecated, please use Cursor at top level for pagination
+	PagingToken              string `json:"pagingToken"`
 	InSuccessfulContractCall bool   `json:"inSuccessfulContractCall"`
 	TransactionHash          string `json:"txHash"`
 
@@ -337,7 +339,8 @@ type PaginationOptions struct {
 type GetEventsResponse struct {
 	Events       []EventInfo `json:"events"`
 	LatestLedger uint32      `json:"latestLedger"`
-	// Cursor represents last populated event ID if total events reach the limit or end of the search window
+	// Cursor represents last populated event ID if total events reach the limit
+	// or end of the search window
 	Cursor string `json:"cursor"`
 }
 
@@ -553,6 +556,7 @@ func eventInfoForEvent(
 		Ledger:                   int32(cursor.Ledger),
 		LedgerClosedAt:           ledgerClosedAt,
 		ID:                       cursor.String(),
+		PagingToken:              cursor.String(),
 		InSuccessfulContractCall: event.InSuccessfulContractCall,
 		TransactionHash:          txHash,
 	}
