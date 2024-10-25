@@ -32,8 +32,9 @@ func TestMigrate(t *testing.T) {
 			continue
 		}
 		if originVersion == "22.0.0-rc2" {
-			// This version of RPC wasn't published without a deb build number suffix.
-			originVersion = "22.0.0-rc2-100"
+			// This version of RPC can't be upgraded to since that's the one
+			// set in the soroban_rpc.yml file
+			continue
 		}
 		t.Run(originVersion, func(t *testing.T) {
 			testMigrateFromVersion(t, originVersion)
