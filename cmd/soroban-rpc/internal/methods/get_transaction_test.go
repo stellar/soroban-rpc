@@ -36,7 +36,7 @@ func TestGetTransaction(t *testing.T) {
 	tx, err := GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{hash, ""})
 	require.NoError(t, err)
 	require.Equal(t, GetTransactionResponse{
-		TransactionInfo: TransactionInfo{
+		TransactionDetails: TransactionDetails{
 			Status: TransactionStatusNotFound,
 		},
 	}, tx)
@@ -60,7 +60,7 @@ func TestGetTransaction(t *testing.T) {
 		LatestLedgerCloseTime: 2625,
 		OldestLedger:          101,
 		OldestLedgerCloseTime: 2625,
-		TransactionInfo: TransactionInfo{
+		TransactionDetails: TransactionDetails{
 			Status:              TransactionStatusSuccess,
 			ApplicationOrder:    1,
 			FeeBump:             false,
@@ -68,9 +68,9 @@ func TestGetTransaction(t *testing.T) {
 			ResultXDR:           expectedTxResult,
 			ResultMetaXDR:       expectedTxMeta,
 			Ledger:              101,
-			LedgerCloseTime:     2625,
 			DiagnosticEventsXDR: []string{},
 		},
+		LedgerCloseTime: 2625,
 	}, tx)
 
 	// ingest another (failed) transaction
@@ -85,7 +85,7 @@ func TestGetTransaction(t *testing.T) {
 		LatestLedgerCloseTime: 2650,
 		OldestLedger:          101,
 		OldestLedgerCloseTime: 2625,
-		TransactionInfo: TransactionInfo{
+		TransactionDetails: TransactionDetails{
 			Status:              TransactionStatusSuccess,
 			ApplicationOrder:    1,
 			FeeBump:             false,
@@ -93,9 +93,9 @@ func TestGetTransaction(t *testing.T) {
 			ResultXDR:           expectedTxResult,
 			ResultMetaXDR:       expectedTxMeta,
 			Ledger:              101,
-			LedgerCloseTime:     2625,
 			DiagnosticEventsXDR: []string{},
 		},
+		LedgerCloseTime: 2625,
 	}, tx)
 
 	// the new transaction should also be there
@@ -116,7 +116,7 @@ func TestGetTransaction(t *testing.T) {
 		LatestLedgerCloseTime: 2650,
 		OldestLedger:          101,
 		OldestLedgerCloseTime: 2625,
-		TransactionInfo: TransactionInfo{
+		TransactionDetails: TransactionDetails{
 			Status:              TransactionStatusFailed,
 			ApplicationOrder:    1,
 			FeeBump:             false,
@@ -124,9 +124,9 @@ func TestGetTransaction(t *testing.T) {
 			ResultXDR:           expectedTxResult,
 			ResultMetaXDR:       expectedTxMeta,
 			Ledger:              102,
-			LedgerCloseTime:     2650,
 			DiagnosticEventsXDR: []string{},
 		},
+		LedgerCloseTime: 2650,
 	}, tx)
 
 	// Test Txn with events
@@ -151,7 +151,7 @@ func TestGetTransaction(t *testing.T) {
 	tx, err = GetTransaction(ctx, log, store, ledgerReader, GetTransactionRequest{hash, ""})
 	require.NoError(t, err)
 	require.Equal(t, GetTransactionResponse{
-		TransactionInfo: TransactionInfo{
+		TransactionDetails: TransactionDetails{
 			Status:              TransactionStatusSuccess,
 			ApplicationOrder:    1,
 			FeeBump:             false,
@@ -159,9 +159,9 @@ func TestGetTransaction(t *testing.T) {
 			ResultXDR:           expectedTxResult,
 			ResultMetaXDR:       expectedTxMeta,
 			Ledger:              103,
-			LedgerCloseTime:     2675,
 			DiagnosticEventsXDR: []string{expectedEventsMeta},
 		},
+		LedgerCloseTime:       2675,
 		LatestLedger:          103,
 		LatestLedgerCloseTime: 2675,
 		OldestLedger:          101,
