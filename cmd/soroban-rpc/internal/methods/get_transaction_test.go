@@ -90,6 +90,7 @@ func TestGetTransaction(t *testing.T) {
 		TransactionDetails: TransactionDetails{
 			Status:              TransactionStatusSuccess,
 			ApplicationOrder:    1,
+			TransactionHash:     hash,
 			FeeBump:             false,
 			EnvelopeXDR:         expectedEnvelope,
 			ResultXDR:           expectedTxResult,
