@@ -37,7 +37,8 @@ func TestGetTransaction(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, GetTransactionResponse{
 		TransactionDetails: TransactionDetails{
-			Status: TransactionStatusNotFound,
+			Status:          TransactionStatusNotFound,
+			TransactionHash: hash,
 		},
 	}, tx)
 
