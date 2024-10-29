@@ -100,6 +100,7 @@ func GetTransaction(
 		OldestLedger:          storeRange.FirstLedger.Sequence,
 		OldestLedgerCloseTime: storeRange.FirstLedger.CloseTime,
 	}
+	response.TransactionHash = request.Hash
 	if errors.Is(err, db.ErrNoTransaction) {
 		response.Status = TransactionStatusNotFound
 		return response, nil

@@ -37,7 +37,8 @@ func TestGetTransaction(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, GetTransactionResponse{
 		TransactionDetails: TransactionDetails{
-			Status: TransactionStatusNotFound,
+			Status:          TransactionStatusNotFound,
+			TransactionHash: hash,
 		},
 	}, tx)
 
@@ -64,6 +65,7 @@ func TestGetTransaction(t *testing.T) {
 			Status:              TransactionStatusSuccess,
 			ApplicationOrder:    1,
 			FeeBump:             false,
+			TransactionHash:     hash,
 			EnvelopeXDR:         expectedEnvelope,
 			ResultXDR:           expectedTxResult,
 			ResultMetaXDR:       expectedTxMeta,
@@ -88,6 +90,7 @@ func TestGetTransaction(t *testing.T) {
 		TransactionDetails: TransactionDetails{
 			Status:              TransactionStatusSuccess,
 			ApplicationOrder:    1,
+			TransactionHash:     hash,
 			FeeBump:             false,
 			EnvelopeXDR:         expectedEnvelope,
 			ResultXDR:           expectedTxResult,
@@ -120,6 +123,7 @@ func TestGetTransaction(t *testing.T) {
 			Status:              TransactionStatusFailed,
 			ApplicationOrder:    1,
 			FeeBump:             false,
+			TransactionHash:     hash,
 			EnvelopeXDR:         expectedEnvelope,
 			ResultXDR:           expectedTxResult,
 			ResultMetaXDR:       expectedTxMeta,
@@ -155,6 +159,7 @@ func TestGetTransaction(t *testing.T) {
 			Status:              TransactionStatusSuccess,
 			ApplicationOrder:    1,
 			FeeBump:             false,
+			TransactionHash:     hash,
 			EnvelopeXDR:         expectedEnvelope,
 			ResultXDR:           expectedTxResult,
 			ResultMetaXDR:       expectedTxMeta,
