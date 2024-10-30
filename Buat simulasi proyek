@@ -1,0 +1,18 @@
+soroban-rpc
+Server RPC untuk Stellar.
+
+Repo ini merupakan rumah bagi Soroban RPC, yang akan segera berganti nama menjadi Stellar RPC. RPC menyediakan informasi yang saat ini ada dalam pandangan jaringan. RPC ini memiliki kemampuan untuk mengirim transaksi ke jaringan, dan meminta informasi status transaksi yang telah dikirim sebelumnya, dan dimaksudkan agar sederhana, dapat diskalakan, dan familier bagi pengembang blockchain.
+
+soroban-rpc/
+├── config/
+│   └── config.js
+├── controllers/
+│   ├── transactionController.js
+│   └── networkController.js
+├── routes/
+│   └── apiRoutes.js
+├── utils/
+│   └── stellarHelper.js
+├── .env
+├── app.js
+└── package.json
