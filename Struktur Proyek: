@@ -1,0 +1,225 @@
+Membangun server RPC yang kompleks untuk Stellar membutuhkan beberapa komponen penting, termasuk server backend, pengelolaan transaksi, penanganan permintaan, dan beberapa pengaturan konfigurasi. Berikut adalah contoh implementasi kode untuk proyek Soroban RPC (yang akan berganti nama menjadi Stellar RPC), menggunakan Node.js dan Express.js untuk server backend dan Stellar SDK untuk berinteraksi dengan jaringan Stellar.
+
+Ini mencakup fitur utama seperti pengiriman transaksi, pengecekan status transaksi, dan pengambilan informasi jaringan.
+
+Struktur Proyek:
+
+soroban-rpc/
+├── config/
+│   └── config.js
+├── controllers/
+│   ├── transactionController.js
+│   └── networkController.js
+├── routes/
+│   └── apiRoutes.js
+├── utils/
+│   └── stellarHelper.js
+├── .env
+├── app.js
+└── package.json
+
+1. File .env
+
+Buat file .env di direktori utama untuk menyimpan konfigurasi seperti endpoint jaringan dan kunci pribadi.
+
+STELLAR_NETWORK="https://horizon-testnet.stellar.org"  # Ubah ke jaringan yang sesuai (public/testnet)
+SECRET_KEY="SECRET_KEY_ANDA_DI_SINI"  # Kunci pribadi akun Stellar
+PORT=3000
+
+2. File config/config.js
+
+Konfigurasi utama aplikasi, termasuk URL Horizon dan port server.
+
+require('dotenv').config();
+
+module.exports = {
+  stellarNetwork: process.env.STELLAR_NETWORK,
+  secretKey: process.env.SECRET_KEY,
+  port: process.env.PORT || 3000,
+};
+
+3. File utils/stellarHelper.js
+
+Helper untuk mengelola transaksi dan koneksi ke jaringan Stellar menggunakan Stellar SDK.
+
+const { Server, Keypair, TransactionBuilder, Networks, Operation } = require('stellar-sdk');
+const config = require('../config/config');
+
+const server = new Server(config.stellarNetwork);
+
+async function sendTransaction(destination, amount) {
+  const sourceKeypair = Keypair.fromSecret(config.secretKey);
+  const account = await server.loadAccount(sourceKeypair.publicKey());
+
+  const transaction = new TransactionBuilder(account, {
+    fee: (await server.fetchBaseFee()).toString(),
+    networkPassphrase: Networks.TESTNET, // Ganti dengan Networks.PUBLIC untuk jaringan utama
+  })
+    .addOperation(Operation.payment({
+      destination,
+      asset: Asset.native(),
+      amount,
+    }))
+    .setTimeout(30)
+    .build();
+
+  transaction.sign(sourceKeypair);
+
+  return await server.submitTransaction(transaction);
+}
+
+async function getTransactionStatus(transactionId) {
+  try {
+    const transaction = await server.transactions().transaction(transactionId).call();
+    return transaction;
+  } catch (error) {
+    throw new Error('Transaction not found');
+  }
+}
+
+async function getNetworkInfo() {
+  const ledger = await server.ledgers().order('desc').limit(1).call();
+  return ledger.records[0];
+}
+
+module.exports = {
+  sendTransaction,
+  getTransactionStatus,
+  getNetworkInfo,
+};
+
+4. File controllers/transactionController.js
+
+Mengontrol logika untuk transaksi, termasuk pengiriman dan pengecekan status transaksi.
+
+const stellarHelper = require('../utils/stellarHelper');
+
+exports.sendTransaction = async (req, res) => {
+  const { destination, amount } = req.body;
+  
+  try {
+    const result = await stellarHelper.sendTransaction(destination, amount);
+    res.status(200).json({
+      status: 'Transaction Successful',
+      result,
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'Transaction Failed',
+      message: error.message,
+    });
+  }
+};
+
+exports.getTransactionStatus = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const transaction = await stellarHelper.getTransactionStatus(id);
+    res.status(200).json(transaction);
+  } catch (error) {
+    res.status(404).json({
+      status: 'Transaction Not Found',
+      message: error.message,
+    });
+  }
+};
+
+5. File controllers/networkController.js
+
+Mengontrol logika untuk mendapatkan informasi jaringan terbaru.
+
+const stellarHelper = require('../utils/stellarHelper');
+
+exports.getNetworkInfo = async (req, res) => {
+  try {
+    const info = await stellarHelper.getNetworkInfo();
+    res.status(200).json(info);
+  } catch (error) {
+    res.status(500).json({
+      status: 'Failed to fetch network info',
+      message: error.message,
+    });
+  }
+};
+
+6. File routes/apiRoutes.js
+
+Rute API untuk endpoint transaksi dan jaringan.
+
+const express = require('express');
+const transactionController = require('../controllers/transactionController');
+const networkController = require('../controllers/networkController');
+
+const router = express.Router();
+
+router.post('/sendTransaction', transactionController.sendTransaction);
+router.get('/transactionStatus/:id', transactionController.getTransactionStatus);
+router.get('/networkInfo', networkController.getNetworkInfo);
+
+module.exports = router;
+
+7. File app.js
+
+File utama untuk menjalankan server Express.
+
+const express = require('express');
+const bodyParser = require('body-parser');
+const apiRoutes = require('./routes/apiRoutes');
+const config = require('./config/config');
+
+const app = express();
+
+app.use(bodyParser.json());
+app.use('/api', apiRoutes);
+
+app.listen(config.port, () => {
+  console.log(`Soroban RPC server running on port ${config.port}`);
+});
+
+8. File package.json
+
+Menambahkan dependensi yang diperlukan.
+
+{
+  "name": "soroban-rpc",
+  "version": "1.0.0",
+  "description": "Server RPC untuk Stellar",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "dotenv": "^10.0.0",
+    "express": "^4.17.1",
+    "body-parser": "^1.19.0",
+    "stellar-sdk": "^8.2.1"
+  }
+}
+
+Cara Menjalankan Proyek
+
+1. Instal Dependensi
+
+npm install
+
+
+2. Jalankan Server
+
+npm start
+
+
+
+Server RPC ini sekarang menyediakan tiga endpoint utama:
+
+POST /api/sendTransaction - Mengirimkan transaksi ke jaringan Stellar.
+
+GET /api/transactionStatus/:id - Memeriksa status transaksi tertentu.
+
+GET /api/networkInfo - Mendapatkan informasi jaringan terbaru.
+
+
+
+Dengan ini, Anda memiliki kode lengkap dan cukup kompleks untuk server Soroban RPC yang dapat menangani pengiriman transaksi, memantau status, dan mengambil data jaringan.
+
+
