@@ -59,7 +59,7 @@ func transactionToJSON(tx db.Transaction) (
 	return result, envelope, resultMeta, nil
 }
 
-func ledgerToJSON(meta xdr.LedgerCloseMeta, header xdr.LedgerHeaderHistoryEntry) ([]byte, []byte, error) {
+func ledgerToJSON(meta xdr.LedgerCloseMeta) ([]byte, []byte, error) {
 	var err error
 	var closeMetaJSON, headerJSON []byte
 
@@ -68,7 +68,7 @@ func ledgerToJSON(meta xdr.LedgerCloseMeta, header xdr.LedgerHeaderHistoryEntry)
 		return nil, nil, err
 	}
 
-	headerJSON, err = xdr2json.ConvertInterface(header)
+	headerJSON, err = xdr2json.ConvertInterface(meta.LedgerHeaderHistoryEntry())
 	if err != nil {
 		return nil, nil, err
 	}
