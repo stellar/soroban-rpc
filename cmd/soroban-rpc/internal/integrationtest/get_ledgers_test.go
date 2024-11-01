@@ -51,7 +51,7 @@ func TestGetLedgers(t *testing.T) {
 	err = client.CallResult(context.Background(), "getLedgers", request, &result)
 	require.NoError(t, err)
 	assert.NotEmpty(t, result.Ledgers[0].LedgerHeaderJSON)
-	assert.NotEmpty(t, result.Ledgers[0].LedgerCloseMetaJSON)
+	assert.NotEmpty(t, result.Ledgers[0].LedgerMetadataJSON)
 
 	// Test invalid requests
 	invalidRequests := []methods.GetLedgersRequest{
