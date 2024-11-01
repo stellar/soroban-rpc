@@ -219,7 +219,7 @@ func (h ledgersHandler) parseLedgerInfo(ledger xdr.LedgerCloseMeta, format strin
 	switch format {
 	case FormatJSON:
 		var convErr error
-		ledgerInfo.LedgerMetadataJSON, ledgerInfo.LedgerHeaderJSON, convErr = ledgerToJSON(ledger)
+		ledgerInfo.LedgerMetadataJSON, ledgerInfo.LedgerHeaderJSON, convErr = ledgerToJSON(&ledger)
 		if convErr != nil {
 			return ledgerInfo, convErr
 		}
