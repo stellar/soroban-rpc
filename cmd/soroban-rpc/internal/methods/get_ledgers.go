@@ -64,8 +64,8 @@ type LedgerInfo struct {
 	LedgerHeader     string          `json:"headerXdr"`
 	LedgerHeaderJSON json.RawMessage `json:"headerJson,omitempty"`
 
-	LedgerCloseMeta     string          `json:"closeMetaXdr"`
-	LedgerCloseMetaJSON json.RawMessage `json:"closeMetaJson,omitempty"`
+	LedgerMetadata     string          `json:"metadataXdr"`
+	LedgerMetadataJSON json.RawMessage `json:"metadataJson,omitempty"`
 }
 
 // GetLedgersResponse encapsulates the response structure for getLedgers queries.
@@ -220,7 +220,7 @@ func (h ledgersHandler) parseLedgerInfo(ledger xdr.LedgerCloseMeta, format strin
 	switch format {
 	case FormatJSON:
 		var convErr error
-		ledgerInfo.LedgerCloseMetaJSON, ledgerInfo.LedgerHeaderJSON, convErr = ledgerToJSON(ledger, ledgerHeader)
+		ledgerInfo.LedgerMetadataJSON, ledgerInfo.LedgerHeaderJSON, convErr = ledgerToJSON(ledger, ledgerHeader)
 		if convErr != nil {
 			return ledgerInfo, convErr
 		}
@@ -235,7 +235,7 @@ func (h ledgersHandler) parseLedgerInfo(ledger xdr.LedgerCloseMeta, format strin
 			return LedgerInfo{}, fmt.Errorf("error marshaling ledger header: %w", err)
 		}
 
-		ledgerInfo.LedgerCloseMeta = base64.StdEncoding.EncodeToString(closeMetaB)
+		ledgerInfo.LedgerMetadata = base64.StdEncoding.EncodeToString(closeMetaB)
 		ledgerInfo.LedgerHeader = base64.StdEncoding.EncodeToString(headerB)
 	}
 	return ledgerInfo, nil
