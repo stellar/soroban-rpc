@@ -409,35 +409,36 @@ func (d *Daemon) doBackfill(cfg *config.Config) (db.ReadWriter, error) {
 		return rw, err
 	}
 
-	tx, err := rw.NewTx(ctx)
-	defer tx.Rollback()
-	if err != nil {
-		return rw, err
-	}
-
 	var lastLedger xdr.LedgerCloseMeta
 	for i := first; i <= last; i++ {
 		ledger, err := backend.GetLedger(ctx, i)
 		if i%4523 == 0 {
 			d.logger.Infof("Backfilled %d/%d ledgers", i-first, last-first)
 		}
-
 		if err != nil {
 			return rw, errors.Join(err, fmt.Errorf("backfill failed to retrieve ledger %d", i))
 		}
 
+		tx, err := rw.NewTx(ctx)
+		if err != nil {
+			tx.Rollback()
+			return rw, err
+		}
+
 		if err := tx.LedgerWriter().InsertLedger(ledger); err != nil {
+			tx.Rollback()
 			return rw, errors.Join(err, fmt.Errorf("backfill ingestion failed on ledger %d", i))
+		}
+
+		if err := tx.Commit(lastLedger); err != nil {
+			tx.Rollback()
+			d.logger.WithError(err).Info("Failed to commit changes to the database.")
+			return rw, err
 		}
 
 		if i == last {
 			lastLedger = ledger
 		}
-	}
-
-	if err := tx.Commit(lastLedger); err != nil {
-		d.logger.WithError(err).Info("Failed to commit changes to the database.")
-		return rw, err
 	}
 
 	if err := db.ClearMigrations(ctx, d.GetDB()); err != nil {
