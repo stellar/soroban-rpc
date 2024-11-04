@@ -31,7 +31,7 @@ func TestMigrate(t *testing.T) {
 			// This version of RPC wasn't published as a docker container
 			continue
 		}
-		if originVersion == "22.0.0-rc2" {
+		if originVersion == "22.0.0-rc2" || originVersion == "22.0.0-rc3" {
 			// This version of RPC wasn't published as a docker container w/ this tag
 			continue
 		}
