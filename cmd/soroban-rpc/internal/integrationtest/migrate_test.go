@@ -31,9 +31,8 @@ func TestMigrate(t *testing.T) {
 			// This version of RPC wasn't published as a docker container
 			continue
 		}
-		if originVersion == "22.0.0-rc2" {
-			// This version of RPC can't be upgraded to since that's the one
-			// set in the soroban_rpc.yml file
+		if originVersion == "22.0.0-rc2" || originVersion == "22.0.0-rc3" {
+			// This version of RPC wasn't published as a docker container w/ this tag
 			continue
 		}
 		t.Run(originVersion, func(t *testing.T) {
