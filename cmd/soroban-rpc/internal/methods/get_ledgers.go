@@ -134,7 +134,7 @@ func (h ledgersHandler) getLedgers(ctx context.Context, request GetLedgersReques
 	}, nil
 }
 
-// initializePagination parses the request pagination details initializes the cursor.
+// initializePagination parses the request pagination details and initializes the cursor.
 func (h ledgersHandler) initializePagination(request GetLedgersRequest,
 	ledgerRange ledgerbucketwindow.LedgerRange,
 ) (uint32, uint, error) {
