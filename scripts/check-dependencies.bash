@@ -2,9 +2,6 @@
 
 set -e
 
-# FIXME version checking is broken for RC releases after multi-protocol support
-exit 0
-
 SED=sed
 if [ -z "$(sed --version 2>&1 | grep GNU)" ]; then
     SED=gsed
@@ -19,8 +16,6 @@ PROTOS=$($SED -n ':pkg; /"soroban-env-host"/ {n; /version/ { s/[^0-9]*\([0-9]\+\
 if [ -z "$PROTOS" ]; then
   echo "Cannot find soroban-env-host dependencies in Cargo.toml"
   exit 1
-else
-  echo "Found supported protocols: $PROTOS"
 fi
 
 for PROTO in $PROTOS

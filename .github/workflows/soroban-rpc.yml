@@ -104,10 +104,10 @@ jobs:
       SOROBAN_RPC_INTEGRATION_TESTS_ENABLED: true
       SOROBAN_RPC_INTEGRATION_TESTS_CORE_MAX_SUPPORTED_PROTOCOL: ${{ matrix.protocol-version }}
       SOROBAN_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN: /usr/bin/stellar-core
-      PROTOCOL_21_CORE_DEBIAN_PKG_VERSION: 22.0.0-2095.rc2.1bccbc921.focal
-      PROTOCOL_21_CORE_DOCKER_IMG: stellar/stellar-core:22.0.0-2095.rc2.1bccbc921.focal
-      PROTOCOL_22_CORE_DEBIAN_PKG_VERSION: 22.0.0-2126.rc3.92923c2db.focal
-      PROTOCOL_22_CORE_DOCKER_IMG: stellar/stellar-core:22.0.0-2126.rc3.92923c2db.focal
+      PROTOCOL_21_CORE_DEBIAN_PKG_VERSION: 22.0.0-2138.721fd0a65.focal
+      PROTOCOL_21_CORE_DOCKER_IMG: stellar/stellar-core:22.0.0-2138.721fd0a65.focal
+      PROTOCOL_22_CORE_DEBIAN_PKG_VERSION: 22.0.0-2138.721fd0a65.focal
+      PROTOCOL_22_CORE_DOCKER_IMG: stellar/stellar-core:22.0.0-2138.721fd0a65.focal
 
     steps:
       - uses: actions/checkout@v4
