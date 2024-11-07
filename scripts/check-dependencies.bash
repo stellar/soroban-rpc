@@ -9,20 +9,26 @@ fi
 
 CURL="curl -sL --fail-with-body"
 
-if ! CARGO_OUTPUT=$(cargo tree -p soroban-env-host 2>&1); then
-  echo "The project depends on multiple versions of the soroban-env-host Rust library, please unify them."
-  echo "Make sure the soroban-sdk dependency indirectly points to the same soroban-env-host dependency imported explicitly."
-  echo
-  echo "This is soroban-env-host version imported by soroban-sdk:"
-  cargo tree --depth 1  -p soroban-sdk | grep env-host
-  echo
-  echo
-  echo
-  echo "Full error:"
-  echo $CARGO_OUTPUT
+# PROTOS is in ascending order so the last iteration of the PROTOS-based loops
+# will end up with the highest protocol value used for recording any state
+# variables.
+PROTOS=$($SED -n ':pkg; /"soroban-env-host"/ {n; /version/ { s/[^0-9]*\([0-9]\+\).*/\1/ p; b pkg;}}' Cargo.toml | sort -n | tr '\n' ' ')
+if [ -z "$PROTOS" ]; then
+  echo "Cannot find soroban-env-host dependencies in Cargo.toml"
   exit 1
 fi
 
+for PROTO in $PROTOS
+do
+  if ! CARGO_OUTPUT=$(cargo tree -p soroban-env-host@$PROTO 2>&1); then
+    echo "The project depends on multiple versions of the soroban-env-host@$PROTO Rust library, please unify them."
+    echo
+    echo
+    echo "Full error:"
+    echo $CARGO_OUTPUT
+    exit 1
+  fi
+done
 
 # revision of the https://github.com/stellar/rs-stellar-xdr library used by the Rust code
 RS_STELLAR_XDR_REVISION=""
@@ -42,25 +48,28 @@ function stellar_xdr_version_from_rust_dep_tree {
   echo $LINE | $SED -n  's/.*stellar-xdr \(v\)\{0,1\}\([^ ]*\).*/\2/p'
 }
 
-if CARGO_OUTPUT=$(cargo tree --depth 0 -p stellar-xdr 2>&1); then
-  RS_STELLAR_XDR_REVISION=$(echo "$CARGO_OUTPUT" | stellar_xdr_version_from_rust_dep_tree)
-  if [ ${#RS_STELLAR_XDR_REVISION} -eq 40 ]; then
-    # revision is a git hash
-    STELLAR_XDR_REVISION_FROM_RUST=$($CURL https://raw.githubusercontent.com/stellar/rs-stellar-xdr/${RS_STELLAR_XDR_REVISION}/xdr/curr-version)
+for PROTO in $PROTOS
+do
+  if CARGO_OUTPUT=$(cargo tree --depth 0 -p stellar-xdr@$PROTO 2>&1); then
+    RS_STELLAR_XDR_REVISION=$(echo "$CARGO_OUTPUT" | stellar_xdr_version_from_rust_dep_tree)
+    if [ ${#RS_STELLAR_XDR_REVISION} -eq 40 ]; then
+      # revision is a git hash
+      STELLAR_XDR_REVISION_FROM_RUST=$($CURL https://raw.githubusercontent.com/stellar/rs-stellar-xdr/${RS_STELLAR_XDR_REVISION}/xdr/curr-version)
+    else
+      # revision is a crate version
+      CARGO_SRC_BASE_DIR=$(realpath ${CARGO_HOME:-$HOME/.cargo}/registry/src/index*)
+      STELLAR_XDR_REVISION_FROM_RUST=$(cat "${CARGO_SRC_BASE_DIR}/stellar-xdr-${RS_STELLAR_XDR_REVISION}/xdr/curr-version")
+    fi
   else
-    # revision is a crate version
-    CARGO_SRC_BASE_DIR=$(realpath ${CARGO_HOME:-$HOME/.cargo}/registry/src/index*)
-    STELLAR_XDR_REVISION_FROM_RUST=$(cat "${CARGO_SRC_BASE_DIR}/stellar-xdr-${RS_STELLAR_XDR_REVISION}/xdr/curr-version")
+    echo "The project depends on multiple versions of the Rust rs-stellar-xdr@$PROTO library"
+    echo "Make sure a single version of stellar-xdr@$PROTO is used"
+    echo
+    echo
+    echo
+    echo "Full error:"
+    echo $CARGO_OUTPUT
   fi
-else
-  echo "The project depends on multiple versions of the Rust rs-stellar-xdr library"
-  echo "Make sure a single version of stellar-xdr is used"
-  echo
-  echo
-  echo
-  echo "Full error:"
-  echo $CARGO_OUTPUT
-fi
+done
 
 # Now, lets compare the Rust and Go XDR revisions
 # TODO: The sed extraction below won't work for version tags
@@ -98,7 +107,9 @@ for P in $PROTOCOL_VERSIONS; do
     # We obtain it from src/rust/src/host-dep-tree-curr.txt but Alternatively/in addition we could:
     #  * Check the rs-stellar-xdr revision of host-dep-tree-prev.txt
     #  * Check the stellar-xdr revision
-    CORE_HOST_DEP_TREE_CURR=$($CURL https://raw.githubusercontent.com/stellar/stellar-core/${CORE_CONTAINER_REVISION}/src/rust/src/host-dep-tree-curr.txt)
+
+    # FIXME: we shouldn't hardcode the protocol number in the file being checked
+    CORE_HOST_DEP_TREE_CURR=$($CURL https://raw.githubusercontent.com/stellar/stellar-core/${CORE_CONTAINER_REVISION}/src/rust/src/dep-trees/p22-expect.txt)
 
 
     RS_STELLAR_XDR_REVISION_FROM_CORE=$(echo "$CORE_HOST_DEP_TREE_CURR" | stellar_xdr_version_from_rust_dep_tree)
@@ -109,6 +120,4 @@ for P in $PROTOCOL_VERSIONS; do
 	    echo "Core's revision $RS_STELLAR_XDR_REVISION_FROM_CORE"
     fi
 done
-
-
 

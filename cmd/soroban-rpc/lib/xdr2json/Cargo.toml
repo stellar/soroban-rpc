@@ -1,7 +1,8 @@
 [package]
 name = "xdr2json"
-version = "21.0.0"
+version = "22.0.0"
 publish = false
+edition = "2021"
 
 [lib]
 crate-type = ["staticlib"]
@@ -16,4 +17,3 @@ serde_json = { workspace = true }
 rand = { workspace = true }
 
 stellar-xdr = { workspace = true }
-soroban-env-host = { workspace = true, features = ["unstable-next-api"]}

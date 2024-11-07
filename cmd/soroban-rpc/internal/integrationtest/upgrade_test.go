@@ -23,10 +23,11 @@ func TestUpgradeFrom20To21(t *testing.T) {
 
 	test.UploadHelloWorldContract()
 
-	// Upgrade to protocol 21 and re-upload the contract, which should cause a caching of the contract
-	// estimations
+	// Upgrade to protocol 21 and re-upload the contract, which should cause a
+	// caching of the contract estimations
 	test.UpgradeProtocol(21)
-	// Wait for the ledger to advance, so that the simulation library passes the right protocol number
+	// Wait for the ledger to advance, so that the simulation library passes the
+	// right protocol number
 	rpcDB := test.GetDaemon().GetDB()
 	initialLedgerSequence, err := db.NewLedgerEntryReader(rpcDB).GetLatestLedgerSequence(context.Background())
 	require.NoError(t, err)
