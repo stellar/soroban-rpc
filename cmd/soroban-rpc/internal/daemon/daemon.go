@@ -405,11 +405,12 @@ func (d *Daemon) doBackfill(cfg *config.Config) (db.ReadWriter, error) {
 	d.logger.Infof("Backfilling ledger range: %v (%d ledgers)",
 		backfillRange, last-first)
 
+	cfg.HistoryRetentionWindow = backfillRange.To() - backfillRange.From()
+
 	if err := backend.PrepareRange(ctx, backfillRange); err != nil {
 		return rw, err
 	}
 
-	var lastLedger xdr.LedgerCloseMeta
 	for i := first; i <= last; i++ {
 		ledger, err := backend.GetLedger(ctx, i)
 		if i%4523 == 0 {
@@ -430,14 +431,10 @@ func (d *Daemon) doBackfill(cfg *config.Config) (db.ReadWriter, error) {
 			return rw, errors.Join(err, fmt.Errorf("backfill ingestion failed on ledger %d", i))
 		}
 
-		if err := tx.Commit(lastLedger); err != nil {
+		if err := tx.Commit(ledger); err != nil {
 			tx.Rollback()
 			d.logger.WithError(err).Info("Failed to commit changes to the database.")
 			return rw, err
-		}
-
-		if i == last {
-			lastLedger = ledger
 		}
 	}
 

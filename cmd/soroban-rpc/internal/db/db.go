@@ -310,16 +310,16 @@ func (w writeTx) Commit(ledgerCloseMeta xdr.LedgerCloseMeta) error {
 		return err
 	}
 
-	if err := w.ledgerWriter.trimLedgers(ledgerSeq, w.ledgerRetentionWindow); err != nil {
-		return err
-	}
-	if err := w.txWriter.trimTransactions(ledgerSeq, w.ledgerRetentionWindow); err != nil {
-		return err
-	}
+	// if err := w.ledgerWriter.trimLedgers(ledgerSeq, w.ledgerRetentionWindow); err != nil {
+	// 	return err
+	// }
+	// if err := w.txWriter.trimTransactions(ledgerSeq, w.ledgerRetentionWindow); err != nil {
+	// 	return err
+	// }
 
-	if err := w.eventWriter.trimEvents(ledgerSeq, w.ledgerRetentionWindow); err != nil {
-		return err
-	}
+	// if err := w.eventWriter.trimEvents(ledgerSeq, w.ledgerRetentionWindow); err != nil {
+	// 	return err
+	// }
 
 	// We need to make the cache update atomic with the transaction commit.
 	// Otherwise, the cache can be made inconsistent if a write transaction finishes
