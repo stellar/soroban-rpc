@@ -2,10 +2,12 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
 
+	"github.com/stellar/go/support/db"
 	"github.com/stellar/go/xdr"
 
 	"github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/ledgerbucketwindow"
@@ -23,18 +25,68 @@ type LedgerReader interface {
 	StreamAllLedgers(ctx context.Context, f StreamLedgerFn) error
 	GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error)
 	StreamLedgerRange(ctx context.Context, startLedger uint32, endLedger uint32, f StreamLedgerFn) error
+	NewTx(ctx context.Context) (LedgerReaderTx, error)
+}
+
+type LedgerReaderTx interface {
+	GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error)
+	BatchGetLedgers(ctx context.Context, sequence uint32, batchSize uint) ([]xdr.LedgerCloseMeta, error)
+	Done() error
 }
 
 type LedgerWriter interface {
 	InsertLedger(ledger xdr.LedgerCloseMeta) error
 }
 
+type ReadDB interface {
+	Select(ctx context.Context, dest interface{}, query sq.Sqlizer) error
+}
+
 type ledgerReader struct {
 	db *DB
 }
 
+type ledgerReaderTx struct {
+	tx                    db.SessionInterface
+	latestLedgerSeq       uint32
+	latestLedgerCloseTime int64
+}
+
+func (l ledgerReaderTx) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error) {
+	if l.latestLedgerSeq != 0 {
+		return getLedgerRangeWithCache(ctx, l.tx, l.latestLedgerSeq, l.latestLedgerCloseTime)
+	}
+	return getLedgerRangeWithoutCache(ctx, l.tx)
+}
+
+// BatchGetLedgers fetches ledgers in batches from the db.
+func (l ledgerReaderTx) BatchGetLedgers(ctx context.Context, sequence uint32,
+	batchSize uint,
+) ([]xdr.LedgerCloseMeta, error) {
+	return batchGetLedgers(ctx, l.tx, sequence, batchSize)
+}
+
+func (l ledgerReaderTx) Done() error {
+	return l.tx.Rollback()
+}
+
 func NewLedgerReader(db *DB) LedgerReader {
 	return ledgerReader{db: db}
+}
+
+func (r ledgerReader) NewTx(ctx context.Context) (LedgerReaderTx, error) {
+	r.db.cache.RLock()
+	defer r.db.cache.RUnlock()
+	txSession := r.db.Clone()
+	if err := txSession.BeginTx(ctx, &sql.TxOptions{ReadOnly: true}); err != nil {
+		return nil, fmt.Errorf("failed to begin read transaction: %w", err)
+	}
+	tx := ledgerReaderTx{
+		tx:                    txSession,
+		latestLedgerSeq:       r.db.cache.latestLedgerSeq,
+		latestLedgerCloseTime: r.db.cache.latestLedgerCloseTime,
+	}
+	return tx, nil
 }
 
 // StreamAllLedgers runs f over all the ledgers in the database (until f errors or signals it's done).
@@ -108,6 +160,12 @@ func (r ledgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.Ledge
 func (r ledgerReader) BatchGetLedgers(ctx context.Context, sequence uint32,
 	batchSize uint,
 ) ([]xdr.LedgerCloseMeta, error) {
+	return batchGetLedgers(ctx, r.db, sequence, batchSize)
+}
+
+func batchGetLedgers(ctx context.Context, db ReadDB, sequence uint32,
+	batchSize uint,
+) ([]xdr.LedgerCloseMeta, error) {
 	sql := sq.Select("meta").
 		From(ledgerCloseMetaTableName).
 		Where(sq.And{
@@ -116,7 +174,7 @@ func (r ledgerReader) BatchGetLedgers(ctx context.Context, sequence uint32,
 		})
 
 	results := make([]xdr.LedgerCloseMeta, 0, batchSize)
-	if err := r.db.Select(ctx, &results, sql); err != nil {
+	if err := db.Select(ctx, &results, sql); err != nil {
 		return nil, err
 	}
 
@@ -132,32 +190,44 @@ func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.Le
 
 	// Make use of the cached latest ledger seq and close time to query only the oldest ledger details.
 	if latestLedgerSeqCache != 0 {
-		query := sq.Select("meta").
-			From(ledgerCloseMetaTableName).
-			Where(
-				fmt.Sprintf("sequence = (SELECT MIN(sequence) FROM %s)", ledgerCloseMetaTableName),
-			)
-		var lcm []xdr.LedgerCloseMeta
-		if err := r.db.Select(ctx, &lcm, query); err != nil {
-			return ledgerbucketwindow.LedgerRange{}, fmt.Errorf("couldn't query ledger range: %w", err)
-		}
+		return getLedgerRangeWithCache(ctx, r.db, latestLedgerSeqCache, latestLedgerCloseTimeCache)
+	}
+	return getLedgerRangeWithoutCache(ctx, r.db)
+}
 
-		if len(lcm) == 0 {
-			return ledgerbucketwindow.LedgerRange{}, ErrEmptyDB
-		}
-
-		return ledgerbucketwindow.LedgerRange{
-			FirstLedger: ledgerbucketwindow.LedgerInfo{
-				Sequence:  lcm[0].LedgerSequence(),
-				CloseTime: lcm[0].LedgerCloseTime(),
-			},
-			LastLedger: ledgerbucketwindow.LedgerInfo{
-				Sequence:  latestLedgerSeqCache,
-				CloseTime: latestLedgerCloseTimeCache,
-			},
-		}, nil
+// getLedgerRangeWithCache uses the latest ledger cache to optimize the query.
+// It only needs to look up the first ledger since we have the latest cached.
+func getLedgerRangeWithCache(ctx context.Context, db ReadDB,
+	latestSeq uint32, latestTime int64,
+) (ledgerbucketwindow.LedgerRange, error) {
+	query := sq.Select("meta").
+		From(ledgerCloseMetaTableName).
+		Where(
+			fmt.Sprintf("sequence = (SELECT MIN(sequence) FROM %s)", ledgerCloseMetaTableName),
+		)
+	var lcm []xdr.LedgerCloseMeta
+	if err := db.Select(ctx, &lcm, query); err != nil {
+		return ledgerbucketwindow.LedgerRange{}, fmt.Errorf("couldn't query ledger range: %w", err)
 	}
 
+	if len(lcm) == 0 {
+		return ledgerbucketwindow.LedgerRange{}, ErrEmptyDB
+	}
+
+	return ledgerbucketwindow.LedgerRange{
+		FirstLedger: ledgerbucketwindow.LedgerInfo{
+			Sequence:  lcm[0].LedgerSequence(),
+			CloseTime: lcm[0].LedgerCloseTime(),
+		},
+		LastLedger: ledgerbucketwindow.LedgerInfo{
+			Sequence:  latestSeq,
+			CloseTime: latestTime,
+		},
+	}, nil
+}
+
+// getLedgerRangeWithoutCache queries both the first and last ledger when cache isn't available
+func getLedgerRangeWithoutCache(ctx context.Context, db ReadDB) (ledgerbucketwindow.LedgerRange, error) {
 	query := sq.Select("lcm.meta").
 		From(ledgerCloseMetaTableName + " as lcm").
 		Where(sq.Or{
@@ -166,7 +236,7 @@ func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.Le
 		}).OrderBy("lcm.sequence ASC")
 
 	var lcms []xdr.LedgerCloseMeta
-	if err := r.db.Select(ctx, &lcms, query); err != nil {
+	if err := db.Select(ctx, &lcms, query); err != nil {
 		return ledgerbucketwindow.LedgerRange{}, fmt.Errorf("couldn't query ledger range: %w", err)
 	}
 

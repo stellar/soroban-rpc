@@ -95,7 +95,18 @@ func NewGetLedgersHandler(ledgerReader db.LedgerReader, maxLimit, defaultLimit u
 
 // getLedgers fetch ledgers and relevant metadata from DB.
 func (h ledgersHandler) getLedgers(ctx context.Context, request GetLedgersRequest) (GetLedgersResponse, error) {
-	ledgerRange, err := h.ledgerReader.GetLedgerRange(ctx)
+	readTx, err := h.ledgerReader.NewTx(ctx)
+	if err != nil {
+		return GetLedgersResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InternalError,
+			Message: err.Error(),
+		}
+	}
+	defer func() {
+		_ = readTx.Done()
+	}()
+
+	ledgerRange, err := readTx.GetLedgerRange(ctx)
 	if err != nil {
 		return GetLedgersResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InternalError,
@@ -118,7 +129,7 @@ func (h ledgersHandler) getLedgers(ctx context.Context, request GetLedgersReques
 		}
 	}
 
-	ledgers, err := h.fetchLedgers(ctx, start, limit, request.Format)
+	ledgers, err := h.fetchLedgers(ctx, start, limit, request.Format, readTx)
 	if err != nil {
 		return GetLedgersResponse{}, err
 	}
@@ -178,9 +189,9 @@ func (h ledgersHandler) parseCursor(cursor string, ledgerRange ledgerbucketwindo
 
 // fetchLedgers fetches ledgers from the DB for the range [start, start+limit-1]
 func (h ledgersHandler) fetchLedgers(ctx context.Context, start uint32,
-	limit uint, format string,
+	limit uint, format string, readTx db.LedgerReaderTx,
 ) ([]LedgerInfo, error) {
-	ledgers, err := h.ledgerReader.BatchGetLedgers(ctx, start, limit)
+	ledgers, err := readTx.BatchGetLedgers(ctx, start, limit)
 	if err != nil {
 		return nil, &jrpc2.Error{
 			Code:    jrpc2.InternalError,

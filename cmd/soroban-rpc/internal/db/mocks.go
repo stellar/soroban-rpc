@@ -115,6 +115,10 @@ func (m *MockLedgerReader) GetLedgerRange(_ context.Context) (ledgerbucketwindow
 	return m.txn.ledgerRange, nil
 }
 
+func (m *MockLedgerReader) NewTx(_ context.Context) (LedgerReaderTx, error) {
+	return nil, nil
+}
+
 var (
 	_ TransactionReader = &MockTransactionHandler{}
 	_ TransactionWriter = &MockTransactionHandler{}

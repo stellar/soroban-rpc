@@ -30,6 +30,10 @@ func (ledgerReader *ConstantLedgerReader) GetLedgerRange(_ context.Context) (led
 	return ledgerbucketwindow.LedgerRange{}, nil
 }
 
+func (ledgerReader *ConstantLedgerReader) NewTx(_ context.Context) (db.LedgerReaderTx, error) {
+	return nil, nil
+}
+
 func (entryReader *ConstantLedgerEntryReader) GetLatestLedgerSequence(_ context.Context) (uint32, error) {
 	return expectedLatestLedgerSequence, nil
 }
