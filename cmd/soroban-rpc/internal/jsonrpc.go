@@ -208,13 +208,6 @@ func NewJSONRPCHandler(cfg *config.Config, params HandlerParams) Handler {
 			requestDurationLimit: cfg.MaxGetLedgersExecutionDuration,
 		},
 		{
-			methodName:           "getLedgerEntry",
-			underlyingHandler:    methods.NewGetLedgerEntryHandler(params.Logger, params.LedgerEntryReader),
-			longName:             "get_ledger_entry",
-			queueLimit:           cfg.RequestBacklogGetLedgerEntriesQueueLimit, // share with getLedgerEntries
-			requestDurationLimit: cfg.MaxGetLedgerEntriesExecutionDuration,
-		},
-		{
 			methodName:           "getLedgerEntries",
 			underlyingHandler:    methods.NewGetLedgerEntriesHandler(params.Logger, params.LedgerEntryReader),
 			longName:             "get_ledger_entries",
