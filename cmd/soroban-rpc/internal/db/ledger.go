@@ -38,7 +38,7 @@ type LedgerWriter interface {
 	InsertLedger(ledger xdr.LedgerCloseMeta) error
 }
 
-type ReadDB interface {
+type readDB interface {
 	Select(ctx context.Context, dest interface{}, query sq.Sqlizer) error
 }
 
@@ -163,7 +163,7 @@ func (r ledgerReader) BatchGetLedgers(ctx context.Context, sequence uint32,
 	return batchGetLedgers(ctx, r.db, sequence, batchSize)
 }
 
-func batchGetLedgers(ctx context.Context, db ReadDB, sequence uint32,
+func batchGetLedgers(ctx context.Context, db readDB, sequence uint32,
 	batchSize uint,
 ) ([]xdr.LedgerCloseMeta, error) {
 	sql := sq.Select("meta").
@@ -197,7 +197,7 @@ func (r ledgerReader) GetLedgerRange(ctx context.Context) (ledgerbucketwindow.Le
 
 // getLedgerRangeWithCache uses the latest ledger cache to optimize the query.
 // It only needs to look up the first ledger since we have the latest cached.
-func getLedgerRangeWithCache(ctx context.Context, db ReadDB,
+func getLedgerRangeWithCache(ctx context.Context, db readDB,
 	latestSeq uint32, latestTime int64,
 ) (ledgerbucketwindow.LedgerRange, error) {
 	query := sq.Select("meta").
@@ -227,7 +227,7 @@ func getLedgerRangeWithCache(ctx context.Context, db ReadDB,
 }
 
 // getLedgerRangeWithoutCache queries both the first and last ledger when cache isn't available
-func getLedgerRangeWithoutCache(ctx context.Context, db ReadDB) (ledgerbucketwindow.LedgerRange, error) {
+func getLedgerRangeWithoutCache(ctx context.Context, db readDB) (ledgerbucketwindow.LedgerRange, error) {
 	query := sq.Select("lcm.meta").
 		From(ledgerCloseMetaTableName + " as lcm").
 		Where(sq.Or{
