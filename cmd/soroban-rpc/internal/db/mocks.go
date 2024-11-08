@@ -116,7 +116,7 @@ func (m *MockLedgerReader) GetLedgerRange(_ context.Context) (ledgerbucketwindow
 }
 
 func (m *MockLedgerReader) NewTx(_ context.Context) (LedgerReaderTx, error) {
-	return nil, nil
+	return nil, errors.New("mock NewTx error")
 }
 
 var (

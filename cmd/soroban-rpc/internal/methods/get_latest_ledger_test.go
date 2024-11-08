@@ -2,6 +2,7 @@ package methods
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/creachadair/jrpc2"
@@ -31,7 +32,7 @@ func (ledgerReader *ConstantLedgerReader) GetLedgerRange(_ context.Context) (led
 }
 
 func (ledgerReader *ConstantLedgerReader) NewTx(_ context.Context) (db.LedgerReaderTx, error) {
-	return nil, nil
+	return nil, errors.New("mock NewTx error")
 }
 
 func (entryReader *ConstantLedgerEntryReader) GetLatestLedgerSequence(_ context.Context) (uint32, error) {
