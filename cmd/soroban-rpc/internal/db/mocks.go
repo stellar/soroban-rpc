@@ -97,12 +97,6 @@ func (m *MockLedgerReader) GetLedger(_ context.Context, sequence uint32) (xdr.Le
 	return *lcm, true, nil
 }
 
-func (m *MockLedgerReader) BatchGetLedgers(_ context.Context, _ uint32,
-	_ uint,
-) ([]xdr.LedgerCloseMeta, error) {
-	return []xdr.LedgerCloseMeta{}, nil
-}
-
 func (m *MockLedgerReader) StreamAllLedgers(_ context.Context, _ StreamLedgerFn) error {
 	return nil
 }
