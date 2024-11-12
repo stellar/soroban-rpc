@@ -129,9 +129,9 @@ var (
 	// MaxCursor is the largest possible cursor
 	//nolint:gochecknoglobals
 	MaxCursor = Cursor{
-		Ledger: math.MaxUint32,
-		Tx:     math.MaxUint32,
-		Op:     math.MaxUint32,
+		Ledger: math.MaxInt32,
+		Tx:     math.MaxInt32,
+		Op:     math.MaxInt32,
 		Event:  math.MaxUint32,
 	}
 )
