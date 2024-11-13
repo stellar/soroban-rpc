@@ -22,7 +22,7 @@ type GetVersionInfoResponse struct {
 	//nolint:tagliatelle
 	CommitHashDeprecated string `json:"commit_hash"`
 	//nolint:tagliatelle
-	BuildTimestampDeprecated string `json:"build_timestamp"`
+	BuildTimestampDeprecated string `json:"build_time_stamp"`
 	//nolint:tagliatelle
 	CaptiveCoreVersionDeprecated string `json:"captive_core_version"`
 	//nolint:tagliatelle
