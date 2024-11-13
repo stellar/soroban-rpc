@@ -7,9 +7,10 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/exp/constraints"
+
 	"github.com/stellar/go/support/ordered"
 	"github.com/stellar/go/toid"
-	"golang.org/x/exp/constraints"
 )
 
 const (
