@@ -446,10 +446,8 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		}
 	}
 	endLedger := start.Ledger + LedgerScanLimit
-
 	// endLedger should not exceed ledger retention window
 	endLedger = min(ledgerRange.LastLedger.Sequence+1, endLedger)
-
 	if request.EndLedger != 0 {
 		endLedger = min(request.EndLedger, endLedger)
 	}

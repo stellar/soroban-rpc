@@ -2,6 +2,7 @@ package methods
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/creachadair/jrpc2"
@@ -28,6 +29,10 @@ type ConstantLedgerReader struct{}
 
 func (ledgerReader *ConstantLedgerReader) GetLedgerRange(_ context.Context) (ledgerbucketwindow.LedgerRange, error) {
 	return ledgerbucketwindow.LedgerRange{}, nil
+}
+
+func (ledgerReader *ConstantLedgerReader) NewTx(_ context.Context) (db.LedgerReaderTx, error) {
+	return nil, errors.New("mock NewTx error")
 }
 
 func (entryReader *ConstantLedgerEntryReader) GetLatestLedgerSequence(_ context.Context) (uint32, error) {
