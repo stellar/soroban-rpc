@@ -7,6 +7,9 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/exp/constraints"
+
+	"github.com/stellar/go/support/ordered"
 	"github.com/stellar/go/toid"
 )
 
@@ -40,9 +43,15 @@ type CursorRange struct {
 
 // String returns a string representation of this cursor
 func (c Cursor) String() string {
+	// TOID maxes out at int32, so we need to clamp accordingly to avoid
+	// generating invalid cursors
+	ledger := int32(clamp(c.Ledger, 0, math.MaxInt32))
+	tx := int32(clamp(c.Tx, 0, math.MaxInt32))
+	op := int32(clamp(c.Op, 0, math.MaxInt32))
+
 	return fmt.Sprintf(
 		"%019d-%010d",
-		toid.New(int32(c.Ledger), int32(c.Tx), int32(c.Op)).ToInt64(),
+		toid.New(ledger, tx, op).ToInt64(),
 		c.Event,
 	)
 }
@@ -95,16 +104,6 @@ func ParseCursor(input string) (Cursor, error) {
 	}, nil
 }
 
-func cmp(a, b uint32) int {
-	if a < b {
-		return -1
-	}
-	if a > b {
-		return 1
-	}
-	return 0
-}
-
 // Cmp compares two cursors.
 // 0 is returned if the c is equal to other.
 // 1 is returned if c is greater than other.
@@ -120,6 +119,20 @@ func (c Cursor) Cmp(other Cursor) int {
 		return cmp(c.Tx, other.Tx)
 	}
 	return cmp(c.Ledger, other.Ledger)
+}
+
+func cmp(a, b uint32) int {
+	if a < b {
+		return -1
+	}
+	if a > b {
+		return 1
+	}
+	return 0
+}
+
+func clamp[T constraints.Ordered](val, floor, ceil T) T {
+	return ordered.Min(ceil, ordered.Max(floor, val))
 }
 
 var (
