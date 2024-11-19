@@ -342,9 +342,14 @@ func (i *Test) waitForRPC() {
 
 func (i *Test) generateCaptiveCoreCfgForContainer() {
 	getOldVersionCaptiveCoreConfigVersion := func(dir string, filename string) ([]byte, error) {
-		cmd := exec.Command("git", "show", fmt.Sprintf("v%s:./%s/%s", i.rpcContainerVersion, dir, filename))
-		cmd.Dir = GetCurrentDirectory()
-		return cmd.Output()
+		// TODO: to be removed once we go over the stellar-rpc renaming
+		arg := fmt.Sprintf(
+			"v%s:./soroban-rpc/internal/integrationtest/infrastructure/%s/%s",
+			i.rpcContainerVersion, dir,
+			filename)
+		cmd := exec.Command("git", "show", arg)
+		cmd.Dir = GetCurrentDirectory() + "/../../../../"
+		return cmd.CombinedOutput()
 	}
 
 	// Get old version of captive-core-integration-tests.cfg.tmpl
