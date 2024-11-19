@@ -14,10 +14,10 @@ ifeq ($(strip $(REPOSITORY_VERSION)),)
 endif
 REPOSITORY_BRANCH := "$(shell git rev-parse --abbrev-ref HEAD)"
 BUILD_TIMESTAMP ?= $(shell date '+%Y-%m-%dT%H:%M:%S')
-GOLDFLAGS :=	-X 'github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config.Version=${REPOSITORY_VERSION}' \
-				-X 'github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config.CommitHash=${REPOSITORY_COMMIT_HASH}' \
-				-X 'github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config.BuildTimestamp=${BUILD_TIMESTAMP}' \
-				-X 'github.com/stellar/soroban-rpc/cmd/soroban-rpc/internal/config.Branch=${REPOSITORY_BRANCH}'
+GOLDFLAGS :=	-X 'github.com/stellar/stellar-rpc/cmd/stellar-rpc/internal/config.Version=${REPOSITORY_VERSION}' \
+				-X 'github.com/stellar/stellar-rpc/cmd/stellar-rpc/internal/config.CommitHash=${REPOSITORY_COMMIT_HASH}' \
+				-X 'github.com/stellar/stellar-rpc/cmd/stellar-rpc/internal/config.BuildTimestamp=${BUILD_TIMESTAMP}' \
+				-X 'github.com/stellar/stellar-rpc/cmd/stellar-rpc/internal/config.Branch=${REPOSITORY_BRANCH}'
 
 
 # The following works around incompatibility between the rust and the go linkers -
@@ -36,7 +36,7 @@ endif
 # (libpreflight.a is put at target/release-with-panic-unwind/ when not cross compiling)
 CARGO_BUILD_TARGET ?= $(shell rustc -vV | sed -n 's|host: ||p')
 
-SOROBAN_RPC_BINARY := soroban-rpc
+SOROBAN_RPC_BINARY := stellar-rpc
 STELLAR_RPC_BINARY := stellar-rpc
 
 
@@ -51,7 +51,7 @@ build: build-libs
 	go build -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} ./...
 
 build-libs: Cargo.lock
-	cd cmd/soroban-rpc/lib/preflight && \
+	cd cmd/stellar-rpc/lib/preflight && \
 	cargo build --target $(CARGO_BUILD_TARGET) --profile release-with-panic-unwind && \
 	cd ../xdr2json && \
 	cargo build --target $(CARGO_BUILD_TARGET) --profile release-with-panic-unwind
@@ -82,17 +82,17 @@ clean:
 	go clean ./...
 
 # DEPRECATED - please use build-stellar-rpc instead
-# the build-soroban-rpc build target is an optimized build target used by
-# https://github.com/stellar/pipelines/blob/master/soroban-rpc/Jenkinsfile-soroban-rpc-package-builder
-# as part of the package building.
-build-soroban-rpc: build-libs
-	go build -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} -o ${SOROBAN_RPC_BINARY} -trimpath -v ./cmd/soroban-rpc
-
 # the build-stellar-rpc build target is an optimized build target used by
-# https://github.com/stellar/pipelines/blob/master/soroban-rpc/Jenkinsfile-soroban-rpc-package-builder
+# https://github.com/stellar/pipelines/blob/master/stellar-rpc/Jenkinsfile-stellar-rpc-package-builder
 # as part of the package building.
 build-stellar-rpc: build-libs
-	go build -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} -o ${STELLAR_RPC_BINARY} -trimpath -v ./cmd/soroban-rpc
+	go build -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} -o ${SOROBAN_RPC_BINARY} -trimpath -v ./cmd/stellar-rpc
+
+# the build-stellar-rpc build target is an optimized build target used by
+# https://github.com/stellar/pipelines/blob/master/stellar-rpc/Jenkinsfile-stellar-rpc-package-builder
+# as part of the package building.
+build-stellar-rpc: build-libs
+	go build -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} -o ${STELLAR_RPC_BINARY} -trimpath -v ./cmd/stellar-rpc
 
 
 go-check-branch:
@@ -103,4 +103,4 @@ go-check:
 
 
 # PHONY lists all the targets that aren't file names, so that make would skip the timestamp based check.
-.PHONY: clean fmt watch test rust-test go-test check rust-check go-check install build build-soroban-rpc build-libs lint lint-changes
+.PHONY: clean fmt watch test rust-test go-test check rust-check go-check install build build-stellar-rpc build-libs lint lint-changes

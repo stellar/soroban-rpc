@@ -5,12 +5,12 @@
 ### Breaking Change
 - Remove `GetLedgerEntry` endpoint. This endpoint was already deprecated earlier in favor of `GetLedgerEntries` and is completely removed in this release.
 
-## [v21.5.1](https://github.com/stellar/soroban-rpc/compare/v21.5.0...v21.5.1)
+## [v21.5.1](https://github.com/stellar/stellar-rpc/compare/v21.5.0...v21.5.1)
 
 ### Fixed
-* Preserve field omission behavior of `simulateTransaction` ([#291](https://github.com/stellar/soroban-rpc/pull/291)).
+* Preserve field omission behavior of `simulateTransaction` ([#291](https://github.com/stellar/stellar-rpc/pull/291)).
 
-## [v21.5.0](https://github.com/stellar/soroban-rpc/compare/v21.4.1...v21.5.0)
+## [v21.5.0](https://github.com/stellar/stellar-rpc/compare/v21.4.1...v21.5.0)
 
 ### Added
 
@@ -45,24 +45,24 @@ Certain XDR-encoded fields do not have an `Xdr` suffix, but those also have a `*
     `Json` suffix, and `results.xdr` is now `results.returnValueJson`
 
 ### Fixed
-* Improve performance of `getVersionInfo` and `getNetwork` ([#198](https://github.com/stellar/soroban-rpc/pull/198)).
+* Improve performance of `getVersionInfo` and `getNetwork` ([#198](https://github.com/stellar/stellar-rpc/pull/198)).
 
 
-## [v21.4.1](https://github.com/stellar/soroban-rpc/compare/v21.4.0...v21.4.1)
+## [v21.4.1](https://github.com/stellar/stellar-rpc/compare/v21.4.0...v21.4.1)
 
 ### Fixed
-* Fix parsing of the `--log-format` parameter ([#252](https://github.com/stellar/soroban-rpc/pull/252))
+* Fix parsing of the `--log-format` parameter ([#252](https://github.com/stellar/stellar-rpc/pull/252))
 
 
-## [v21.4.0](https://github.com/stellar/soroban-rpc/compare/v21.2.0...v21.4.0)
+## [v21.4.0](https://github.com/stellar/stellar-rpc/compare/v21.2.0...v21.4.0)
 
 ### Added
-* Transactions will now be stored in a database rather than in memory ([#174](https://github.com/stellar/soroban-rpc/pull/174)).
+* Transactions will now be stored in a database rather than in memory ([#174](https://github.com/stellar/stellar-rpc/pull/174)).
 
 You can opt-in to longer transaction retention by setting `--transaction-retention-window` / `TRANSACTION_RETENTION_WINDOW` to a higher number of ledgers. This will also retain corresponding number of ledgers in the database. Keep in mind, of course, that this will cause an increase in disk usage for the growing database.
 
-* Unify transaction and event retention windows ([#234](https://github.com/stellar/soroban-rpc/pull/234)).
-* There is a new `getTransactions` endpoint with the following API ([#136](https://github.com/stellar/soroban-rpc/pull/136)):
+* Unify transaction and event retention windows ([#234](https://github.com/stellar/stellar-rpc/pull/234)).
+* There is a new `getTransactions` endpoint with the following API ([#136](https://github.com/stellar/stellar-rpc/pull/136)):
 
 ```typescript
 interface Request {
@@ -96,23 +96,23 @@ interface Transaction {
 ```
 
 ### Fixed
-* Logging and typo fixes in ([#238](https://github.com/stellar/soroban-rpc/pull/238)).
-* Fix calculation of ledger ranges across endpoints ([#217](https://github.com/stellar/soroban-rpc/pull/217)).
+* Logging and typo fixes in ([#238](https://github.com/stellar/stellar-rpc/pull/238)).
+* Fix calculation of ledger ranges across endpoints ([#217](https://github.com/stellar/stellar-rpc/pull/217)).
 
 
-## [v21.2.0](https://github.com/stellar/soroban-rpc/compare/v21.1.0...v21.2.0)
+## [v21.2.0](https://github.com/stellar/stellar-rpc/compare/v21.1.0...v21.2.0)
 
 ### Added
-* Dependencies have been updated (`stellar/go`) to enable `ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION` by default ([#179](https://github.com/stellar/soroban-rpc/pull/179)).
+* Dependencies have been updated (`stellar/go`) to enable `ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION` by default ([#179](https://github.com/stellar/stellar-rpc/pull/179)).
 
 ### Fixed
-* The Captive Core path is supplied correctly for TOML generation ([#178](https://github.com/stellar/soroban-rpc/pull/178)).
+* The Captive Core path is supplied correctly for TOML generation ([#178](https://github.com/stellar/stellar-rpc/pull/178)).
 
 
-## [v21.1.0](https://github.com/stellar/soroban-rpc/compare/v21.0.1...v21.1.0)
+## [v21.1.0](https://github.com/stellar/stellar-rpc/compare/v21.0.1...v21.1.0)
 
 ### Added
-* A new `getVersionInfo` RPC endpoint providing versioning info ([#132](https://github.com/stellar/soroban-rpc/pull/132)):
+* A new `getVersionInfo` RPC endpoint providing versioning info ([#132](https://github.com/stellar/stellar-rpc/pull/132)):
 
 ```typescript
 interface getVersionInfo {
@@ -125,10 +125,10 @@ interface getVersionInfo {
 ```
 
 ### Fixed
-* Deadlock on events ingestion error ([#167](https://github.com/stellar/soroban-rpc/pull/167)).
-* Correctly report row iteration errors in `StreamAllLedgers` ([#168](https://github.com/stellar/soroban-rpc/pull/168)).
-* Increase default ingestion timeout ([#169](https://github.com/stellar/soroban-rpc/pull/169)).
-* Surface an ignored error in `getRawLedgerEntries()` ([#170](https://github.com/stellar/soroban-rpc/pull/170)).
+* Deadlock on events ingestion error ([#167](https://github.com/stellar/stellar-rpc/pull/167)).
+* Correctly report row iteration errors in `StreamAllLedgers` ([#168](https://github.com/stellar/stellar-rpc/pull/168)).
+* Increase default ingestion timeout ([#169](https://github.com/stellar/stellar-rpc/pull/169)).
+* Surface an ignored error in `getRawLedgerEntries()` ([#170](https://github.com/stellar/stellar-rpc/pull/170)).
 
 
 # Formatting Guidelines

@@ -1,4 +1,4 @@
-module github.com/stellar/soroban-rpc
+module github.com/stellar/stellar-rpc
 
 go 1.22
 
