@@ -1,14 +1,14 @@
-# Monitoring and Tuning Guide for soroban-rpc
+# Monitoring and Tuning Guide for stellar-rpc
 
 ## Introduction
 
-This document provides a comprehensive guide to monitoring and tuning soroban-rpc, a backend server that communicates using the jrpc (JSON-RPC) protocol over HTTP. To ensure high
-availability, high performance, and efficient resource utilization, soroban-rpc incorporates various features like limiting concurrent requests, controlling execution times, and providing
+This document provides a comprehensive guide to monitoring and tuning stellar-rpc, a backend server that communicates using the jrpc (JSON-RPC) protocol over HTTP. To ensure high
+availability, high performance, and efficient resource utilization, stellar-rpc incorporates various features like limiting concurrent requests, controlling execution times, and providing
 warning and limiting mechanisms. This guide aims to help operators effectively monitor the server, detect potential issues, and apply tuning strategies to maintain optimal performance.
 
 ## Monitoring Metrics
 
-To ensure the smooth operation of soroban-rpc, several key metrics should be monitored continuously:
+To ensure the smooth operation of stellar-rpc, several key metrics should be monitored continuously:
 
 1. **Global Inflight Requests (Concurrent HTTP Requests)**: Monitor the number of concurrent HTTP requests being enqueued at the HTTP endpoint. This metric is tracked via the
    `global_inflight_requests` gauge. If this number reaches the predefined limit, an HTTP 503 error is generated. This metric helps identify if the server is reaching its limit in handling
@@ -27,12 +27,12 @@ To ensure the smooth operation of soroban-rpc, several key metrics should be mon
 
 ## Best Practices
 
-Follow these best practices to maintain a stable and performant soroban-rpc deployment:
+Follow these best practices to maintain a stable and performant stellar-rpc deployment:
 
 1. **Set Sensible Limits**: Determine appropriate limits for concurrent requests, method execution times, and HTTP request duration based on your server's resources and expected workload.
    Avoid overly restrictive limits that may hinder normal operations.
 
-2. **Logging and Alerts**: The soroban-rpc comes ready with logging and metric endpoint, which reports operational status. On your end, develop the toolings that would allow you to be aware of these events. These toolings could be Grafana alerts, log scraping or similar tools.
+2. **Logging and Alerts**: The stellar-rpc comes ready with logging and metric endpoint, which reports operational status. On your end, develop the toolings that would allow you to be aware of these events. These toolings could be Grafana alerts, log scraping or similar tools.
 
 3. **Load Testing**: Regularly conduct load testing to assess the server's performance under varying workloads. Use this data to adjust limits and execution times as needed.
 
