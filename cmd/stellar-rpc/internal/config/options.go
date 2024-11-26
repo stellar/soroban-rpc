@@ -33,15 +33,17 @@ func (cfg *Config) options() Options {
 	defaultStellarCoreBinaryPath, _ := exec.LookPath("stellar-core")
 	cfg.optionsCache = &Options{
 		{
-			Name:      "config-path",
-			EnvVar:    "STELLAR_RPC_CONFIG_PATH",
+			Name: "config-path",
+			// TODO: deprecate and rename to STELLAR_RPC_
+			EnvVar:    "SOROBAN_RPC_CONFIG_PATH",
 			TomlKey:   "-",
 			Usage:     "File path to the toml configuration file",
 			ConfigKey: &cfg.ConfigPath,
 		},
 		{
-			Name:         "config-strict",
-			EnvVar:       "STELLAR_RPC_CONFIG_STRICT",
+			Name: "config-strict",
+			// TODO: deprecate and rename to STELLAR_RPC_
+			EnvVar:       "SOROBAN_RPC_CONFIG_STRICT",
 			TomlKey:      "STRICT",
 			Usage:        "Enable strict toml configuration file parsing. This will prevent unknown fields in the config toml from being parsed.",
 			ConfigKey:    &cfg.Strict,
@@ -197,10 +199,11 @@ func (cfg *Config) options() Options {
 			Validate:  required,
 		},
 		{
-			Name:         "db-path",
-			Usage:        "SQLite DB path",
-			ConfigKey:    &cfg.SQLiteDBPath,
-			DefaultValue: "stellar_rpc.sqlite",
+			Name:      "db-path",
+			Usage:     "SQLite DB path",
+			ConfigKey: &cfg.SQLiteDBPath,
+			// TODO: deprecate and rename to stellar_rpc.sqlite
+			DefaultValue: "soroban_rpc.sqlite",
 		},
 		{
 			Name:         "ingestion-timeout",

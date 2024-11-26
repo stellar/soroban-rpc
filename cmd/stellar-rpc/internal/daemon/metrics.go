@@ -21,14 +21,14 @@ import (
 
 func (d *Daemon) registerMetrics() {
 	// LogMetricsHook is a metric which counts log lines emitted by stellar rpc
-	logMetricsHook := logmetrics.New(prometheusNamespace)
+	logMetricsHook := logmetrics.New(interfaces.PrometheusNamespace)
 	d.logger.AddHook(logMetricsHook)
 	for _, counter := range logMetricsHook {
 		d.metricsRegistry.MustRegister(counter)
 	}
 
 	buildInfoGauge := prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{Namespace: prometheusNamespace, Subsystem: "build", Name: "info"},
+		prometheus.GaugeOpts{Namespace: interfaces.PrometheusNamespace, Subsystem: "build", Name: "info"},
 		[]string{"version", "goversion", "commit", "branch", "build_timestamp"},
 	)
 	buildInfoGauge.With(prometheus.Labels{
@@ -49,7 +49,7 @@ func (d *Daemon) MetricsRegistry() *prometheus.Registry {
 }
 
 func (d *Daemon) MetricsNamespace() string {
-	return prometheusNamespace
+	return interfaces.PrometheusNamespace
 }
 
 type CoreClientWithMetrics struct {
@@ -60,12 +60,12 @@ type CoreClientWithMetrics struct {
 
 func newCoreClientWithMetrics(client stellarcore.Client, registry *prometheus.Registry) *CoreClientWithMetrics {
 	submitMetric := prometheus.NewSummaryVec(prometheus.SummaryOpts{
-		Namespace: prometheusNamespace, Subsystem: "txsub", Name: "submission_duration_seconds",
+		Namespace: interfaces.PrometheusNamespace, Subsystem: "txsub", Name: "submission_duration_seconds",
 		Help:       "submission durations to Stellar-Core, sliding window = 10m",
 		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}, //nolint:mnd
 	}, []string{"status"})
 	opCountMetric := prometheus.NewSummaryVec(prometheus.SummaryOpts{
-		Namespace: prometheusNamespace, Subsystem: "txsub", Name: "operation_count",
+		Namespace: interfaces.PrometheusNamespace, Subsystem: "txsub", Name: "operation_count",
 		Help:       "number of operations included in a transaction, sliding window = 10m",
 		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}, //nolint:mnd
 	}, []string{"status"})
