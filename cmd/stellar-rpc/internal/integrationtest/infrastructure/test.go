@@ -112,8 +112,8 @@ type Test struct {
 }
 
 func NewTest(t *testing.T, cfg *TestConfig) *Test {
-	if os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_ENABLED") == "" {
-		t.Skip("skipping integration test: SOROBAN_RPC_INTEGRATION_TESTS_ENABLED not set")
+	if os.Getenv("STELLAR_RPC_INTEGRATION_TESTS_ENABLED") == "" {
+		t.Skip("skipping integration test: STELLAR_RPC_INTEGRATION_TESTS_ENABLED not set")
 	}
 	i := &Test{t: t}
 
@@ -137,7 +137,7 @@ func NewTest(t *testing.T, cfg *TestConfig) *Test {
 	}
 
 	if i.sqlitePath == "" {
-		i.sqlitePath = path.Join(i.t.TempDir(), "soroban_rpc.sqlite")
+		i.sqlitePath = path.Join(i.t.TempDir(), "stellar_rpc.sqlite")
 	}
 
 	if parallel {
@@ -276,9 +276,9 @@ func (i *Test) getRPConfigForContainer() rpcConfig {
 }
 
 func (i *Test) getRPConfigForDaemon() rpcConfig {
-	coreBinaryPath := os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN")
+	coreBinaryPath := os.Getenv("STELLAR_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN")
 	if coreBinaryPath == "" {
-		i.t.Fatal("missing SOROBAN_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN")
+		i.t.Fatal("missing STELLAR_RPC_INTEGRATION_TESTS_CAPTIVE_CORE_BIN")
 	}
 	return rpcConfig{
 		// Allocate port dynamically and then figure out what the port is
@@ -479,7 +479,7 @@ func (i *Test) getComposeCommand(args ...string) *exec.Cmd {
 		cmd = exec.Command("docker", cmdline...)
 	}
 
-	if img := os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_DOCKER_IMG"); img != "" {
+	if img := os.Getenv("STELLAR_RPC_INTEGRATION_TESTS_DOCKER_IMG"); img != "" {
 		cmd.Env = append(
 			cmd.Env,
 			"CORE_IMAGE="+img,
@@ -722,7 +722,7 @@ func (i *Test) fillContainerPorts() {
 }
 
 func GetCoreMaxSupportedProtocol() uint32 {
-	str := os.Getenv("SOROBAN_RPC_INTEGRATION_TESTS_CORE_MAX_SUPPORTED_PROTOCOL")
+	str := os.Getenv("STELLAR_RPC_INTEGRATION_TESTS_CORE_MAX_SUPPORTED_PROTOCOL")
 	if str == "" {
 		return MaxSupportedProtocolVersion
 	}

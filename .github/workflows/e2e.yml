@@ -23,7 +23,7 @@ jobs:
       # the soroban CLI & RPC source code to compile and run from system test
       # refers to checked out source of current git hub ref context
       SYSTEM_TEST_SOROBAN_CLI_REF: https://github.com/stellar/soroban-cli.git\#main
-      SYSTEM_TEST_SOROBAN_RPC_REF: ${{ github.workspace }}/stellar-rpc
+      SYSTEM_TEST_STELLAR_RPC_REF: ${{ github.workspace }}/stellar-rpc
 
       # core git ref should be latest commit for stable soroban functionality
       # the core bin can either be compiled in-line here as part of ci,
@@ -54,8 +54,7 @@ jobs:
 
       # system test will build quickstart image internally to use for running the service stack
       # configured in standalone network mode(core, rpc)
-      SYSTEM_TEST_QUICKSTART_GIT_REF: https://github.com/stellar/quickstart.git#ae7fdb07283a0af836d4cd51ff09b02db93fb12c
-
+      SYSTEM_TEST_QUICKSTART_GIT_REF: https://github.com/stellar/quickstart.git#1a831b2350dd3928b60eb745d0862ee19dd2aaaa
       # triggers system test to log out details from quickstart's logs and test steps
       SYSTEM_TEST_VERBOSE_OUTPUT: "true"
 
@@ -104,7 +103,7 @@ jobs:
             CORE_COMPILE_CONFIGURE_FLAGS="$SYSTEM_TEST_CORE_COMPILE_CONFIGURE_FLAGS" \
             CORE_IMAGE=$SYSTEM_TEST_CORE_IMAGE \
             CORE_IMAGE_BIN_PATH=$SYSTEM_TEST_CORE_IMAGE_BIN_PATH \
-            SOROBAN_RPC_GIT_REF=$SYSTEM_TEST_SOROBAN_RPC_REF \
+            STELLAR_RPC_GIT_REF=$SYSTEM_TEST_STELLAR_RPC_REF \
             SOROBAN_CLI_GIT_REF=$SYSTEM_TEST_SOROBAN_CLI_REF \
             RUST_TOOLCHAIN_VERSION=$SYSTEM_TEST_RUST_TOOLCHAIN_VERSION \
             RS_XDR_GIT_REF=$SYSTEM_TEST_RS_XDR_GIT_REF \

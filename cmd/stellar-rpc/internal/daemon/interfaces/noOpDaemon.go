@@ -21,7 +21,7 @@ type NoOpDaemon struct {
 func MakeNoOpDeamon() *NoOpDaemon {
 	return &NoOpDaemon{
 		metricsRegistry:  prometheus.NewRegistry(),
-		metricsNamespace: "soroban_rpc",
+		metricsNamespace: "stellar_rpc",
 		coreClient:       noOpCoreClient{},
 	}
 }

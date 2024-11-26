@@ -34,14 +34,14 @@ func (cfg *Config) options() Options {
 	cfg.optionsCache = &Options{
 		{
 			Name:      "config-path",
-			EnvVar:    "SOROBAN_RPC_CONFIG_PATH",
+			EnvVar:    "STELLAR_RPC_CONFIG_PATH",
 			TomlKey:   "-",
 			Usage:     "File path to the toml configuration file",
 			ConfigKey: &cfg.ConfigPath,
 		},
 		{
 			Name:         "config-strict",
-			EnvVar:       "SOROBAN_RPC_CONFIG_STRICT",
+			EnvVar:       "STELLAR_RPC_CONFIG_STRICT",
 			TomlKey:      "STRICT",
 			Usage:        "Enable strict toml configuration file parsing. This will prevent unknown fields in the config toml from being parsed.",
 			ConfigKey:    &cfg.Strict,
@@ -200,7 +200,7 @@ func (cfg *Config) options() Options {
 			Name:         "db-path",
 			Usage:        "SQLite DB path",
 			ConfigKey:    &cfg.SQLiteDBPath,
-			DefaultValue: "soroban_rpc.sqlite",
+			DefaultValue: "stellar_rpc.sqlite",
 		},
 		{
 			Name:         "ingestion-timeout",

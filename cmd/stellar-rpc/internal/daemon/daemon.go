@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	prometheusNamespace          = "soroban_rpc"
+	prometheusNamespace          = "stellar_rpc"
 	maxLedgerEntryWriteBatchSize = 150
 	defaultReadTimeout           = 5 * time.Second
 	defaultShutdownGracePeriod   = 10 * time.Second

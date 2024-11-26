@@ -313,7 +313,7 @@ func createLedger(ledgerSequence uint32) xdr.LedgerCloseMeta {
 }
 
 func getDB(t testing.TB, restartDB bool) *db.DB {
-	dbPath := path.Join(t.TempDir(), "soroban_rpc.sqlite")
+	dbPath := path.Join(t.TempDir(), "stellar_rpc.sqlite")
 	dbInstance, err := db.OpenSQLiteDB(dbPath)
 	require.NoError(t, err)
 

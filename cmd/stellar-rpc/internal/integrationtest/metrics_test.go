@@ -23,7 +23,7 @@ func TestMetrics(t *testing.T) {
 	require.NoError(t, err)
 	metrics := getMetrics(t, metricsURL)
 	buildMetric := fmt.Sprintf(
-		"soroban_rpc_build_info{branch=\"%s\",build_timestamp=\"%s\",commit=\"%s\",goversion=\"%s\",version=\"%s\"} 1",
+		"stellar_rpc_build_info{branch=\"%s\",build_timestamp=\"%s\",commit=\"%s\",goversion=\"%s\",version=\"%s\"} 1",
 		config.Branch,
 		config.BuildTimestamp,
 		config.CommitHash,
@@ -42,7 +42,7 @@ func TestMetrics(t *testing.T) {
 	assert.NoError(t, err)
 	var metric *io_prometheus_client.MetricFamily
 	for _, mf := range metricFamilies {
-		if mf.GetName() == "soroban_rpc_log_error_total" {
+		if mf.GetName() == "stellar_rpc_log_error_total" {
 			metric = mf
 			break
 		}
