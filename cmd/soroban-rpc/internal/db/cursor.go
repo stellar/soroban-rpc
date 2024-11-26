@@ -131,6 +131,7 @@ func cmp(a, b uint32) int {
 	return 0
 }
 
+// Clamp returns a `val` in the range `[floor, ceil]`.
 func clamp[T constraints.Ordered](val, floor, ceil T) T {
 	return ordered.Min(ceil, ordered.Max(floor, val))
 }
