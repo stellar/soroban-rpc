@@ -4,18 +4,18 @@ SUDO := $(shell docker version >/dev/null 2>&1 || echo "sudo")
 BUILD_DATE := $(shell date -u +%FT%TZ)
 
 # Extract latest release semver from GitHub
-SOROBAN_RPC_LATEST_RELEASE := $(shell curl -sS https://api.github.com/repos/stellar/stellar-rpc/releases/latest|jq -r ".tag_name"| tr -d "v" )
+STELLAR_RPC_LATEST_RELEASE := $(shell curl -sS https://api.github.com/repos/stellar/stellar-rpc/releases/latest|jq -r ".tag_name"| tr -d "v" )
 
-# If deb version was provided via the SOROBAN_RPC_VERSION variable use it.
+# If deb version was provided via the STELLAR_RPC_VERSION variable use it.
 # If not get latest deb build matching release from GitHub
-ifndef SOROBAN_RPC_VERSION
-        SOROBAN_RPC_VERSION_PACKAGE_VERSION := $(shell curl -sS https://apt.stellar.org/dists/focal/unstable/binary-amd64/Packages|grep -A 18 stellar-stellar-rpc|grep Version|grep $(SOROBAN_RPC_LATEST_RELEASE)|head -1|cut -d' ' -f2 )
+ifndef STELLAR_RPC_VERSION
+        STELLAR_RPC_VERSION_PACKAGE_VERSION := $(shell curl -sS https://apt.stellar.org/dists/focal/unstable/binary-amd64/Packages|grep -A 18 stellar-stellar-rpc|grep Version|grep $(STELLAR_RPC_LATEST_RELEASE)|head -1|cut -d' ' -f2 )
 else
-        SOROBAN_RPC_VERSION_PACKAGE_VERSION := $(SOROBAN_RPC_VERSION)
+        STELLAR_RPC_VERSION_PACKAGE_VERSION := $(STELLAR_RPC_VERSION)
 endif
 
-ifndef SOROBAN_RPC_VERSION_PACKAGE_VERSION
-        $(error Couldn't establish deb build from version $(SOROBAN_RPC_LATEST_RELEASE). Has the package been built?)
+ifndef STELLAR_RPC_VERSION_PACKAGE_VERSION
+        $(error Couldn't establish deb build from version $(STELLAR_RPC_LATEST_RELEASE). Has the package been built?)
 endif
 
 ifndef STELLAR_CORE_VERSION
@@ -28,9 +28,9 @@ BINARY_NAME ?= stellar-rpc
 ifndef TAG
     # Set the TAG based on the value of BINARY_NAME
     ifeq ($(BINARY_NAME),stellar-rpc)
-        TAG := stellar/stellar-rpc:$(SOROBAN_RPC_VERSION_PACKAGE_VERSION)
+        TAG := stellar/stellar-rpc:$(STELLAR_RPC_VERSION_PACKAGE_VERSION)
     else
-        TAG := stellar/stellar-stellar-rpc:$(SOROBAN_RPC_VERSION_PACKAGE_VERSION)
+        TAG := stellar/stellar-stellar-rpc:$(STELLAR_RPC_VERSION_PACKAGE_VERSION)
     endif
 endif # TAG
 
@@ -38,7 +38,7 @@ endif # TAG
 docker-build:
 	$(SUDO) docker build --pull --platform linux/amd64 $(DOCKER_OPTS) \
 	--label org.opencontainers.image.created="$(BUILD_DATE)" \
-	--build-arg STELLAR_CORE_VERSION=$(STELLAR_CORE_VERSION) --build-arg SOROBAN_RPC_VERSION=$(SOROBAN_RPC_VERSION_PACKAGE_VERSION) \
+	--build-arg STELLAR_CORE_VERSION=$(STELLAR_CORE_VERSION) --build-arg STELLAR_RPC_VERSION=$(STELLAR_RPC_VERSION_PACKAGE_VERSION) \
 	--build-arg BINARY_NAME=$(BINARY_NAME) \
 	-t $(TAG) -f Dockerfile.release .
 

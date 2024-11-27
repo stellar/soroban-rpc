@@ -27,6 +27,7 @@ import (
 
 	"github.com/stellar/stellar-rpc/cmd/stellar-rpc/internal"
 	"github.com/stellar/stellar-rpc/cmd/stellar-rpc/internal/config"
+	"github.com/stellar/stellar-rpc/cmd/stellar-rpc/internal/daemon/interfaces"
 	"github.com/stellar/stellar-rpc/cmd/stellar-rpc/internal/db"
 	"github.com/stellar/stellar-rpc/cmd/stellar-rpc/internal/feewindow"
 	"github.com/stellar/stellar-rpc/cmd/stellar-rpc/internal/ingest"
@@ -35,7 +36,6 @@ import (
 )
 
 const (
-	prometheusNamespace          = "soroban_rpc"
 	maxLedgerEntryWriteBatchSize = 150
 	defaultReadTimeout           = 5 * time.Second
 	defaultShutdownGracePeriod   = 10 * time.Second
@@ -220,7 +220,8 @@ func mustCreateHistoryArchive(cfg *config.Config, logger *supportlog.Entry) *his
 }
 
 func mustOpenDatabase(cfg *config.Config, logger *supportlog.Entry, metricsRegistry *prometheus.Registry) *db.DB {
-	dbConn, err := db.OpenSQLiteDBWithPrometheusMetrics(cfg.SQLiteDBPath, prometheusNamespace, "db", metricsRegistry)
+	dbConn, err := db.OpenSQLiteDBWithPrometheusMetrics(
+		cfg.SQLiteDBPath, interfaces.PrometheusNamespace, "db", metricsRegistry)
 	if err != nil {
 		logger.WithError(err).Fatal("could not open database")
 	}

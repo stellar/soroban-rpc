@@ -9,6 +9,9 @@ import (
 	proto "github.com/stellar/go/protocols/stellarcore"
 )
 
+// TODO: deprecate and rename to stellar_rpc
+const PrometheusNamespace = "soroban_rpc"
+
 // NoOpDaemon The noOpDeamon is a dummy daemon implementation, supporting the Daemon interface.
 // Used only in testing.
 type NoOpDaemon struct {
@@ -21,7 +24,7 @@ type NoOpDaemon struct {
 func MakeNoOpDeamon() *NoOpDaemon {
 	return &NoOpDaemon{
 		metricsRegistry:  prometheus.NewRegistry(),
-		metricsNamespace: "soroban_rpc",
+		metricsNamespace: PrometheusNamespace,
 		coreClient:       noOpCoreClient{},
 	}
 }

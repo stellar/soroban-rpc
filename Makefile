@@ -36,7 +36,7 @@ endif
 # (libpreflight.a is put at target/release-with-panic-unwind/ when not cross compiling)
 CARGO_BUILD_TARGET ?= $(shell rustc -vV | sed -n 's|host: ||p')
 
-SOROBAN_RPC_BINARY := stellar-rpc
+STELLAR_RPC_BINARY := stellar-rpc
 STELLAR_RPC_BINARY := stellar-rpc
 
 
@@ -86,7 +86,7 @@ clean:
 # https://github.com/stellar/pipelines/blob/master/stellar-rpc/Jenkinsfile-stellar-rpc-package-builder
 # as part of the package building.
 build-stellar-rpc: build-libs
-	go build -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} -o ${SOROBAN_RPC_BINARY} -trimpath -v ./cmd/stellar-rpc
+	go build -ldflags="${GOLDFLAGS}" ${MACOS_MIN_VER} -o ${STELLAR_RPC_BINARY} -trimpath -v ./cmd/stellar-rpc
 
 # the build-stellar-rpc build target is an optimized build target used by
 # https://github.com/stellar/pipelines/blob/master/stellar-rpc/Jenkinsfile-stellar-rpc-package-builder
