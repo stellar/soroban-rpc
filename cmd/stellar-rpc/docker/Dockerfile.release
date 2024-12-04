@@ -18,6 +18,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     apt-get clean
 
 # TODO: for backwards compatibility, remove when fully deprecating the soroban-rpc name
-RUN ln -s /usr/bin/stellar-soroban-rpc /usr/bin/stellar-rpc
+RUN ln -s /usr/bin/stellar-rpc /usr/bin/stellar-soroban-rpc
 
 ENTRYPOINT ["/usr/bin/stellar-rpc"]
