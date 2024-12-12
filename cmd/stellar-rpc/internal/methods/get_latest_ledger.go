@@ -25,7 +25,9 @@ type latestLedgerHandler struct {
 	ledgerReader      db.LedgerReader
 }
 
-func (h latestLedgerHandler) getLatestLedger(ctx context.Context, request GetLatestLedgerRequest) (GetLatestLedgerResponse, error) {
+func (h latestLedgerHandler) getLatestLedger(ctx context.Context,
+	request GetLatestLedgerRequest,
+) (GetLatestLedgerResponse, error) {
 	latestSequence, err := h.ledgerEntryReader.GetLatestLedgerSequence(ctx)
 	if err != nil {
 		return GetLatestLedgerResponse{}, &jrpc2.Error{
