@@ -20,6 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/mod/semver"
 
 	"github.com/stellar/go/clients/stellarcore"
 	"github.com/stellar/go/keypair"
@@ -340,12 +341,19 @@ func (i *Test) waitForRPC() {
 	)
 }
 
+const versionAfterStellarRPCRename = "22.1.1"
+
 func (i *Test) generateCaptiveCoreCfgForContainer() {
 	getOldVersionCaptiveCoreConfigVersion := func(dir string, filename string) ([]byte, error) {
-		// TODO: to be removed once we go over the stellar-rpc renaming
+		prefix := "stellar-rpc"
+		if semver.Compare("v"+i.rpcContainerVersion, "v"+versionAfterStellarRPCRename) < 0 {
+			prefix = "soroban-rpc"
+		}
 		arg := fmt.Sprintf(
-			"v%s:./soroban-rpc/internal/integrationtest/infrastructure/%s/%s",
-			i.rpcContainerVersion, dir,
+			"v%s:./%s/internal/integrationtest/infrastructure/%s/%s",
+			i.rpcContainerVersion,
+			prefix,
+			dir,
 			filename)
 		cmd := exec.Command("git", "show", arg)
 		cmd.Dir = GetCurrentDirectory() + "/../../../../"

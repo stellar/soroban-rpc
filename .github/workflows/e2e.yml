@@ -54,8 +54,7 @@ jobs:
 
       # system test will build quickstart image internally to use for running the service stack
       # configured in standalone network mode(core, rpc)
-      SYSTEM_TEST_QUICKSTART_GIT_REF: https://github.com/stellar/quickstart.git#1a831b2350dd3928b60eb745d0862ee19dd2aaaa
-      # triggers system test to log out details from quickstart's logs and test steps
+      SYSTEM_TEST_QUICKSTART_GIT_REF: https://github.com/stellar/quickstart.git#e1f62bf34cf047156dbb599b3c7dff52283ac696      # triggers system test to log out details from quickstart's logs and test steps
       SYSTEM_TEST_VERBOSE_OUTPUT: "true"
 
       # the soroban test cases will compile various contracts from the examples repo
