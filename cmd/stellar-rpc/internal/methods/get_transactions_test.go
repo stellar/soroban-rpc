@@ -71,7 +71,7 @@ func setupDB(t *testing.T, numLedgers int, skipLedger int) *db.DB {
 	return testDB
 }
 
-func TestGetTransactions_DefaultLimit(t *testing.T) {
+func TestGetTransactions_DefaultLimit(t *testing.T) { //nolint:dupl
 	testDB := setupDB(t, 10, 0)
 	handler := transactionsRPCHandler{
 		ledgerReader:      db.NewLedgerReader(testDB),
@@ -101,7 +101,7 @@ func TestGetTransactions_DefaultLimit(t *testing.T) {
 	assert.Equal(t, expectedTransactionInfo, response.Transactions[0])
 }
 
-func TestGetTransactions_DefaultLimitExceedsLatestLedger(t *testing.T) {
+func TestGetTransactions_DefaultLimitExceedsLatestLedger(t *testing.T) { //nolint:dupl
 	testDB := setupDB(t, 3, 0)
 	handler := transactionsRPCHandler{
 		ledgerReader:      db.NewLedgerReader(testDB),
