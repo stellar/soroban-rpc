@@ -78,22 +78,9 @@ func (l ledgerReaderTx) BatchGetLedgers(ctx context.Context, sequence uint32,
 	return results, nil
 }
 
-// GetLedger fetches a single ledger from the db.
+// GetLedger fetches a single ledger from the db using a transaction.
 func (l ledgerReaderTx) GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
-	sql := sq.Select("meta").From(ledgerCloseMetaTableName).Where(sq.Eq{"sequence": sequence})
-	var results []xdr.LedgerCloseMeta
-	if err := l.tx.Select(ctx, &results, sql); err != nil {
-		return xdr.LedgerCloseMeta{}, false, err
-	}
-	switch len(results) {
-	case 0:
-		return xdr.LedgerCloseMeta{}, false, nil
-	case 1:
-		return results[0], true, nil
-	default:
-		return xdr.LedgerCloseMeta{}, false, fmt.Errorf("multiple lcm entries (%d) for sequence %d in table %q",
-			len(results), sequence, ledgerCloseMetaTableName)
-	}
+	return getLedgerFromDB(ctx, l.tx, sequence)
 }
 
 func (l ledgerReaderTx) Done() error {
@@ -170,20 +157,7 @@ func (r ledgerReader) StreamLedgerRange(
 
 // GetLedger fetches a single ledger from the db.
 func (r ledgerReader) GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
-	sql := sq.Select("meta").From(ledgerCloseMetaTableName).Where(sq.Eq{"sequence": sequence})
-	var results []xdr.LedgerCloseMeta
-	if err := r.db.Select(ctx, &results, sql); err != nil {
-		return xdr.LedgerCloseMeta{}, false, err
-	}
-	switch len(results) {
-	case 0:
-		return xdr.LedgerCloseMeta{}, false, nil
-	case 1:
-		return results[0], true, nil
-	default:
-		return xdr.LedgerCloseMeta{}, false, fmt.Errorf("multiple lcm entries (%d) for sequence %d in table %q",
-			len(results), sequence, ledgerCloseMetaTableName)
-	}
+	return getLedgerFromDB(ctx, r.db, sequence)
 }
 
 // GetLedgerRange pulls the min/max ledger sequence numbers from the meta table.
@@ -277,6 +251,25 @@ func (l ledgerWriter) trimLedgers(latestLedgerSeq uint32, retentionWindow uint32
 		Where(sq.Lt{"sequence": cutoff}).
 		Exec()
 	return err
+}
+
+// getLedgerFromDB is a helper function that encapsulates the common logic
+// for fetching a single ledger from the database
+func getLedgerFromDB(ctx context.Context, db readDB, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
+	sql := sq.Select("meta").From(ledgerCloseMetaTableName).Where(sq.Eq{"sequence": sequence})
+	var results []xdr.LedgerCloseMeta
+	if err := db.Select(ctx, &results, sql); err != nil {
+		return xdr.LedgerCloseMeta{}, false, err
+	}
+	switch len(results) {
+	case 0:
+		return xdr.LedgerCloseMeta{}, false, nil
+	case 1:
+		return results[0], true, nil
+	default:
+		return xdr.LedgerCloseMeta{}, false, fmt.Errorf("multiple lcm entries (%d) for sequence %d in table %q",
+			len(results), sequence, ledgerCloseMetaTableName)
+	}
 }
 
 // InsertLedger inserts a ledger in the db.

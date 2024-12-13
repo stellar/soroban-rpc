@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	"github.com/creachadair/jrpc2"
-	"github.com/stellar/go/support/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/toid"
 	"github.com/stellar/go/xdr"
 
