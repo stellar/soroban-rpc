@@ -116,18 +116,10 @@ func TestGetTransactions_DefaultLimitExceedsLatestLedger(t *testing.T) {
 
 	response, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
 	require.NoError(t, err)
-
-	// assert latest ledger details
 	assert.Equal(t, uint32(3), response.LatestLedger)
 	assert.Equal(t, int64(175), response.LatestLedgerCloseTime)
-
-	// assert pagination
 	assert.Equal(t, toid.New(3, 2, 1).String(), response.Cursor)
-
-	// assert transactions result
 	assert.Len(t, response.Transactions, 6)
-
-	// assert the transaction structure. We will match only 1 tx for sanity purposes.
 	assert.Equal(t, expectedTransactionInfo, response.Transactions[0])
 }
 
@@ -149,20 +141,12 @@ func TestGetTransactions_CustomLimit(t *testing.T) {
 
 	response, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
 	require.NoError(t, err)
-
-	// assert latest ledger details
 	assert.Equal(t, uint32(10), response.LatestLedger)
 	assert.Equal(t, int64(350), response.LatestLedgerCloseTime)
-
-	// assert pagination
 	assert.Equal(t, toid.New(1, 2, 1).String(), response.Cursor)
-
-	// assert transactions result
 	assert.Len(t, response.Transactions, 2)
 	assert.Equal(t, uint32(1), response.Transactions[0].Ledger)
 	assert.Equal(t, uint32(1), response.Transactions[1].Ledger)
-
-	// assert the transaction structure. We will match only 1 tx for sanity purposes.
 	assert.Equal(t, expectedTransactionInfo, response.Transactions[0])
 }
 
@@ -184,15 +168,9 @@ func TestGetTransactions_CustomLimitAndCursor(t *testing.T) {
 
 	response, err := handler.getTransactionsByLedgerSequence(context.TODO(), request)
 	require.NoError(t, err)
-
-	// assert latest ledger details
 	assert.Equal(t, uint32(10), response.LatestLedger)
 	assert.Equal(t, int64(350), response.LatestLedgerCloseTime)
-
-	// assert pagination
 	assert.Equal(t, toid.New(3, 1, 1).String(), response.Cursor)
-
-	// assert transactions result
 	assert.Len(t, response.Transactions, 3)
 	assert.Equal(t, uint32(2), response.Transactions[0].Ledger)
 	assert.Equal(t, uint32(2), response.Transactions[1].Ledger)
