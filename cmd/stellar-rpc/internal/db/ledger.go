@@ -28,6 +28,7 @@ type LedgerReader interface {
 }
 
 type LedgerReaderTx interface {
+	GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error)
 	GetLedgerRange(ctx context.Context) (ledgerbucketwindow.LedgerRange, error)
 	BatchGetLedgers(ctx context.Context, sequence uint32, batchSize uint) ([]xdr.LedgerCloseMeta, error)
 	Done() error
@@ -75,6 +76,24 @@ func (l ledgerReaderTx) BatchGetLedgers(ctx context.Context, sequence uint32,
 	}
 
 	return results, nil
+}
+
+// GetLedger fetches a single ledger from the db.
+func (l ledgerReaderTx) GetLedger(ctx context.Context, sequence uint32) (xdr.LedgerCloseMeta, bool, error) {
+	sql := sq.Select("meta").From(ledgerCloseMetaTableName).Where(sq.Eq{"sequence": sequence})
+	var results []xdr.LedgerCloseMeta
+	if err := l.tx.Select(ctx, &results, sql); err != nil {
+		return xdr.LedgerCloseMeta{}, false, err
+	}
+	switch len(results) {
+	case 0:
+		return xdr.LedgerCloseMeta{}, false, nil
+	case 1:
+		return results[0], true, nil
+	default:
+		return xdr.LedgerCloseMeta{}, false, fmt.Errorf("multiple lcm entries (%d) for sequence %d in table %q",
+			len(results), sequence, ledgerCloseMetaTableName)
+	}
 }
 
 func (l ledgerReaderTx) Done() error {

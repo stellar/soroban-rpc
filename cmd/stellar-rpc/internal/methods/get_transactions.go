@@ -136,8 +136,10 @@ func (h transactionsRPCHandler) initializePagination(request GetTransactionsRequ
 }
 
 // fetchLedgerData calls the meta table to fetch the corresponding ledger data.
-func (h transactionsRPCHandler) fetchLedgerData(ctx context.Context, ledgerSeq uint32) (xdr.LedgerCloseMeta, error) {
-	ledger, found, err := h.ledgerReader.GetLedger(ctx, ledgerSeq)
+func (h transactionsRPCHandler) fetchLedgerData(ctx context.Context, ledgerSeq uint32,
+	readTx db.LedgerReaderTx,
+) (xdr.LedgerCloseMeta, error) {
+	ledger, found, err := readTx.GetLedger(ctx, ledgerSeq)
 	if err != nil {
 		return ledger, &jrpc2.Error{
 			Code:    jrpc2.InternalError,
@@ -262,7 +264,18 @@ func (h transactionsRPCHandler) processTransactionsInLedger(
 func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Context,
 	request GetTransactionsRequest,
 ) (GetTransactionsResponse, error) {
-	ledgerRange, err := h.ledgerReader.GetLedgerRange(ctx)
+	readTx, err := h.ledgerReader.NewTx(ctx)
+	if err != nil {
+		return GetTransactionsResponse{}, &jrpc2.Error{
+			Code:    jrpc2.InternalError,
+			Message: err.Error(),
+		}
+	}
+	defer func() {
+		_ = readTx.Done()
+	}()
+
+	ledgerRange, err := readTx.GetLedgerRange(ctx)
 	if err != nil {
 		return GetTransactionsResponse{}, &jrpc2.Error{
 			Code:    jrpc2.InternalError,
@@ -289,7 +302,7 @@ func (h transactionsRPCHandler) getTransactionsByLedgerSequence(ctx context.Cont
 	var done bool
 	cursor := toid.New(0, 0, 0)
 	for ledgerSeq := start.LedgerSequence; ledgerSeq <= int32(ledgerRange.LastLedger.Sequence); ledgerSeq++ {
-		ledger, err := h.fetchLedgerData(ctx, uint32(ledgerSeq))
+		ledger, err := h.fetchLedgerData(ctx, uint32(ledgerSeq), readTx)
 		if err != nil {
 			return GetTransactionsResponse{}, err
 		}
