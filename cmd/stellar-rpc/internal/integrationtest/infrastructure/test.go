@@ -362,13 +362,6 @@ func (i *Test) generateCaptiveCoreCfgForContainer() {
 
 	// Get old version of captive-core-integration-tests.cfg.tmpl
 	out, err := getOldVersionCaptiveCoreConfigVersion("docker", captiveCoreConfigTemplateFilename)
-	if err != nil {
-		// Try the directory before the integration test refactoring
-		// TODO: remove this hack after protocol 22 is released
-		out, err = getOldVersionCaptiveCoreConfigVersion("../../test", captiveCoreConfigFilename)
-		outStr := strings.Replace(string(out), `ADDRESS="localhost"`, `ADDRESS="${CORE_HOST_PORT}"`, -1)
-		out = []byte(outStr)
-	}
 	require.NoError(i.t, err)
 	i.generateCaptiveCoreCfg(out, inContainerCaptiveCorePort, inContainerCoreHostname)
 }
