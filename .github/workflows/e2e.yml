@@ -60,6 +60,8 @@ jobs:
       # the soroban test cases will compile various contracts from the examples repo
       SYSTEM_TEST_SOROBAN_EXAMPLES_GIT_HASH: "v21.6.0"
       SYSTEM_TEST_SOROBAN_EXAMPLES_GIT_REPO: "https://github.com/stellar/soroban-examples.git"
+
+      PROTOCOL_VERSION_DEFAULT: 21
     steps:
       - uses: actions/checkout@v4
         name: checkout system-test
@@ -98,6 +100,7 @@ jobs:
             JS_STELLAR_SDK_REF="file:/home/tester/js-stellar-sdk"; \
           fi
           make \
+            PROTOCOL_VERSION_DEFAULT=$PROTOCOL_VERSION_DEFAULT \
             CORE_GIT_REF=$SYSTEM_TEST_CORE_GIT_REF \
             CORE_COMPILE_CONFIGURE_FLAGS="$SYSTEM_TEST_CORE_COMPILE_CONFIGURE_FLAGS" \
             CORE_IMAGE=$SYSTEM_TEST_CORE_IMAGE \
@@ -111,7 +114,8 @@ jobs:
             build
       - name: Run system test scenarios
         run: |
-          docker run --rm -t --name e2e_test stellar/system-test:dev \
+          docker run -e PROTOCOL_VERSION_DEFAULT=$PROTOCOL_VERSION_DEFAULT \
+          --rm -t --name e2e_test stellar/system-test:dev \
           --VerboseOutput $SYSTEM_TEST_VERBOSE_OUTPUT  \
           --TestFilter "${{ matrix.scenario-filter }}" \
           --SorobanExamplesGitHash $SYSTEM_TEST_SOROBAN_EXAMPLES_GIT_HASH \
