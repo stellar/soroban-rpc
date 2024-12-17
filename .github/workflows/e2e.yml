@@ -114,7 +114,7 @@ jobs:
             build
       - name: Run system test scenarios
         run: |
-          docker run -e PROTOCOL_VERSION_DEFAULT=$PROTOCOL_VERSION_DEFAULT \
+          docker run \
           --rm -t --name e2e_test stellar/system-test:dev \
           --VerboseOutput $SYSTEM_TEST_VERBOSE_OUTPUT  \
           --TestFilter "${{ matrix.scenario-filter }}" \
