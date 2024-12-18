@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
@@ -124,8 +123,14 @@ func (g *GetEventsRequest) Valid(maxLimit uint) error {
 		if g.StartLedger != 0 || g.EndLedger != 0 {
 			return errors.New("ledger ranges and cursor cannot both be set")
 		}
-	} else if g.StartLedger <= 0 {
+	}
+
+	if g.StartLedger <= 0 {
 		return errors.New("startLedger must be positive")
+	}
+
+	if g.EndLedger < g.StartLedger {
+		return errors.New("startLedger must be >= endLedger")
 	}
 
 	if g.Pagination != nil && g.Pagination.Limit > maxLimit {
@@ -524,7 +529,9 @@ func (h eventsRPCHandler) getEvents(ctx context.Context, request GetEventsReques
 		// cursor represents end of the search window if events does not reach limit
 		// here endLedger is always exclusive when fetching events
 		// so search window is max Cursor value with endLedger - 1
-		cursor = db.Cursor{Ledger: endLedger - 1, Tx: math.MaxUint32, Event: math.MaxUint32 - 1}.String()
+		maxCursor := db.MaxCursor
+		maxCursor.Event = endLedger - 1
+		cursor = maxCursor.String()
 	}
 
 	return GetEventsResponse{
