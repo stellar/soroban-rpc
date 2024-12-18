@@ -156,8 +156,8 @@ func getLatestLedgerSequence(ctx context.Context, ledgerReader LedgerReader, cac
 	// Add missing ledger sequence and close time to the top cache.
 	// Otherwise, the write-through cache won't get updated until the first ingestion commit
 	cache.Lock()
-	if cache.latestLedgerSeq == 0 {
-		// Only update the cache if the value is missing (0), otherwise
+	if cache.latestLedgerSeq == 0 || cache.latestLedgerSeq < ledgerRange.LastLedger.Sequence {
+		// Only update the cache if the value is missing or lower, otherwise
 		// we may end up overwriting the entry with an older version
 		cache.latestLedgerSeq = ledgerRange.LastLedger.Sequence
 		cache.latestLedgerCloseTime = ledgerRange.LastLedger.CloseTime
